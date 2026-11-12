@@ -34,11 +34,11 @@ test('キーボードだけで一日の流れを通す', async () => {
   await expect(scr.locator('tbody tr').nth(2)).toBeVisible()
   await keys(page, 'Tab', 'ArrowRight') // 条件へ移り、利回りの閾値を上げる
   await expect(scr).toContainText('変更あり')
-  await keys(page, 'Escape', 'ArrowDown')
+  await keys(page, 'Escape', 'ArrowDown', 'Shift+ArrowDown') // 2 行を選ぶ（§6.5.3 複数選択）
   await keys(page, 'Control+Shift+a')
   await expect(page.getByRole('dialog', { name: '' }).or(page.locator('.dialog'))).toContainText('追加先のリストを選ぶ')
   await keys(page, 'ArrowDown', 'ArrowDown', 'Enter') // 「監視」
-  await expect(page.locator('.toasts')).toContainText('監視')
+  await expect(page.locator('.toasts')).toContainText('「監視」に追加しました: 2')
   await keys(page, 'Control+Shift+s')
   await page.keyboard.type('高配当4%')
   await keys(page, 'Enter')
@@ -53,6 +53,11 @@ test('キーボードだけで一日の流れを通す', async () => {
   await expect(grid.locator('.tile.cand')).toHaveCount(2)
   await keys(page, 'Shift+Space')
   await expect(grid.locator('.tile')).toHaveCount(2)
+  // 印の銘柄をまとめてリストへ（FR-G5）
+  await keys(page, 'Control+Shift+a')
+  await expect(page.locator('.dialog')).toContainText('追加先のリストを選ぶ')
+  await keys(page, 'ArrowDown', 'Enter') // 「インカム」
+  await expect(page.locator('.toasts')).toContainText(': 2')
   await keys(page, 'Shift+Space', 'Control+b')
   await expect(page.locator('.dock.open')).toBeVisible()
   await shot('3-grid')

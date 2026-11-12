@@ -36,6 +36,10 @@ const dirty = $derived(isDirty(pane))
 const scr = $derived(screenOf(pane))
 let result = $state<ScreenResult | null>(null)
 let sel = $state(0)
+/** 複数選択の起点（-1 は 1 行だけ）。Shift+↑↓ で広げ、Ctrl+A で全部（§6.5, FR-W4） */
+let anchor = $state(-1)
+const lo = $derived(anchor < 0 ? sel : Math.min(anchor, sel))
+const hi = $derived(anchor < 0 ? sel : Math.max(anchor, sel))
 let ci = $state(-1) // 条件の行（-1 は結果の表）
 let col = $state(5)
 let sort = $state<{ k: keyof MetricsRow; dir: 1 | -1 }>({ k: 'yieldTrailing', dir: -1 })
@@ -110,6 +114,13 @@ function step(i: number, d: number) {
   const f = c && FIELD_BY_ID.get(c.field)
   if (!c || !f) return
   if (f.type === 'bool') return update(i, { ...c, value: !c.value })
+  if (f.source.kind === 'attr' && f.source.key !== 'market') {
+    // 業種・種別: 1 つずつ切り替える（複数は Enter で足す）
+    const ch = f.choices ?? []
+    const cur = (Array.isArray(c.value) ? c.value[0] : String(c.value)) ?? ''
+    const k = ch.findIndex((x) => x.value === cur)
+    return update(i, { ...c, value: [ch[(k + d + ch.length) % ch.length]!.value] })
+  }
   if (f.source.kind === 'attr') {
     const opts = [['P', 'R'], ['P'], ['R'], ['P', 'S', 'G'], ['P', 'S', 'G', 'R', 'E']]
     const k = opts.findIndex((o) => JSON.stringify(o) === JSON.stringify(c.value))
@@ -127,6 +138,19 @@ function step(i: number, d: number) {
 async function typeValue(i: number) {
   const c = conds[i]
   const f = c && FIELD_BY_ID.get(c.field)
+  if (c && f?.type === 'enum' && f.choices) {
+    // 選択肢から 1 つ選んで、条件の値に足す・外す
+    const vals = new Set(Array.isArray(c.value) ? c.value : [String(c.value)])
+    const id = await choiceDialog(
+      f.label[app.settings.lang],
+      f.choices.map((x) => ({ id: x.value, label: (vals.has(x.value) ? '✓ ' : '') + x.label[app.settings.lang] })),
+    )
+    if (!id) return
+    if (vals.has(id)) vals.delete(id)
+    else vals.add(id)
+    if (vals.size) update(i, { ...c, value: [...vals] })
+    return
+  }
   if (!c || !f || (f.type !== 'number' && f.type !== 'percent' && f.type !== 'ratio' && f.type !== 'money')) return step(i, 1)
   const unit = f.type === 'money' ? 1e8 : 1
   const s = await promptDialog(
@@ -165,7 +189,9 @@ function showValue(c: Condition): string {
   if (!f) return String(c.value)
   if (f.type === 'bool') return c.value ? t('common.yes') : t('common.no')
   if (f.source.kind === 'attr')
-    return (c.value as string[]).map((v) => MARKET_CHOICES.find((m) => m.value === v)?.label[app.settings.lang] ?? v).join(', ')
+    return (c.value as string[])
+      .map((v) => (f.choices ?? MARKET_CHOICES).find((m) => m.value === v)?.label[app.settings.lang] ?? v)
+      .join(', ')
   if (f.source.kind === 'user')
     return (c.value as string[])
       .map((id) => {
@@ -188,7 +214,7 @@ onMount(() => {
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
     current: () => rows[sel] ?? linkSymbol(pane.link),
-    selected: () => (rows[sel] ? [rows[sel]!] : []),
+    selected: () => rows.slice(lo, hi + 1),
     key(e) {
       const k = e.key
       const ctrl = e.ctrlKey || e.metaKey
@@ -243,13 +269,26 @@ onMount(() => {
       const n = rows.length
       const page = Math.max(1, Math.floor(viewH / ROW) - 1)
       const mv = ({ ArrowDown: 1, ArrowUp: -1, PageDown: page, PageUp: -page } as Record<string, number>)[k]
-      if (mv && !ctrl && !e.altKey && !e.shiftKey) {
+      if (mv && !ctrl && !e.altKey) {
+        if (e.shiftKey) {
+          if (anchor < 0) anchor = sel
+        } else anchor = -1
         sel = Math.max(0, Math.min(n - 1, sel + mv))
         send()
         scrollSel()
         return true
       }
+      if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA') {
+        anchor = 0
+        sel = Math.max(0, n - 1)
+        return true
+      }
+      if (k === 'Escape' && anchor >= 0) {
+        anchor = -1
+        return true
+      }
       if ((k === 'Home' || k === 'End') && !ctrl) {
+        anchor = -1
         sel = k === 'Home' ? 0 : Math.max(0, n - 1)
         send()
         scrollSel()
@@ -322,7 +361,7 @@ onMount(() => {
         {@const m = app.metrics.get(id)}
         {@const ins = inst(id)}
         {@const tv = money(m?.turnover20)}
-        <tr class:sel={i === sel} class:stale={m?.stale} onclick={() => { sel = i; ci = -1; send() }}>
+        <tr class:sel={i === sel} class:multi={anchor >= 0 && i >= lo && i <= hi} class:stale={m?.stale} onclick={(e) => { if (e.shiftKey) { if (anchor < 0) anchor = sel } else anchor = -1; sel = i; ci = -1; send() }}>
           <td class="l"><button type="button" class="star" class:on={isFav(id)} onclick={(e) => { e.stopPropagation(); toggleFav(id) }}>★</button></td>
           <td class="l code">{codeOf(id)}</td>
           <td class="l name">{nameOf(id)}</td>

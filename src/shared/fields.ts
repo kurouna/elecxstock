@@ -61,6 +61,53 @@ export const MARKET_CHOICES = [
   { value: 'X', label: L('その他', 'Other') },
 ]
 
+/** 東証の 33 業種（JPX の一覧の表記。J-REIT・ETF は業種なし） */
+export const SECTOR_CHOICES = (
+  [
+    ['水産・農林業', 'Fishery, Agriculture & Forestry'],
+    ['鉱業', 'Mining'],
+    ['建設業', 'Construction'],
+    ['食料品', 'Foods'],
+    ['繊維製品', 'Textiles & Apparels'],
+    ['パルプ・紙', 'Pulp & Paper'],
+    ['化学', 'Chemicals'],
+    ['医薬品', 'Pharmaceutical'],
+    ['石油・石炭製品', 'Oil & Coal Products'],
+    ['ゴム製品', 'Rubber Products'],
+    ['ガラス・土石製品', 'Glass & Ceramics Products'],
+    ['鉄鋼', 'Iron & Steel'],
+    ['非鉄金属', 'Nonferrous Metals'],
+    ['金属製品', 'Metal Products'],
+    ['機械', 'Machinery'],
+    ['電気機器', 'Electric Appliances'],
+    ['輸送用機器', 'Transportation Equipment'],
+    ['精密機器', 'Precision Instruments'],
+    ['その他製品', 'Other Products'],
+    ['電気・ガス業', 'Electric Power & Gas'],
+    ['陸運業', 'Land Transportation'],
+    ['海運業', 'Marine Transportation'],
+    ['空運業', 'Air Transportation'],
+    ['倉庫・運輸関連業', 'Warehousing & Harbor Transportation'],
+    ['情報・通信業', 'Information & Communication'],
+    ['卸売業', 'Wholesale Trade'],
+    ['小売業', 'Retail Trade'],
+    ['銀行業', 'Banks'],
+    ['証券、商品先物取引業', 'Securities & Commodity Futures'],
+    ['保険業', 'Insurance'],
+    ['その他金融業', 'Other Financing Business'],
+    ['不動産業', 'Real Estate'],
+    ['サービス業', 'Services'],
+  ] as const
+).map(([ja, en]) => ({ value: ja as string, label: L(ja, en) }))
+
+export const KIND_CHOICES = [
+  { value: 'stock', label: L('株式', 'Stock') },
+  { value: 'reit', label: L('J-REIT', 'J-REIT') },
+  { value: 'etf', label: L('ETF・ETN', 'ETF/ETN') },
+  { value: 'pref', label: L('優先株・社債型', 'Preferred') },
+  { value: 'other', label: L('その他', 'Other') },
+]
+
 export const FIELDS: FieldDef[] = [
   num('price.close', '終値', 'Last', 'price', 'money', 'close', { step: 100, default: 1000 }),
   num('price.chgPct', '前日比', 'Change', 'price', 'percent', 'chgPct'),
@@ -114,6 +161,31 @@ export const FIELDS: FieldDef[] = [
     operators: ['in', 'notin'],
     choices: MARKET_CHOICES,
     default: ['P', 'R'],
+    availableFrom: 'P1',
+  },
+  {
+    id: 'attr.sector',
+    version: 1,
+    label: L('業種（33業種）', 'Sector (TSE 33)'),
+    description: L('Enter で業種を足す・外す、←→ で 1 業種ずつ切り替え', 'Enter adds or removes a sector; ←→ cycles one'),
+    category: 'attr',
+    type: 'enum',
+    source: { kind: 'attr', key: 'sectorJa' },
+    operators: ['in', 'notin'],
+    choices: SECTOR_CHOICES,
+    default: ['銀行業'],
+    availableFrom: 'P1',
+  },
+  {
+    id: 'attr.kind',
+    version: 1,
+    label: L('種別', 'Type'),
+    category: 'attr',
+    type: 'enum',
+    source: { kind: 'attr', key: 'kind' },
+    operators: ['in', 'notin'],
+    choices: KIND_CHOICES,
+    default: ['stock'],
     availableFrom: 'P1',
   },
   {

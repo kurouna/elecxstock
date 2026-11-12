@@ -22,6 +22,7 @@ import {
   t,
   toast,
   toggleCand,
+  toggleFav,
 } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -58,6 +59,7 @@ const dir = $derived(((S.dir as number) ?? -1) as 1 | -1)
 const size = $derived((S.size as number) ?? 3)
 const page = $derived((S.page as number) ?? 0)
 const candOnly = $derived(!!S.candOnly)
+const favOnly = $derived(!!S.favOnly)
 let sel = $state(0)
 let zoom = $state<InstrumentId | null>(null)
 let hoverDate = $state<string | null>(null)
@@ -108,6 +110,7 @@ $effect(() => {
 const codes = $derived.by(() => {
   let ids = srcIds
   if (candOnly) ids = ids.filter((id) => isCand(id))
+  if (favOnly) ids = ids.filter((id) => isFav(id))
   if (sortKey === 'none') return ids
   const key = (id: InstrumentId) => (sortKey === 'ret' ? rets[id] : (metric(id)?.[sortKey as keyof MetricsRow] as number | null)) ?? -1e18
   return [...ids].sort((a, b) => (key(a) - key(b)) * dir)
@@ -216,7 +219,11 @@ onMount(() => {
   if (tiles) ro.observe(tiles)
   const off = registerPane(pane.id, {
     current: () => shown[sel],
-    selected: () => (shown[sel] ? [shown[sel]!] : []),
+    // Ctrl+Shift+A（リストに追加）はグリッドでは候補をまとめて送る（FR-G5）。候補が無ければ選択中のタイル
+    selected: () => {
+      const c = [...(candidates()?.items ?? [])]
+      return c.length ? c : shown[sel] ? [shown[sel]!] : []
+    },
     receive: (id) => {
       addOwn(id)
       return true
@@ -297,6 +304,23 @@ onMount(() => {
         set({ size: Math.max(0, size - 1), page: 0 })
         return true
       }
+      if (c === 'KeyG') {
+        // 対象を切り替える（Shift+G で逆順）。マウスの選択欄と同じ
+        const opts = SRC_OPTIONS
+        const i = opts.indexOf(src)
+        set({ src: opts[(i + (e.shiftKey ? -1 : 1) + opts.length) % opts.length], page: 0 })
+        sel = 0
+        return true
+      }
+      if (c === 'KeyF' && e.shiftKey) {
+        set({ favOnly: !favOnly, page: 0 })
+        sel = 0
+        return true
+      }
+      if (c === 'KeyF') {
+        if (shown[sel]) toggleFav(shown[sel]!)
+        return true
+      }
       if (c === 'Space' && e.shiftKey) {
         set({ candOnly: !candOnly, page: 0 })
         sel = 0
@@ -335,7 +359,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
 </PaneHeader>
 <div class="bar">
   <span class="lbl">{t('grid.src')}</span>
-  <select class="srcsel" value={src} onchange={(e) => set({ src: (e.currentTarget as HTMLSelectElement).value, page: 0 })}>
+  <select class="srcsel" title="G / Shift+G" value={src} onchange={(e) => set({ src: (e.currentTarget as HTMLSelectElement).value, page: 0 })}>
     {#each SRC_OPTIONS as s (s)}<option value={s}>{srcLabel(s)}</option>{/each}
   </select>
   <span class="sep"></span>
@@ -355,6 +379,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   <span class="lbl">{t('grid.sort')}</span>
   <button type="button" class="chip" title="S" onclick={cycleSort}>{sortLabel}</button>
   <span class="grow"></span>
+  <button type="button" class="toggle" class:on={favOnly} title="Shift+F" onclick={() => set({ favOnly: !favOnly, page: 0 })}><span class="box"></span>★</button>
   <button type="button" class="toggle" class:on={candOnly} title="Shift+Space" onclick={() => set({ candOnly: !candOnly, page: 0 })}><span class="box"></span>{t('grid.candOnly')} <span class="num">{candidates()?.items.length ?? 0}</span></button>
   <button type="button" class="chip" title="Ctrl+Shift+A" onclick={candToList}>{t('grid.toList')}</button>
   <button type="button" class="chip" title="P" onclick={pinCurrent}>⇩ {t('grid.pin')}</button>
@@ -392,7 +417,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
         <span class="c">{codeOf(id)}</span><span class="n">{nameOf(id)}</span><span class="p num">{px(m?.close)}</span><span class={`r num ${cls(r)}`}>{sgn(r, 1, '%')}</span>
       </div>
       <div class="s">
-        <span class="star" class:on={isFav(id)}>★</span>
+        <button type="button" class="star" class:on={isFav(id)} title="F" onclick={(e) => { e.stopPropagation(); sel = i; toggleFav(id) }}>★</button>
         <button type="button" class="dia" class:on={isCand(id)} title="Space" onclick={(e) => { e.stopPropagation(); sel = i; toggleCand(id) }}>◆</button>
         <span class="y num">{m?.yieldTrailing != null ? `${fmt(m.yieldTrailing)}%` : ''}</span>
       </div>

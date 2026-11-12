@@ -235,6 +235,13 @@ ipcMain.handle('app:saveText', async (e, name: unknown, text: unknown) => {
   writeFileSync(r.filePath, text)
   return true
 })
+// 同梱 OSS のライセンス一覧（設定 > このアプリについて。§10）
+ipcMain.handle('app:notices', (e) => {
+  if (!fromApp(e)) return ''
+  const cands = [join(dirname(process.execPath), 'THIRD_PARTY_NOTICES.txt'), join(app.getAppPath(), 'out', 'THIRD_PARTY_NOTICES.txt')]
+  for (const p of cands) if (existsSync(p)) return readFileSync(p, 'utf8')
+  return ''
+})
 ipcMain.handle('app:openFile', async (e, kind: unknown) => {
   if (!fromApp(e) || !win) return null
   const filters = kind === 'xlsx' ? [{ name: 'Excel', extensions: ['xlsx'] }] : [{ name: 'JSON', extensions: ['json'] }]

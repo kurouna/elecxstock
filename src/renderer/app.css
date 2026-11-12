@@ -350,6 +350,9 @@ table.grid {
 .grid tr.sel td:first-child {
   box-shadow: inset 2px 0 0 var(--focus);
 }
+.grid tr.multi td {
+  background: var(--select);
+}
 .grid tr:hover td {
   background: var(--hover);
 }

@@ -44,6 +44,11 @@ const list = $derived(app.watchlists.find((w) => w.id === listId) ?? app.watchli
 const starOnly = $derived(!!pane.state.starOnly)
 const sort = $derived(pane.state.sort as { k: ColKey; dir: 1 | -1 } | undefined)
 let sel = $state(0)
+/** 複数選択の起点（-1 は 1 行だけ）。Shift+↑↓ で広げ、Ctrl+A で全部（§6.5） */
+let anchor = $state(-1)
+const lo = $derived(anchor < 0 ? sel : Math.min(anchor, sel))
+const hi = $derived(anchor < 0 ? sel : Math.max(anchor, sel))
+const picked = () => rows.slice(lo, hi + 1)
 let col = $state(3)
 let scroller = $state<HTMLDivElement>()
 let width = $state(600)
@@ -105,12 +110,14 @@ async function deleteList() {
   setList('favorites')
 }
 function removeSel() {
-  const id = rows[sel]
-  if (!id || !list) return
-  if (list.builtin === 'favorites') return toggleFav(id)
-  list.items = list.items.filter((x) => x !== id)
+  const ids = picked()
+  if (!ids.length || !list) return
+  if (list.builtin === 'favorites' && ids.length === 1) return toggleFav(ids[0]!)
+  const drop = new Set(ids)
+  list.items = list.items.filter((x) => !drop.has(x))
   saveWatchlists()
-  toast(t('list.removed', { name: nameOf(id) }))
+  anchor = -1
+  toast(ids.length === 1 ? t('list.removed', { name: nameOf(ids[0]!) }) : t('list.removedN', { n: ids.length }))
 }
 function moveRow(d: number) {
   if (!list || sort || starOnly) return
@@ -135,20 +142,33 @@ onMount(() => {
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
     current: () => rows[sel] ?? linkSymbol(pane.link),
-    selected: () => (rows[sel] ? [rows[sel]!] : []),
+    selected: () => picked(),
     key(e) {
       const k = e.key
       const ctrl = e.ctrlKey || e.metaKey
       const n = rows.length
       const page = Math.max(1, Math.floor((scroller?.clientHeight ?? 400) / 24) - 1)
       const mv = ({ ArrowDown: 1, ArrowUp: -1, PageDown: page, PageUp: -page } as Record<string, number>)[k]
-      if (mv && !ctrl && !e.altKey && !e.shiftKey) {
+      if (mv && !ctrl && !e.altKey) {
+        if (e.shiftKey) {
+          if (anchor < 0) anchor = sel
+        } else anchor = -1
         sel = Math.max(0, Math.min(n - 1, sel + mv))
         send()
         scrollSel()
         return true
       }
+      if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA') {
+        anchor = 0
+        sel = Math.max(0, n - 1)
+        return true
+      }
+      if (k === 'Escape' && anchor >= 0) {
+        anchor = -1
+        return true
+      }
       if ((k === 'Home' || k === 'End') && !ctrl) {
+        anchor = -1
         sel = k === 'Home' ? 0 : Math.max(0, n - 1)
         send()
         scrollSel()
@@ -218,6 +238,7 @@ onMount(() => {
   <button type="button" class="toggle" class:on={starOnly} onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>{t('list.starOnly')}</button>
   <kbd>Ctrl+Shift+F</kbd>
   <span class="grow"></span>
+  {#if anchor >= 0}<span class="num">{t('list.selectedN', { n: hi - lo + 1 })}</span>{/if}
   <span class="num">{t('list.items', { n: rows.length })}</span>
 </div>
 <div class="scroll body" bind:this={scroller}>
@@ -242,7 +263,7 @@ onMount(() => {
           {@const m = metric(id)}
           {@const ins = inst(id)}
           {@const tv = money(m?.turnover20)}
-          <tr class:sel={i === sel} class:stale={m?.stale} onclick={() => { sel = i; send() }}>
+          <tr class:sel={i === sel} class:multi={anchor >= 0 && i >= lo && i <= hi} class:stale={m?.stale} onclick={(e) => { if (e.shiftKey) { if (anchor < 0) anchor = sel } else anchor = -1; sel = i; send() }}>
             <td class="l"><button type="button" class="star" class:on={isFav(id)} onclick={(e) => { e.stopPropagation(); toggleFav(id) }} aria-label="favorite">★</button></td>
             <td class="l code">{codeOf(id)}</td>
             <td class="l name">{nameOf(id)}{#if ins && ins.kind !== 'stock'}<span class="tag">{t(`mkt.${ins.market}` as Key)}</span>{/if}</td>

@@ -23,11 +23,14 @@ onMount(() => {
     bridge.on('jobs.progress', (p) => {
       const rest = app.jobs.filter((j) => j.id !== p.id)
       app.jobs = [p, ...rest].sort((a, b) => b.id - a.id).slice(0, 20)
-      if (p.status === 'done' || p.status === 'cancelled') {
+      if (p.status === 'done' || p.status === 'cancelled' || p.status === 'failed') {
         void refreshStatus()
         void loadInstruments()
         // JPX の一覧が取れなかった（FR-FR3）: 手で落とした data_j.xlsx を取り込めるように案内する
-        if ((p.kind === 'initial' || p.kind === 'reset' || p.kind === 'universe') && p.total <= 1 && p.failed >= 1)
+        if (
+          (p.kind === 'initial' || p.kind === 'reset' || p.kind === 'universe') &&
+          (p.status === 'failed' || (p.total <= 1 && p.failed >= 1))
+        )
           toast(t('first.jpxFailed'), { label: t('set.importJpx'), run: () => (app.overlay = { kind: 'settings', tab: 'data' }) }, 20_000)
       }
     }),

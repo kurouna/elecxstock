@@ -8,5 +8,7 @@ export interface ElecxstockBridge {
   openExternal(url: string): Promise<boolean>
   saveText(name: string, text: string): Promise<boolean>
   openFile(kind: 'json' | 'xlsx'): Promise<string | Uint8Array | null>
+  /** 同梱 OSS のライセンス一覧 */
+  notices(): Promise<string>
   platform: string
 }

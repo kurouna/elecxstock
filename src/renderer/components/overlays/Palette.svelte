@@ -35,6 +35,7 @@ $effect(() => {
     if (my === token) syms = r
   })
 })
+const tracked = (i: Instrument) => i.userAdded || i.market === 'P' || i.market === 'R' || i.market === 'I'
 const items = $derived.by((): Item[] => {
   const acts = ACTIONS.filter((a) => !qq || a.label().toLowerCase().includes(qq) || a.id.toLowerCase().includes(qq)).map((a) => ({
     kind: 'act' as const,
@@ -48,8 +49,12 @@ const items = $derived.by((): Item[] => {
         .map((s) => ({ kind: 'scr' as const, id: s.id, name: screenName(s) }))
   const out: Item[] = [...syms.map((i) => ({ kind: 'sym' as const, i })), ...scrs, ...acts]
   // 一覧に無いコードは「追加して取得する」（FR-U3）
-  if (!actOnly && /^[0-9][0-9A-Z]{3,4}$/i.test(qq) && !syms.some((s) => s.code.toLowerCase() === qq))
-    out.unshift({ kind: 'add', code: qq.toUpperCase() })
+  // 一覧にあっても取得の対象外（スタンダード・グロース・ETF など）なら「追加して取得する」を出す
+  if (!actOnly && /^[0-9][0-9A-Z]{3,4}$/i.test(qq)) {
+    const hit = syms.find((s) => s.code.toLowerCase() === qq)
+    if (!hit) out.unshift({ kind: 'add', code: qq.toUpperCase() })
+    else if (!tracked(hit)) out.splice(syms.indexOf(hit) + 1, 0, { kind: 'add', code: hit.code })
+  }
   return out
 })
 $effect(() => {

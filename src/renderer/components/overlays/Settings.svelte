@@ -9,6 +9,7 @@ import { app, bridge, confirmDialog, rpc, saveSettings, t, toast } from '../../s
 let { tab = 'general' }: { tab?: string } = $props()
 const TABS = ['general', 'display', 'data', 'keys', 'about'] as const
 let cur = $state<string>('general')
+let notices = $state('')
 let nav = $state<HTMLElement>()
 onMount(() => {
   cur = tab
@@ -155,12 +156,28 @@ async function importJpx() {
         <span>GitHub</span>
         <button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal('https://github.com/kurouna/elecxstock')}>github.com/kurouna/elecxstock</button>
       </div>
+      <div class="field">
+        <span>{t('set.notices')}</span>
+        <button type="button" class="link-btn" onclick={async () => (notices = notices ? '' : (await window.elecxstock.notices()) || '—')}>{notices ? t('common.close') : t('set.showNotices')}</button>
+      </div>
+      {#if notices}<pre class="notices" tabindex="-1">{notices}</pre>{/if}
       <p class="dim">{t('set.disclaimer')}</p>
     {/if}
   </div>
 </div>
 
 <style>
+  .notices {
+    max-height: 240px;
+    overflow: auto;
+    font-family: var(--mono);
+    font-size: var(--fs-1);
+    white-space: pre-wrap;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    padding: var(--s-2);
+    margin: var(--s-2) 0;
+  }
   .settings {
     width: 820px;
     display: grid;
