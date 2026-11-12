@@ -142,7 +142,7 @@ async function createWindow(): Promise<void> {
     title: 'elecxstock',
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#101318', symbolColor: '#a3adb9', height: 36 },
-    icon: join(here, '../../build/icon.png'),
+    icon: join(here, '../../build/icon.png'), // 窓のアイコン（インストーラ・exe は build/icon.ico）
     webPreferences: {
       preload: join(here, '../preload/index.cjs'),
       sandbox: true,

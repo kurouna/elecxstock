@@ -53,7 +53,7 @@ export function focusedSymbol(): InstrumentId | null {
   const fromApi = paneApi(app.focus)?.current?.()
   if (fromApi) return fromApi
   if (p?.link) return layout.doc.links[String(p.link)] ?? null
-  return null
+  return layout.doc.links['1'] ?? null
 }
 
 export function setFocus(id: string | null): void {
@@ -157,6 +157,9 @@ export async function importUser(): Promise<void> {
 }
 
 export function openInGrid(): void {
+  // 開いた時点のスクリーナーの条件を「スクリーナーの結果」に使う（FR-SC6, G1）
+  const scr = findPane(app.focus)
+  if (scr?.widget === 'screener' && Array.isArray(scr.state.conds)) app.liveConds = JSON.parse(JSON.stringify(scr.state.conds))
   setPreset('grid')
   const g = allPanes().find((p) => p.widget === 'grid')
   if (g) {

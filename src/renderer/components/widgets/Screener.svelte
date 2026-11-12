@@ -71,8 +71,6 @@ $effect(() => {
   void app.watchlists
   if (timer) clearTimeout(timer)
   timer = setTimeout(run, 120)
-  app.liveConds = $state.snapshot(conds) as Condition[]
-  app.liveScreenId = (pane.state.screenId as string) ?? null
 })
 const rows = $derived.by(() => {
   if (!result) return [] as InstrumentId[]
@@ -316,7 +314,7 @@ onMount(() => {
       </tr>
     </thead>
     <tbody>
-      <tr style:height={`${start * ROW}px`}><td colspan={COLS.length} style="padding:0;border:0"></td></tr>
+      {#if start > 0}<tr class="spacer" style:height={`${start * ROW}px`}><td colspan={COLS.length}></td></tr>{/if}
       {#each rows.slice(start, end) as id, k (id)}
         {@const i = start + k}
         {@const m = app.metrics.get(id)}
@@ -335,7 +333,7 @@ onMount(() => {
           <td class={cls(m?.ret1y)}>{sgn(m?.ret1y, 1, '%')}</td>
         </tr>
       {/each}
-      <tr style:height={`${(rows.length - end) * ROW}px`}><td colspan={COLS.length} style="padding:0;border:0"></td></tr>
+      {#if end < rows.length}<tr class="spacer" style:height={`${(rows.length - end) * ROW}px`}><td colspan={COLS.length}></td></tr>{/if}
     </tbody>
   </table>
 </div>
@@ -429,5 +427,10 @@ onMount(() => {
   .body {
     flex: 1;
     min-height: 0;
+  }
+  .spacer td {
+    height: auto;
+    padding: 0;
+    border: 0;
   }
 </style>

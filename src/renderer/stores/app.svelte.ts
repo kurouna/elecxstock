@@ -16,7 +16,14 @@ import type {
 import { SvelteMap } from 'svelte/reactivity'
 import { DICTS, format, type Key } from '../lib/i18n'
 
-export const bridge = window.elecxstock
+const raw = window.elecxstock
+/** Core への窓口。Svelte の状態（Proxy）は構造化複製できないので、送る前に必ずスナップショットにする */
+export const bridge: typeof raw = {
+  ...raw,
+  call: (method, params) => raw.call(method, $state.snapshot(params) as typeof params),
+  on: raw.on,
+  prioritize: (ids) => raw.prioritize([...ids]),
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   lang: 'ja',

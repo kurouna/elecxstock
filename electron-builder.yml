@@ -1,0 +1,57 @@
+appId: dev.kurouna.elecxstock
+productName: elecxstock
+copyright: Copyright © 2026 kurouna
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**
+  - "!out/THIRD_PARTY_NOTICES.txt"
+  - build/icon.png
+  - package.json
+# 同梱 OSS の一覧とアプリのライセンスを、実行ファイルの横に置く（§10）
+extraFiles:
+  - from: out/THIRD_PARTY_NOTICES.txt
+    to: THIRD_PARTY_NOTICES.txt
+  - from: LICENSE
+    to: LICENSE.elecxstock.txt
+
+asar: true
+compression: normal
+npmRebuild: false
+forceCodeSigning: false
+
+# Electron Fuses（NFR-S3）: Node として起動させない・asar の改ざんを検出する
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-${version}-setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: elecxstock
+  # アンインストール時に利用者データ（お気に入り・ウォッチリスト・取得したデータ）を残すか尋ねる（NFR-Q9）
+  deleteAppDataOnUninstall: false
+  include: build/installer.nsh
+
+publish:
+  provider: github
+  owner: kurouna
+  repo: elecxstock
+  releaseType: release

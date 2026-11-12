@@ -1,5 +1,17 @@
 <script lang="ts">
-import { layout, toggleDockOpen } from '../stores/layout.svelte'
+import { setFocus } from '../lib/commands'
+import { app } from '../stores/app.svelte'
+import { allPanes, findPane, layout, toggleDockOpen } from '../stores/layout.svelte'
+
+// レイアウトを開いたとき、フォーカスが無ければ最初のペインに置く（キーボードだけで始められるように）
+$effect(() => {
+  void layout.doc.active
+  if (!findPane(app.focus)) {
+    const first = allPanes(layout.entry, false)[0]
+    if (first) setFocus(first.id)
+  }
+})
+
 import Dock from './Dock.svelte'
 import Node from './Node.svelte'
 </script>

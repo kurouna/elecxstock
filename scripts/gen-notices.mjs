@@ -5,7 +5,20 @@ import { join } from 'node:path'
 const root = new URL('..', import.meta.url).pathname.replace(/^\/(\w:)/, '$1')
 // 製品版に入るもの: 実行時の依存と、renderer に入るライブラリ・フォント
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-const bundled = ['lightweight-charts', 'svelte', '@fontsource-variable/noto-sans-jp', '@fontsource/noto-sans-mono', 'electron']
+// 依存はすべて devDependencies に置き、使うものだけをバンドルに入れる（yahoo-finance2 の MCP 用の依存を配布物に入れないため）
+const bundled = [
+  'yahoo-finance2',
+  'tough-cookie',
+  'tldts',
+  'tldts-core',
+  'zod',
+  'fflate',
+  'lightweight-charts',
+  'svelte',
+  '@fontsource-variable/noto-sans-jp',
+  '@fontsource/noto-sans-mono',
+  'electron',
+]
 const seen = new Set()
 const out = ['elecxstock — third-party notices', '='.repeat(40), '']
 
@@ -20,7 +33,7 @@ function add(name) {
   out.push('-'.repeat(40))
   out.push(lic ? readFileSync(lic, 'utf8').trim() : '(license text not found in package)')
   out.push('', '')
-  for (const d of Object.keys(p.dependencies ?? {})) add(d)
+  // バンドルに入る推移的な依存は bundled に並べる（yahoo-finance2 の MCP 用の依存は入らない）
 }
 for (const n of [...Object.keys(pkg.dependencies ?? {}), ...bundled]) add(n)
 writeFileSync(join(root, 'out', 'THIRD_PARTY_NOTICES.txt'), out.join('\n'))
