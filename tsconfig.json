@@ -1,0 +1,6 @@
+{
+  // Two programs: tsconfig.node.json (main, preload, core, shared, tests) and
+  // tsconfig.web.json (renderer + Svelte). `npm run typecheck` checks both.
+  "files": [],
+  "include": []
+}

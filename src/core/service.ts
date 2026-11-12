@@ -1,0 +1,277 @@
+// Core の API の実装（§8.2）。入力は zod で検証済みのものを受け取る。Electron を import しない（NFR-A1）。
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import type { CoreError, Events, Method, Params, Results } from '@shared/api'
+import type { Adjustment, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
+import { addYears, jstNow, lastClosedSession } from './calendar'
+import { Db } from './db'
+import { JobRunner } from './jobs'
+import { parseJpx } from './providers/jpx'
+import type { Provider } from './providers/types'
+import { idOf, Repo } from './repo'
+import { runScreen } from './screener'
+import { adjust, aggregate, mergeMonthly, toBars } from './series'
+import { UserStore } from './userstore'
+
+export type Emit = <E extends keyof Events>(event: E, data: Events[E]) => void
+
+export class CoreService {
+  readonly db: Db
+  readonly repo: Repo
+  readonly user: UserStore
+  readonly jobs: JobRunner
+  private metricsCache: Map<InstrumentId, MetricsRow> | null = null
+
+  constructor(
+    dataDir: string,
+    readonly provider: Provider,
+    private emit: Emit,
+    private version: string,
+    readonly log: (msg: string) => void = () => {},
+  ) {
+    mkdirSync(dataDir, { recursive: true })
+    this.db = new Db(join(dataDir, 'market.db'))
+    this.repo = new Repo(this.db)
+    this.user = new UserStore(join(dataDir, 'user'))
+    if (this.user.readOnly || this.user.load('settings') == null) {
+      /* settings を最初に読んで読み取り専用かを決める */
+    }
+    this.jobs = new JobRunner({
+      repo: this.repo,
+      provider,
+      retentionYears: () => this.user.load('settings').retentionYears,
+      userCodes: () => this.user.load('settings').userInstruments,
+      emitProgress: (p) => emit('jobs.progress', p),
+      emitData: (ids) => {
+        this.metricsCache = null
+        emit('data.updated', { ids, metrics: true })
+      },
+      emitProvider: (s) => emit('provider.state', s),
+      log,
+    })
+  }
+
+  start(): void {
+    this.user.load('settings')
+    if (this.user.error) this.emit('user.error', { message: this.user.error })
+    this.jobs.resume()
+  }
+
+  private metricsMap(): Map<InstrumentId, MetricsRow> {
+    if (!this.metricsCache) {
+      const session = lastClosedSession()
+      this.metricsCache = new Map(this.repo.metrics().map((m) => [m.id, { ...m, stale: !m.asOf || m.asOf < session }]))
+    }
+    return this.metricsCache
+  }
+
+  private bars(id: InstrumentId, tf: Timeframe, adj: Adjustment) {
+    const repo = this.repo
+    const today = jstNow().date
+    const daily = repo.daily(id)
+    const splits = repo.splits(id)
+    const dividends = repo.dividends(id)
+    const adjusted = adjust(daily, adj, splits, dividends)
+    if (tf === 'M') {
+      let monthly = repo.monthly(id)
+      if (!monthly.length && !repo.fetchState(id).lastMonthly && repo.yahooOf(id)) this.jobs.enqueue('monthly', [`M:${id}`])
+      if (adj === 'unadjusted') monthly = adjust(monthly, 'unadjusted', splits, [])
+      const { bars, monthlyUntil } = mergeMonthly(monthly, adjusted)
+      return { ...toBars(id, 'M', bars, today, monthlyUntil), dividends, splits, adjustment: adj }
+    }
+    return { ...toBars(id, tf, aggregate(adjusted, tf), today), dividends, splits, adjustment: adj }
+  }
+
+  /** メソッドの実行。エラーは CoreError（コード + 引数）で返す（FR-N5） */
+  async call<M extends Method>(method: M, p: Params<M>): Promise<Results[M]> {
+    const r = this.repo
+    const P = p as Record<string, unknown>
+    switch (method) {
+      case 'app.info':
+        return {
+          version: this.version,
+          provider: this.provider.id,
+          userReadOnly: this.user.readOnly,
+          ...(this.user.error ? { userDataError: this.user.error } : {}),
+        } as Results[M]
+      case 'instruments.search':
+        return r.search(String(P.q), Number(P.limit ?? 12)) as Results[M]
+      case 'instruments.get':
+        return r.instruments(P.ids as string[]) as Results[M]
+      case 'instruments.all':
+        return r.universe() as Results[M]
+      case 'instruments.addUser': {
+        const code = String(P.code).toUpperCase()
+        const id = idOf(code)
+        if (!r.instrument(id)) {
+          r.db.run(
+            `INSERT INTO instruments(id, code, name_ja, name_en, market, kind, status, yahoo, updated) VALUES(?, ?, ?, '', 'X', 'other', 'active', ?, ?)`,
+            id,
+            code,
+            code,
+            this.provider.toSymbol(code, 'other'),
+            new Date().toISOString(),
+          )
+        }
+        const s = this.user.load('settings')
+        if (!s.userInstruments.includes(code)) this.user.save('settings', { ...s, userInstruments: [...s.userInstruments, code] })
+        r.setUserAdded(this.user.load('settings').userInstruments)
+        this.jobs.enqueue('refetch', [`F:${id}`, `M:${id}`])
+        return r.instrument(id) as Results[M]
+      }
+      case 'bars.get':
+        return this.bars(String(P.id), P.tf as Timeframe, (P.adjustment as Adjustment) ?? 'split') as Results[M]
+      case 'bars.many': {
+        const out: Record<string, unknown> = {}
+        const today = jstNow().date
+        for (const id of P.ids as string[]) {
+          const tf = P.tf as Timeframe
+          const daily = r.daily(id)
+          const all = tf === 'M' ? mergeMonthly(r.monthly(id), daily).bars : aggregate(daily, tf)
+          out[id] = toBars(id, tf, all.slice(-Number(P.count)), today)
+        }
+        return out as Results[M]
+      }
+      case 'dividends.get':
+        return r.dividends(String(P.id)) as Results[M]
+      case 'metrics.get': {
+        const map = this.metricsMap()
+        return (P.ids as string[]).flatMap((id) => {
+          const m = map.get(id)
+          return m ? [m] : []
+        }) as Results[M]
+      }
+      case 'quotes.get':
+        return (P.ids as string[]).flatMap((id) => {
+          const q = r.quote(id)
+          return q ? [q] : []
+        }) as Results[M]
+      case 'screener.run':
+        return runScreen({
+          conditions: P.conditions as never,
+          instruments: r.universe(),
+          metrics: this.metricsMap(),
+          favorites: new Set(P.favorites as string[]),
+          watchlists: P.watchlists as Record<string, string[]>,
+        }) as Results[M]
+      case 'user.load':
+        return {
+          settings: this.user.load('settings'),
+          watchlists: this.user.load('watchlists'),
+          screens: this.user.load('screens'),
+          layout: this.user.load('layout'),
+          readOnly: this.user.readOnly,
+          ...(this.user.error ? { error: this.user.error } : {}),
+        } as Results[M]
+      case 'user.saveSettings': {
+        const prev = this.user.load('settings')
+        this.user.save('settings', P.settings as never)
+        const next = this.user.load('settings')
+        if (prev.userInstruments.join() !== next.userInstruments.join()) r.setUserAdded(next.userInstruments)
+        return undefined as Results[M]
+      }
+      case 'user.saveWatchlists':
+        this.user.save('watchlists', P.watchlists as never)
+        return undefined as Results[M]
+      case 'user.saveScreens':
+        this.user.save('screens', P.screens as never)
+        return undefined as Results[M]
+      case 'user.saveLayout':
+        this.user.save('layout', P.layout as never)
+        return undefined as Results[M]
+      case 'user.exportAll':
+        return this.user.exportAll() as Results[M]
+      case 'user.importAll':
+        return this.user.importAll(String(P.json)) as Results[M]
+      case 'jobs.start': {
+        const kind = P.kind as 'initial' | 'daily' | 'universe'
+        if (kind === 'universe') return this.jobs.enqueue('universe', ['U']) as Results[M]
+        if (kind === 'initial') return this.jobs.enqueue('initial', ['U']) as Results[M]
+        const u = this.db.meta('universeUpdated')
+        const stale = !u || Date.now() - Date.parse(u) > 7 * 86400_000 // 7 日以上経っていればユニバースも更新（FR-U4）
+        return this.jobs.enqueue('daily', stale ? ['U'] : this.jobs.planFor('daily')) as Results[M]
+      }
+      case 'jobs.refetch':
+        return this.jobs.enqueue(
+          'refetch',
+          (P.ids as string[]).map((id) => `F:${id}`),
+        ) as Results[M]
+      case 'jobs.reset': {
+        this.jobs.cancelAll()
+        r.resetMarketData(Boolean(P.keepDelisted))
+        this.db.vacuum()
+        this.metricsCache = null
+        this.emit('data.updated', { ids: ['*'], metrics: true })
+        return this.jobs.enqueue('reset', ['U']) as Results[M]
+      }
+      case 'jobs.planRetention': {
+        const years = Number(P.years)
+        const cur = this.user.load('settings').retentionYears
+        const cutoff = addYears(jstNow().date, -years)
+        const rows = years < cur ? r.countDailyBefore(cutoff) : 0
+        return { years, deleteBefore: years < cur ? cutoff : null, rows, approxBytes: rows * 60 } as Results[M]
+      }
+      case 'jobs.applyRetention': {
+        const years = Number(P.years)
+        const s = this.user.load('settings')
+        const cur = s.retentionYears
+        this.user.save('settings', { ...s, retentionYears: years })
+        if (years < cur) {
+          // 確認のあと、範囲外の日足を削除して空き領域を回収する（FR-D6）
+          r.deleteDailyBefore(addYears(jstNow().date, -years))
+          this.db.vacuum()
+          this.jobs.recomputeAll()
+          return 0 as Results[M]
+        }
+        if (years > cur)
+          return this.jobs.enqueue(
+            'retention',
+            r.fetchSet().map((x) => `F:${x.id}`),
+          ) as Results[M]
+        return 0 as Results[M]
+      }
+      case 'jobs.cancel':
+        this.jobs.cancel(Number(P.id))
+        return undefined as Results[M]
+      case 'jobs.list':
+        return this.jobs.list() as Results[M]
+      case 'data.status': {
+        const c = r.counts()
+        const range = r.barRange()
+        return {
+          dbBytes: this.db.bytes(),
+          instruments: c.instruments,
+          withBars: c.withBars,
+          failures: r.failures().length,
+          lastUpdate: this.db.meta('lastUpdate'),
+          oldestBar: range.oldest,
+          newestBar: range.newest,
+          retentionYears: this.user.load('settings').retentionYears,
+          provider: this.provider.id,
+          offline: this.jobs.offline,
+          universeUpdated: this.db.meta('universeUpdated'),
+        } as Results[M]
+      }
+      case 'data.failures':
+        return r.failures() as Results[M]
+      case 'data.importJpx': {
+        const rows = parseJpx(P.bytes as Uint8Array)
+        r.applyUniverse(rows, this.provider.toSymbol, new Date().toISOString())
+        r.setUserAdded(this.user.load('settings').userInstruments)
+        this.db.setMeta('universeUpdated', new Date().toISOString())
+        this.jobs.enqueue('initial', this.jobs.planFor('initial'))
+        return rows.length as Results[M]
+      }
+      default:
+        throw { code: 'unknown-method', args: { method } } satisfies CoreError
+    }
+  }
+
+  /** chart-grid などで表示中の銘柄を先に取得する（FR-F8） */
+  prioritize(ids: InstrumentId[]): void {
+    this.jobs.prioritize(ids)
+  }
+  close(): void {
+    this.db.close()
+  }
+}
