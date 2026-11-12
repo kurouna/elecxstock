@@ -72,6 +72,14 @@ export async function openScreen(pane: PaneNode, id: string): Promise<void> {
   app.liveConds = clone(s.conditions)
   app.liveScreenId = id
 }
+/** ペインを閉じる前に、保存されていないスクリーンの変更を尋ねる（FR-SC13）。閉じてよければ true */
+export async function confirmCloseScreen(pane: PaneNode | null | undefined): Promise<boolean> {
+  if (pane?.widget !== 'screener' || !isDirty(pane) || !screenOf(pane)) return true
+  const r = await ask3(t('scr.unsavedTitle'), t('scr.unsavedBody'))
+  if (r === 'cancel') return false
+  if (r === 'save') saveScreen(pane)
+  return true
+}
 /** スクリーン一覧・コマンドバーから開く。スクリーナーのペインが無ければスクリーナーのレイアウトに切り替える */
 export function openScreenAnywhere(id: string): void {
   let p = allPanes().find((x) => x.widget === 'screener')

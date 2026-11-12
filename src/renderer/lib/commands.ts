@@ -40,6 +40,7 @@ import {
 } from '../stores/layout.svelte'
 import type { Key } from './i18n'
 import { paneApi } from './panes'
+import { confirmCloseScreen } from './screens'
 
 export interface Action {
   id: string
@@ -59,6 +60,8 @@ export function focusedSymbol(): InstrumentId | null {
 export function setFocus(id: string | null): void {
   app.focus = id
   if (!id) return
+  // ピン留めしていないドロワーは、フォーカスが外へ出たら隠す（§6.9）
+  if (layout.dockOpen && !layout.entry.docks.left?.pinned && !inDock(id)) layout.dockOpen = false
   queueMicrotask(() => {
     const el = document.querySelector<HTMLElement>(`[data-pane-id="${id}"]`)
     if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true })
@@ -73,6 +76,8 @@ export function sendSymbol(id: InstrumentId): void {
   setLinkSymbol(group, id)
 }
 
+/** ドロワーを開く前にフォーカスしていたペイン（閉じたらそこへ戻す。§6.9） */
+let beforeDock: string | null = null
 export function toggleDock(): void {
   const d = layout.entry.docks.left
   if (!d) {
@@ -86,8 +91,13 @@ export function toggleDock(): void {
     return
   }
   layout.dockOpen = !layout.dockOpen
-  if (layout.dockOpen) setFocus(d.panes[d.active]!.id)
-  else if (app.focus && inDock(app.focus)) setFocus(allPanes(layout.entry, false)[0]!.id)
+  if (layout.dockOpen) {
+    if (app.focus && !inDock(app.focus)) beforeDock = app.focus
+    setFocus(d.panes[d.active]!.id)
+  } else if (app.focus && inDock(app.focus)) {
+    const back = beforeDock && findPane(beforeDock) ? beforeDock : allPanes(layout.entry, false)[0]!.id
+    setFocus(back)
+  }
 }
 export function pinDock(): void {
   const d = layout.entry.docks.left
@@ -209,7 +219,15 @@ export const ACTIONS: Action[] = [
   { id: 'importUser', label: () => t('act.importUser'), run: () => importUser() },
   { id: 'split', label: () => t('act.split'), key: 'Ctrl+Shift+E', run: () => focusNew(splitPane(app.focus ?? '', 'row')) },
   { id: 'splitDown', label: () => t('act.splitDown'), key: 'Ctrl+Shift+O', run: () => focusNew(splitPane(app.focus ?? '', 'col')) },
-  { id: 'close', label: () => t('act.close'), key: 'Ctrl+Shift+W', run: () => app.focus && closePane(app.focus) },
+  {
+    id: 'close',
+    label: () => t('act.close'),
+    key: 'Ctrl+Shift+W',
+    run: async () => {
+      const id = app.focus
+      if (id && (await confirmCloseScreen(findPane(id)))) closePane(id)
+    },
+  },
   { id: 'changeWidget', label: () => t('act.changeWidget'), key: 'Ctrl+Shift+N', run: () => changeWidgetDialog() },
   { id: 'jobs', label: () => t('act.jobs'), run: () => openJobsPane() },
   { id: 'fullscreen', label: () => t('act.fullscreen'), key: 'F11', run: () => toggleFullscreen() },
@@ -338,6 +356,14 @@ export function handleKey(e: KeyboardEvent): boolean {
   }
   if (inText(e)) return false
   const pane = paneApi(app.focus)
+  // ドロワーのタブを切り替える（Ctrl+Tab / Ctrl+Shift+Tab）
+  const dk = layout.entry.docks.left
+  if (ctrl && c === 'Tab' && dk && app.focus && inDock(app.focus) && dk.panes.length > 1) {
+    dk.active = (dk.active + (e.shiftKey ? -1 : 1) + dk.panes.length) % dk.panes.length
+    setFocus(dk.panes[dk.active]!.id)
+    saveLayout()
+    return true
+  }
   if (c === 'Escape') {
     if (pane?.key?.(e)) return true
     if (app.maximized) {

@@ -28,4 +28,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          gh label create contract --color B60205 --description "Nightly contract test" --force || true
           gh issue create --title "Contract test failed $(date -u +%F)" --body "The nightly contract test against Yahoo/JPX failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" --label contract || true

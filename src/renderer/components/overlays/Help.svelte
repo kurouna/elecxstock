@@ -90,6 +90,7 @@ const G = $derived([
     rows: [
       [ja ? '左のドロワー' : 'Left drawer', 'Ctrl+B'],
       [ja ? 'ピン留め' : 'Pin', 'Ctrl+Alt+B'],
+      [ja ? 'ドロワーのタブを切り替え' : 'Switch drawer tab', 'Ctrl+Tab'],
       [ja ? '閉じる' : 'Close', 'Esc'],
     ],
   },

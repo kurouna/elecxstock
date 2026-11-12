@@ -3,6 +3,7 @@
 import type { Snippet } from 'svelte'
 import { toggleMax } from '../lib/commands'
 import type { Key } from '../lib/i18n'
+import { confirmCloseScreen } from '../lib/screens'
 import { app, t } from '../stores/app.svelte'
 import { closePane, inDock, type PaneNode } from '../stores/layout.svelte'
 
@@ -18,7 +19,7 @@ const focused = $derived(app.focus === pane.id)
   {#if !inDock(pane.id)}
     <span class="tools">
       <button type="button" title="Ctrl+Shift+Enter" onclick={() => { app.focus = pane.id; toggleMax() }}>⤢</button>
-      <button type="button" title="Ctrl+Shift+W" onclick={() => closePane(pane.id)}>✕</button>
+      <button type="button" title="Ctrl+Shift+W" onclick={async () => { if (await confirmCloseScreen(pane)) closePane(pane.id) }}>✕</button>
     </span>
   {/if}
 </div>
