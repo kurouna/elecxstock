@@ -31,15 +31,15 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 
 ## 構成
 
-| 場所                                          | 役割                                                                                                                                                                         |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/core/`                                   | Core。Electron の utilityProcess で動く純 TS（**`electron` を import しない**。NFR-A1、Biome で禁止）。SQLite（`node:sqlite`）・取得ジョブ・指標・スクリーナー・利用者データ |
-| `src/core/providers/`                         | データ源。`yahoo.ts`（yahoo-finance2）・`jpx.ts`（上場銘柄一覧の xlsx）・`stub.ts`（テスト用）                                                                               |
-| `src/shared/`                                 | 全プロセス共通の型・API の契約（`api.ts`: メソッド名と zod スキーマ）・指標の登録表（`fields.ts`）・営業日（`calendar.ts`）                                                  |
-| `src/main/index.ts`                           | 薄い main。ウィンドウ・安全策・Core の起動と、renderer と Core を MessagePort でつなぐ                                                                                       |
-| `src/preload/index.ts`                        | `window.elecxstock` だけを出す                                                                                                                                               |
-| `src/renderer/`                               | Svelte 5 の画面。`stores/`（状態・レイアウト）、`lib/commands.ts`（アクションとキー操作）、`components/widgets/`（ペイン）                                                   |
-| `tests/unit` / `tests/e2e` / `tests/contract` | Vitest / Playwright（`_electron`）/ 実プロバイダ                                                                                                                             |
+| 場所                                          | 役割                                                                                                                                                                                                          |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/core/`                                   | Core。Electron の utilityProcess で動く純 TS（**`electron` を import しない**。NFR-A1、Biome で禁止）。SQLite（`node:sqlite`）・取得ジョブ・指標・スクリーナー・利用者データ・保有（`holdings.ts`）           |
+| `src/core/providers/`                         | データ源。`yahoo.ts`（yahoo-finance2）・`jpx.ts`（上場銘柄一覧の xlsx）・`stub.ts`（テスト用）                                                                                                                |
+| `src/shared/`                                 | 全プロセス共通の型・API の契約（`api.ts`: メソッド名と zod スキーマ）・指標の登録表（`fields.ts`）・営業日（`calendar.ts`）                                                                                   |
+| `src/main/index.ts`                           | 薄い main。ウィンドウ・安全策・Core の起動と、renderer と Core を MessagePort でつなぐ                                                                                                                        |
+| `src/preload/index.ts`                        | `window.elecxstock` だけを出す                                                                                                                                                                                |
+| `src/renderer/`                               | Svelte 5 の画面。`stores/`（状態・レイアウト）、`lib/commands.ts`（アクションとキー操作）、`lib/columns.ts`（一覧の列）、`lib/chartMenu.ts`・`lib/indicators.ts`（チャート）、`components/widgets/`（ペイン） |
+| `tests/unit` / `tests/e2e` / `tests/contract` | Vitest / Playwright（`_electron`）/ 実プロバイダ                                                                                                                                                              |
 
 ## 守ること
 
@@ -57,7 +57,13 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 - **キー操作はアクションの登録表（`lib/commands.ts` の `ACTIONS` と `handleKey`）に足す**。単キーは `KeyboardEvent.code`
   で判定し、IME の変換中は無視する（FR-KB5）。マウスでしかできない操作を作らない（FR-KB4）。キーを変えたら
   F1 の一覧（`components/overlays/Help.svelte`）と requirements.md §6.5 も直す。
-- **ペインのキー処理は `registerPane(id, { key, current, receive, selected })`** で登録する（`lib/panes.ts`）。
+- **アクションのキーは `ACTIONS` の `key`（既定）で持ち、照合は `keyOf()` を通す**（設定 `keymap` の上書きがあるため。FR-KB6）。
+  ペインの中の単キーは各ペインの `key()` で持つ（割り当ては変えられない）。
+- **ペインのキー処理は `registerPane(id, { key, current, receive, selected, columns, run })`** で登録する（`lib/panes.ts`）。
+  一覧のペインは `columns()` を返すと、CSV 書き出し・一覧の取り直しが使える。ペインを足したら `stores/layout.svelte.ts` の
+  `WIDGETS`・`components/Pane.svelte`・i18n の `widget.*` に足す。
+- **一覧の列は `lib/columns.ts`**（登録表の指標から作る）。行のセルは `widgets/RowCells.svelte`。
+- **保有の計算（移動平均法・分割の調整）は Core の `holdings.ts`**。保有の JSON の形式を変えたら `docs/holdings-format.md` も直す。
 - **レイアウトの木の変更は `stores/layout.svelte.ts` の関数で行う**。ディスクから読んだ木は `normalizeDoc` を通す。
 - **文言は `lib/i18n.ts` の `ja` と `en` の両方に足す**（キーの一致は単体テストが確かめる）。
 - **色・文字・余白は `app.css` のトークン（CSS 変数）から取る**。陽線・陰線は `--up` / `--down`（日本式が既定）。
@@ -68,6 +74,8 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 ## テスト
 
 - 新しい計算・判定には単体テストを書く（評価日を固定したフィクスチャで。例: `tests/unit/metrics.test.ts`）。
+- 見た目の回帰（`tests/e2e/visual.spec.ts`）はダイアログの要素を基準画像と比べる。意図して見た目を変えたら
+  `npx playwright test visual --update-snapshots` で基準画像を作り直し、差分を目で確かめてからコミットする。
 - 画面の振る舞いは E2E で、**キーボードだけで**確かめる（`tests/e2e/keyboard.spec.ts`）。プロバイダはスタブ。
 - E2E とスクリーンショットは `npm run build` のあとに動かす（out/ を起動する）。
 
