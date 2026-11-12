@@ -61,7 +61,10 @@ export class JobRunner {
       `SELECT id FROM jobs WHERE kind = ? AND status IN ('queued','running','paused','waiting-offline','provider-paused')`,
       kind,
     )
-    if (dup && kind !== 'refetch') return dup.id
+    if (dup && kind !== 'refetch') {
+      this.resumeJob(dup.id) // 一時停止中なら再開する
+      return dup.id
+    }
     db.run(
       `INSERT INTO jobs(kind, status, items, pos, failed, created, updated) VALUES(?, 'queued', ?, 0, 0, ?, ?)`,
       kind,

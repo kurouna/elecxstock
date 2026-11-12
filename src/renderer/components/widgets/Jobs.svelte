@@ -48,7 +48,11 @@ const running = (s: string) => s === 'running' || s === 'queued' || s === 'waiti
           <td class="l name">{t(`jobs.kind.${j.kind}` as Key)}</td>
           <td class="l name">{t(`jobs.${j.status}` as Key)}</td>
           <td>{j.done.toLocaleString()} / {j.total.toLocaleString()}{j.failed ? ` · ✕${j.failed}` : ''}{j.message ? ` · ${j.message}` : ''}</td>
-          <td>{#if running(j.status)}<button type="button" class="chip" onclick={() => rpc('jobs.cancel', { id: j.id })}>{t('jobs.cancel')}</button>{/if}</td>
+          <td>
+            {#if running(j.status)}<button type="button" class="chip" onclick={() => rpc('jobs.pause', { id: j.id })}>{t('jobs.pause')}</button>{/if}
+            {#if j.status === 'paused'}<button type="button" class="chip" onclick={() => rpc('jobs.resume', { id: j.id })}>{t('jobs.resume')}</button>{/if}
+            {#if running(j.status) || j.status === 'paused'}<button type="button" class="chip" onclick={() => rpc('jobs.cancel', { id: j.id })}>{t('jobs.cancel')}</button>{/if}
+          </td>
         </tr>
       {:else}
         <tr><td colspan="4" class="l muted name">{t('jobs.none')}</td></tr>
