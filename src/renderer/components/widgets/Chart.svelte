@@ -16,9 +16,10 @@ import {
   type Time,
 } from 'lightweight-charts'
 import { onMount } from 'svelte'
+import { getBars } from '../../lib/barsCache'
 import { cls, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
-import { app, bridge, codeOf, ensureMetrics, isFav, metric, nameOf, t, toast, toggleFav } from '../../stores/app.svelte'
+import { app, codeOf, ensureMetrics, isFav, metric, nameOf, t, toast, toggleFav } from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode, patchState } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import { type ChartHandle, charts } from './chartSync'
@@ -33,6 +34,7 @@ const MA_COLORS = ['--ma1', '--ma2', '--ma3']
 
 let host = $state<HTMLDivElement>()
 let bars = $state<Bars | null>(null)
+let loading = $state(true)
 let maData: LineData[][] = []
 let legendIdx = $state<number | null>(null)
 let kbIndex: number | null = null
@@ -87,9 +89,11 @@ async function load() {
   const my = ++token
   const want = { id, tf, adj }
   try {
-    const b = await bridge.call('bars.get', { id: want.id, tf: want.tf, adjustment: want.adj })
+    loading = true
+    const b = await getBars(want.id, want.tf, want.adj)
     if (my !== token) return // 古い要求の結果は捨てる（NFR-A8）
     bars = b
+    loading = false
     render(b)
   } catch {
     if (my === token) bars = null
@@ -324,6 +328,8 @@ const m = $derived(metric(id))
         {#if log}<span class="badge">{t('chart.log')}</span>{/if}
       </div>
     </div>
+  {:else if loading && !bars}
+    <div class="state">{t('common.loading')}</div>
   {:else if bars && !bars.time.length}
     <div class="state">{t('chart.noData')}</div>
   {/if}

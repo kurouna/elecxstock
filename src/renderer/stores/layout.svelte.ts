@@ -51,7 +51,7 @@ export function presetEntry(id: PresetId): LayoutEntry {
     case 'mtf':
       return {
         root: R(
-          [24, 76],
+          [26, 74],
           P('watchlist', 1, { list: 'favorites' }),
           C([62, 38], P('chart', 1, { tf: 'D' }), R([50, 50], P('chart', 1, { tf: 'W' }), P('chart', 1, { tf: 'M' }))),
         ),

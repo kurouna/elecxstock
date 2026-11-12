@@ -27,16 +27,16 @@ describe('レイアウト', () => {
     const root = L.layout.entry.root as { sizes: number[] }
     root.sizes = [50, 50]
     L.resetSizes()
-    expect(root.sizes).toEqual([24, 76])
+    expect(root.sizes).toEqual([26, 74])
     expect(L.undoResetSizes()).toBe(true)
     expect(root.sizes).toEqual([50, 50])
     L.resetLayout()
-    expect((L.layout.entry.root as { sizes: number[] }).sizes).toEqual([24, 76])
+    expect((L.layout.entry.root as { sizes: number[] }).sizes).toEqual([26, 74])
   })
   it('区切り線をキーで動かす（Alt+Shift+矢印）', () => {
     L.layout.doc = L.defaultDoc()
     const wl = L.allPanes(L.layout.entry, false)[0]!
     L.nudgeDivider(wl.id, 'right')
-    expect((L.layout.entry.root as { sizes: number[] }).sizes[0]).toBeGreaterThan(24)
+    expect((L.layout.entry.root as { sizes: number[] }).sizes[0]).toBeGreaterThan(26)
   })
 })

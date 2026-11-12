@@ -3,6 +3,7 @@
 
 import type { MetricsRow } from '@shared/types'
 import { onMount } from 'svelte'
+import { prefetch } from '../../lib/barsCache'
 import { cls, fmt, money, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
@@ -45,6 +46,9 @@ const sort = $derived(pane.state.sort as { k: ColKey; dir: 1 | -1 } | undefined)
 let sel = $state(0)
 let col = $state(3)
 let scroller = $state<HTMLDivElement>()
+let width = $state(600)
+// 幅の狭いペインでは売買代金の列を隠す（FR-V12）
+const cols = $derived(width < 470 ? COLS.filter((c) => c.k !== 'turnover20') : COLS)
 
 const rows = $derived.by(() => {
   void app.dataVersion
@@ -67,6 +71,7 @@ $effect(() => {
 function send(i = sel) {
   const id = rows[i]
   if (id) setLinkSymbol(pane.link || 1, id)
+  prefetch([rows[i + 1], rows[i - 1]])
 }
 function scrollSel() {
   queueMicrotask(() => scroller?.querySelector('tr.sel')?.scrollIntoView({ block: 'nearest' }))
@@ -125,8 +130,10 @@ function sortBy(k: ColKey) {
   sel = 0
 }
 
-onMount(() =>
-  registerPane(pane.id, {
+onMount(() => {
+  const ro = new ResizeObserver(() => (width = scroller?.clientWidth ?? 600))
+  if (scroller) ro.observe(scroller)
+  const off = registerPane(pane.id, {
     current: () => rows[sel] ?? linkSymbol(pane.link),
     selected: () => (rows[sel] ? [rows[sel]!] : []),
     key(e) {
@@ -188,8 +195,12 @@ onMount(() =>
       }
       return false
     },
-  }),
-)
+  })
+  return () => {
+    ro.disconnect()
+    off()
+  }
+})
 </script>
 
 <PaneHeader {pane}>
@@ -215,11 +226,11 @@ onMount(() =>
   {:else}
     <table class="grid">
       <colgroup>
-        {#each COLS as c (c.k)}<col style:width={c.w ? `${c.w}px` : undefined} />{/each}
+        {#each cols as c (c.k)}<col style:width={c.w ? `${c.w}px` : undefined} />{/each}
       </colgroup>
       <thead>
         <tr>
-          {#each COLS as c, i (c.k)}
+          {#each cols as c, i (c.k)}
             <th class:l={c.l} class:cur={i === col && app.focus === pane.id} onclick={() => sortBy(c.k)}>
               {c.label()}{sort?.k === c.k ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}
             </th>
@@ -238,7 +249,7 @@ onMount(() =>
             <td>{px(m?.close)}</td>
             <td class={cls(m?.chgPct)}>{sgn(m?.chgPct, 2, '%')}</td>
             <td>{m?.yieldTrailing != null ? fmt(m.yieldTrailing) : '—'}<span class="unit">%</span></td>
-            <td>{tv.n}<span class="unit">{tv.u}</span></td>
+            {#if cols.length === COLS.length}<td>{tv.n}<span class="unit">{tv.u}</span></td>{/if}
           </tr>
         {/each}
       </tbody>

@@ -4,6 +4,7 @@
 import { FIELD_BY_ID, FIELDS, MARKET_CHOICES } from '@shared/fields'
 import type { Condition, InstrumentId, MetricsRow, ScreenResult } from '@shared/types'
 import { onMount } from 'svelte'
+import { prefetch } from '../../lib/barsCache'
 import { openInGrid } from '../../lib/commands'
 import { cls, fmt, money, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
@@ -89,6 +90,7 @@ const end = $derived(Math.min(rows.length, Math.ceil((scrollTop + viewH) / ROW) 
 function send() {
   const id = rows[sel]
   if (id) setLinkSymbol(pane.link || 1, id)
+  prefetch([rows[sel + 1], rows[sel - 1]])
 }
 function scrollSel() {
   if (!scroller) return

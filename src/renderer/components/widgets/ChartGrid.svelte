@@ -335,7 +335,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
 </PaneHeader>
 <div class="bar">
   <span class="lbl">{t('grid.src')}</span>
-  <select class="sel" value={src} onchange={(e) => set({ src: (e.currentTarget as HTMLSelectElement).value, page: 0 })}>
+  <select class="srcsel" value={src} onchange={(e) => set({ src: (e.currentTarget as HTMLSelectElement).value, page: 0 })}>
     {#each SRC_OPTIONS as s (s)}<option value={s}>{srcLabel(s)}</option>{/each}
   </select>
   <span class="sep"></span>
@@ -425,7 +425,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   .grow {
     flex: 1;
   }
-  .sel {
+  .srcsel {
     background: var(--bg);
     color: var(--text);
     border: 1px solid var(--line-strong);

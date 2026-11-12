@@ -1,7 +1,8 @@
 <script lang="ts">
 import { onMount } from 'svelte'
+import { clearBars } from '../lib/barsCache'
 import { handleKey } from '../lib/commands'
-import { app, applySettingsToDom, bridge, loadInstruments, rpc } from '../stores/app.svelte'
+import { app, applySettingsToDom, bridge, loadInstruments, rpc, t, toast } from '../stores/app.svelte'
 import { layout, normalizeDoc } from '../stores/layout.svelte'
 import Overlays from './overlays/Overlays.svelte'
 import StatusBar from './StatusBar.svelte'
@@ -25,9 +26,13 @@ onMount(() => {
       if (p.status === 'done' || p.status === 'cancelled') {
         void refreshStatus()
         void loadInstruments()
+        // JPX の一覧が取れなかった（FR-FR3）: 手で落とした data_j.xlsx を取り込めるように案内する
+        if ((p.kind === 'initial' || p.kind === 'reset' || p.kind === 'universe') && p.total <= 1 && p.failed >= 1)
+          toast(t('first.jpxFailed'), { label: t('set.importJpx'), run: () => (app.overlay = { kind: 'settings', tab: 'data' }) }, 20_000)
       }
     }),
     bridge.on('data.updated', (d) => {
+      clearBars(d.ids)
       if (d.ids.includes('*')) app.metrics.clear()
       else for (const id of d.ids) app.metrics.delete(id)
       app.dataVersion++
