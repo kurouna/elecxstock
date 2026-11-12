@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img"><title>elecxstock</title>
   <!-- 16・32px 用の簡略版（§10.1）: ローソク足 3 本と「E」のバッジだけ -->
   <rect x="9" y="4" width="50" height="56" rx="6" fill="#e2e8f0"/>
   <rect x="13" y="8" width="42" height="30" rx="3" fill="#0b0f14"/>

@@ -1,0 +1,38 @@
+# プッシュとプルリクエストのたびに lint・型検査・単体テスト・ビルド・E2E を実行する（NFR-CI1）
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: node scripts/check-licenses.mjs
+      - name: E2E (stub provider, keyboard only)
+        run: npx playwright test
+      - name: Package and smoke-test the installer build
+        run: |
+          npx electron-builder --win --dir --publish never
+          node scripts/packaged-smoke.mjs release/win-unpacked/elecxstock.exe
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results
+          path: test-results/

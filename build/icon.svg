@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img"><title>elecxstock</title>
   <!-- elec シリーズの構成: 明るいグレーの板に暗いタイル、左下に白縁の青い丸と白い 3 本線の「E」（§10.1） -->
   <defs>
     <clipPath id="t1"><rect x="208" y="128" width="640" height="420" rx="22"/></clipPath>

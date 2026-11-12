@@ -1,0 +1,31 @@
+# 毎晩、実際の Yahoo・JPX に数銘柄だけ問い合わせ、仕様変更を早く知る（NFR-CI3）。失敗したら Issue で知らせる
+name: Contract
+on:
+  schedule:
+    - cron: "30 11 * * *" # 20:30 JST
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run contract
+        env:
+          LIVE: "1"
+      - name: Open an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create --title "Contract test failed $(date -u +%F)" --body "The nightly contract test against Yahoo/JPX failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" --label contract || true

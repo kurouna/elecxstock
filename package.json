@@ -40,9 +40,10 @@
     "verify": "npm run lint && npm run typecheck && npm run test",
     "gen:icon": "node scripts/gen-icon.mjs",
     "gen:screenshots": "node scripts/gen-screenshots.mjs",
-    "contract": "node scripts/contract-test.mjs",
+    "contract": "vitest run --config vitest.contract.config.ts",
     "package": "npm run build && electron-builder --win --publish never",
-    "package:dir": "npm run build && electron-builder --win --dir --publish never"
+    "package:dir": "npm run build && electron-builder --win --dir --publish never",
+    "test:packaged": "node scripts/packaged-smoke.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",
