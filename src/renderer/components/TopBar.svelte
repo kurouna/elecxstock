@@ -1,4 +1,5 @@
 <script lang="ts">
+import { isMarketOpen, isTradingDay, jstNow } from '@shared/calendar'
 import { onMount } from 'svelte'
 import { doResetSizes } from '../lib/commands'
 import type { Key } from '../lib/i18n'
@@ -9,12 +10,10 @@ let clock = $state('')
 let market = $state<'open' | 'closed' | 'holiday'>('closed')
 onMount(() => {
   const tick = () => {
-    const now = new Date()
-    clock = now.toLocaleTimeString(app.settings.lang === 'ja' ? 'ja-JP' : 'en-US', { timeZone: 'Asia/Tokyo', hour12: false })
-    const j = new Date(now.getTime() + 9 * 3600_000)
-    const wd = j.getUTCDay()
-    const m = j.getUTCHours() * 60 + j.getUTCMinutes()
-    market = wd === 0 || wd === 6 ? 'holiday' : m >= 540 && m < 930 ? 'open' : 'closed'
+    const now = Date.now()
+    clock = new Date(now).toLocaleTimeString(app.settings.lang === 'ja' ? 'ja-JP' : 'en-US', { timeZone: 'Asia/Tokyo', hour12: false })
+    // 東証の休場日の判定（Core と同じ src/shared/calendar.ts）
+    market = isMarketOpen(now) ? 'open' : isTradingDay(jstNow(now).date) ? 'closed' : 'holiday'
   }
   tick()
   const id = setInterval(tick, 1000)

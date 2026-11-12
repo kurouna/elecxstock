@@ -1,4 +1,4 @@
-import { isTradingDay, japaneseHolidays, lastClosedSession, prevTradingDay, toJstDate } from '@core/calendar'
+import { isTradingDay, japaneseHolidays, lastClosedSession, prevTradingDay, toJstDate } from '@shared/calendar'
 import { describe, expect, it } from 'vitest'
 
 describe('calendar（FR-T1, T2）', () => {
