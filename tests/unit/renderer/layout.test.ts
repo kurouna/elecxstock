@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.stubGlobal('window', { elecxstock: { call: async () => undefined, on: () => () => {}, prioritize: () => {} } })
 
-describe('レイアウト', async () => {
-  const L = await import('../../src/renderer/stores/layout.svelte')
+const L = await import('../../../src/renderer/stores/layout.svelte')
+
+describe('レイアウト', () => {
   it('壊れた・重複した ID の木を正規化する', () => {
     const d = L.defaultDoc()
     const raw = JSON.parse(JSON.stringify(d))

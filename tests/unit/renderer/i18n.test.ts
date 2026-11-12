@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { en, ja } from '../../src/renderer/lib/i18n'
+import { en, ja } from '../../../src/renderer/lib/i18n'
 
 describe('文言のカタログ（FR-N6）', () => {
   it('日本語と英語のキーが一致し、空の文言が無い', () => {
