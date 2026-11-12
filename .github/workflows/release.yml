@@ -22,7 +22,14 @@ jobs:
       - run: npm run build
       - run: node scripts/check-licenses.mjs
       - run: npx playwright test
-      - name: Build the installer and publish the release
-        run: npx electron-builder --win --publish always
+      # electron-builder の並列アップロードは同じタグのリリースを 2 つ作ることがある（v0.0.1 で発生）。
+      # インストーラを作ってから、gh で 1 つのリリースにまとめて載せる
+      - name: Build the installer
+        run: npx electron-builder --win --publish never
+      - name: Publish the release
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "${GITHUB_REF_NAME#v}" --generate-notes \
+            release/*-setup.exe release/*-setup.exe.blockmap release/latest.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
