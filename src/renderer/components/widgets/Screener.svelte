@@ -139,10 +139,7 @@ async function typeValue(i: number) {
   }
   const unit =
     f.type === 'money' && !['price.close', 'price.ma25', 'price.ma75', 'price.ma200', 'price.hi52', 'price.lo52'].includes(f.id) ? 1e8 : 1
-  const s = await promptDialog(
-    `${f.label[app.settings.lang]}${f.type === 'money' ? (app.settings.lang === 'ja' ? '（億円）' : ' (×100M JPY)') : ''}`,
-    String(Number(c.value) / unit),
-  )
+  const s = await promptDialog(`${f.label[app.settings.lang]}${f.type === 'money' ? t('scr.unitOku') : ''}`, String(Number(c.value) / unit))
   if (s == null) return
   const v = Number(s.replace(/[,，]/g, ''))
   if (Number.isFinite(v)) update(i, { ...c, value: v * unit })

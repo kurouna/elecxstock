@@ -11,6 +11,8 @@ export interface ElecxstockBridge {
   /** data/backups の DB のバックアップを、選んだ場所へ写す */
   exportBackup(file: string): Promise<boolean>
   openLogs(): Promise<boolean>
+  /** ウィンドウの枠の色・高さをテーマと表示倍率に合わせる */
+  setChrome(theme: string, scale: number): Promise<boolean>
   /** 同梱 OSS のライセンス一覧 */
   notices(): Promise<string>
   platform: string

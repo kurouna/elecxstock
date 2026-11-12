@@ -83,6 +83,7 @@ export interface CheckItem {
 
 export interface Toast {
   id: number
+  kind?: 'info' | 'error'
   msg: string
   action?: { label: string; run: () => void }
   ms: number
@@ -99,6 +100,8 @@ class AppState {
   instruments = new SvelteMap<InstrumentId, Instrument>()
   metrics = new SvelteMap<InstrumentId, MetricsRow>()
   dataVersion = $state(0)
+  /** 直近の data.updated で変わった銘柄（'*' はすべて）。チャートは自分の銘柄が含まれるときだけ読み直す */
+  updatedIds = $state<Set<InstrumentId> | '*'>('*')
   jobs = $state<JobProgress[]>([])
   status = $state<DataStatus | null>(null)
   provider = $state<{ offline: boolean; paused: boolean; message?: string }>({ offline: false, paused: false })
@@ -123,9 +126,9 @@ export function t(key: Key, args?: Record<string, string | number>): string {
 }
 
 let toastSeq = 0
-export function toast(msg: string, action?: Toast['action'], ms = 2200): void {
+export function toast(msg: string, action?: Toast['action'], ms = 2200, kind: Toast['kind'] = 'info'): void {
   const id = ++toastSeq
-  app.toasts = [...app.toasts.slice(-2), { id, msg, ...(action ? { action } : {}), ms }]
+  app.toasts = [...app.toasts.slice(-2), { id, kind, msg, ...(action ? { action } : {}), ms }]
   setTimeout(() => {
     app.toasts = app.toasts.filter((x) => x.id !== id)
   }, ms)
@@ -137,9 +140,9 @@ export async function rpc<M extends Method>(method: M, params: Params<M>): Promi
     return await bridge.call(method, params)
   } catch (e) {
     const err = e as CoreError
-    if (err?.code === 'read-only') toast(t('err.readOnly'))
-    else if (err?.code === 'busy') toast(t('err.busy'))
-    else toast(t('err.generic', { msg: err?.message || err?.code || String(e) }), undefined, 4000)
+    if (err?.code === 'read-only') toast(t('err.readOnly'), undefined, 6000, 'error')
+    else if (err?.code === 'busy') toast(t('err.busy'), undefined, 4000, 'error')
+    else toast(t('err.generic', { msg: err?.message || err?.code || String(e) }), undefined, 10_000, 'error')
     throw e
   }
 }
@@ -199,9 +202,24 @@ export function isCand(id: InstrumentId | null | undefined): boolean {
   return !!id && !!candidates()?.items.includes(id)
 }
 let saveListsTimer: ReturnType<typeof setTimeout> | null = null
+/** その銘柄のデータが直近の更新で変わったか（チャートの読み直しの判定） */
+export function touched(id: InstrumentId): boolean {
+  return app.updatedIds === '*' || app.updatedIds.has(id)
+}
 export function saveWatchlists(): void {
   if (saveListsTimer) clearTimeout(saveListsTimer)
-  saveListsTimer = setTimeout(() => void rpc('user.saveWatchlists', { watchlists: $state.snapshot(app.watchlists) }).catch(() => {}), 150)
+  saveListsTimer = setTimeout(flushWatchlists, 150)
+}
+function flushWatchlists(): void {
+  saveListsTimer = null
+  void rpc('user.saveWatchlists', { watchlists: $state.snapshot(app.watchlists) }).catch(() => {})
+}
+/** 閉じる前に、遅らせている保存を確定させる */
+export function flushListSaves(): void {
+  if (saveListsTimer) {
+    clearTimeout(saveListsTimer)
+    flushWatchlists()
+  }
 }
 export function toggleFav(id: InstrumentId | null | undefined): void {
   if (!id) return
@@ -256,6 +274,7 @@ export function applySettingsToDom(): void {
   r.dataset.density = app.settings.density
   r.dataset.reduceMotion = String(app.settings.reduceMotion)
   r.dataset.theme = app.settings.theme
+  void raw.setChrome?.(app.settings.theme, app.settings.uiScale)
   r.style.zoom = String(app.settings.uiScale)
 }
 

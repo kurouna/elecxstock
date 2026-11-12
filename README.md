@@ -42,6 +42,8 @@
 | インカム（配当カレンダー）                  | コマンドバー（Ctrl+K）                       |
 | ![Drawer](docs/screenshots/grid-drawer.png) | ![Help](docs/screenshots/help.png)           |
 | ドロワー（Ctrl+B）                          | ショートカット一覧（F1）                     |
+| ![Market](docs/screenshots/market.png)      | ![Light](docs/screenshots/light.png)         |
+| マーケット（ヒートマップ・ランキング）      | ライトテーマ                                 |
 
 （スクリーンショットはテスト用の架空のデータです）
 

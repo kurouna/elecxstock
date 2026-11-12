@@ -87,7 +87,7 @@ function onerror(e: unknown) {
       <div class="state">
         <div>
           <div>{t('err.generic', { msg: String((error as Error)?.message ?? error) })}</div>
-          <button type="button" class="btn" onclick={reset}>RETRY</button>
+          <button type="button" class="btn" onclick={reset}>{t('boot.retry')}</button>
         </div>
       </div>
     {/snippet}

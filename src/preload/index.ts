@@ -67,6 +67,7 @@ const api: ElecxstockBridge = {
   openFile: (kind: 'json' | 'xlsx' | 'text') => ipcRenderer.invoke('app:openFile', kind) as Promise<string | Uint8Array | null>,
   exportBackup: (file: string) => ipcRenderer.invoke('app:exportBackup', file) as Promise<boolean>,
   openLogs: () => ipcRenderer.invoke('app:openLogs') as Promise<boolean>,
+  setChrome: (theme: string, scale: number) => ipcRenderer.invoke('app:setChrome', theme, scale) as Promise<boolean>,
   platform: process.platform,
 }
 contextBridge.exposeInMainWorld('elecxstock', api)

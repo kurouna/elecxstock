@@ -272,6 +272,12 @@ export class CoreService {
       case 'user.saveLayouts':
         this.user.save('layouts', P.layouts as never)
         return undefined as Results[M]
+      case 'user.undoImport': {
+        let any = false
+        for (const n of ['watchlists', 'screens', 'layouts', 'settings'] as const) if (this.user.restoreBefore(n, 'preimport')) any = true
+        if (any) r.setUserAdded(this.trackedCodes())
+        return any as Results[M]
+      }
       case 'user.defaultScreens':
         return defaultScreens() as Results[M]
       case 'portfolio.list':

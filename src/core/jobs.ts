@@ -8,11 +8,15 @@ import { idOf, type Repo } from './repo'
 
 const sleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((res, rej) => {
-    const t = setTimeout(res, ms)
-    signal?.addEventListener('abort', () => {
+    const onAbort = () => {
       clearTimeout(t)
       rej(new Error('aborted'))
-    })
+    }
+    const t = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort) // ジョブの間に聞き手が溜まらないように
+      res()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
 const nowIso = () => new Date().toISOString()
 
@@ -42,6 +46,8 @@ interface JobRow {
 export class JobRunner {
   private running = false
   private abort: AbortController | null = null
+  /** 実行中のジョブの ID（止めるのはこのジョブだけ） */
+  private currentId: number | null = null
   private lastCall = 0
   private priority = new Set<InstrumentId>()
   private consecutiveProviderErrors = 0
@@ -54,7 +60,8 @@ export class JobRunner {
   constructor(private h: JobsHost) {}
 
   // ---------------------------------------------------------------- queue
-  enqueue(kind: JobKind, items: string[]): number {
+  enqueue(kind: JobKind, itemsIn: string[]): number {
+    let items = itemsIn
     const db = this.h.repo.db
     // 同じ種類の未完了ジョブがあれば足さずにそれを返す
     const dup = db.get<{ id: number }>(
@@ -64,6 +71,19 @@ export class JobRunner {
     if (dup && kind !== 'refetch') {
       this.resumeJob(dup.id) // 一時停止中なら再開する
       return dup.id
+    }
+    if (kind === 'refetch') {
+      // 待っている・実行中の取り直しに同じ項目があれば重ねない（ウォッチリストの保存のたびに増えないように）
+      const pending = new Set<string>()
+      let last: number | null = null
+      for (const r of db.all<{ id: number; items: string; pos: number }>(
+        `SELECT id, items, pos FROM jobs WHERE kind = 'refetch' AND status IN ('queued','running','paused','waiting-offline','provider-paused')`,
+      )) {
+        for (const it of (JSON.parse(r.items) as string[]).slice(r.pos)) pending.add(it)
+        last = r.id
+      }
+      items = items.filter((it) => !pending.has(it))
+      if (!items.length && last != null) return last
     }
     db.run(
       `INSERT INTO jobs(kind, status, items, pos, failed, created, updated) VALUES(?, 'queued', ?, 0, 0, ?, ?)`,
@@ -81,7 +101,7 @@ export class JobRunner {
   }
   cancel(id: number): void {
     this.h.repo.db.run(`UPDATE jobs SET status = 'cancelled', updated = ? WHERE id = ? AND status NOT IN ('done','failed')`, nowIso(), id)
-    this.abort?.abort()
+    if (this.currentId === id) this.abort?.abort() // 実行中のジョブだけを止める（待っているジョブの取り消しで、実行中のものを止めない）
   }
   cancelAll(): void {
     this.h.repo.db.run(`UPDATE jobs SET status = 'cancelled', updated = ? WHERE status NOT IN ('done','failed','cancelled')`, nowIso())
@@ -94,7 +114,7 @@ export class JobRunner {
       nowIso(),
       id,
     )
-    this.abort?.abort()
+    if (this.currentId === id) this.abort?.abort()
   }
   resumeJob(id: number): void {
     this.h.repo.db.run(`UPDATE jobs SET status = 'queued', updated = ? WHERE id = ? AND status = 'paused'`, nowIso(), id)
@@ -142,7 +162,9 @@ export class JobRunner {
       this.startedAt = Date.now()
       this.doneThisRun = 0
       this.abort = new AbortController()
+      this.currentId = j.id
       const items = JSON.parse(j.items) as string[]
+      let itemsDirty = false
       let lastEmit = 0
       let failMsg: string | null = null
       while (j.pos < items.length) {
@@ -155,11 +177,15 @@ export class JobRunner {
         if (pi > j.pos) {
           const [it] = items.splice(pi, 1)
           items.splice(j.pos, 0, it!)
+          itemsDirty = true
         }
         const item = items[j.pos]!
         try {
           const extra = await this.runItem(j.kind, item, this.abort.signal)
-          if (extra?.length) items.push(...extra)
+          if (extra?.length) {
+            items.push(...extra)
+            itemsDirty = true
+          }
           this.consecutiveProviderErrors = 0
           if (this.offline) {
             this.offline = false
@@ -207,23 +233,34 @@ export class JobRunner {
         }
         j.pos++
         this.doneThisRun++
-        db.run(
-          `UPDATE jobs SET pos = ?, failed = ?, items = ?, updated = ? WHERE id = ?`,
-          j.pos,
-          j.failed,
-          JSON.stringify(items),
-          nowIso(),
-          j.id,
-        )
+        // 項目の列は、並べ替え・追加があったときだけ書き直す（数千項目の JSON を毎回書かない）
+        if (itemsDirty) {
+          db.run(
+            `UPDATE jobs SET pos = ?, failed = ?, items = ?, updated = ? WHERE id = ?`,
+            j.pos,
+            j.failed,
+            JSON.stringify(items),
+            nowIso(),
+            j.id,
+          )
+          itemsDirty = false
+        } else db.run(`UPDATE jobs SET pos = ?, failed = ?, updated = ? WHERE id = ?`, j.pos, j.failed, nowIso(), j.id)
         if (Date.now() - lastEmit > 300 || j.pos === items.length) {
           lastEmit = Date.now()
           this.h.emitProgress(this.progressOf({ ...j, items: JSON.stringify(items) }))
         }
       }
+      this.currentId = null
+      if (itemsDirty) db.run(`UPDATE jobs SET items = ? WHERE id = ?`, JSON.stringify(items), j.id)
       const st = db.get<{ status: string }>('SELECT status FROM jobs WHERE id = ?', j.id)?.status
       let final: JobProgress['status'] = 'done'
       if (st === 'cancelled' || st === 'paused') final = st
-      else if (failMsg) {
+      else if (j.pos < items.length && !failMsg) {
+        // 止められたが、このジョブ自身は取り消し・一時停止されていない: 完了にせず待ちに戻す
+        db.run(`UPDATE jobs SET status = 'queued', updated = ? WHERE id = ?`, nowIso(), j.id)
+        this.h.emitProgress(this.progressOf({ ...j, status: 'queued', items: JSON.stringify(items) }))
+        continue
+      } else if (failMsg) {
         final = 'failed'
         db.run(`UPDATE jobs SET status = 'failed', updated = ? WHERE id = ?`, nowIso(), j.id)
         this.h.log(`job ${j.id} failed: ${failMsg}`)

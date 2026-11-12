@@ -51,7 +51,10 @@ async function handle(msg: { id: number; method: string; params: unknown }): Pro
   const { id, method } = msg
   try {
     if (method === 'jobs.prioritize') {
-      service.prioritize(Array.isArray(msg.params) ? (msg.params as string[]).slice(0, 200) : [])
+      const ids = Array.isArray(msg.params)
+        ? msg.params.filter((x): x is string => typeof x === 'string' && x.length <= 24).slice(0, 200)
+        : []
+      service.prioritize(ids)
       return send({ id, result: null })
     }
     const schema = PARAMS[method as Method]

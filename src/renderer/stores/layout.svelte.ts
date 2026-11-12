@@ -208,7 +208,18 @@ export const layout = new LayoutState()
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 export function saveLayout(): void {
   if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => void rpc('user.saveLayout', { layout: $state.snapshot(layout.doc) }).catch(() => {}), 400)
+  saveTimer = setTimeout(flushLayout, 400)
+}
+function flushLayout(): void {
+  saveTimer = null
+  void rpc('user.saveLayout', { layout: $state.snapshot(layout.doc) }).catch(() => {})
+}
+/** 閉じる前に、遅らせている保存を確定させる */
+export function flushLayoutSave(): void {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    flushLayout()
+  }
 }
 
 // ---------------------------------------------------------------- queries
@@ -307,13 +318,19 @@ interface SizeSnap {
   preset: PresetId
   splits: number[][]
   dock?: number
+  dockRight?: number
 }
 let undoSnap: SizeSnap | null = null
 let undoTimer: ReturnType<typeof setTimeout> | null = null
 function snapshotSizes(e: LayoutEntry): SizeSnap {
   const splits: number[][] = []
   eachSplit(e.root, (s) => splits.push([...s.sizes]))
-  return { preset: layout.doc.active, splits, ...(e.docks.left ? { dock: e.docks.left.width } : {}) }
+  return {
+    preset: layout.doc.active,
+    splits,
+    ...(e.docks.left ? { dock: e.docks.left.width } : {}),
+    ...(e.docks.right ? { dockRight: e.docks.right.width } : {}),
+  }
 }
 /** サイズを元に戻す（FR-L9）。並び・中身は変えない。10 秒間は元に戻せる */
 export function resetSizes(): boolean {
@@ -347,6 +364,7 @@ export function undoResetSizes(): boolean {
     if (t && t.length === s.sizes.length) s.sizes = [...t]
   })
   if (e.docks.left && snap.dock) e.docks.left.width = snap.dock
+  if (e.docks.right && snap.dockRight) e.docks.right.width = snap.dockRight
   undoSnap = null
   saveLayout()
   return true

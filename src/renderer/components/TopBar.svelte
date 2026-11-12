@@ -25,7 +25,7 @@ onMount(() => {
   <div class="brand">
     <span class="logo" aria-hidden="true">E</span><span class="name">elecxstock</span>
   </div>
-  <nav class="presets" aria-label="layouts">
+  <nav class="presets" aria-label={t('a11y.layouts')}>
     {#each PRESET_IDS as p, i (p)}
       <button type="button" aria-current={layout.doc.active === p} onclick={() => setPreset(p)} title={`Ctrl+Shift+${i + 1}`}>
         <span>{t(`preset.${p}` as Key)}</span><kbd>{i + 1}</kbd>
@@ -68,7 +68,7 @@ onMount(() => {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #10a5e8;
+    background: var(--brand);
     color: #fff;
     font-weight: 700;
     font-size: var(--fs-2);

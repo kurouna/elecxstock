@@ -46,7 +46,7 @@ function backdrop(e: MouseEvent) {
   .scrim {
     position: fixed;
     inset: 0;
-    background: rgba(5, 6, 8, 0.55);
+    background: var(--scrim);
     z-index: 50;
     display: flex;
     justify-content: center;
@@ -56,7 +56,7 @@ function backdrop(e: MouseEvent) {
   :global(.dialog) {
     background: var(--panel-2);
     border: 1px solid var(--line-strong);
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow);
     border-radius: var(--radius);
     color: var(--text);
     max-height: calc(100vh - 120px);

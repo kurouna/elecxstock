@@ -41,7 +41,7 @@ const running = (s: string) => s === 'running' || s === 'queued' || s === 'waiti
 <div class="scroll">
   <table class="grid">
     <colgroup><col style="width:140px" /><col style="width:110px" /><col /><col style="width:90px" /></colgroup>
-    <thead><tr><th class="l">{t('widget.jobs')}</th><th class="l">Status</th><th>Progress</th><th></th></tr></thead>
+    <thead><tr><th class="l">{t('widget.jobs')}</th><th class="l">{t('jobs.status')}</th><th>{t('jobs.progress')}</th><th></th></tr></thead>
     <tbody>
       {#each app.jobs as j (j.id)}
         <tr>

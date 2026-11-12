@@ -178,3 +178,26 @@ describe('利用者のデータの保護（FR-S12）', () => {
     rmSync(d, { recursive: true, force: true })
   })
 })
+
+describe('ジョブの取り消し・一時停止（FR-F4）', () => {
+  it('待っている別のジョブを止めても、実行中のジョブは完了にならない。取り直しは同じ項目を重ねない', async () => {
+    const d = mkdtempSync(join(tmpdir(), 'elecxstock-jobs-'))
+    const s = new CoreService(d, createStubProvider(), () => {}, 'test')
+    const first = await s.call('jobs.start', { kind: 'initial' })
+    const other = await s.call('jobs.refetch', { ids: ['JP:7203'] })
+    expect(await s.call('jobs.refetch', { ids: ['JP:7203'] })).toBe(other) // 同じ項目は重ねない
+    await s.call('jobs.cancel', { id: other })
+    const t0 = Date.now()
+    for (;;) {
+      const j = (await s.call('jobs.list', {})).find((x) => x.id === first)!
+      if (j.status === 'done') {
+        expect(j.done).toBe(j.total) // 途中で「完了」にならない
+        break
+      }
+      if (Date.now() - t0 > 60_000) throw new Error('timeout')
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    s.close()
+    rmSync(d, { recursive: true, force: true })
+  }, 90_000)
+})

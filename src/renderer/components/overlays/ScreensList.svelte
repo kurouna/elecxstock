@@ -109,6 +109,6 @@ onMount(() => {
   }
   .del {
     color: var(--danger);
-    border-color: #5a2a2d;
+    border-color: var(--danger-line);
   }
 </style>

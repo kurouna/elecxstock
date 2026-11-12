@@ -121,6 +121,7 @@ export const PARAMS = {
   'user.saveLayout': z.object({ layout: z.unknown() }),
   'user.saveLayouts': z.object({ layouts: z.array(savedLayoutSchema).max(200) }),
   'user.defaultScreens': z.object({}),
+  'user.undoImport': z.object({}),
   'portfolio.list': z.object({}),
   'portfolio.save': z.object({ holdings: z.array(holdingSchema).max(5000) }),
   'portfolio.export': z.object({}),
@@ -180,6 +181,8 @@ export interface Results {
   'user.saveLayout': undefined
   'user.saveLayouts': undefined
   'user.defaultScreens': SavedScreen[]
+  /** 取り込む前の状態に戻せたか */
+  'user.undoImport': boolean
   'portfolio.list': Holding[]
   'portfolio.save': Holding[]
   'portfolio.export': string

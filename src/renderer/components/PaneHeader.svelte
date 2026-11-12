@@ -27,13 +27,13 @@ const focused = $derived(app.focus === pane.id)
   ondragend={() => document.body.classList.remove('dragging-pane')}
 >
   <span class={`link l${pane.link}`} title={`${t('link.set', { n: pane.link || '—' })} (Ctrl+${pane.link})`}>{pane.link || '·'}</span>
-  <span class="title">{t(`widget.${pane.widget}` as Key)}</span>
+  {#if !inDock(pane.id)}<span class="title">{t(`widget.${pane.widget}` as Key)}</span>{/if}
   {#if children}{@render children()}{/if}
   <span class="spacer"></span>
   {#if !inDock(pane.id)}
     <span class="tools">
-      <button type="button" title="Ctrl+Shift+Enter" onclick={() => { app.focus = pane.id; toggleMax() }}>⤢</button>
-      <button type="button" title="Ctrl+Shift+W" onclick={async () => { if (await confirmCloseScreen(pane)) closePane(pane.id) }}>✕</button>
+      <button type="button" title={`${t('act.max')} (Ctrl+Shift+Enter)`} aria-label={t('act.max')} onclick={() => { app.focus = pane.id; toggleMax() }}>⤢</button>
+      <button type="button" title={`${t('act.close')} (Ctrl+Shift+W)`} aria-label={t('act.close')} onclick={async () => { if (await confirmCloseScreen(pane)) closePane(pane.id) }}>✕</button>
     </span>
   {/if}
 </div>
@@ -57,11 +57,9 @@ const focused = $derived(app.focus === pane.id)
     background: var(--panel-2);
   }
   .title {
-    font-size: var(--fs-1);
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--text-2);
-    text-transform: uppercase;
+    font-size: var(--fs-2);
+    font-weight: 600;
+    color: var(--text-3);
     flex: none;
   }
   .ph.focused .title {

@@ -1,7 +1,7 @@
 // main プロセス（薄い）: ウィンドウ・単一インスタンス・Core（utilityProcess）の起動と MessagePort の受け渡し・安全策（§8.1, NFR-S3）。
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { dirname, extname, join, normalize } from 'node:path'
+import { dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   app,
@@ -112,7 +112,10 @@ function saveState(): void {
 }
 
 // ---------------------------------------------------------------- core（utilityProcess）
+let coreFails = 0
+let coreStartedAt = 0
 function startCore(): void {
+  coreStartedAt = Date.now()
   const dataDir = join(app.getPath('userData'), 'data')
   core = utilityProcess.fork(join(here, 'core.js'), [], {
     serviceName: 'elecxstock-core',
@@ -141,11 +144,30 @@ function startCore(): void {
     coreReady = false
     if (quitting) return
     // 落ちても自動で立ち上げ直し、ポートを渡し直す（NFR-Q11）
-    console.error(`core exited (${code}); restarting`)
-    log(`core exited (${code}); restarting`)
-    setTimeout(() => {
-      startCore()
-    }, 1000)
+    // 落ちても自動で立ち上げ直す（NFR-Q11）。続けて落ちるとき（DB が開けないなど）は間隔を延ばし、5 回で止めて知らせる
+    coreFails = Date.now() - coreStartedAt < 30_000 ? coreFails + 1 : 1
+    log(`core exited (${code}); restart #${coreFails}`)
+    if (coreFails >= 5) {
+      void dialog
+        .showMessageBox({
+          type: 'error',
+          title: 'elecxstock',
+          message: app.getLocale().startsWith('ja') ? 'データの処理（Core）が起動できません' : 'The data engine (Core) cannot start',
+          detail: app.getLocale().startsWith('ja')
+            ? 'データベースが壊れているか、ほかのプログラムが使っている可能性があります。ログのフォルダを開いて原因を確かめてください。'
+            : 'The database may be damaged or in use by another program. Open the log folder to see the cause.',
+          buttons: app.getLocale().startsWith('ja') ? ['ログを開く', 'もう一度試す', '閉じる'] : ['Open logs', 'Retry', 'Close'],
+        })
+        .then((r) => {
+          if (r.response === 0) void shell.openPath(logDir())
+          if (r.response === 1) {
+            coreFails = 0
+            startCore()
+          }
+        })
+      return
+    }
+    setTimeout(() => startCore(), Math.min(30_000, 1000 * 2 ** (coreFails - 1)))
   })
 }
 /** renderer と Core を MessagePort で直結する（main は通さない） */
@@ -233,7 +255,7 @@ function registerProtocol(): void {
   protocol.handle('app', async (req) => {
     const url = new URL(req.url)
     const p = normalize(join(root, decodeURIComponent(url.pathname)))
-    if (!p.startsWith(root) || !existsSync(p)) return new Response('not found', { status: 404 })
+    if (!p.startsWith(root + sep) || !existsSync(p)) return new Response('not found', { status: 404 })
     const body = await readFile(p)
     return new Response(body, {
       headers: {
@@ -269,6 +291,19 @@ ipcMain.handle('app:saveText', async (e, name: unknown, text: unknown) => {
   writeFileSync(r.filePath, text)
   return true
 })
+// ウィンドウの枠（最小化・最大化・閉じるのボタン）の色と高さを、テーマと表示倍率に合わせる（FR-V8）
+ipcMain.handle('app:setChrome', (e, theme: unknown, scale: unknown) => {
+  if (!fromApp(e) || !win) return false
+  const light = theme === 'light'
+  const z = typeof scale === 'number' && scale >= 0.8 && scale <= 1.5 ? scale : 1
+  try {
+    win.setTitleBarOverlay({ color: light ? '#ffffff' : '#101318', symbolColor: light ? '#4a5562' : '#a3adb9', height: Math.round(36 * z) })
+    win.setBackgroundColor(light ? '#e9ecf0' : '#0b0d10')
+  } catch {
+    /* titleBarOverlay の無い環境 */
+  }
+  return true
+})
 // 同梱 OSS のライセンス一覧（設定 > このアプリについて。§10）
 ipcMain.handle('app:notices', (e) => {
   if (!fromApp(e)) return ''
@@ -286,8 +321,8 @@ ipcMain.handle('app:openFile', async (e, kind: unknown) => {
         : [{ name: 'JSON', extensions: ['json'] }]
   const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters })
   if (r.canceled || !r.filePaths[0]) return null
+  if (statSync(r.filePaths[0]).size > 20_000_000) return null
   const buf = readFileSync(r.filePaths[0])
-  if (buf.length > 20_000_000) return null
   return kind === 'xlsx' ? new Uint8Array(buf) : buf.toString('utf8')
 })
 

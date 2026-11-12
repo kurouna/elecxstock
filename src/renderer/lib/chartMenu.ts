@@ -30,7 +30,6 @@ export function cancelCompare(): void {
 }
 
 export async function chartMenu(pane: PaneNode): Promise<void> {
-  const ja = app.settings.lang === 'ja'
   const cmp = (pane.state.cmp as InstrumentId[] | undefined) ?? []
   const choice = await choiceDialog(t('chart.menu'), [
     {
@@ -80,7 +79,7 @@ export async function chartMenu(pane: PaneNode): Promise<void> {
       .map((x) => Math.floor(Number(x)))
       .filter((x) => x >= 2 && x <= 400)
     if (ns.length !== 3) {
-      toast(ja ? '期間は 3 つ（2〜400）を入れてください' : 'Enter three periods (2–400)')
+      toast(t('chart.maInvalid'))
       return
     }
     saveSettings({ maPeriods: { ...app.settings.maPeriods, [k]: ns } })

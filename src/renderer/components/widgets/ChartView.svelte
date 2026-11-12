@@ -19,11 +19,11 @@ import {
   type SeriesType,
   type Time,
 } from 'lightweight-charts'
-import { onMount } from 'svelte'
+import { onMount, untrack } from 'svelte'
 import { getBars } from '../../lib/barsCache'
 import { cls, px, sgn } from '../../lib/format'
 import { bollinger, ichimoku, macd, rsiSeries, type Series, sma, stochastic } from '../../lib/indicators'
-import { app, nameOf, t } from '../../stores/app.svelte'
+import { app, nameOf, t, touched } from '../../stores/app.svelte'
 import type { PaneNode } from '../../stores/layout.svelte'
 import { type ChartHandle, charts } from './chartSync'
 
@@ -88,8 +88,15 @@ $effect(() => {
   void tf
   void adj
   void cmp.join()
-  void app.dataVersion
   void load()
+})
+// データの更新: 表示中（比較を含む）の銘柄が変わったときだけ読み直す（ほかの銘柄の取得では作り直さない）
+let seen = 0
+$effect(() => {
+  const v = app.dataVersion
+  if (v === seen) return
+  seen = v
+  if (untrack(() => touched(id) || cmp.some((c) => touched(c)))) void load()
 })
 // 表示の設定が変わったら作り直す（指標の段の数が変わるため）
 $effect(() => {

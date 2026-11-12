@@ -188,12 +188,16 @@ export class UserStore {
   importAll(json: string): { watchlists: number; screens: number } {
     const o = JSON.parse(json) as { format?: string; watchlists?: unknown; screens?: unknown; settings?: unknown; layouts?: unknown }
     if (o.format !== 'elecxstock.userdata') throw new Error('not an elecxstock export')
+    // すべて検証してから保存する（途中で失敗して半分だけ入ることが無いように）
     const wl = z.array(watchlistSchema).parse(o.watchlists ?? [])
     const sc = z.array(screenSchema).parse(o.screens ?? [])
+    const ly = o.layouts ? z.array(savedLayoutSchema).parse(o.layouts) : null
+    const st = o.settings ? settingsSchema.parse({ ...this.load('settings'), ...(o.settings as object) }) : null
+    for (const n of ['watchlists', 'screens', 'layouts', 'settings'] as const) this.keepBefore(n, 'preimport')
     this.save('watchlists', ensureBuiltins(wl))
     this.save('screens', sc.length ? sc : defaultScreens())
-    if (o.layouts) this.save('layouts', z.array(savedLayoutSchema).parse(o.layouts))
-    if (o.settings) this.save('settings', settingsSchema.parse({ ...this.load('settings'), ...(o.settings as object) }))
+    if (ly) this.save('layouts', ly)
+    if (st) this.save('settings', st)
     return { watchlists: wl.length, screens: sc.length }
   }
 }

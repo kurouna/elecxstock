@@ -78,7 +78,7 @@ async function importJpx() {
   const bytes = await window.elecxstock.openFile('xlsx')
   if (!(bytes instanceof Uint8Array)) return
   const n = await rpc('data.importJpx', { bytes: new Uint8Array(bytes) })
-  toast(`JPX: ${n.toLocaleString()}`)
+  toast(t('jpx.imported', { n: n.toLocaleString() }))
 }
 </script>
 
@@ -131,7 +131,7 @@ async function importJpx() {
         <span>{t('set.userInstruments')}</span>
         <span class="chips">
           {#each app.settings.userInstruments as c (c)}
-            <span class="chip">{c} {nameOf(`JP:${c}`)}<button type="button" class="x" aria-label="remove" onclick={() => removeUser(c)}>✕</button></span>
+            <span class="chip">{c} {nameOf(`JP:${c}`)}<button type="button" class="x" aria-label={t('common.remove')} onclick={() => removeUser(c)}>✕</button></span>
           {/each}
           <button type="button" class="chip" onclick={addUser}>＋ {t('set.addInstrument')}</button>
         </span>
@@ -190,9 +190,9 @@ async function importJpx() {
       <KeysSettings />
     {:else}
       <div class="field"><span>{t('set.version')}</span><span class="num">{app.info?.version ?? __APP_VERSION__}</span></div>
-      <div class="field"><span>License</span><span>{t('set.license')}</span></div>
+      <div class="field"><span>{t('set.licenseLabel')}</span><span>{t('set.license')}</span></div>
       <div class="field">
-        <span>Charts</span>
+        <span>{t('set.chartsLabel')}</span>
         <button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal('https://www.tradingview.com/')}>{t('set.attribution')}</button>
       </div>
       <div class="field">
@@ -263,6 +263,10 @@ async function importJpx() {
   }
   .field > span:first-child {
     color: var(--text-2);
+  }
+  .field > :global(.seg),
+  .field > .toggle {
+    justify-self: start;
   }
   .stat {
     display: grid;

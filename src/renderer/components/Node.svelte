@@ -1,6 +1,6 @@
 <script lang="ts">
 // レイアウトの木を描く（再帰）。区切り線はドラッグで動かし、ダブルクリックで両隣を等分する（FR-L1）。
-import { app } from '../stores/app.svelte'
+import { t } from '../stores/app.svelte'
 import { type LNode, type SplitNode, setSizes } from '../stores/layout.svelte'
 import Node from './Node.svelte'
 import Pane from './Pane.svelte'
@@ -55,7 +55,7 @@ function even(split: SplitNode, i: number) {
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="gutter"
-          title={app.settings.lang === 'ja' ? 'ドラッグで大きさを変える・ダブルクリックで等分（キー: Alt+Shift+矢印）' : 'Drag to resize, double-click to even (Alt+Shift+Arrows)'}
+          title={t('layout.gutterHint')}
           onmousedown={(e) => drag(e, node as SplitNode, i)}
           ondblclick={() => even(node as SplitNode, i)}
         ></div>

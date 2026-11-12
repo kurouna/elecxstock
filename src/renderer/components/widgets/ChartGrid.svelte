@@ -1,4 +1,5 @@
 <script lang="ts">
+import { addDays, jstNow } from '@shared/calendar'
 // チャートグリッド（§6.11）: 多数のチャートを並べ、時間軸・期間・表示を一括で操作し、売買候補に印を付ける。
 
 import type { Bars, Condition, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
@@ -99,7 +100,7 @@ const srcIds = $derived.by((): InstrumentId[] => {
   if (src === 'live' || src.startsWith('scr:')) return screenIds
   return app.watchlists.find((w) => w.id === src)?.items ?? []
 })
-const fromDate = $derived(new Date(Date.now() - PERIODS[period]!.days * 86400_000).toISOString().slice(0, 10))
+const fromDate = $derived(addDays(jstNow().date, -PERIODS[period]!.days)) // 日本時間の日付（FR-T1）
 $effect(() => {
   const ids = srcIds
   ensureMetrics(ids)

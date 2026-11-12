@@ -217,7 +217,12 @@ export class Repo {
     return Number(this.db.get<{ n: number }>('SELECT COUNT(*) n FROM daily_bars WHERE d < ?', d)!.n)
   }
   barRange(): { oldest: string | null; newest: string | null } {
-    const r = this.db.get<{ a: string | null; b: string | null }>('SELECT MIN(d) a, MAX(d) b FROM daily_bars')
+    // 日足の表を全走査しない（10 秒ごとに呼ばれるため）: 銘柄ごとに主キー (id, d) で最初と最後の足を引く
+    const r = this.db.get<{ a: string | null; b: string | null }>(
+      `SELECT MIN((SELECT d FROM daily_bars x WHERE x.id = f.id ORDER BY d LIMIT 1)) a,
+              MAX((SELECT d FROM daily_bars x WHERE x.id = f.id ORDER BY d DESC LIMIT 1)) b
+         FROM fetch_state f`,
+    )
     return { oldest: r?.a ?? null, newest: r?.b ?? null }
   }
   monthly(id: InstrumentId): DayBar[] {

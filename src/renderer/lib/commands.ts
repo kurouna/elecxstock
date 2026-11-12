@@ -1,9 +1,11 @@
 // アクションの登録表（FR-KB1）とキー操作（§6.5）。メニュー・ボタン・ショートカット・コマンドバーは同じアクションを呼ぶ。
 // キーは物理キー（KeyboardEvent.code）で判定し、日本語 IME の変換中は無視する（FR-KB5）。
 // 登録表のキーは設定で変えられる（FR-KB6。settings.keymap が上書き）。ペインの中の単キーは各ペインが持つ。
+import { addDays, jstNow } from '@shared/calendar'
 import type { InstrumentId } from '@shared/types'
 import {
   app,
+  applySettingsToDom,
   candidates,
   choiceDialog,
   closeOverlay,
@@ -204,7 +206,7 @@ export async function addToListDialog(ids: InstrumentId[]): Promise<void> {
   toast(t('list.added', { list: listName(l), name: ids.length === 1 ? ids[0]!.replace(/^\w+:/, '') : String(ids.length) }))
 }
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => jstNow().date // 日本時間の日付（FR-T1）
 export async function exportUser(): Promise<void> {
   const json = await rpc('user.exportAll', {})
   if (await window.elecxstock.saveText(`elecxstock-userdata-${today()}.json`, json)) toast(t('set.exported'))
@@ -212,13 +214,45 @@ export async function exportUser(): Promise<void> {
 export async function importUser(): Promise<void> {
   const text = await window.elecxstock.openFile('json')
   if (typeof text !== 'string') return
+  // 置き換える前に、何が置き換わるかを示して確かめる（取り込む前の状態は残り、元に戻せる）
+  let o: { watchlists?: unknown[]; screens?: unknown[]; layouts?: unknown[]; settings?: unknown }
+  try {
+    o = JSON.parse(text)
+  } catch {
+    toast(t('import.badFile'), undefined, 5000)
+    return
+  }
+  const ok = await confirmDialog({
+    title: t('import.userTitle'),
+    items: [
+      t('import.userLists', { from: app.watchlists.length, to: o.watchlists?.length ?? 0 }),
+      t('import.userScreens', { from: app.screens.length, to: o.screens?.length ?? 0 }),
+      ...(o.layouts ? [t('import.userLayouts', { from: app.layouts.length, to: o.layouts.length })] : []),
+      ...(o.settings ? [t('import.userSettings')] : []),
+    ],
+    body: t('import.userBody'),
+    ok: t('import.userDo'),
+  })
+  if (!ok.ok) return
   const r = await rpc('user.importAll', { json: text })
+  await reloadUser()
+  toast(t('set.imported', { w: r.watchlists, s: r.screens }), { label: t('hold.undo'), run: () => void undoUserImport() }, 10_000)
+}
+async function reloadUser(): Promise<void> {
   const u = await rpc('user.load', {})
   app.watchlists = u.watchlists
   app.screens = u.screens
   app.settings = u.settings
   app.layouts = u.layouts
-  toast(t('set.imported', { w: r.watchlists, s: r.screens }))
+  applySettingsToDom()
+}
+async function undoUserImport(): Promise<void> {
+  if (!(await rpc('user.undoImport', {}))) {
+    toast(t('hold.nothingToUndo'))
+    return
+  }
+  await reloadUser()
+  toast(t('hold.undone'))
 }
 /** 一覧を CSV に書き出す（FR-SC6, W8） */
 async function exportListCsv(): Promise<void> {
@@ -238,7 +272,7 @@ async function exportBarsCsv(): Promise<void> {
   const years = await promptDialog(t('csv.barsYears'), '1')
   if (years == null) return
   const n = Math.max(0, Number(years) || 0)
-  const from = n ? new Date(Date.now() - n * 365.25 * 86400_000).toISOString().slice(0, 10) : undefined
+  const from = n ? addDays(today(), -Math.round(n * 365.25)) : undefined
   const csv = await rpc('bars.csv', { ids, ...(from ? { from } : {}) })
   const name = ids.length === 1 ? ids[0]!.replace(/^\w+:/, '') : `${ids.length}`
   if (await window.elecxstock.saveText(`elecxstock-bars-${name}-${today()}.csv`, csv)) toast(t('csv.saved', { n: ids.length }))
@@ -593,6 +627,7 @@ export function handleKey(e: KeyboardEvent): boolean {
       return true
     }
     if (ctrl && !e.shiftKey && c === 'KeyK' && app.overlay.kind !== 'palette') {
+      closeOverlay() // 答えを待っているダイアログには「取り消し」を返してから
       app.overlay = { kind: 'palette' }
       return true
     }

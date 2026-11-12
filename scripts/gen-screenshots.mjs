@@ -72,5 +72,14 @@ await session('ja', [
   ],
   ['help', async ({ k }) => k('Escape', 'F1')],
   ['settings', async ({ k }) => k('Escape', 'Control+Comma', 'ArrowDown', 'ArrowDown')],
+  ['market', async ({ k }) => k('Escape', 'Control+Shift+Digit6', 'ArrowRight')],
+  [
+    'light',
+    async ({ k, page }) => {
+      await k('Control+k')
+      await page.keyboard.type('テーマ')
+      await k('Enter', 'Control+Shift+Digit2')
+    },
+  ],
 ])
 await session('en', [['grid-en', async ({ k }) => k('Control+Shift+Digit2', 'n', 'Alt+Digit3')]])

@@ -31,7 +31,7 @@ async function importJpx() {
   saveSettings({ retentionYears: years, firstRunDone: true })
   app.overlay = null
   const n = await rpc('data.importJpx', { bytes: new Uint8Array(bytes) })
-  toast(`JPX: ${n.toLocaleString()}`)
+  toast(t('jpx.imported', { n: n.toLocaleString() }))
 }
 </script>
 
@@ -73,7 +73,7 @@ async function importJpx() {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: #10a5e8;
+    background: var(--brand);
     color: #fff;
     font-weight: 700;
     font-size: 20px;

@@ -95,7 +95,7 @@ onMount(() => {
 })
 </script>
 
-<div class="dialog palette" role="dialog" aria-label="command bar">
+<div class="dialog palette" role="dialog" aria-label={t('a11y.commandBar')}>
   {#if title}<div class="ttl">{title}</div>{/if}
   <input class="search" bind:this={input} bind:value={query} placeholder={title ? t('cmd.symbolPh') : t('top.search')} onkeydown={key} oninput={() => (sel = 0)} />
   <div class="list res" bind:this={res}>

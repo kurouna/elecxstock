@@ -5,7 +5,7 @@ import type { InstrumentId } from '@shared/types'
 import { onMount } from 'svelte'
 import { fmt } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
-import { app, ensureMetrics, isFav, metric, nameOf } from '../../stores/app.svelte'
+import { app, ensureMetrics, isFav, metric, nameOf, t } from '../../stores/app.svelte'
 import { type PaneNode, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 
@@ -59,7 +59,7 @@ onMount(() =>
 </script>
 
 <PaneHeader {pane}>
-  <span class="dim">{app.settings.lang === 'ja' ? '権利確定月 · 全ウォッチリスト' : 'Record month · all watchlists'}</span>
+  <span class="dim">{t('divcal.subtitle')}</span>
 </PaneHeader>
 <div class="cal">
   {#each months as list, i (i)}
