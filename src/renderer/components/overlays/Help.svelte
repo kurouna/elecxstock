@@ -1,9 +1,12 @@
 <script lang="ts">
 // ショートカット一覧（F1。FR-KB7）。フォーカス中のペインで効くキーに印を付ける。
+// 割り当てを変えられるキー（アクションの登録表）は、今の割り当てを出す（FR-KB6）。
+import { keyOf } from '../../lib/commands'
 import { app, t } from '../../stores/app.svelte'
 import { findPane } from '../../stores/layout.svelte'
 
 const ja = $derived(app.settings.lang === 'ja')
+const K = (...ids: string[]) => ids.map((id) => keyOf(id) || '—').join(' / ')
 const G = $derived([
   {
     id: 'general',
@@ -11,22 +14,23 @@ const G = $derived([
     rows: [
       [ja ? '銘柄ジャンプ' : 'Symbol jump', '1–9'],
       [ja ? 'コマンドバー' : 'Command bar', 'Ctrl+K'],
-      [ja ? 'ショートカット一覧' : 'Shortcuts', 'F1'],
+      [ja ? 'ショートカット一覧' : 'Shortcuts', K('help')],
       [ja ? 'ペイン間の移動' : 'Move between panes', 'Alt+← → ↑ ↓'],
       [ja ? 'ペインを順に巡る' : 'Cycle panes', 'F6 / Shift+F6'],
-      [ja ? '最大化 / 戻す' : 'Maximize / restore', 'Ctrl+Shift+Enter'],
-      [ja ? '右に分割 / 下に分割 / 閉じる' : 'Split right / down / close', 'Ctrl+Shift+E / O / W'],
-      [ja ? 'ペインの種類を変える' : 'Change pane type', 'Ctrl+Shift+N'],
+      [ja ? '最大化 / 戻す' : 'Maximize / restore', K('max')],
+      [ja ? '右に分割 / 下に分割 / 閉じる' : 'Split right / down / close', K('split', 'splitDown', 'close')],
+      [ja ? 'ペインの種類を変える' : 'Change pane type', K('changeWidget')],
       [ja ? '区切り線を動かす' : 'Move divider', 'Alt+Shift+Arrows'],
-      [ja ? 'ペインを入れ替える' : 'Swap pane', 'Ctrl+Alt+Shift+Arrows'],
-      [ja ? 'サイズを元に戻す / 取り消し' : 'Reset sizes / undo', 'Ctrl+Alt+R / Ctrl+Z'],
+      [ja ? 'ペインを入れ替える（タイトルのドラッグでも）' : 'Swap pane (or drag the title)', 'Ctrl+Alt+Shift+Arrows'],
+      [ja ? 'サイズを元に戻す / 取り消し' : 'Reset sizes / undo', `${K('resetSizes')} / Ctrl+Z`],
       [ja ? 'リンク色 1〜5 / 解除' : 'Link color 1–5 / none', 'Ctrl+1–5 / Ctrl+0'],
-      [ja ? 'レイアウト（プリセット）' : 'Layouts (presets)', 'Ctrl+Shift+1–5'],
-      [ja ? 'お気に入り' : 'Favorite', 'Ctrl+D'],
-      [ja ? 'ウォッチリストに追加' : 'Add to watchlist', 'Ctrl+Shift+A'],
-      [ja ? 'データ更新 / 選択銘柄の取り直し' : 'Update / refetch selected', 'F5 / Shift+F5'],
-      [ja ? '設定' : 'Settings', 'Ctrl+,'],
-      [ja ? '全画面' : 'Full screen', 'F11'],
+      [ja ? 'レイアウト（プリセット）' : 'Layouts (presets)', 'Ctrl+Shift+1–6'],
+      [ja ? 'レイアウトの一覧（名前を付けて保存）' : 'Saved layouts', K('layouts')],
+      [ja ? 'お気に入り' : 'Favorite', K('fav')],
+      [ja ? 'ウォッチリストに追加' : 'Add to watchlist', K('addTo')],
+      [ja ? 'データ更新 / 選んだ銘柄の取り直し' : 'Update / refetch selection', K('update', 'refetch')],
+      [ja ? '設定（キーの割り当ても）' : 'Settings (incl. key bindings)', K('settings')],
+      [ja ? '全画面' : 'Full screen', K('fullscreen')],
       [ja ? '閉じる・戻す' : 'Close / back', 'Esc'],
     ],
   },
@@ -36,13 +40,15 @@ const G = $derived([
     rows: [
       [ja ? '行を移動（チャートが追従）' : 'Move row (charts follow)', '↑ ↓ PgUp PgDn Home End'],
       [ja ? '列を移動 / 並べ替え' : 'Move column / sort', '← → / S'],
+      [ja ? '列の選択' : 'Choose columns', 'Ctrl+Shift+C'],
       [ja ? 'リンクグループに送る' : 'Send to link group', 'Enter'],
       [ja ? '複数選択 / すべて選択' : 'Extend selection / select all', 'Shift+↑ ↓ / Ctrl+A'],
-      [ja ? 'リストに追加（選んだ銘柄）' : 'Add selection to a list', 'Ctrl+Shift+A'],
+      [ja ? 'リストに追加（選んだ銘柄）' : 'Add selection to a list', K('addTo')],
       [ja ? '★のみ表示' : '★ only', 'Ctrl+Shift+F'],
       [ja ? 'リストから外す / リストを削除' : 'Remove / delete list', 'Delete / Shift+Delete'],
       [ja ? '行を並べ替える' : 'Reorder rows', 'Alt+↑ ↓'],
-      [ja ? 'リストの切り替え / 名前の変更' : 'Switch / rename list', 'Ctrl+PgUp PgDn / F2'],
+      [ja ? 'リストの切り替え / 並べ替え' : 'Switch / reorder lists', 'Ctrl+PgUp PgDn / Ctrl+Shift+PgUp PgDn'],
+      [ja ? 'リストの名前の変更' : 'Rename list', 'F2'],
     ],
   },
   {
@@ -51,10 +57,12 @@ const G = $derived([
     rows: [
       [ja ? '条件へ移る / 結果へ戻る' : 'Conditions / results', 'Tab'],
       [ja ? '値を変える / 値を入力 / 比較を反転' : 'Step / type value / flip operator', '← → / Enter / O'],
+      [ja ? 'かつ・または / 相対条件（別の指標と比べる）' : 'And/or / relative condition', 'A / R'],
       [ja ? '条件を追加 / 削除' : 'Add / remove condition', 'Insert / Delete'],
+      [ja ? '上位 N 件に絞る' : 'Keep top N', 'T'],
       [ja ? '上書き保存 / 名前を付けて保存' : 'Save / save as', 'Ctrl+S / Ctrl+Shift+S'],
-      [ja ? 'スクリーンを開く / 名前の変更' : 'Open / rename screen', 'Ctrl+O / F2'],
-      [ja ? 'グリッドで開く' : 'Open in grid', 'Ctrl+Shift+G'],
+      [ja ? 'スクリーンを開く / 名前の変更' : 'Open / rename screen', `${K('screens')} / F2`],
+      [ja ? 'グリッドで開く' : 'Open in grid', K('openGrid')],
     ],
   },
   {
@@ -62,10 +70,12 @@ const G = $derived([
     title: t('help.chart'),
     rows: [
       [ja ? '日足 / 週足 / 月足' : 'Daily / weekly / monthly', 'D / W / M'],
-      [ja ? '対数軸 / 価格の調整' : 'Log scale / adjustment', 'L / A'],
+      [ja ? '対数軸 / 価格の調整 / 種類' : 'Log scale / adjustment / type', 'L / A / T'],
+      [ja ? '指標・移動平均・比較・表示期間の同期' : 'Indicators, MAs, compare, range sync', 'I'],
       [ja ? 'ズーム / 既定に戻す' : 'Zoom / reset', '+ − / 0'],
       [ja ? '時間方向のスクロール' : 'Scroll in time', '← → (Shift)'],
       [ja ? 'キーボード十字線' : 'Keyboard crosshair', 'X → ← →'],
+      [ja ? 'マルチ時間軸: 段の移動 / 並べ方' : 'Multi-timeframe: row / arrangement', 'Tab / V'],
     ],
   },
   {
@@ -77,30 +87,56 @@ const G = $derived([
       [ja ? '格子を細かく / 粗く' : 'Finer / coarser grid', '+ / −'],
       [ja ? '対数 / 比較% / MA / 並べ替え' : 'Log / compare % / MA / sort', 'L / N / I / S'],
       [ja ? '対象の切り替え' : 'Switch source', 'G / Shift+G'],
+      [ja ? 'タイルの銘柄を差し替える' : 'Replace the tile’s symbol', 'C'],
+      [ja ? '銘柄を足す / 外す / 並べ替え' : 'Add / remove / reorder', '1–9 / Delete / Alt+← →'],
+      [ja ? '今の並びを固定' : 'Pin the current set', 'P'],
       [ja ? '売買候補の印 / 印だけ表示' : 'Mark candidate / only marked', 'Space / Shift+Space'],
       [ja ? 'お気に入り / ★だけ表示' : 'Favorite / ★ only', 'F / Shift+F'],
-      [ja ? '印の銘柄をリストに追加' : 'Add marked to a list', 'Ctrl+Shift+A'],
+      [ja ? '印の銘柄をリストに追加' : 'Add marked to a list', K('addTo')],
       [ja ? '1 枚を最大化 / 日付同期' : 'Maximize tile / date sync', 'Enter / X'],
-      [ja ? '今の銘柄で固定 / 外す / 並べ替え' : 'Pin / remove / reorder', 'P / Delete / Alt+← →'],
+    ],
+  },
+  {
+    id: 'market',
+    title: t('help.market'),
+    rows: [
+      [ja ? 'ヒートマップ: 移動 / 業種の中へ / 戻る' : 'Heatmap: move / drill in / back', 'Arrows / Enter / Esc'],
+      [ja ? 'ヒートマップ: 期間' : 'Heatmap: period', 'P'],
+      [ja ? 'ランキング: 指標 / 上位・下位 / 市場' : 'Ranking: metric / top-bottom / market', 'S / Shift+S / G'],
+      [ja ? '保有: 足す / 直す / 外す' : 'Portfolio: add / edit / remove', 'Insert / E / Delete'],
     ],
   },
   {
     id: 'drawer',
     title: t('help.drawer'),
     rows: [
-      [ja ? '左のドロワー' : 'Left drawer', 'Ctrl+B'],
-      [ja ? 'ピン留め' : 'Pin', 'Ctrl+Alt+B'],
+      [ja ? '左 / 右のドロワー' : 'Left / right drawer', K('drawer', 'drawerRight')],
+      [ja ? 'ピン留め' : 'Pin', K('drawerPin')],
       [ja ? 'ドロワーのタブを切り替え' : 'Switch drawer tab', 'Ctrl+Tab'],
+      [
+        ja ? 'ペインをドロワーへ（タイトルを帯に落としても）' : 'Move pane to a drawer (or drop on its rail)',
+        ja ? 'コマンドバー' : 'Command bar',
+      ],
       [ja ? '閉じる' : 'Close', 'Esc'],
     ],
   },
 ])
 const ctx = $derived(
   (
-    { watchlist: 'list', screener: 'screener', chart: 'chart', grid: 'grid', divcal: 'list', jobs: 'list', info: 'general' } as Record<
-      string,
-      string
-    >
+    {
+      watchlist: 'list',
+      screener: 'screener',
+      chart: 'chart',
+      mtf: 'chart',
+      grid: 'grid',
+      divcal: 'list',
+      jobs: 'list',
+      info: 'general',
+      heatmap: 'market',
+      ranking: 'market',
+      market: 'market',
+      portfolio: 'market',
+    } as Record<string, string>
   )[findPane(app.focus)?.widget ?? ''] ?? '',
 )
 </script>
@@ -121,7 +157,7 @@ const ctx = $derived(
 
 <style>
   .help {
-    width: 960px;
+    width: 980px;
     padding: var(--s-3) var(--s-4) var(--s-4);
   }
   h3 {

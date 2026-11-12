@@ -120,6 +120,11 @@ onMount(() => {
 </div>
 
 <style>
+  .ttl {
+    padding: 8px 12px 0;
+    font-size: var(--fs-1);
+    color: var(--text-2);
+  }
   .palette {
     width: 640px;
     overflow: hidden;

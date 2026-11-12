@@ -113,7 +113,7 @@ onMount(() =>
     <div class="state">{t('hold.empty')}</div>
   {:else}
     <table class="grid">
-      <colgroup><col style:width="52px" /><col /><col style:width="72px" /><col style:width="76px" /><col style:width="76px" /><col style:width="86px" /><col style:width="86px" /><col style:width="64px" /><col style:width="60px" /></colgroup>
+      <colgroup><col style:width="46px" /><col style:min-width="96px" /><col style:width="60px" /><col style:width="68px" /><col style:width="66px" /><col style:width="72px" /><col style:width="72px" /><col style:width="58px" /><col style:width="54px" /></colgroup>
       <thead>
         <tr>
           <th class="l">{t('col.code')}</th><th class="l">{t('col.name')}</th><th>{t('hold.qty')}</th><th>{t('hold.avgShort')}</th><th>{t('col.close')}</th>

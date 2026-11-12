@@ -575,9 +575,12 @@ function runMatching(e: KeyboardEvent, when: 'global' | 'late'): boolean {
   return false
 }
 
+/** 設定でキーを割り当てている間は、アプリ全体のキー処理を止める（FR-KB6） */
+export const keyCapture = { on: false }
+
 /** アプリ全体のキー処理（§6.5）。true を返したら既定の動作を止める */
 export function handleKey(e: KeyboardEvent): boolean {
-  if (e.isComposing) return false
+  if (e.isComposing || keyCapture.on) return false
   const ctrl = e.ctrlKey || e.metaKey
   const c = e.code
   if (app.overlay) {

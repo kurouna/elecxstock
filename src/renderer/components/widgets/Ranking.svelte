@@ -117,12 +117,12 @@ const mkLabel = (i: number) => (MARKETS[i] ?? []).map((m) => t(`mkt.${m}` as Key
     <div class="state">{t('rank.empty')}</div>
   {:else}
     <table class="grid">
-      <colgroup><col style:width="28px" />{#each cols as c (c.id)}<col style:width={c.w ? `${c.w}px` : undefined} />{/each}</colgroup>
+      <colgroup><col style:width="36px" />{#each cols as c (c.id)}<col style:width={c.w ? `${c.w}px` : undefined} />{/each}</colgroup>
       <thead><tr><th>#</th>{#each cols as c (c.id)}<th class:l={c.l}>{c.label()}</th>{/each}</tr></thead>
       <tbody>
         {#each rows as id, i (id)}
           <tr class:sel={i === sel} onclick={() => { sel = i; send() }}>
-            <td class="dim">{i + 1}</td>
+            <td class="dim rk">{i + 1}</td>
             <RowCells {id} cols={cols} />
           </tr>
         {/each}
@@ -147,6 +147,9 @@ const mkLabel = (i: number) => (MARKETS[i] ?? []).map((m) => t(`mkt.${m}` as Key
     border: 1px solid var(--line-strong);
     height: 20px;
     border-radius: var(--radius);
+  }
+  .rk {
+    text-overflow: clip;
   }
   .grow {
     flex: 1;

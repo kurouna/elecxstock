@@ -6,12 +6,26 @@ import type { Key } from '../lib/i18n'
 import { confirmCloseScreen } from '../lib/screens'
 import { app, t } from '../stores/app.svelte'
 import { closePane, inDock, type PaneNode } from '../stores/layout.svelte'
+import { DRAG_MIME } from './dragPane'
 
 let { pane, children }: { pane: PaneNode; children?: Snippet } = $props()
 const focused = $derived(app.focus === pane.id)
 </script>
 
-<div class="ph" class:focused>
+<!-- タイトルをドラッグして別のペインの上下左右に落とすと移動、真ん中で入れ替え（FR-L2。キーは Ctrl+Alt+Shift+矢印） -->
+<div
+  class="ph"
+  class:focused
+  draggable="true"
+  role="toolbar"
+  tabindex="-1"
+  ondragstart={(e) => {
+    e.dataTransfer?.setData(DRAG_MIME, pane.id)
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+    document.body.classList.add('dragging-pane')
+  }}
+  ondragend={() => document.body.classList.remove('dragging-pane')}
+>
   <span class={`link l${pane.link}`} title={`${t('link.set', { n: pane.link || '—' })} (Ctrl+${pane.link})`}>{pane.link || '·'}</span>
   <span class="title">{t(`widget.${pane.widget}` as Key)}</span>
   {#if children}{@render children()}{/if}

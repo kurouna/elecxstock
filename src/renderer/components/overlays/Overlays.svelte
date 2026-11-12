@@ -33,7 +33,10 @@ function backdrop(e: MouseEvent) {
       {:else if app.overlay.kind === 'firstrun'}
         <FirstRun />
       {:else}
-        <Dialogs overlay={app.overlay} />
+        <!-- ダイアログが続けて開いても、選択の位置などを前のものから持ち越さない -->
+        {#key app.overlay}
+          <Dialogs overlay={app.overlay} />
+        {/key}
       {/if}
     </div>
   {/if}

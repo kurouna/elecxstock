@@ -8,7 +8,7 @@ import { onMount } from 'svelte'
 import { cls, date, fmt, money, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
-import { app, bridge, codeOf, ensureMetrics, inst, isFav, metric, nameOf, t, toggleFav } from '../../stores/app.svelte'
+import { app, bridge, codeOf, ensureMetrics, inst, isFav, metric, nameOf, rpc, t, toast, toggleFav } from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 
@@ -81,6 +81,7 @@ const tv = $derived(money(m?.turnover20))
   <span class="sym"><span class="code">{codeOf(id)}</span>{nameOf(id)}</span>
   <span class="num">{px(m?.close)}</span>
   <span class={`num ${cls(m?.chgPct)}`}>{sgn(m?.chgPct, 2, '%')}</span>
+  <button type="button" class="chip" title="Shift+F5" onclick={() => rpc('jobs.refetch', { ids: [id] }).then(() => toast(t('refetch.started', { n: 1 })))}>⟳ {t('info.refetch')}</button>
 </PaneHeader>
 <div class="scroll">
   <div class="info">
@@ -92,12 +93,17 @@ const tv = $derived(money(m?.turnover20))
       {#if m?.stale && m.asOf}<span class="warn">{t('info.stale', { date: date(m.asOf) })}</span>{:else if m?.asOf}<span class="muted">{t('info.asOf', { date: date(m.asOf) })}{m.provisional ? ` · ${t('chart.provisional')}` : ''}</span>{/if}
     </div>
     {#if m?.gapSuspect}<div class="note warn">{t('info.gap')}</div>{/if}
+    {#if m?.anomaly}<div class="note warn">{t('list.anomalyHint')}</div>{/if}
+    {#if ins?.status === 'delisted'}<div class="note warn">{t('list.delistedHint')}</div>{/if}
     <div class="kv"><span>{t('info.trailingYield')}</span><span>{m?.yieldTrailing != null ? `${fmt(m.yieldTrailing)}%` : m?.asOf ? t('info.shortHistory') : '—'}</span></div>
     <div class="kv"><span>{t('info.mcap')}</span><span>{mc.n}<span class="unit">{mc.u}</span></span></div>
     <div class="kv"><span>{reit ? t('info.pbrBook') : t('col.pbr')}</span><span>{m?.pbr != null ? `${fmt(m.pbr)}×` : '—'}</span></div>
     <div class="kv"><span>{t('col.per')}</span><span>{m?.per != null ? `${fmt(m.per, 1)}×` : '—'}</span></div>
     <div class="kv" title={t('info.turnoverNote')}><span>{t('info.turnover20')}</span><span>{tv.n}<span class="unit">{tv.u}</span></span></div>
     <div class="kv"><span>{t('col.ret1y')}</span><span class={cls(m?.ret1y)}>{sgn(m?.ret1y, 1, '%')}</span></div>
+    <div class="kv"><span>{t('info.payout')}</span><span>{m?.payout != null ? `${fmt(m.payout, 0)}%` : '—'}</span></div>
+    <div class="kv" title={t('info.streakNote')}><span>{t('info.streak')}</span><span>{m?.divUpYears != null ? t('info.years', { up: m.divUpYears, nocut: m.divNoCutYears ?? 0 }) : '—'}</span></div>
+    {#if reit}<div class="kv" title={t('info.yield2pNote')}><span>{t('info.yield2p')}</span><span>{m?.yield2p != null ? `${fmt(m.yield2p)}%` : '—'}</span></div>{/if}
     <div class="kv"><span>{t('info.hi52')}</span><span>{px(m?.hi52)}</span></div>
     <div class="kv"><span>{t('info.lo52')}</span><span>{px(m?.lo52)}</span></div>
     <div class="kv"><span>{t('info.fromHi')}</span><span>{sgn(m?.fromHi52, 1, '%')}</span></div>

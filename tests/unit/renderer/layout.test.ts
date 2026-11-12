@@ -40,3 +40,29 @@ describe('レイアウト', () => {
     expect((L.layout.entry.root as { sizes: number[] }).sizes[0]).toBeGreaterThan(26)
   })
 })
+
+describe('ペインの移動とドロワー（FR-L2, DR6）', () => {
+  it('タイトルのドラッグ: 端に落とすと分割、真ん中で入れ替え', () => {
+    L.layout.doc = L.defaultDoc()
+    const [wl, d] = L.allPanes(L.layout.entry, false)
+    expect(L.movePane(wl!.id, d!.id, 'bottom')).toBe(true)
+    const ids = L.allPanes(L.layout.entry, false).map((p) => p.id)
+    expect(ids.indexOf(wl!.id)).toBe(ids.indexOf(d!.id) + 1)
+    expect(L.movePane(wl!.id, wl!.id, 'left')).toBe(false)
+  })
+  it('ペインを右のドロワーへ移し、本体に戻す', () => {
+    L.layout.doc = L.defaultDoc()
+    const p = L.allPanes(L.layout.entry, false)[1]!
+    expect(L.moveToDock(p.id, 'right')).toBe(true)
+    expect(L.dockOf(p.id)).toBe('right')
+    expect(L.moveFromDock(p.id)).toBe(true)
+    expect(L.dockOf(p.id)).toBeNull()
+    expect(L.layout.entry.docks.right).toBeUndefined()
+  })
+  it('右のドロワーと新しいペインの種類も正規化で残る', () => {
+    const d = L.defaultDoc()
+    const n = L.normalizeDoc(JSON.parse(JSON.stringify(d)))
+    expect(n.entries.market.docks.right?.panes[0]?.widget).toBe('portfolio')
+    expect(L.allPanes(n.entries.market).map((p) => p.widget)).toContain('heatmap')
+  })
+})

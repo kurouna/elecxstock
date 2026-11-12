@@ -5,7 +5,8 @@ import { setFocus } from '../lib/commands'
 import type { Key } from '../lib/i18n'
 import { paneApi } from '../lib/panes'
 import { t } from '../stores/app.svelte'
-import { type Dock, type DockSide, layout, saveLayout, toggleDockOpen } from '../stores/layout.svelte'
+import { type Dock, type DockSide, layout, moveToDock, saveLayout, toggleDockOpen } from '../stores/layout.svelte'
+import { DRAG_MIME } from './dragPane'
 import Pane from './Pane.svelte'
 
 let { dock, side = 'left' }: { dock: Dock; side?: DockSide } = $props()
@@ -37,6 +38,19 @@ function railKey(e: KeyboardEvent) {
     e.stopPropagation()
   }
 }
+/** ペインのタイトルをドロワーの帯・タブに落とすと、ドロワーへ移す（FR-DR6） */
+function dragOver(e: DragEvent) {
+  if (e.dataTransfer?.types.includes(DRAG_MIME)) e.preventDefault()
+}
+function dropIn(e: DragEvent) {
+  const id = e.dataTransfer?.getData(DRAG_MIME)
+  if (!id) return
+  e.preventDefault()
+  if (moveToDock(id, side)) {
+    toggleDockOpen(true, side)
+    setFocus(id)
+  }
+}
 function pin() {
   dock.pinned = !dock.pinned
   layout.dockOpen = dock.pinned ? side : null
@@ -59,7 +73,7 @@ function resize(e: MouseEvent) {
 
 <div class="dock" class:open class:pinned={dock.pinned} class:right={side === 'right'} bind:this={wrap}>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="rail" data-dock-rail={side} tabindex="0" title={t('drawer.hint')} onmouseenter={enterRail} onmouseleave={() => timer && clearTimeout(timer)} onkeydown={railKey} role="toolbar" aria-label="drawer">
+  <div class="rail" data-dock-rail={side} tabindex="0" title={t('drawer.hint')} onmouseenter={enterRail} onmouseleave={() => timer && clearTimeout(timer)} onkeydown={railKey} ondragover={dragOver} ondrop={dropIn} role="toolbar" aria-label="drawer">
     {#each dock.panes as p, i (p.id)}
       <button type="button" class:on={i === dock.active} onclick={() => choose(i)}><span>{t(`widget.${p.widget}` as Key)}</span></button>
     {/each}
@@ -67,7 +81,8 @@ function resize(e: MouseEvent) {
   </div>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="panel" style:width={`${dock.width}px`} onmouseleave={leavePanel} onmouseenter={() => timer && clearTimeout(timer)}>
-    <div class="tabs">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="tabs" ondragover={dragOver} ondrop={dropIn}>
       {#each dock.panes as p, i (p.id)}
         <button type="button" role="tab" aria-selected={i === dock.active} onclick={() => choose(i)}>{t(`widget.${p.widget}` as Key)}</button>
       {/each}

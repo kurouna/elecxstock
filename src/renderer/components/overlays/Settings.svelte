@@ -1,10 +1,11 @@
 <script lang="ts">
 // 設定（Ctrl+,）: 一般・表示・データ（FR-S5〜S9, FR-D6）・キー・このアプリについて。↑↓ で項目、Tab で中へ。
 import { onMount } from 'svelte'
-import { exportUser, importUser } from '../../lib/commands'
+import { ACTIONS, checkUpdate, exportUser, importUser } from '../../lib/commands'
 import { dateTime } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
-import { app, bridge, confirmDialog, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
+import { app, bridge, confirmDialog, nameOf, promptDialog, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
+import KeysSettings from './KeysSettings.svelte'
 
 let { tab = 'general' }: { tab?: string } = $props()
 const TABS = ['general', 'display', 'data', 'keys', 'about'] as const
@@ -60,6 +61,19 @@ async function reset() {
   await rpc('jobs.reset', { keepDelisted: r.checked })
   toast(t('reset.started'))
 }
+async function addUser() {
+  const code = (await promptDialog(t('set.addInstrument'), ''))?.trim().toUpperCase()
+  app.overlay = { kind: 'settings', tab: 'general' }
+  if (!code || !/^[0-9][0-9A-Z]{3,4}$/.test(code)) return
+  const ins = await rpc('instruments.addUser', { code })
+  if (ins) app.instruments.set(ins.id, ins)
+  app.settings = (await rpc('user.load', {})).settings
+  toast(t('cmd.addUser', { code }))
+}
+async function removeUser(code: string) {
+  await rpc('instruments.removeUser', { code })
+  app.settings = { ...app.settings, userInstruments: app.settings.userInstruments.filter((c) => c !== code) }
+}
 async function importJpx() {
   const bytes = await window.elecxstock.openFile('xlsx')
   if (!(bytes instanceof Uint8Array)) return
@@ -101,15 +115,41 @@ async function importJpx() {
         </span>
       </div>
       <div class="field">
-        <span>{t('set.userInstruments')}</span>
-        <span class="num dim">{app.settings.userInstruments.join(', ') || '—'}</span>
+        <span>{t('set.autoUpdate')}</span>
+        <span class="row"><button type="button" class="toggle" class:on={app.settings.autoUpdate} aria-label={t('set.autoUpdate')} onclick={() => saveSettings({ autoUpdate: !app.settings.autoUpdate })}><span class="box"></span></button><span class="muted small">{t('set.autoUpdateHint')}</span></span>
       </div>
+      <div class="field">
+        <span>{t('set.checkUpdates')}</span>
+        <span class="row">
+          <button type="button" class="toggle" class:on={app.settings.checkUpdates} aria-label={t('set.checkUpdates')} onclick={() => saveSettings({ checkUpdates: !app.settings.checkUpdates })}><span class="box"></span></button>
+          <button type="button" class="chip" onclick={() => checkUpdate(true)}>{t('act.checkUpdate')}</button>
+          {#if app.update}<button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(app.update!.url)}>{t('update.available', { v: app.update.version })}</button>{/if}
+        </span>
+      </div>
+      <!-- 取得対象に足した銘柄の管理（FR-U3 の専用の画面） -->
+      <div class="field top">
+        <span>{t('set.userInstruments')}</span>
+        <span class="chips">
+          {#each app.settings.userInstruments as c (c)}
+            <span class="chip">{c} {nameOf(`JP:${c}`)}<button type="button" class="x" aria-label="remove" onclick={() => removeUser(c)}>✕</button></span>
+          {/each}
+          <button type="button" class="chip" onclick={addUser}>＋ {t('set.addInstrument')}</button>
+        </span>
+      </div>
+      <p class="muted small">{t('set.userInstrumentsHint')}</p>
     {:else if cur === 'display'}
       <div class="field">
         <span>{t('set.candle')}</span>
         <span class="seg">
           <button type="button" aria-pressed={app.settings.candleStyle === 'jp'} onclick={() => saveSettings({ candleStyle: 'jp' })}>{t('set.jp')}</button>
           <button type="button" aria-pressed={app.settings.candleStyle === 'us'} onclick={() => saveSettings({ candleStyle: 'us' })}>{t('set.us')}</button>
+        </span>
+      </div>
+      <div class="field">
+        <span>{t('set.theme')}</span>
+        <span class="seg">
+          <button type="button" aria-pressed={app.settings.theme === 'dark'} onclick={() => saveSettings({ theme: 'dark' })}>{t('set.dark')}</button>
+          <button type="button" aria-pressed={app.settings.theme === 'light'} onclick={() => saveSettings({ theme: 'light' })}>{t('set.light')}</button>
         </span>
       </div>
       <div class="field">
@@ -138,13 +178,16 @@ async function importJpx() {
         <button type="button" class="btn" onclick={importJpx}>{t('set.importJpx')}</button>
       </div>
       <div class="actions left">
+        <button type="button" class="btn" onclick={() => ACTIONS.find((a) => a.id === 'backupDb')?.run()}>{t('act.backupDb')}</button>
+        <button type="button" class="btn" onclick={() => window.elecxstock.openLogs()}>{t('act.openLogs')}</button>
+      </div>
+      <div class="actions left">
         <button type="button" class="btn" onclick={exportUser}>{t('set.exportUser')}</button>
         <button type="button" class="btn" onclick={importUser}>{t('set.importUser')}</button>
       </div>
       <p class="muted small">{t('set.dataNote')}</p>
     {:else if cur === 'keys'}
-      <p class="dim">{t('set.keysNote')}</p>
-      <button type="button" class="btn" onclick={() => (app.overlay = { kind: 'help' })}>{t('act.help')} <kbd>F1</kbd></button>
+      <KeysSettings />
     {:else}
       <div class="field"><span>{t('set.version')}</span><span class="num">{app.info?.version ?? __APP_VERSION__}</span></div>
       <div class="field"><span>License</span><span>{t('set.license')}</span></div>
@@ -241,6 +284,27 @@ async function importJpx() {
   .stat span {
     color: var(--text-3);
     font-size: var(--fs-1);
+  }
+  .field.top {
+    align-items: start;
+    padding: 8px 0;
+  }
+  .row {
+    display: flex;
+    gap: var(--s-2);
+    align-items: center;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .chips .x {
+    background: none;
+    border: 0;
+    color: var(--text-3);
+    cursor: pointer;
+    margin-left: 4px;
   }
   .actions.left {
     justify-content: flex-start;
