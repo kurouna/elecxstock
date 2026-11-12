@@ -85,6 +85,8 @@ export const PARAMS = {
   'jobs.planRetention': z.object({ years: z.number().int().min(1).max(10) }),
   'jobs.applyRetention': z.object({ years: z.number().int().min(1).max(10) }),
   'jobs.cancel': z.object({ id: z.number().int() }),
+  'jobs.pause': z.object({ id: z.number().int() }),
+  'jobs.resume': z.object({ id: z.number().int() }),
   'jobs.list': z.object({}),
   'data.status': z.object({}),
   'data.failures': z.object({}),
@@ -129,6 +131,8 @@ export interface Results {
   'jobs.planRetention': RetentionPlan
   'jobs.applyRetention': number
   'jobs.cancel': undefined
+  'jobs.pause': undefined
+  'jobs.resume': undefined
   'jobs.list': JobProgress[]
   'data.status': DataStatus
   'data.failures': FetchFailure[]

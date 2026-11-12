@@ -200,6 +200,14 @@ export class Repo {
       b.v,
     )
   }
+  /** 仮の足の終値（無ければ null） */
+  provisionalClose(id: InstrumentId, d: JstDate): number | null {
+    return this.db.get<{ c: number }>('SELECT c FROM daily_bars WHERE id = ? AND d = ? AND prov = 1', id, d)?.c ?? null
+  }
+  /** 翌日の気配の前日終値と一致した仮の足を確定する（FR-D8） */
+  confirmProvisional(id: InstrumentId, d: JstDate): void {
+    this.db.run('UPDATE daily_bars SET prov = 0 WHERE id = ? AND d = ? AND prov = 1', id, d)
+  }
   deleteDailyBefore(d: JstDate): number {
     const n = Number(this.db.get<{ n: number }>('SELECT COUNT(*) n FROM daily_bars WHERE d < ?', d)!.n)
     this.db.run('DELETE FROM daily_bars WHERE d < ?', d)

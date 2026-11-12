@@ -21,6 +21,8 @@ export interface JobsHost {
   provider: Provider
   retentionYears: () => number
   userCodes: () => string[]
+  /** ウォッチリストにある銘柄（取得の順位を上げる。FR-F8） */
+  listed: () => Set<InstrumentId>
   emitProgress: (p: JobProgress) => void
   emitData: (ids: InstrumentId[]) => void
   emitProvider: (s: { offline: boolean; paused: boolean; message?: string }) => void
@@ -82,6 +84,19 @@ export class JobRunner {
     this.h.repo.db.run(`UPDATE jobs SET status = 'cancelled', updated = ? WHERE status NOT IN ('done','failed','cancelled')`, nowIso())
     this.abort?.abort()
   }
+  /** 一時停止と再開（FR-F4） */
+  pause(id: number): void {
+    this.h.repo.db.run(
+      `UPDATE jobs SET status = 'paused', updated = ? WHERE id = ? AND status IN ('queued','running','waiting-offline','provider-paused')`,
+      nowIso(),
+      id,
+    )
+    this.abort?.abort()
+  }
+  resumeJob(id: number): void {
+    this.h.repo.db.run(`UPDATE jobs SET status = 'queued', updated = ? WHERE id = ? AND status = 'paused'`, nowIso(), id)
+    this.kick()
+  }
   prioritize(ids: InstrumentId[]): void {
     this.priority = new Set(ids)
   }
@@ -126,12 +141,13 @@ export class JobRunner {
       this.abort = new AbortController()
       const items = JSON.parse(j.items) as string[]
       let lastEmit = 0
+      let failMsg: string | null = null
       while (j.pos < items.length) {
         const st = db.get<{ status: string }>('SELECT status FROM jobs WHERE id = ?', j.id)?.status
-        if (st === 'cancelled') break
-        // 表示中の銘柄を先に（FR-F8）
+        if (st === 'cancelled' || st === 'paused') break
+        // 表示中の銘柄を先に（FR-F8）。日足（H・F）と月次系列（M）のどちらも
         const pi = this.priority.size
-          ? items.findIndex((it, i) => i >= j.pos && it.startsWith('H:') && this.priority.has(it.split(':').slice(1, 3).join(':')))
+          ? items.findIndex((it, i) => i >= j.pos && /^[HFM]:/.test(it) && this.priority.has(it.split(':').slice(1, 3).join(':')))
           : -1
         if (pi > j.pos) {
           const [it] = items.splice(pi, 1)
@@ -148,6 +164,12 @@ export class JobRunner {
           }
         } catch (e) {
           if (this.abort.signal.aborted) break
+          const pe0 = e instanceof ProviderError ? e : null
+          if (item === 'U' && pe0?.scope !== 'offline' && pe0?.scope !== 'provider') {
+            // 銘柄一覧が取れなければ続けられない（FR-FR3）: 理由を残してジョブを失敗にする
+            failMsg = String((e as Error)?.message ?? e)
+            break
+          }
           const pe = e instanceof ProviderError ? e : new ProviderError('symbol', String((e as Error)?.message ?? e))
           if (pe.scope === 'offline') {
             // 通信断は失敗に数えず、復帰を待つ（FR-F3）
@@ -196,11 +218,17 @@ export class JobRunner {
         }
       }
       const st = db.get<{ status: string }>('SELECT status FROM jobs WHERE id = ?', j.id)?.status
-      if (st !== 'cancelled') {
+      let final: JobProgress['status'] = 'done'
+      if (st === 'cancelled' || st === 'paused') final = st
+      else if (failMsg) {
+        final = 'failed'
+        db.run(`UPDATE jobs SET status = 'failed', updated = ? WHERE id = ?`, nowIso(), j.id)
+        this.h.log(`job ${j.id} failed: ${failMsg}`)
+      } else {
         db.run(`UPDATE jobs SET status = 'done', updated = ? WHERE id = ?`, nowIso(), j.id)
         if (j.kind === 'initial' || j.kind === 'daily' || j.kind === 'reset') db.setMeta('lastUpdate', nowIso())
       }
-      this.h.emitProgress(this.progressOf({ ...j, status: st === 'cancelled' ? 'cancelled' : 'done', items: JSON.stringify(items) }))
+      this.h.emitProgress(this.progressOf({ ...j, status: final, items: JSON.stringify(items) }, failMsg ?? undefined))
       this.flushData()
     }
   }
@@ -258,7 +286,9 @@ export class JobRunner {
 
   /** 初回・全データの取り直し（FR-S6）・日々の更新（FR-F9）の項目を作る */
   planFor(kind: JobKind): string[] {
-    const set = this.h.repo.fetchSet()
+    const listed = this.h.listed()
+    // ウォッチリストの銘柄を先に取る（FR-F8）
+    const set = [...this.h.repo.fetchSet()].sort((a, b) => Number(listed.has(b.id)) - Number(listed.has(a.id)))
     const batches = Math.ceil(set.length / this.h.provider.quoteBatchSize)
     const q = Array.from({ length: batches }, (_, i) => `Q:${i}`)
     if (kind === 'daily') return [...q, 'X']
@@ -277,6 +307,7 @@ export class JobRunner {
       part.map((p) => p.yahoo),
       { signal },
     )
+    if (signal.aborted) throw new Error('aborted') // 取り消したあとに古い結果を書かない
     const bySym = new Map(qs.map((q) => [q.symbol, q]))
     const extra: string[] = []
     const session = lastClosedSession()
@@ -289,7 +320,7 @@ export class JobRunner {
         if (!q) continue
         repo.putQuote(p.id, q, nowIso())
         if (kind !== 'daily') continue
-        const last = repo.lastDaily(p.id)
+        const last = repo.lastDaily(p.id, false) // 仮の足も含めた最終日（仮の足を取りこぼしと数えない）
         if (!last) {
           extra.push(`F:${p.id}`)
           continue
@@ -315,6 +346,21 @@ export class JobRunner {
             extra.push(`F:${p.id}`)
             continue
           }
+          // 前の日の仮の足は、気配の前日終値と一致すれば確定し、違えば日足を取り直す（FR-D8）
+          const prov = repo.provisionalClose(p.id, prevDay)
+          if (prov != null && q.prevClose) {
+            if (Math.abs(q.prevClose / prov - 1) <= 0.001) repo.confirmProvisional(p.id, prevDay)
+            else {
+              extra.push(`H:${p.id}:${addDays(prevDay, -10)}`)
+              continue
+            }
+          }
+        }
+        // 分割イベントの無い大きなギャップ（FR-D5）は全期間を取り直して照合する（同じ銘柄は 7 日に 1 回まで）
+        const lf = repo.fetchState(p.id).lastFull
+        if (repo.metrics([p.id])[0]?.gapSuspect && (!lf || Date.now() - Date.parse(lf) > 7 * 86400_000)) {
+          extra.push(`F:${p.id}`)
+          continue
         }
         // 2 営業日以上の取りこぼし（FR-F9 b）
         if (last.d < prevTradingDay(session)) {
@@ -339,6 +385,7 @@ export class JobRunner {
     const start = full ? this.retentionStart() : from
     await this.throttle(signal)
     const r = await this.h.provider.fetchHistory(sym, { from: start, interval: '1d', signal })
+    if (signal.aborted) throw new Error('aborted')
     if (!r.bars.length) throw new ProviderError('symbol', 'empty response')
     if (!full) {
       const known = new Set(repo.splits(id).map((s) => s.date))
@@ -349,7 +396,11 @@ export class JobRunner {
         const c = repo.closeOn(id, b.d)
         if (c && Math.abs(b.c / c - 1) > 0.005) mismatch = true
       }
-      if (newSplit || mismatch) return this.history(id, start, signal, true)
+      if (newSplit || mismatch) {
+        // 分割・併合: 全期間と月次系列を取り直す（FR-D3）
+        await this.history(id, start, signal, true)
+        return [`M:${id}`]
+      }
     } else {
       const existing = repo.dailyCount(id, start)
       if (existing > 50 && r.bars.length < existing * 0.5)
@@ -372,6 +423,8 @@ export class JobRunner {
     if (!sym) return undefined
     await this.throttle(signal)
     const r = await this.h.provider.fetchHistory(sym, { from: '1999-01-01', interval: '1mo', signal })
+    if (signal.aborted) throw new Error('aborted')
+    if (!r.bars.length) throw new ProviderError('symbol', 'empty monthly response')
     const month = jstNow().date.slice(0, 7)
     repo.db.tx(() => {
       repo.replaceMonthly(id, r.bars as RawBar[], month)

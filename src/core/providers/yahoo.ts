@@ -40,9 +40,9 @@ export function createYahooProvider(): Provider {
     minIntervalMs: 1000,
     jitterMs: 300,
     toSymbol: (code: string, kind: InstrumentKind) => (kind === 'index' ? `^${code}` : `${code}.T`),
-    async fetchHistory(symbol, { from, interval }): Promise<HistoryResult> {
+    async fetchHistory(symbol, { from, interval, signal }): Promise<HistoryResult> {
       try {
-        const r = await yf.chart(symbol, { period1: from, interval, events: 'div|split' }, { validateResult: false })
+        const r = await yf.chart(symbol, { period1: from, interval, events: 'div|split' }, { validateResult: false, fetchOptions: { signal } })
         const bars: RawBar[] = []
         const res = r as {
           quotes?: {
@@ -83,9 +83,9 @@ export function createYahooProvider(): Provider {
         throw classifyError(e)
       }
     },
-    async fetchQuotes(symbols): Promise<ProviderQuote[]> {
+    async fetchQuotes(symbols, { signal }): Promise<ProviderQuote[]> {
       try {
-        const rs = (await yf.quote(symbols, {}, { validateResult: false })) as unknown as Record<string, unknown>[]
+        const rs = (await yf.quote(symbols, {}, { validateResult: false, fetchOptions: { signal } })) as unknown as Record<string, unknown>[]
         return (Array.isArray(rs) ? rs : [rs]).map((q) => ({
           symbol: String(q.symbol),
           time: q.regularMarketTime ? new Date(q.regularMarketTime as Date).getTime() : null,

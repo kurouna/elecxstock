@@ -40,7 +40,8 @@ export class CoreService {
       repo: this.repo,
       provider,
       retentionYears: () => this.user.load('settings').retentionYears,
-      userCodes: () => this.user.load('settings').userInstruments,
+      userCodes: () => this.trackedCodes(),
+      listed: () => new Set(this.user.load('watchlists').flatMap((w) => w.items)),
       emitProgress: (p) => emit('jobs.progress', p),
       emitData: (ids) => {
         this.metricsCache = null
@@ -115,7 +116,7 @@ export class CoreService {
         }
         const s = this.user.load('settings')
         if (!s.userInstruments.includes(code)) this.user.save('settings', { ...s, userInstruments: [...s.userInstruments, code] })
-        r.setUserAdded(this.user.load('settings').userInstruments)
+        r.setUserAdded(this.trackedCodes())
         this.jobs.enqueue('refetch', [`F:${id}`, `M:${id}`])
         return r.instrument(id) as Results[M]
       }
@@ -177,12 +178,18 @@ export class CoreService {
         const prev = this.user.load('settings')
         this.user.save('settings', P.settings as never)
         const next = this.user.load('settings')
-        if (prev.userInstruments.join() !== next.userInstruments.join()) r.setUserAdded(next.userInstruments)
+        if (prev.userInstruments.join() !== next.userInstruments.join()) r.setUserAdded(this.trackedCodes())
         return undefined as Results[M]
       }
-      case 'user.saveWatchlists':
+      case 'user.saveWatchlists': {
         this.user.save('watchlists', P.watchlists as never)
+        // ウォッチリストに入れたプライム・REIT 以外の銘柄も取得を続ける（FR-U3, U4）。まだデータが無ければすぐ取りに行く
+        r.setUserAdded(this.trackedCodes())
+        const ids = [...new Set((P.watchlists as { items: string[] }[]).flatMap((w) => w.items))]
+        const missing = ids.filter((id) => r.yahooOf(id) && !r.fetchState(id).lastFull)
+        if (missing.length) this.jobs.enqueue('refetch', [...missing.map((id) => `F:${id}`), ...missing.map((id) => `M:${id}`)])
         return undefined as Results[M]
+      }
       case 'user.saveScreens':
         this.user.save('screens', P.screens as never)
         return undefined as Results[M]
@@ -240,6 +247,12 @@ export class CoreService {
           ) as Results[M]
         return 0 as Results[M]
       }
+      case 'jobs.pause':
+        this.jobs.pause(Number(P.id))
+        return undefined as Results[M]
+      case 'jobs.resume':
+        this.jobs.resumeJob(Number(P.id))
+        return undefined as Results[M]
       case 'jobs.cancel':
         this.jobs.cancel(Number(P.id))
         return undefined as Results[M]
@@ -267,7 +280,7 @@ export class CoreService {
       case 'data.importJpx': {
         const rows = parseJpx(P.bytes as Uint8Array)
         r.applyUniverse(rows, this.provider.toSymbol, new Date().toISOString())
-        r.setUserAdded(this.user.load('settings').userInstruments)
+        r.setUserAdded(this.trackedCodes())
         this.db.setMeta('universeUpdated', new Date().toISOString())
         this.jobs.enqueue('initial', this.jobs.planFor('initial'))
         return rows.length as Results[M]
@@ -278,6 +291,15 @@ export class CoreService {
   }
 
   /** chart-grid などで表示中の銘柄を先に取得する（FR-F8） */
+  /** 取得を続ける銘柄の証券コード: 設定で足した銘柄 + ウォッチリストにある銘柄（FR-U3, U4） */
+  trackedCodes(): string[] {
+    const fromLists = this.user
+      .load('watchlists')
+      .flatMap((w) => w.items)
+      .filter((id) => id.startsWith('JP:'))
+      .map((id) => id.slice(3))
+    return [...new Set([...this.user.load('settings').userInstruments, ...fromLists])]
+  }
   prioritize(ids: InstrumentId[]): void {
     this.jobs.prioritize(ids)
   }
