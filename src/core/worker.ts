@@ -8,7 +8,8 @@ import { createYahooProvider } from './providers/yahoo'
 import { CoreService } from './service'
 
 // 外部への通信は許可リストのホストだけ（NFR-S1）
-const ALLOW = [/(^|\.)yahoo\.com$/, /^www\.jpx\.co\.jp$/]
+// api.github.com は新しい版の確認だけ（NFR-Q9。設定で切れる）
+const ALLOW = [/(^|\.)yahoo\.com$/, /^www\.jpx\.co\.jp$/, /^api\.github\.com$/]
 const realFetch = globalThis.fetch
 globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)

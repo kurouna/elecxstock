@@ -5,10 +5,12 @@ import type {
   AppInfo,
   Condition,
   DataStatus,
+  Holding,
   Instrument,
   InstrumentId,
   JobProgress,
   MetricsRow,
+  SavedLayout,
   SavedScreen,
   Settings,
   Watchlist,
@@ -35,10 +37,15 @@ export const DEFAULT_SETTINGS: Settings = {
   firstRunDone: false,
   userInstruments: [],
   reduceMotion: false,
+  theme: 'dark',
+  autoUpdate: true,
+  checkUpdates: true,
+  keymap: {},
+  maPeriods: { D: [5, 25, 75], W: [13, 26, 52], M: [12, 24, 60] },
 }
 
 export type Overlay =
-  | { kind: 'palette'; q?: string }
+  | { kind: 'palette'; q?: string; title?: string }
   | { kind: 'jump'; first: string }
   | { kind: 'help' }
   | { kind: 'settings'; tab?: string }
@@ -57,6 +64,22 @@ export type Overlay =
   | { kind: 'prompt'; title: string; value: string; resolve: (v: string | null) => void }
   | { kind: 'choice'; title: string; choices: { id: string; label: string; hint?: string }[]; resolve: (v: string | null) => void }
   | { kind: 'ask3'; title: string; body: string; resolve: (v: 'save' | 'discard' | 'cancel') => void }
+  | {
+      kind: 'checklist'
+      title: string
+      hint?: string
+      items: CheckItem[]
+      reorder: boolean
+      resolve: (v: CheckItem[] | null) => void
+    }
+  | { kind: 'layouts' }
+
+export interface CheckItem {
+  id: string
+  label: string
+  on: boolean
+  hint?: string
+}
 
 export interface Toast {
   id: number
@@ -86,6 +109,12 @@ class AppState {
   /** スクリーナーで今開いている条件（未保存の変更を含む）。chart-grid の「スクリーナーの結果」に使う */
   liveConds = $state<Condition[]>([])
   liveScreenId = $state<string | null>(null)
+  /** 名前を付けて保存したレイアウト（FR-L4 の P2） */
+  layouts = $state<SavedLayout[]>([])
+  /** 保有の記録（FR-H7）。数量・平均取得単価は Core が取引から計算したもの */
+  holdings = $state<Holding[]>([])
+  /** 新しい版（NFR-Q9） */
+  update = $state<{ version: string; url: string } | null>(null)
 }
 export const app = new AppState()
 
@@ -226,6 +255,7 @@ export function applySettingsToDom(): void {
   r.dataset.candle = app.settings.candleStyle
   r.dataset.density = app.settings.density
   r.dataset.reduceMotion = String(app.settings.reduceMotion)
+  r.dataset.theme = app.settings.theme
   r.style.zoom = String(app.settings.uiScale)
 }
 
@@ -257,12 +287,18 @@ export function ask3(title: string, body: string): Promise<'save' | 'discard' | 
     app.overlay = { kind: 'ask3', title, body, resolve }
   })
 }
+/** 項目の入切と並べ替え（列の選択・指標のメニュー）。Space で入切、Alt+↑↓ で並べ替え、Enter で決める */
+export function checklistDialog(title: string, items: CheckItem[], reorder = false, hint?: string): Promise<CheckItem[] | null> {
+  return new Promise((resolve) => {
+    app.overlay = { kind: 'checklist', title, items: items.map((x) => ({ ...x })), reorder, ...(hint ? { hint } : {}), resolve }
+  })
+}
 /** オーバーレイを閉じる（答えを待っているものには「取り消し」を返す） */
 export function closeOverlay(): void {
   const o = app.overlay
   app.overlay = null
   if (!o) return
   if (o.kind === 'confirm') o.resolve({ ok: false, checked: false })
-  else if (o.kind === 'prompt' || o.kind === 'choice') o.resolve(null)
+  else if (o.kind === 'prompt' || o.kind === 'choice' || o.kind === 'checklist') o.resolve(null)
   else if (o.kind === 'ask3') o.resolve('cancel')
 }

@@ -1,6 +1,6 @@
 // 指標の登録表（§5.3 FR-FD1〜FD5）。画面（条件エディタ・列・並べ替え）はすべてここから作る。
 // 指標を足すときは、ここに 1 項目を足し、metrics 由来なら core の metrics 計算と列を足す（FR-FD2）。
-import type { CondOp, LocalizedName } from './types'
+import type { Condition, CondOp, LocalizedName } from './types'
 
 export type FieldCategory = 'price' | 'value' | 'income' | 'technical' | 'return' | 'attr' | 'user' | 'holding'
 export type FieldType = 'number' | 'percent' | 'money' | 'ratio' | 'bool' | 'enum'
@@ -17,6 +17,8 @@ export interface FieldDef {
     | { kind: 'metrics'; column: string }
     | { kind: 'attr'; key: 'market' | 'kind' | 'sectorJa' }
     | { kind: 'user'; key: 'favorite' | 'watchlist' }
+    /** 保有に基づく指標（P3、FR-H2・H4）。実行時に保有の記録から計算する。今は予約のみ */
+    | { kind: 'compute'; key: string }
   operators: CondOp[]
   /** 数値の既定値・刻み・小数桁 */
   default?: number | string | boolean | string[]
@@ -151,6 +153,84 @@ export const FIELDS: FieldDef[] = [
   num('ret.3m', '3か月騰落率', '3M return', 'return', 'percent', 'ret3m', { digits: 1, default: 0 }),
   num('ret.1y', '1年騰落率', '1Y return', 'return', 'percent', 'ret1y', { digits: 1, default: 0, step: 5 }),
   num('ret.3y', '3年騰落率', '3Y return', 'return', 'percent', 'ret3y', { digits: 1, default: 0, step: 5 }),
+  num('price.ma25', '25日移動平均', '25D MA', 'price', 'money', 'ma25', { step: 100, default: 1000, availableFrom: 'P2' }),
+  num('price.ma75', '75日移動平均', '75D MA', 'price', 'money', 'ma75', { step: 100, default: 1000, availableFrom: 'P2' }),
+  num('price.ma200', '200日移動平均', '200D MA', 'price', 'money', 'ma200', { step: 100, default: 1000, availableFrom: 'P2' }),
+  num('price.hi52', '52週高値', '52W high', 'price', 'money', 'hi52', { step: 100, default: 1000, availableFrom: 'P2' }),
+  num('price.lo52', '52週安値', '52W low', 'price', 'money', 'lo52', { step: 100, default: 1000, availableFrom: 'P2' }),
+  num('income.yield2p', '利回り（直近2期の年換算）', 'Yield (last 2 periods)', 'income', 'percent', 'yield2p', {
+    description: L(
+      '直近の決算期 2 回分の配当・分配金を年換算 ÷ 終値。決算期を変えた J-REIT 向け（FR-I3）',
+      'Last two distributions annualized ÷ last. For J-REITs that changed their fiscal period',
+    ),
+    default: 4,
+    requires: ['daily', 'dividends'],
+    availableFrom: 'P2',
+  }),
+  num('income.payout', '配当性向', 'Payout ratio', 'income', 'percent', 'payout', {
+    description: L('過去12か月の配当 ÷ EPS（Yahoo の実績 EPS）', 'Trailing 12M dividends ÷ EPS (Yahoo trailing EPS)'),
+    operators: ['<=', '>='],
+    default: 50,
+    step: 5,
+    digits: 0,
+    requires: ['dividends', 'fundamentals'],
+    availableFrom: 'P2',
+  }),
+  num('income.divUpYears', '連続増配年数', 'Dividend growth streak', 'income', 'number', 'divUpYears', {
+    description: L(
+      '暦年の配当合計で比べた連続増配の年数（保存期間の範囲内で数える）',
+      'Consecutive calendar years of higher dividends (within the retention period)',
+    ),
+    default: 3,
+    requires: ['dividends'],
+    availableFrom: 'P2',
+  }),
+  num('income.divNoCutYears', '連続非減配年数', 'No-cut streak', 'income', 'number', 'divNoCutYears', {
+    description: L(
+      '暦年の配当合計が前年を下回らなかった年数（保存期間の範囲内）',
+      'Consecutive calendar years without a cut (within the retention period)',
+    ),
+    default: 3,
+    requires: ['dividends'],
+    availableFrom: 'P2',
+  }),
+  {
+    id: 'income.recordMonth',
+    version: 1,
+    label: L('権利確定月', 'Record month'),
+    description: L('権利落ち日の翌営業日の月（過去 2 年の配当から）', 'Month after the ex-date (from the past two years)'),
+    category: 'income',
+    type: 'enum',
+    source: { kind: 'metrics', column: 'recordMonths' },
+    operators: ['in', 'notin'],
+    choices: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((en, i) => ({
+      value: String(i + 1),
+      label: L(`${i + 1}月`, en),
+    })),
+    default: ['3'],
+    requires: ['dividends'],
+    availableFrom: 'P2',
+  },
+  num('tech.gcDays', 'ゴールデンクロスからの日数', 'Days since golden cross', 'technical', 'number', 'gcDays', {
+    description: L(
+      '25 日線が 75 日線を上に抜けてからの取引日数（直近 1 年）',
+      'Trading days since the 25D MA crossed above the 75D MA (past year)',
+    ),
+    operators: ['<=', '>='],
+    default: 10,
+    step: 5,
+    availableFrom: 'P2',
+  }),
+  num('tech.dcDays', 'デッドクロスからの日数', 'Days since dead cross', 'technical', 'number', 'dcDays', {
+    description: L(
+      '25 日線が 75 日線を下に抜けてからの取引日数（直近 1 年）',
+      'Trading days since the 25D MA crossed below the 75D MA (past year)',
+    ),
+    operators: ['<=', '>='],
+    default: 10,
+    step: 5,
+    availableFrom: 'P2',
+  }),
   {
     id: 'attr.market',
     version: 1,
@@ -212,7 +292,63 @@ export const FIELDS: FieldDef[] = [
   },
 ]
 
+// 保有に基づく指標（P3、FR-H4）。登録表に足すだけで条件エディタ・列に出せるよう、形だけ予約しておく（FR-H2）
+FIELDS.push({
+  id: 'holding.pnlPct',
+  version: 1,
+  label: L('損益率', 'P/L %'),
+  category: 'holding',
+  type: 'percent',
+  source: { kind: 'compute', key: 'pnlPct' },
+  operators: ['<=', '>='],
+  default: -10,
+  requires: ['holdings'],
+  availableFrom: 'P3',
+})
+
 export const FIELD_BY_ID = new Map(FIELDS.map((f) => [f.id, f]))
+
+/** 今の版で使える指標か（P3 の予約は出さない） */
+export const usable = (f: FieldDef | undefined): f is FieldDef => !!f && f.availableFrom !== 'P3'
+
+/** 比べる相手にできる指標（相対条件 FR-SC5。例: 終値 ≥ 75日移動平均）: 同じ単位の市場データの指標 */
+export function refFields(f: FieldDef): FieldDef[] {
+  if (f.source.kind !== 'metrics' || f.type === 'enum') return []
+  return FIELDS.filter((g) => usable(g) && g.id !== f.id && g.source.kind === 'metrics' && g.type === f.type)
+}
+
+/**
+ * 指標の定義を変えたときの、保存した条件の移行（FR-FD5）。キーは「指標の ID@移行前の版」。
+ * 移行できない条件は null を返し、FR-SC11 のとおり無効として残す。今は移行なし（すべて版 1）
+ */
+export type CondMigration = (c: Condition) => Condition | null
+export const FIELD_MIGRATIONS: Record<string, CondMigration> = {}
+
+/** 保存した条件を今の版にそろえる（版の無い条件は版 1 とみなす）。移行できなかった条件のインデックスを failed に返す */
+export function migrateConditions(
+  conds: Condition[],
+  byId: Map<string, FieldDef> = FIELD_BY_ID,
+  migrations: Record<string, CondMigration> = FIELD_MIGRATIONS,
+): { conditions: Condition[]; failed: number[] } {
+  const failed: number[] = []
+  const conditions = conds.map((c, i) => {
+    let cur = c
+    for (let guard = 0; guard < 20; guard++) {
+      const f = byId.get(cur.field)
+      const v = cur.v ?? 1
+      if (!f || v >= f.version) break
+      const m = migrations[`${cur.field}@${v}`]
+      const next = m ? m(cur) : null
+      if (!next) {
+        failed.push(i)
+        return c
+      }
+      cur = { ...next, v: next.field === cur.field ? v + 1 : (next.v ?? 1) }
+    }
+    return cur
+  })
+  return { conditions, failed }
+}
 
 /** metrics 表の列（core の計算と migration が揃っているかを単体テストで確かめる。FR-FD4） */
 export const METRIC_COLUMNS = [
@@ -238,5 +374,14 @@ export const METRIC_COLUMNS = [
   'ret3y',
   'rsi14',
   'volRatio',
+  'ma25',
+  'ma75',
+  'ma200',
+  'payout',
+  'divUpYears',
+  'divNoCutYears',
+  'gcDays',
+  'dcDays',
+  'yield2p',
 ] as const
 export type MetricColumn = (typeof METRIC_COLUMNS)[number]

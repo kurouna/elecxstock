@@ -5,7 +5,12 @@ import type { PaneNode } from '../stores/layout.svelte'
 import Chart from './widgets/Chart.svelte'
 import ChartGrid from './widgets/ChartGrid.svelte'
 import DivCalendar from './widgets/DivCalendar.svelte'
+import Heatmap from './widgets/Heatmap.svelte'
 import Jobs from './widgets/Jobs.svelte'
+import MarketOverview from './widgets/MarketOverview.svelte'
+import MtfChart from './widgets/MtfChart.svelte'
+import Portfolio from './widgets/Portfolio.svelte'
+import Ranking from './widgets/Ranking.svelte'
 import Screener from './widgets/Screener.svelte'
 import SymbolInfo from './widgets/SymbolInfo.svelte'
 import Watchlist from './widgets/Watchlist.svelte'
@@ -42,6 +47,16 @@ function onerror(e: unknown) {
       <ChartGrid {pane} />
     {:else if pane.widget === 'divcal'}
       <DivCalendar {pane} />
+    {:else if pane.widget === 'mtf'}
+      <MtfChart {pane} />
+    {:else if pane.widget === 'portfolio'}
+      <Portfolio {pane} />
+    {:else if pane.widget === 'heatmap'}
+      <Heatmap {pane} />
+    {:else if pane.widget === 'ranking'}
+      <Ranking {pane} />
+    {:else if pane.widget === 'market'}
+      <MarketOverview {pane} />
     {:else if pane.widget === 'jobs'}
       <Jobs {pane} />
     {/if}

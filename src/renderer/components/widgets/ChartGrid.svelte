@@ -186,6 +186,34 @@ function addOwn(id: InstrumentId) {
   sel = (next.length - 1) % perPage
   toast(t('grid.added', { name: nameOf(id) }))
 }
+/**
+ * 選んだタイルの銘柄を差し替える（C キー・タイルの ✎）。コマンドバーで選んだ銘柄が、そのタイルの位置に入る。
+ * 対象がウォッチリストやスクリーナーのときは、今の並びを「このグリッドの銘柄」に固定してから差し替える（FR-G10）
+ */
+let replacing: number | null = null
+function startReplace(i = sel) {
+  if (!shown[i]) return
+  replacing = Math.min(page, pages - 1) * perPage + i
+  if (src !== 'own') {
+    set({ own: [...codes], src: 'own', sort: 'none' })
+  } else if (sortKey !== 'none') {
+    // 並べ替え中は見えている順を固定してから差し替える
+    set({ own: [...codes], sort: 'none' })
+  }
+  sel = i
+  app.overlay = { kind: 'palette', q: '', title: t('grid.replaceTitle', { name: nameOf(shown[i]) }) }
+}
+function replaceAt(at: number, id: InstrumentId) {
+  const old = own[at]
+  const next = [...own]
+  next[at] = id
+  set({ own: next.filter((x, k) => x !== id || k === at) }) // 同じ銘柄は 1 つだけ
+  toast(t('grid.replaced', { from: nameOf(old), to: nameOf(id) }))
+}
+// コマンドバーを選ばずに閉じたら、差し替えをやめる
+$effect(() => {
+  if (!app.overlay) replacing = null
+})
 function pinCurrent() {
   set({ own: [...codes], src: 'own', sort: 'none', page: 0 })
   sel = 0
@@ -225,7 +253,11 @@ onMount(() => {
       return c.length ? c : shown[sel] ? [shown[sel]!] : []
     },
     receive: (id) => {
-      addOwn(id)
+      if (replacing != null) {
+        const at = replacing
+        replacing = null
+        replaceAt(at, id)
+      } else addOwn(id)
       return true
     },
     key(e) {
@@ -290,6 +322,10 @@ onMount(() => {
       }
       if (c === 'KeyP') {
         pinCurrent()
+        return true
+      }
+      if (c === 'KeyC') {
+        startReplace()
         return true
       }
       if (c === 'KeyX') {
@@ -391,7 +427,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
 </div>
 <div class="tiles" class:dense={cols >= 5} bind:this={tiles} style:grid-template-columns={`repeat(${cols}, 1fr)`} style:grid-template-rows={`repeat(${rows}, 1fr)`}>
   {#if !shown.length}
-    <div class="state">{t('grid.empty')}</div>
+    <div class="state">{src === 'own' ? t('grid.emptyOwn') : t('grid.empty')}</div>
   {/if}
   {#each shown as id, i (id)}
     {@const m = metric(id)}
@@ -420,13 +456,42 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
         <button type="button" class="star" class:on={isFav(id)} title="F" onclick={(e) => { e.stopPropagation(); sel = i; toggleFav(id) }}>★</button>
         <button type="button" class="dia" class:on={isCand(id)} title="Space" onclick={(e) => { e.stopPropagation(); sel = i; toggleCand(id) }}>◆</button>
         <span class="y num">{m?.yieldTrailing != null ? `${fmt(m.yieldTrailing)}%` : ''}</span>
+        <button type="button" class="edit" title={`${t('grid.replace')} (C)`} onclick={(e) => { e.stopPropagation(); startReplace(i) }}>✎</button>
+        {#if src === 'own'}<button type="button" class="edit" title={`${t('grid.remove')} (Delete)`} onclick={(e) => { e.stopPropagation(); sel = i; set({ own: own.filter((x) => x !== id) }) }}>✕</button>{/if}
       </div>
       <canvas data-id={id}></canvas>
     </div>
   {/each}
 </div>
 
+<div class="hint muted">{t('grid.editHint')}</div>
+
 <style>
+  .hint {
+    flex: none;
+    font-size: var(--fs-1);
+    padding: 3px var(--s-2);
+    border-top: 1px solid var(--line);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .edit {
+    background: none;
+    border: 0;
+    color: var(--text-3);
+    cursor: pointer;
+    padding: 0 3px;
+    opacity: 0;
+    font-size: var(--fs-1);
+  }
+  .tile:hover .edit,
+  .tile.sel .edit {
+    opacity: 1;
+  }
+  .edit:hover {
+    color: var(--text);
+  }
   .bar {
     display: flex;
     align-items: center;

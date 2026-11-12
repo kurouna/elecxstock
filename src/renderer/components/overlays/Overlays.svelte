@@ -4,6 +4,7 @@ import Dialogs from './Dialogs.svelte'
 import FirstRun from './FirstRun.svelte'
 import Help from './Help.svelte'
 import Jump from './Jump.svelte'
+import Layouts from './Layouts.svelte'
 import Palette from './Palette.svelte'
 import ScreensList from './ScreensList.svelte'
 import Settings from './Settings.svelte'
@@ -20,13 +21,15 @@ function backdrop(e: MouseEvent) {
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="scrim" onmousedown={backdrop}>
       {#if app.overlay.kind === 'palette'}
-        <Palette q={app.overlay.q ?? ''} />
+        <Palette q={app.overlay.q ?? ''} title={app.overlay.title} />
       {:else if app.overlay.kind === 'help'}
         <Help />
       {:else if app.overlay.kind === 'settings'}
         <Settings tab={app.overlay.tab ?? 'general'} />
       {:else if app.overlay.kind === 'screens'}
         <ScreensList />
+      {:else if app.overlay.kind === 'layouts'}
+        <Layouts />
       {:else if app.overlay.kind === 'firstrun'}
         <FirstRun />
       {:else}

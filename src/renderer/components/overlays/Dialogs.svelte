@@ -21,14 +21,49 @@ onMount(() => {
       input?.focus()
       input?.select()
     })
-  } else first?.focus()
+  } else if (overlay.kind === 'checklist') queueMicrotask(() => box?.focus())
+  else first?.focus()
 })
+let box = $state<HTMLDivElement>()
+const intoView = () => queueMicrotask(() => box?.querySelector('.it.sel')?.scrollIntoView({ block: 'nearest' }))
 function choiceKey(e: KeyboardEvent) {
   if (overlay.kind !== 'choice') return
-  if (e.key === 'ArrowDown') sel = Math.min(overlay.choices.length - 1, sel + 1)
+  const n = overlay.choices.length
+  if (e.key === 'ArrowDown') sel = Math.min(n - 1, sel + 1)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
-  else if (e.key === 'Enter') done(overlay.resolve, overlay.choices[sel]?.id ?? null)
-  else return
+  else if (e.key === 'PageDown') sel = Math.min(n - 1, sel + 10)
+  else if (e.key === 'PageUp') sel = Math.max(0, sel - 10)
+  else if (e.key === 'Home') sel = 0
+  else if (e.key === 'End') sel = n - 1
+  else if (e.key === 'Enter') {
+    e.preventDefault()
+    done(overlay.resolve, overlay.choices[sel]?.id ?? null)
+    return
+  } else return
+  intoView()
+  e.preventDefault()
+}
+function checkKey(e: KeyboardEvent) {
+  if (overlay.kind !== 'checklist') return
+  const it = overlay.items
+  const n = it.length
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey && overlay.reorder) {
+    const j = sel + (e.key === 'ArrowUp' ? -1 : 1)
+    if (j >= 0 && j < n) {
+      ;[it[sel], it[j]] = [it[j]!, it[sel]!]
+      sel = j
+    }
+  } else if (e.key === 'ArrowDown') sel = Math.min(n - 1, sel + 1)
+  else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
+  else if (e.key === 'Home') sel = 0
+  else if (e.key === 'End') sel = n - 1
+  else if (e.code === 'Space') it[sel]!.on = !it[sel]!.on
+  else if (e.key === 'Enter') {
+    e.preventDefault()
+    done(overlay.resolve, $state.snapshot(it))
+    return
+  } else return
+  intoView()
   e.preventDefault()
 }
 </script>
@@ -66,7 +101,7 @@ function choiceKey(e: KeyboardEvent) {
   </div>
 {:else if overlay.kind === 'choice'}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="dialog box wide" role="dialog" tabindex="-1" onkeydown={choiceKey}>
+  <div class="dialog box wide" role="dialog" tabindex="-1" onkeydown={choiceKey} bind:this={box}>
     <h3>{overlay.title}</h3>
     <div class="list">
       {#each overlay.choices as c, i (c.id)}
@@ -80,6 +115,32 @@ function choiceKey(e: KeyboardEvent) {
           </button>
         {/if}
       {/each}
+    </div>
+  </div>
+{:else if overlay.kind === 'checklist'}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="dialog box wide" role="dialog" tabindex="-1" onkeydown={checkKey} bind:this={box}>
+    <h3>{overlay.title}</h3>
+    <div class="list">
+      {#each overlay.items as c, i (c.id)}
+        <button
+          type="button"
+          class="it"
+          class:sel={i === sel}
+          onclick={() => { sel = i; c.on = !c.on }}
+          onmousemove={() => (sel = i)}
+        >
+          <span class="box2" class:on={c.on}>{c.on ? '✓' : ''}</span>
+          <span class="n">{c.label}</span>{#if c.hint}<span class="s">{c.hint}</span>{/if}
+        </button>
+      {/each}
+    </div>
+    <div class="foot">
+      <span><kbd>Space</kbd> {t('dlg.toggle')}</span>
+      {#if overlay.reorder}<span><kbd>Alt+↑↓</kbd> {t('dlg.reorder')}</span>{/if}
+      <span><kbd>Enter</kbd> {t('common.ok')}</span>
+      <span><kbd>Esc</kbd> {t('common.cancel')}</span>
+      {#if overlay.hint}<span>{overlay.hint}</span>{/if}
     </div>
   </div>
 {:else if overlay.kind === 'ask3'}
@@ -110,6 +171,22 @@ function choiceKey(e: KeyboardEvent) {
     margin: var(--s-2) 0;
     padding-left: 18px;
     color: var(--text-2);
+  }
+  .box2 {
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    flex: none;
+    color: var(--bg);
+  }
+  .box2.on {
+    background: var(--focus);
+    border-color: var(--focus);
   }
   .chk {
     display: flex;

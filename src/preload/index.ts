@@ -64,7 +64,9 @@ const api: ElecxstockBridge = {
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url) as Promise<boolean>,
   saveText: (name: string, text: string) => ipcRenderer.invoke('app:saveText', name, text) as Promise<boolean>,
   notices: () => ipcRenderer.invoke('app:notices') as Promise<string>,
-  openFile: (kind: 'json' | 'xlsx') => ipcRenderer.invoke('app:openFile', kind) as Promise<string | Uint8Array | null>,
+  openFile: (kind: 'json' | 'xlsx' | 'text') => ipcRenderer.invoke('app:openFile', kind) as Promise<string | Uint8Array | null>,
+  exportBackup: (file: string) => ipcRenderer.invoke('app:exportBackup', file) as Promise<boolean>,
+  openLogs: () => ipcRenderer.invoke('app:openLogs') as Promise<boolean>,
   platform: process.platform,
 }
 contextBridge.exposeInMainWorld('elecxstock', api)

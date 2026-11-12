@@ -1,31 +1,19 @@
 <script lang="ts">
 // スクリーナー（§5.2, §5.3）。条件エディタは指標の登録表から作る（FR-FD1）。結果は仮想スクロール（FR-SC3）。
 
-import { FIELD_BY_ID, FIELDS, MARKET_CHOICES } from '@shared/fields'
-import type { Condition, InstrumentId, MetricsRow, ScreenResult } from '@shared/types'
+import { FIELD_BY_ID, FIELDS, MARKET_CHOICES, refFields, usable } from '@shared/fields'
+import type { Condition, InstrumentId, ScreenResult } from '@shared/types'
 import { onMount } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
+import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, resolveColumns, sortIds } from '../../lib/columns'
 import { openInGrid } from '../../lib/commands'
-import { cls, fmt, money, px, sgn } from '../../lib/format'
-import type { Key } from '../../lib/i18n'
+import { fmt, money } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
-import { condsOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
-import {
-  app,
-  bridge,
-  choiceDialog,
-  codeOf,
-  inst,
-  isFav,
-  listName,
-  nameOf,
-  promptDialog,
-  screenName,
-  t,
-  toggleFav,
-} from '../../stores/app.svelte'
+import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
+import { app, bridge, choiceDialog, listName, promptDialog, screenName, t } from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
+import RowCells from './RowCells.svelte'
 
 let { pane }: { pane: PaneNode } = $props()
 onMount(() => {
@@ -42,25 +30,15 @@ const lo = $derived(anchor < 0 ? sel : Math.min(anchor, sel))
 const hi = $derived(anchor < 0 ? sel : Math.max(anchor, sel))
 let ci = $state(-1) // 条件の行（-1 は結果の表）
 let col = $state(5)
-let sort = $state<{ k: keyof MetricsRow; dir: 1 | -1 }>({ k: 'yieldTrailing', dir: -1 })
+const extras = $derived(extrasOf(pane))
+const sort = $derived(extras.sort)
+const limit = $derived(extras.limit)
+const cols = $derived(resolveColumns(extras.columns, DEFAULT_COLUMNS.screener))
 let scroller = $state<HTMLDivElement>()
 let scrollTop = $state(0)
 let viewH = $state(400)
 let total = $state(0)
 let timer: ReturnType<typeof setTimeout> | null = null
-
-const COLS: { k: keyof MetricsRow | 'star' | 'code' | 'name' | 'mkt'; label: () => string; w?: number; l?: boolean }[] = [
-  { k: 'star', label: () => '', w: 24, l: true },
-  { k: 'code', label: () => t('col.code'), w: 52, l: true },
-  { k: 'name', label: () => t('col.name'), l: true },
-  { k: 'mkt', label: () => t('col.mkt'), w: 70, l: true },
-  { k: 'close', label: () => t('col.close'), w: 76 },
-  { k: 'yieldTrailing', label: () => t('col.yield'), w: 62 },
-  { k: 'per', label: () => t('col.per'), w: 52 },
-  { k: 'pbr', label: () => t('col.pbr'), w: 52 },
-  { k: 'turnover20', label: () => t('col.turnover'), w: 74 },
-  { k: 'ret1y', label: () => t('col.ret1y'), w: 66 },
-]
 
 async function run() {
   const favs = app.watchlists.find((w) => w.builtin === 'favorites')?.items ?? []
@@ -77,13 +55,13 @@ $effect(() => {
   if (timer) clearTimeout(timer)
   timer = setTimeout(run, 120)
 })
-const rows = $derived.by(() => {
+const sorted = $derived.by(() => {
   if (!result) return [] as InstrumentId[]
-  const k = sort.k
-  const ids = [...result.ids]
-  const m = (id: InstrumentId) => app.metrics.get(id)
-  return ids.sort((a, b) => (((m(a)?.[k] as number) ?? -1e18) - ((m(b)?.[k] as number) ?? -1e18)) * sort.dir)
+  void app.metrics.size
+  return sortIds(result.ids, cols.find((c) => c.id === sort.k) ?? COLUMN_BY_ID.get(sort.k), sort.dir)
 })
+/** 上位 N 件（FR-SC5）: 並べ替えの順で上から */
+const rows = $derived(limit ? sorted.slice(0, limit) : sorted)
 $effect(() => {
   bridge.prioritize(rows.slice(0, 40))
 })
@@ -132,7 +110,8 @@ function step(i: number, d: number) {
     const k = ids.indexOf(cur)
     return update(i, { ...c, value: [ids[(k + d + ids.length) % ids.length]!] })
   }
-  const v = Math.round((Number(c.value) + (f.step ?? 1) * d) * 1e6) / 1e6
+  const st = c.ref ? 1 : (f.step ?? 1) // 相対条件の値は相手からの差（%）
+  const v = Math.round((Number(c.value) + st * d) * 1e6) / 1e6
   update(i, { ...c, value: v })
 }
 async function typeValue(i: number) {
@@ -152,7 +131,14 @@ async function typeValue(i: number) {
     return
   }
   if (!c || !f || (f.type !== 'number' && f.type !== 'percent' && f.type !== 'ratio' && f.type !== 'money')) return step(i, 1)
-  const unit = f.type === 'money' ? 1e8 : 1
+  if (c.ref) {
+    const s = await promptDialog(t('scr.refOffset'), String(c.value))
+    const v = Number((s ?? '').replace(/[,，%％]/g, ''))
+    if (s != null && Number.isFinite(v)) update(i, { ...c, value: v })
+    return
+  }
+  const unit =
+    f.type === 'money' && !['price.close', 'price.ma25', 'price.ma75', 'price.ma200', 'price.hi52', 'price.lo52'].includes(f.id) ? 1e8 : 1
   const s = await promptDialog(
     `${f.label[app.settings.lang]}${f.type === 'money' ? (app.settings.lang === 'ja' ? '（億円）' : ' (×100M JPY)') : ''}`,
     String(Number(c.value) / unit),
@@ -168,11 +154,48 @@ function flipOp(i: number) {
   const k = f.operators.indexOf(c.op)
   update(i, { ...c, op: f.operators[(k + 1) % f.operators.length]! })
 }
+/** 「かつ」「または」の切り替え（FR-SC5）: すぐ上の条件と「または」でまとめる */
+function toggleOr(i: number) {
+  const c = conds[i]
+  if (!c || i === 0) return
+  update(i, { ...c, or: !c.or })
+}
+/** 相対条件（FR-SC5）: 別の指標と比べる（例: 終値 ≥ 75日移動平均 +0%）。もう一度で解除 */
+async function toggleRef(i: number) {
+  const c = conds[i]
+  const f = c && FIELD_BY_ID.get(c.field)
+  if (!c || !f) return
+  if (c.ref) {
+    const { ref: _r, ...rest } = c
+    return update(i, { ...rest, value: f.default ?? 0 })
+  }
+  const refs = refFields(f)
+  if (!refs.length) return
+  const id = await choiceDialog(
+    t('scr.refTitle', { name: f.label[app.settings.lang] }),
+    refs.map((g) => ({ id: g.id, label: g.label[app.settings.lang] })),
+  )
+  if (id) update(i, { ...c, ref: id, value: 0, op: c.op === '<=' ? '<=' : '>=' })
+}
+async function setLimit() {
+  const s = await promptDialog(t('scr.limitTitle'), limit ? String(limit) : '')
+  if (s == null) return
+  const n = Math.floor(Number(s))
+  patchState(pane, { limit: Number.isFinite(n) && n > 0 ? Math.min(5000, n) : undefined })
+}
+async function pickColumns() {
+  const ids = await chooseColumns(cols)
+  if (ids) patchState(pane, { cols: ids })
+}
+function sortBy(k: string) {
+  patchState(pane, { sort: { k, dir: sort.k === k ? (-sort.dir as 1 | -1) : -1 } })
+  sel = 0
+}
 async function addCond() {
   const used = new Set(conds.map((c) => c.field))
   const choice = await choiceDialog(
     t('scr.addCond'),
-    FIELDS.filter((f) => f.availableFrom === 'P1' && !used.has(f.id)).map((f) => ({
+    FIELDS.filter((f) => usable(f) && !used.has(f.id)).map((f) => ({
       id: f.id,
       label: f.label[app.settings.lang],
       hint: f.description?.[app.settings.lang] ?? '',
@@ -187,6 +210,11 @@ async function addCond() {
 function showValue(c: Condition): string {
   const f = FIELD_BY_ID.get(c.field)
   if (!f) return String(c.value)
+  if (c.ref) {
+    const g = FIELD_BY_ID.get(c.ref)
+    const d = Number(c.value)
+    return `${g?.label[app.settings.lang] ?? c.ref}${d ? ` ${d > 0 ? '+' : '−'}${fmt(Math.abs(d), 1)}%` : ''}`
+  }
   if (f.type === 'bool') return c.value ? t('common.yes') : t('common.no')
   if (f.source.kind === 'attr')
     return (c.value as string[])
@@ -215,6 +243,13 @@ onMount(() => {
   const off = registerPane(pane.id, {
     current: () => rows[sel] ?? linkSymbol(pane.link),
     selected: () => rows.slice(lo, hi + 1),
+    columns: () => ({ ids: rows, cols, name: scr ? screenName(scr) : 'screener' }),
+    run(action) {
+      if (action === 'columns') void pickColumns()
+      else if (action === 'limit') void setLimit()
+      else return false
+      return true
+    },
     key(e) {
       const k = e.key
       const ctrl = e.ctrlKey || e.metaKey
@@ -248,6 +283,14 @@ onMount(() => {
           flipOp(ci)
           return true
         }
+        if (e.code === 'KeyA' && !e.shiftKey) {
+          toggleOr(ci)
+          return true
+        }
+        if (e.code === 'KeyR' && !e.shiftKey) {
+          void toggleRef(ci)
+          return true
+        }
         if (k === 'Delete') {
           update(ci, null)
           return true
@@ -264,6 +307,14 @@ onMount(() => {
       }
       if (k === 'Insert') {
         void addCond()
+        return true
+      }
+      if (ctrl && e.shiftKey && !e.altKey && e.code === 'KeyC') {
+        void pickColumns()
+        return true
+      }
+      if (e.code === 'KeyT' && !ctrl && !e.altKey && !e.shiftKey) {
+        void setLimit()
         return true
       }
       const n = rows.length
@@ -295,13 +346,11 @@ onMount(() => {
         return true
       }
       if ((k === 'ArrowLeft' || k === 'ArrowRight') && !e.altKey && !ctrl) {
-        col = Math.max(4, Math.min(COLS.length - 1, col + (k === 'ArrowLeft' ? -1 : 1)))
+        col = Math.max(1, Math.min(cols.length - 1, col + (k === 'ArrowLeft' ? -1 : 1)))
         return true
       }
       if (e.code === 'KeyS' && !ctrl && !e.altKey) {
-        const kk = COLS[col]!.k as keyof MetricsRow
-        sort = { k: kk, dir: sort.k === kk ? (-sort.dir as 1 | -1) : -1 }
-        sel = 0
+        sortBy(cols[col]!.id)
         return true
       }
       if (k === 'Enter' && !ctrl) {
@@ -329,7 +378,7 @@ onMount(() => {
   {#each conds as c, i (i)}
     {@const f = FIELD_BY_ID.get(c.field)}
     <div class="cond" class:focus={i === ci && app.focus === pane.id} class:invalid={result?.invalid.includes(i)} title={result?.invalid.includes(i) ? t('scr.invalid') : (f?.description?.[app.settings.lang] ?? '')}>
-      <span class="and">{i ? t('scr.and') : ''}</span>
+      <button type="button" class="and" class:or={c.or && i > 0} title="A" onclick={() => toggleOr(i)}>{i ? (c.or ? t('scr.or') : t('scr.and')) : ''}</button>
       <button type="button" class="f" onclick={() => (ci = i)}>{f ? f.label[app.settings.lang] : c.field}</button>
       <button type="button" class="op" onclick={() => flipOp(i)}>{opLabel(c.op)}</button>
       <button type="button" class="v" onclick={() => { ci = i; void typeValue(i) }}>{showValue(c)}</button>
@@ -341,40 +390,32 @@ onMount(() => {
   {/each}
   <div class="meta">
     <span><button type="button" class="chip" onclick={addCond}>＋ {t('scr.addCond')}</button> <span class="muted">{t('scr.hint')}</span></span>
-    <span class="num">{t('scr.hits', { n: rows.length, total: (app.status?.instruments ?? total).toLocaleString(), ms: result?.ms ?? '—' })}</span>
+    <span class="num">
+      {#if limit}<button type="button" class="chip" title="T" onclick={setLimit}>{t('scr.top', { n: limit })}</button>{/if}
+      {t('scr.hits', { n: sorted.length, total: (app.status?.instruments ?? total).toLocaleString(), ms: result?.ms ?? '—' })}
+      <button type="button" class="chip" title="Ctrl+Shift+C" onclick={pickColumns}>{t('cols.button')}</button>
+    </span>
   </div>
 </div>
 <div class="scroll body" bind:this={scroller} onscroll={() => (scrollTop = scroller!.scrollTop)}>
   <table class="grid">
-    <colgroup>{#each COLS as c (c.k)}<col style:width={c.w ? `${c.w}px` : undefined} />{/each}</colgroup>
+    <colgroup>{#each cols as c (c.id)}<col style:width={c.w ? `${c.w}px` : undefined} />{/each}</colgroup>
     <thead>
       <tr>
-        {#each COLS as c, i (c.k)}
-          <th class:l={c.l} class:cur={i === col && ci < 0 && app.focus === pane.id}>{c.label()}{sort.k === c.k ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>
+        {#each cols as c, i (c.id)}
+          <th class:l={c.l} class:cur={i === col && ci < 0 && app.focus === pane.id} onclick={() => sortBy(c.id)}>{c.label()}{sort.k === c.id ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>
         {/each}
       </tr>
     </thead>
     <tbody>
-      {#if start > 0}<tr class="spacer" style:height={`${start * ROW}px`}><td colspan={COLS.length}></td></tr>{/if}
+      {#if start > 0}<tr class="spacer" style:height={`${start * ROW}px`}><td colspan={cols.length}></td></tr>{/if}
       {#each rows.slice(start, end) as id, k (id)}
         {@const i = start + k}
-        {@const m = app.metrics.get(id)}
-        {@const ins = inst(id)}
-        {@const tv = money(m?.turnover20)}
-        <tr class:sel={i === sel} class:multi={anchor >= 0 && i >= lo && i <= hi} class:stale={m?.stale} onclick={(e) => { if (e.shiftKey) { if (anchor < 0) anchor = sel } else anchor = -1; sel = i; ci = -1; send() }}>
-          <td class="l"><button type="button" class="star" class:on={isFav(id)} onclick={(e) => { e.stopPropagation(); toggleFav(id) }}>★</button></td>
-          <td class="l code">{codeOf(id)}</td>
-          <td class="l name">{nameOf(id)}</td>
-          <td class="l name dim">{ins ? t(`mkt.${ins.market}` as Key) : ''}</td>
-          <td>{px(m?.close)}</td>
-          <td>{m?.yieldTrailing != null ? fmt(m.yieldTrailing) : '—'}<span class="unit">%</span></td>
-          <td>{fmt(m?.per, 1)}</td>
-          <td>{fmt(m?.pbr)}</td>
-          <td>{tv.n}<span class="unit">{tv.u}</span></td>
-          <td class={cls(m?.ret1y)}>{sgn(m?.ret1y, 1, '%')}</td>
+        <tr class:sel={i === sel} class:multi={anchor >= 0 && i >= lo && i <= hi} class:stale={app.metrics.get(id)?.stale} onclick={(e) => { if (e.shiftKey) { if (anchor < 0) anchor = sel } else anchor = -1; sel = i; ci = -1; send() }}>
+          <RowCells {id} {cols} />
         </tr>
       {/each}
-      {#if end < rows.length}<tr class="spacer" style:height={`${(rows.length - end) * ROW}px`}><td colspan={COLS.length}></td></tr>{/if}
+      {#if end < rows.length}<tr class="spacer" style:height={`${(rows.length - end) * ROW}px`}><td colspan={cols.length}></td></tr>{/if}
     </tbody>
   </table>
 </div>
@@ -444,6 +485,13 @@ onMount(() => {
     font-size: var(--fs-1);
     text-align: center;
     white-space: nowrap;
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+  .and.or {
+    color: var(--warn);
   }
   .x {
     background: none;

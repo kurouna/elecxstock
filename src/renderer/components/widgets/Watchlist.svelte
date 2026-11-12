@@ -1,22 +1,18 @@
 <script lang="ts">
 // ウォッチリスト（§6.10, FR-FV2, §6.5.3）。↑↓ でめくると同じリンク色のチャートが追従する（FR-K2）。
+// 列は Ctrl+Shift+C で選ぶ（lib/columns.ts）。リストの作成・名前の変更・複製・削除・並べ替え（FR-W1）。
 
-import type { MetricsRow } from '@shared/types'
 import { onMount } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
-import { cls, fmt, money, px, sgn } from '../../lib/format'
-import type { Key } from '../../lib/i18n'
+import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, resolveColumns, sortIds } from '../../lib/columns'
 import { registerPane } from '../../lib/panes'
 import {
   app,
   bridge,
-  codeOf,
   confirmDialog,
   ensureMetrics,
-  inst,
   isFav,
   listName,
-  metric,
   nameOf,
   promptDialog,
   saveWatchlists,
@@ -26,23 +22,14 @@ import {
 } from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
+import RowCells from './RowCells.svelte'
 
 let { pane }: { pane: PaneNode } = $props()
-type ColKey = 'star' | 'code' | 'name' | 'close' | 'chgPct' | 'yieldTrailing' | 'turnover20'
-const COLS: { k: ColKey; label: () => string; w?: number; l?: boolean }[] = [
-  { k: 'star', label: () => '', w: 24, l: true },
-  { k: 'code', label: () => t('col.code'), w: 52, l: true },
-  { k: 'name', label: () => t('col.name'), l: true },
-  { k: 'close', label: () => t('col.close'), w: 78 },
-  { k: 'chgPct', label: () => t('col.chg'), w: 66 },
-  { k: 'yieldTrailing', label: () => t('col.yield'), w: 60 },
-  { k: 'turnover20', label: () => t('col.turnover'), w: 72 },
-]
 
 const listId = $derived((pane.state.list as string) ?? 'favorites')
 const list = $derived(app.watchlists.find((w) => w.id === listId) ?? app.watchlists[0])
 const starOnly = $derived(!!pane.state.starOnly)
-const sort = $derived(pane.state.sort as { k: ColKey; dir: 1 | -1 } | undefined)
+const sort = $derived(pane.state.sort as { k: string; dir: 1 | -1 } | undefined)
 let sel = $state(0)
 /** 複数選択の起点（-1 は 1 行だけ）。Shift+↑↓ で広げ、Ctrl+A で全部（§6.5） */
 let anchor = $state(-1)
@@ -52,17 +39,15 @@ const picked = () => rows.slice(lo, hi + 1)
 let col = $state(3)
 let scroller = $state<HTMLDivElement>()
 let width = $state(600)
+const allCols = $derived(resolveColumns(pane.state.cols as string[] | undefined, DEFAULT_COLUMNS.watchlist))
 // 幅の狭いペインでは売買代金の列を隠す（FR-V12）
-const cols = $derived(width < 470 ? COLS.filter((c) => c.k !== 'turnover20') : COLS)
+const cols = $derived(width < 470 ? allCols.filter((c) => c.id !== 'liq.turnover20') : allCols)
 
 const rows = $derived.by(() => {
   void app.dataVersion
   let items = list?.items ?? []
   if (starOnly) items = items.filter((id) => isFav(id))
-  if (sort && sort.k !== 'star' && sort.k !== 'name' && sort.k !== 'code') {
-    const k = sort.k as keyof MetricsRow
-    items = [...items].sort((a, b) => (((metric(a)?.[k] as number) ?? -1e18) - ((metric(b)?.[k] as number) ?? -1e18)) * sort.dir)
-  }
+  if (sort) items = sortIds(items, COLUMN_BY_ID.get(sort.k), sort.dir)
   return items
 })
 $effect(() => {
@@ -95,19 +80,49 @@ async function newList() {
   setList(id)
 }
 async function renameList() {
-  if (!list || list.builtin) return toast(t('list.builtinLocked'))
+  if (!list || list.builtin) {
+    toast(t('list.builtinLocked'))
+    return
+  }
   const name = await promptDialog(t('list.rename'), listName(list))
   if (!name) return
   list.name = { ja: name, en: name }
   saveWatchlists()
 }
 async function deleteList() {
-  if (!list || list.builtin) return toast(t('list.builtinLocked'))
+  if (!list || list.builtin) {
+    toast(t('list.builtinLocked'))
+    return
+  }
   const r = await confirmDialog({ title: t('list.deleteConfirm', { name: listName(list) }), ok: t('act.deleteList'), danger: true })
   if (!r.ok) return
   app.watchlists = app.watchlists.filter((w) => w !== list)
   saveWatchlists()
   setList('favorites')
+}
+/** リストの複製（FR-W1）。組み込みのリストも複製はできる */
+async function duplicateList() {
+  if (!list) return
+  const name = await promptDialog(t('list.duplicate'), t('scr.copyOf', { name: listName(list) }))
+  if (!name) return
+  const id = `u${Date.now().toString(36)}`
+  app.watchlists.push({ id, name: { ja: name, en: name }, items: [...list.items] })
+  saveWatchlists()
+  setList(id)
+}
+/** リストの並べ替え（FR-W1）。組み込みのリストは先頭から動かさない */
+function moveList(d: number) {
+  if (!list || list.builtin) {
+    toast(t('list.builtinLocked'))
+    return
+  }
+  const ws = [...app.watchlists]
+  const i = ws.indexOf(list)
+  const j = i + d
+  if (j < 0 || j >= ws.length || ws[j]!.builtin) return
+  ;[ws[i], ws[j]] = [ws[j]!, ws[i]!]
+  app.watchlists = ws
+  saveWatchlists()
 }
 function removeSel() {
   const ids = picked()
@@ -131,10 +146,15 @@ function moveRow(d: number) {
   saveWatchlists()
   scrollSel()
 }
-function sortBy(k: ColKey) {
-  if (k === 'star' || k === 'code' || k === 'name') return patchState(pane, { sort: undefined })
+function sortBy(k: string) {
+  const c = COLUMN_BY_ID.get(k)
+  if (!c?.sort || k === 'code') return patchState(pane, { sort: undefined })
   patchState(pane, { sort: { k, dir: sort?.k === k ? -sort.dir : -1 } })
   sel = 0
+}
+async function pickColumns() {
+  const ids = await chooseColumns(allCols)
+  if (ids) patchState(pane, { cols: ids })
 }
 
 onMount(() => {
@@ -143,6 +163,7 @@ onMount(() => {
   const off = registerPane(pane.id, {
     current: () => rows[sel] ?? linkSymbol(pane.link),
     selected: () => picked(),
+    columns: () => ({ ids: rows, cols: allCols, name: list ? listName(list) : 'watchlist' }),
     key(e) {
       const k = e.key
       const ctrl = e.ctrlKey || e.metaKey
@@ -156,6 +177,10 @@ onMount(() => {
         sel = Math.max(0, Math.min(n - 1, sel + mv))
         send()
         scrollSel()
+        return true
+      }
+      if (ctrl && e.shiftKey && !e.altKey && e.code === 'KeyC') {
+        void pickColumns()
         return true
       }
       if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA') {
@@ -174,6 +199,10 @@ onMount(() => {
         scrollSel()
         return true
       }
+      if ((k === 'PageDown' || k === 'PageUp') && ctrl && e.shiftKey) {
+        moveList(k === 'PageDown' ? 1 : -1)
+        return true
+      }
       if ((k === 'PageDown' || k === 'PageUp') && ctrl) {
         const i = app.watchlists.findIndex((w) => w.id === listId)
         const next = app.watchlists[(i + (k === 'PageDown' ? 1 : -1) + app.watchlists.length) % app.watchlists.length]!
@@ -185,11 +214,11 @@ onMount(() => {
         return true
       }
       if ((k === 'ArrowLeft' || k === 'ArrowRight') && !e.altKey && !ctrl) {
-        col = Math.max(1, Math.min(COLS.length - 1, col + (k === 'ArrowLeft' ? -1 : 1)))
+        col = Math.max(1, Math.min(cols.length - 1, col + (k === 'ArrowLeft' ? -1 : 1)))
         return true
       }
       if (e.code === 'KeyS' && !ctrl && !e.altKey) {
-        sortBy(COLS[col]!.k)
+        sortBy(cols[col]!.id)
         return true
       }
       if (e.code === 'KeyF' && ctrl && e.shiftKey) {
@@ -214,6 +243,12 @@ onMount(() => {
         return true
       }
       return false
+    },
+    run(action) {
+      if (action === 'duplicate') void duplicateList()
+      else if (action === 'columns') void pickColumns()
+      else return false
+      return true
     },
   })
   return () => {
@@ -240,6 +275,7 @@ onMount(() => {
   <span class="grow"></span>
   {#if anchor >= 0}<span class="num">{t('list.selectedN', { n: hi - lo + 1 })}</span>{/if}
   <span class="num">{t('list.items', { n: rows.length })}</span>
+  <button type="button" class="chip" title="Ctrl+Shift+C" onclick={pickColumns}>{t('cols.button')}</button>
 </div>
 <div class="scroll body" bind:this={scroller}>
   {#if !rows.length}
@@ -247,30 +283,21 @@ onMount(() => {
   {:else}
     <table class="grid">
       <colgroup>
-        {#each cols as c (c.k)}<col style:width={c.w ? `${c.w}px` : undefined} />{/each}
+        {#each cols as c (c.id)}<col style:width={c.w ? `${c.w}px` : undefined} />{/each}
       </colgroup>
       <thead>
         <tr>
-          {#each cols as c, i (c.k)}
-            <th class:l={c.l} class:cur={i === col && app.focus === pane.id} onclick={() => sortBy(c.k)}>
-              {c.label()}{sort?.k === c.k ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}
+          {#each cols as c, i (c.id)}
+            <th class:l={c.l} class:cur={i === col && app.focus === pane.id} onclick={() => sortBy(c.id)}>
+              {c.label()}{sort?.k === c.id ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}
             </th>
           {/each}
         </tr>
       </thead>
       <tbody>
         {#each rows as id, i (id)}
-          {@const m = metric(id)}
-          {@const ins = inst(id)}
-          {@const tv = money(m?.turnover20)}
-          <tr class:sel={i === sel} class:multi={anchor >= 0 && i >= lo && i <= hi} class:stale={m?.stale} onclick={(e) => { if (e.shiftKey) { if (anchor < 0) anchor = sel } else anchor = -1; sel = i; send() }}>
-            <td class="l"><button type="button" class="star" class:on={isFav(id)} onclick={(e) => { e.stopPropagation(); toggleFav(id) }} aria-label="favorite">★</button></td>
-            <td class="l code">{codeOf(id)}</td>
-            <td class="l name">{nameOf(id)}{#if ins && ins.kind !== 'stock'}<span class="tag">{t(`mkt.${ins.market}` as Key)}</span>{/if}</td>
-            <td>{px(m?.close)}</td>
-            <td class={cls(m?.chgPct)}>{sgn(m?.chgPct, 2, '%')}</td>
-            <td>{m?.yieldTrailing != null ? fmt(m.yieldTrailing) : '—'}<span class="unit">%</span></td>
-            {#if cols.length === COLS.length}<td>{tv.n}<span class="unit">{tv.u}</span></td>{/if}
+          <tr class:sel={i === sel} class:multi={anchor >= 0 && i >= lo && i <= hi} class:stale={app.metrics.get(id)?.stale} onclick={(e) => { if (e.shiftKey) { if (anchor < 0) anchor = sel } else anchor = -1; sel = i; send() }}>
+            <RowCells {id} {cols} />
           </tr>
         {/each}
       </tbody>

@@ -5,29 +5,29 @@ import { setFocus } from '../lib/commands'
 import type { Key } from '../lib/i18n'
 import { paneApi } from '../lib/panes'
 import { t } from '../stores/app.svelte'
-import { type Dock, layout, saveLayout, toggleDockOpen } from '../stores/layout.svelte'
+import { type Dock, type DockSide, layout, saveLayout, toggleDockOpen } from '../stores/layout.svelte'
 import Pane from './Pane.svelte'
 
-let { dock }: { dock: Dock } = $props()
+let { dock, side = 'left' }: { dock: Dock; side?: DockSide } = $props()
 let wrap = $state<HTMLDivElement>()
 let timer: ReturnType<typeof setTimeout> | null = null
-const open = $derived(layout.dockOpen || dock.pinned)
+const open = $derived(layout.dockOpen === side || dock.pinned)
 
 function choose(i: number, focus = true) {
   dock.active = i
   saveLayout()
-  toggleDockOpen(true)
+  toggleDockOpen(true, side)
   if (focus) setFocus(dock.panes[i]!.id)
 }
 function enterRail() {
   if (timer) clearTimeout(timer)
-  timer = setTimeout(() => toggleDockOpen(true), 200)
+  timer = setTimeout(() => toggleDockOpen(true, side), 200)
 }
 function leavePanel() {
   if (dock.pinned) return
   if (timer) clearTimeout(timer)
   timer = setTimeout(() => {
-    if (!wrap?.contains(document.activeElement)) toggleDockOpen(false)
+    if (!wrap?.contains(document.activeElement)) toggleDockOpen(false, side)
   }, 300)
 }
 function railKey(e: KeyboardEvent) {
@@ -39,14 +39,14 @@ function railKey(e: KeyboardEvent) {
 }
 function pin() {
   dock.pinned = !dock.pinned
-  layout.dockOpen = dock.pinned
+  layout.dockOpen = dock.pinned ? side : null
   saveLayout()
 }
 function resize(e: MouseEvent) {
   e.preventDefault()
   const x0 = e.clientX
   const w0 = dock.width
-  const move = (ev: MouseEvent) => (dock.width = Math.min(1200, Math.max(320, w0 + ev.clientX - x0)))
+  const move = (ev: MouseEvent) => (dock.width = Math.min(1200, Math.max(320, w0 + (ev.clientX - x0) * (side === 'left' ? 1 : -1))))
   const up = () => {
     removeEventListener('mousemove', move)
     removeEventListener('mouseup', up)
@@ -57,13 +57,13 @@ function resize(e: MouseEvent) {
 }
 </script>
 
-<div class="dock" class:open class:pinned={dock.pinned} bind:this={wrap}>
+<div class="dock" class:open class:pinned={dock.pinned} class:right={side === 'right'} bind:this={wrap}>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="rail" data-dock-rail tabindex="0" title={t('drawer.hint')} onmouseenter={enterRail} onmouseleave={() => timer && clearTimeout(timer)} onkeydown={railKey} role="toolbar" aria-label="drawer">
+  <div class="rail" data-dock-rail={side} tabindex="0" title={t('drawer.hint')} onmouseenter={enterRail} onmouseleave={() => timer && clearTimeout(timer)} onkeydown={railKey} role="toolbar" aria-label="drawer">
     {#each dock.panes as p, i (p.id)}
       <button type="button" class:on={i === dock.active} onclick={() => choose(i)}><span>{t(`widget.${p.widget}` as Key)}</span></button>
     {/each}
-    <span class="key">Ctrl+B</span>
+    <span class="key">{side === 'left' ? 'Ctrl+B' : 'Ctrl+Shift+B'}</span>
   </div>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="panel" style:width={`${dock.width}px`} onmouseleave={leavePanel} onmouseenter={() => timer && clearTimeout(timer)}>
@@ -207,6 +207,35 @@ function resize(e: MouseEvent) {
   }
   .slot[hidden] {
     display: none;
+  }
+  /* 右のドロワー: 帯は右端、パネルは左へ開く */
+  .dock.right {
+    flex-direction: row-reverse;
+  }
+  .dock.right .panel {
+    left: auto;
+    right: 28px;
+    border-right: 0;
+    border-left: 1px solid var(--line-strong);
+    transform: translateX(calc(100% + 28px));
+  }
+  .dock.right.open .panel {
+    transform: none;
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.45);
+  }
+  .dock.right.pinned .panel {
+    box-shadow: none;
+  }
+  .dock.right .rail button {
+    border-left: 0;
+    border-right: 2px solid transparent;
+  }
+  .dock.right .rail button.on {
+    border-right-color: var(--focus);
+  }
+  .dock.right .edge {
+    right: auto;
+    left: -3px;
   }
   .edge {
     position: absolute;

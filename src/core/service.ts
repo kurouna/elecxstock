@@ -1,17 +1,33 @@
 // Core の API の実装（§8.2）。入力は zod で検証済みのものを受け取る。Electron を import しない（NFR-A1）。
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CoreError, Events, Method, Params, Results } from '@shared/api'
 import type { Adjustment, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
 import { addYears, jstNow, lastClosedSession } from './calendar'
 import { Db } from './db'
+import { applyImport, exportHoldings, normalize, previewImport } from './holdings'
 import { JobRunner } from './jobs'
 import { parseJpx } from './providers/jpx'
 import type { Provider } from './providers/types'
 import { idOf, Repo } from './repo'
 import { runScreen } from './screener'
 import { adjust, aggregate, mergeMonthly, toBars } from './series'
-import { UserStore } from './userstore'
+import { defaultScreens, UserStore } from './userstore'
+
+const RELEASES = 'https://api.github.com/repos/kurouna/elecxstock/releases/latest'
+/** 'v0.1.2' と '0.1.10' を数で比べる */
+export function newerVersion(latest: string, current: string): boolean {
+  const p = (s: string) =>
+    s
+      .replace(/^v/, '')
+      .split(/[.-]/)
+      .slice(0, 3)
+      .map((x) => Number.parseInt(x, 10) || 0)
+  const a = p(latest)
+  const b = p(current)
+  for (let i = 0; i < 3; i++) if (a[i]! !== b[i]!) return a[i]! > b[i]!
+  return false
+}
 
 export type Emit = <E extends keyof Events>(event: E, data: Events[E]) => void
 
@@ -55,7 +71,19 @@ export class CoreService {
   start(): void {
     this.user.load('settings')
     if (this.user.error) this.emit('user.error', { message: this.user.error })
+    // 指標の列を足した版に上げたら、日足から作り直す（DB の移行 v2）
+    if (this.db.meta('metricsStale') === '1') {
+      setTimeout(() => {
+        this.jobs.recomputeAll()
+        this.db.setMeta('metricsStale', '0')
+        this.metricsCache = null
+      }, 50)
+    }
     this.jobs.resume()
+  }
+
+  private holdings() {
+    return this.user.load('holdings').map((h) => normalize(h, this.repo.splits(`JP:${h.code}`)))
   }
 
   private metricsMap(): Map<InstrumentId, MetricsRow> {
@@ -120,6 +148,50 @@ export class CoreService {
         this.jobs.enqueue('refetch', [`F:${id}`, `M:${id}`])
         return r.instrument(id) as Results[M]
       }
+      case 'instruments.removeUser': {
+        const code = String(P.code).toUpperCase()
+        const s = this.user.load('settings')
+        this.user.save('settings', { ...s, userInstruments: s.userInstruments.filter((c) => c !== code) })
+        r.setUserAdded(this.trackedCodes())
+        return undefined as Results[M]
+      }
+      case 'bars.csv': {
+        // 銘柄・期間を指定した CSV 書き出し（FR-S3）。分割調整済みの日足
+        const lines = ['code,date,open,high,low,close,volume']
+        for (const id of P.ids as string[]) {
+          const code = id.replace(/^\w+:/, '')
+          for (const b of r.daily(id)) {
+            if ((P.from && b.d < String(P.from)) || (P.to && b.d > String(P.to))) continue
+            lines.push([code, b.d, b.o, b.h, b.l, b.c, b.v].join(','))
+          }
+        }
+        return `${lines.join('\r\n')}\r\n` as Results[M]
+      }
+      case 'data.backup': {
+        // 市場データの DB のバックアップ（FR-S3）。data/backups に VACUUM INTO で書き、直近 3 つを残す
+        const dir = join(this.user.dir, '..', 'backups')
+        mkdirSync(dir, { recursive: true })
+        const name = `market-${jstNow().date}-${Date.now().toString(36)}.db`
+        this.db.raw.exec(`VACUUM INTO '${join(dir, name).replaceAll("'", "''")}'`)
+        const old = readdirSync(dir)
+          .filter((x) => /^market-.*\.db$/.test(x))
+          .sort()
+        for (const x of old.slice(0, Math.max(0, old.length - 3))) rmSync(join(dir, x), { force: true })
+        return name as Results[M]
+      }
+      case 'app.checkUpdate': {
+        // 新しい版の通知（NFR-Q9）。GitHub Releases の最新版を見るだけ（利用者の情報は送らない）
+        if (this.provider.id === 'stub') return null as Results[M]
+        const res = await fetch(RELEASES, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'elecxstock' } })
+        if (!res.ok) return null as Results[M]
+        const j = (await res.json()) as { tag_name?: string; html_url?: string }
+        if (!j.tag_name) return null as Results[M]
+        return {
+          version: j.tag_name.replace(/^v/, ''),
+          url: j.html_url ?? 'https://github.com/kurouna/elecxstock/releases',
+          newer: newerVersion(j.tag_name, this.version),
+        } as Results[M]
+      }
       case 'bars.get':
         return this.bars(String(P.id), P.tf as Timeframe, (P.adjustment as Adjustment) ?? 'split') as Results[M]
       case 'bars.many': {
@@ -171,6 +243,7 @@ export class CoreService {
           watchlists: this.user.load('watchlists'),
           screens: this.user.load('screens'),
           layout: this.user.load('layout'),
+          layouts: this.user.load('layouts'),
           readOnly: this.user.readOnly,
           ...(this.user.error ? { error: this.user.error } : {}),
         } as Results[M]
@@ -196,6 +269,31 @@ export class CoreService {
       case 'user.saveLayout':
         this.user.save('layout', P.layout as never)
         return undefined as Results[M]
+      case 'user.saveLayouts':
+        this.user.save('layouts', P.layouts as never)
+        return undefined as Results[M]
+      case 'user.defaultScreens':
+        return defaultScreens() as Results[M]
+      case 'portfolio.list':
+        return this.holdings() as Results[M]
+      case 'portfolio.save':
+        this.user.save('holdings', P.holdings as never)
+        return this.holdings() as Results[M]
+      case 'portfolio.export':
+        return exportHoldings(
+          this.user.load('holdings'),
+          (code) => r.instrument(`JP:${code}`)?.nameJa ?? '',
+          `elecxstock ${this.version}`,
+        ) as Results[M]
+      case 'portfolio.previewImport':
+        return previewImport(String(P.json), this.user.load('holdings'), (code) => !!r.instrument(`JP:${code}`)) as Results[M]
+      case 'portfolio.applyImport': {
+        this.user.keepBefore('holdings', 'preimport') // 取り込む前の記録を残し、元に戻せるようにする（FR-H9）
+        this.user.save('holdings', applyImport(this.user.load('holdings'), P.holdings as never, P.mode as 'merge' | 'replace'))
+        return this.holdings() as Results[M]
+      }
+      case 'portfolio.undoImport':
+        return (this.user.restoreBefore('holdings', 'preimport') ? this.holdings() : null) as Results[M]
       case 'user.exportAll':
         return this.user.exportAll() as Results[M]
       case 'user.importAll':

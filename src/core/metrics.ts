@@ -77,8 +77,18 @@ export function computeMetrics(
     ret3y: null,
     rsi14: null,
     volRatio: null,
+    ma25: null,
+    ma75: null,
+    ma200: null,
+    payout: null,
+    divUpYears: null,
+    divNoCutYears: null,
+    gcDays: null,
+    dcDays: null,
+    yield2p: null,
     recordMonths: [],
     gapSuspect: false,
+    anomaly: false,
   }
   if (!last) return empty
   const close = last.c
@@ -136,7 +146,85 @@ export function computeMetrics(
     ret3y: ret(bars, NEED.ret3y),
     rsi14: rsi(bars),
     volRatio: vAvg && vAvg > 0 ? last.v / vAvg : null,
+    ma25,
+    ma75,
+    ma200: sma(bars, 200),
+    payout: div12 > 0 && quote?.eps && quote.eps > 0 ? (div12 / quote.eps) * 100 : null,
+    ...divYears(dividends, asOf, bars[0]!.d),
+    ...crossDays(bars),
+    yield2p: yieldTwoPeriods(dividends, asOf, close),
     recordMonths: [...months].sort((a, b) => a - b),
     gapSuspect,
+    anomaly: anomalous(bars),
   }
+}
+
+/** 異常値（FR-D5 の残り）: 高値 < 安値、終値 0 以下、終値が高値・安値の外、出来高が負（直近 300 本） */
+export function anomalous(bars: DayBar[]): boolean {
+  for (let i = Math.max(0, bars.length - 300); i < bars.length; i++) {
+    const b = bars[i]!
+    const eps = Math.max(1e-9, b.c * 1e-6)
+    if (!(b.c > 0) || b.h + eps < b.l || b.c > b.h + eps || b.c < b.l - eps || b.v < 0) return true
+  }
+  return false
+}
+
+/** 連続増配・非減配の年数。暦年（権利落ち日）ごとの合計で比べ、保存期間の範囲内で数える */
+export function divYears(
+  dividends: Dividend[],
+  asOf: JstDate,
+  firstBar: JstDate,
+): { divUpYears: number | null; divNoCutYears: number | null } {
+  const total = new Map<number, number>()
+  for (const d of dividends) {
+    const y = Number(d.date.slice(0, 4))
+    total.set(y, (total.get(y) ?? 0) + d.amount)
+  }
+  const last = Number(asOf.slice(0, 4)) - 1 // 終わった年まで
+  const first = Number(firstBar.slice(0, 4)) + (firstBar.slice(5) <= '01-10' ? 0 : 1) // 1 年分そろっている最初の年
+  if (last - first < 1) return { divUpYears: null, divNoCutYears: null }
+  const count = (ok: (a: number, b: number) => boolean) => {
+    let n = 0
+    for (let y = last; y > first; y--) {
+      const a = total.get(y) ?? 0
+      const b = total.get(y - 1) ?? 0
+      if (a > 0 && b > 0 && ok(a, b)) n++
+      else break
+    }
+    return n
+  }
+  return { divUpYears: count((a, b) => a > b * 1.0005), divNoCutYears: count((a, b) => a >= b * 0.9995) }
+}
+
+/** 25 日線と 75 日線のゴールデンクロス・デッドクロスからの取引日数。直近 245 本に無ければ欠損 */
+export function crossDays(bars: DayBar[]): { gcDays: number | null; dcDays: number | null } {
+  const n = bars.length
+  if (n < 76) return { gcDays: null, dcDays: null }
+  const from = Math.max(75, n - 245)
+  const ma = (end: number, k: number) => {
+    let s = 0
+    for (let i = end - k + 1; i <= end; i++) s += bars[i]!.c
+    return s / k
+  }
+  let gc: number | null = null
+  let dc: number | null = null
+  let prev = ma(from - 1, 25) - ma(from - 1, 75)
+  for (let i = from; i < n; i++) {
+    const cur = ma(i, 25) - ma(i, 75)
+    if (prev <= 0 && cur > 0) gc = n - 1 - i
+    if (prev >= 0 && cur < 0) dc = n - 1 - i
+    prev = cur
+  }
+  return { gcDays: gc, dcDays: dc }
+}
+
+/** 直近の決算期 2 回分を年換算した利回り（FR-I3）。決算期の変更で 12 か月に分配が 1 回・3 回入る J-REIT 向け */
+export function yieldTwoPeriods(dividends: Dividend[], asOf: JstDate, close: number): number | null {
+  const ds = dividends.filter((d) => d.date <= asOf)
+  const a = ds.at(-1)
+  const b = ds.at(-2)
+  if (!a || !b || !(close > 0) || a.date < addDays(asOf, -400)) return null
+  const months = (Number(a.date.slice(0, 4)) - Number(b.date.slice(0, 4))) * 12 + Number(a.date.slice(5, 7)) - Number(b.date.slice(5, 7))
+  if (months < 2 || months > 7) return null
+  return (((a.amount + b.amount) * 12) / (2 * months) / close) * 100
 }

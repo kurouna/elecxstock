@@ -14,9 +14,27 @@ export function condsOf(pane: PaneNode): Condition[] {
   if (c) return c
   return clone(screenOf(pane)?.conditions ?? app.screens[0]?.conditions ?? [])
 }
+const DEFAULT_SORT = { k: 'income.yield', dir: -1 as 1 | -1 }
+/** 結果表の並べ替え・列・上位 N 件（ペインの状態に無ければ、開いているスクリーンの値） */
+export function extrasOf(pane: PaneNode): { sort: { k: string; dir: 1 | -1 }; columns?: string[]; limit?: number } {
+  const s = screenOf(pane)
+  const st = pane.state as { sort?: { k: string; dir: 1 | -1 }; cols?: string[]; limit?: number }
+  const sort = st.sort ?? (s?.sort ? { k: s.sort.field, dir: s.sort.dir } : DEFAULT_SORT)
+  const columns = st.cols ?? s?.columns
+  const limit = 'limit' in st ? st.limit : s?.limit
+  return { sort, ...(columns ? { columns } : {}), ...(limit ? { limit } : {}) }
+}
 export function isDirty(pane: PaneNode): boolean {
   const s = screenOf(pane)
-  return !s || JSON.stringify(s.conditions) !== JSON.stringify(condsOf(pane))
+  return !s || JSON.stringify(s.conditions) !== JSON.stringify(condsOf(pane)) || (s.limit ?? 0) !== (extrasOf(pane).limit ?? 0)
+}
+function writeExtras(s: SavedScreen, pane: PaneNode): void {
+  const x = extrasOf(pane)
+  s.sort = { field: x.sort.k, dir: x.sort.dir }
+  if (x.columns) s.columns = [...x.columns]
+  else delete s.columns
+  if (x.limit) s.limit = x.limit
+  else delete s.limit
 }
 export function setConds(pane: PaneNode, conds: Condition[]): void {
   patchState(pane, { conds })
@@ -29,6 +47,7 @@ export function saveScreen(pane: PaneNode): void {
     return
   }
   s.conditions = clone(condsOf(pane))
+  writeExtras(s, pane)
   s.updated = Date.now()
   saveScreens()
   toast(t('scr.saved', { name: screenName(s) }))
@@ -45,6 +64,7 @@ export async function saveScreenAs(pane: PaneNode): Promise<void> {
     created: now,
     updated: now,
   }
+  writeExtras(s, pane)
   app.screens.push(s)
   saveScreens()
   patchState(pane, { screenId: s.id })
@@ -68,7 +88,14 @@ export async function openScreen(pane: PaneNode, id: string): Promise<void> {
   }
   const s = app.screens.find((x) => x.id === id)
   if (!s) return
-  patchState(pane, { screenId: id, conds: clone(s.conditions), sel: 0 })
+  patchState(pane, {
+    screenId: id,
+    conds: clone(s.conditions),
+    sel: 0,
+    sort: s.sort ? { k: s.sort.field, dir: s.sort.dir } : undefined,
+    cols: s.columns ? [...s.columns] : undefined,
+    limit: s.limit,
+  })
   app.liveConds = clone(s.conditions)
   app.liveScreenId = id
 }

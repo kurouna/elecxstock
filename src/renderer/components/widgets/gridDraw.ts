@@ -58,7 +58,7 @@ export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars |
   for (let k = 0; k <= 3; k++) {
     const vv = log ? Math.exp(f(lo) + ((f(hi) - f(lo)) * k) / 3) : lo + ((hi - lo) * k) / 3
     const yy = yv(vv)
-    g.strokeStyle = '#171b21'
+    g.strokeStyle = css('--chart-grid')
     g.lineWidth = 1
     g.beginPath()
     g.moveTo(0, Math.round(yy) + 0.5)
@@ -71,13 +71,13 @@ export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars |
   for (const v of b.volume) vmax = Math.max(vmax, v)
   for (let i = 0; i < n; i++) {
     const hh = vmax ? (b.volume[i]! / vmax) * volH : 0
-    g.fillStyle = i && b.close[i]! < b.close[i - 1]! ? '#253040' : '#344050'
+    g.fillStyle = i && b.close[i]! < b.close[i - 1]! ? css('--vol-down') : css('--vol-up')
     g.fillRect(x(i) - Math.max(0.5, step * 0.35), H - hh, Math.max(1, step * 0.7), hh)
   }
   if (norm) {
     const zy = yv(0)
     g.setLineDash([3, 3])
-    g.strokeStyle = '#3a4350'
+    g.strokeStyle = css('--line-strong')
     g.beginPath()
     g.moveTo(0, zy)
     g.lineTo(W, zy)
@@ -134,14 +134,14 @@ export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars |
       else break
     }
     if (k >= 0) {
-      g.strokeStyle = '#7a8594'
+      g.strokeStyle = css('--chart-cross')
       g.setLineDash([2, 2])
       g.beginPath()
       g.moveTo(Math.round(x(k)) + 0.5, 0)
       g.lineTo(Math.round(x(k)) + 0.5, H)
       g.stroke()
       g.setLineDash([])
-      g.fillStyle = 'rgba(16,19,24,.85)'
+      g.fillStyle = css('--panel')
       g.fillRect(4, H - volH - 16, 170, 14)
       g.fillStyle = css('--text-2')
       g.fillText(

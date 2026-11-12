@@ -1,5 +1,5 @@
 import { addDays, isTradingDay } from '@core/calendar'
-import { computeMetrics, recordMonth } from '@core/metrics'
+import { anomalous, computeMetrics, crossDays, divYears, recordMonth, yieldTwoPeriods } from '@core/metrics'
 import { adjust, aggregate, type DayBar, mergeMonthly, splitFactor } from '@core/series'
 import { describe, expect, it } from 'vitest'
 
@@ -69,5 +69,39 @@ describe('足の計算（FR-D2, D4, D7）', () => {
     const tot = adjust(d, 'total', [], [{ date: '2026-03-02', amount: 10 }])
     expect(tot[0]!.c).toBeLessThan(d[0]!.c)
     expect(tot.at(-1)!.c).toBe(d.at(-1)!.c)
+  })
+})
+
+describe('P2 の指標（増配年数・クロス・2 期の年換算・異常値）', () => {
+  it('連続増配・非減配の年数は暦年の合計で数える', () => {
+    const div = [2021, 2022, 2023, 2024, 2025].flatMap((y, i) => [
+      { date: `${y}-03-28`, amount: 10 + i },
+      { date: `${y}-09-27`, amount: y === 2023 ? 10 : 10 + i },
+    ])
+    // 合計: 2021=20, 2022=22, 2023=22, 2024=26, 2025=28
+    const r = divYears(div, '2026-11-13', '2021-01-04')
+    expect(r.divUpYears).toBe(2) // 2025>2024>2023、2023=2022 で止まる
+    expect(r.divNoCutYears).toBe(4)
+    expect(divYears(div, '2026-11-13', '2025-06-02').divUpYears).toBeNull() // 期間不足
+  })
+  it('25 日線が 75 日線を上に抜けてからの日数', () => {
+    const bars = days('2025-01-06', '2025-12-30', (i) => (i < 150 ? 1000 - i : 850 + (i - 150) * 5))
+    const r = crossDays(bars)
+    expect(r.gcDays).not.toBeNull()
+    expect(r.gcDays!).toBeLessThan(bars.length - 150)
+  })
+  it('直近 2 期の分配を年換算（半年ごとなら 2 回分の合計）', () => {
+    const div = [
+      { date: '2025-12-26', amount: 3000 },
+      { date: '2026-06-26', amount: 3200 },
+    ]
+    expect(yieldTwoPeriods(div, '2026-11-13', 124_000)).toBeCloseTo((6200 / 124_000) * 100)
+    expect(yieldTwoPeriods([div[1]!], '2026-11-13', 124_000)).toBeNull()
+  })
+  it('高値 < 安値・終値 0 は異常値', () => {
+    const ok = days('2026-01-05', '2026-01-30', () => 100)
+    expect(anomalous(ok)).toBe(false)
+    expect(anomalous([...ok, { d: '2026-02-02', o: 100, h: 90, l: 110, c: 100, v: 1 }])).toBe(true)
+    expect(anomalous([...ok, { d: '2026-02-02', o: 100, h: 100, l: 0, c: 0, v: 1 }])).toBe(true)
   })
 })

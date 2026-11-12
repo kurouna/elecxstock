@@ -301,7 +301,7 @@ export class Repo {
 
   // ---------------------------------------------------------------- metrics
   putMetrics(m: MetricsRow): void {
-    const cols = ['id', 'as_of', 'prov', 'record_months', 'gap_suspect', ...METRIC_COLUMNS]
+    const cols = ['id', 'as_of', 'prov', 'record_months', 'gap_suspect', 'anomaly', ...METRIC_COLUMNS]
     this.db.run(
       `INSERT OR REPLACE INTO metrics(${cols.join(',')}) VALUES(${cols.map(() => '?').join(',')})`,
       m.id,
@@ -309,6 +309,7 @@ export class Repo {
       m.provisional ? 1 : 0,
       m.recordMonths.join(','),
       m.gapSuspect ? 1 : 0,
+      m.anomaly ? 1 : 0,
       ...METRIC_COLUMNS.map((c) => m[c] as number | null),
     )
   }
@@ -326,6 +327,7 @@ export class Repo {
         stale: false,
         recordMonths: r.record_months ? String(r.record_months).split(',').map(Number) : [],
         gapSuspect: !!r.gap_suspect,
+        anomaly: !!r.anomaly,
       }
       for (const c of METRIC_COLUMNS) out[c] = typeof r[c] === 'number' ? r[c] : null
       return out as unknown as MetricsRow

@@ -1,8 +1,9 @@
 <script lang="ts">
-// 保存したスクリーンの一覧（Ctrl+O。FR-SC12）: 開く・名前の変更（F2）・複製（Ctrl+Shift+D）・削除（Delete を 2 回）。
+// 保存したスクリーンの一覧（Ctrl+O。FR-SC12）: 開く・名前の変更（F2）・複製（Ctrl+Shift+D）・削除（Delete を 2 回）・
+// 並べ替え（Alt+↑↓）・既定のスクリーンを追加し直す（Ctrl+Shift+R、FR-SC15）。
 import { onMount } from 'svelte'
 import { openScreenAnywhere } from '../../lib/screens'
-import { app, promptDialog, saveScreens, screenName, t } from '../../stores/app.svelte'
+import { app, promptDialog, rpc, saveScreens, screenName, t, toast } from '../../stores/app.svelte'
 import { allPanes } from '../../stores/layout.svelte'
 
 let query = $state('')
@@ -16,7 +17,18 @@ async function key(e: KeyboardEvent) {
   if (e.isComposing) return
   if (e.key !== 'Delete') pendingDel = null
   const x = items[sel]
-  if (e.key === 'ArrowDown') sel = Math.min(items.length - 1, sel + 1)
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey) {
+    if (query || !x) return e.preventDefault()
+    const i = app.screens.indexOf(x)
+    const j = i + (e.key === 'ArrowUp' ? -1 : 1)
+    if (j < 0 || j >= app.screens.length) return e.preventDefault()
+    const ss = [...app.screens]
+    ;[ss[i], ss[j]] = [ss[j]!, ss[i]!]
+    app.screens = ss
+    sel = j
+    saveScreens()
+  } else if (e.ctrlKey && e.shiftKey && e.code === 'KeyR') void restoreDefaults()
+  else if (e.key === 'ArrowDown') sel = Math.min(items.length - 1, sel + 1)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
   else if (e.key === 'Enter' && x) {
     app.overlay = null
@@ -49,6 +61,15 @@ async function key(e: KeyboardEvent) {
   } else return
   e.preventDefault()
 }
+/** 既定のスクリーンを追加し直す（FR-SC15）。消したものだけを末尾に足し、編集したものは上書きしない */
+async function restoreDefaults() {
+  const defs = await rpc('user.defaultScreens', {})
+  const have = new Set(app.screens.map((s) => s.id))
+  const add = defs.filter((d) => !have.has(d.id))
+  app.screens = [...app.screens, ...add]
+  saveScreens()
+  toast(t('scr.restored', { n: add.length }))
+}
 onMount(() => {
   sel = Math.max(
     0,
@@ -70,7 +91,10 @@ onMount(() => {
       </button>
     {/each}
   </div>
-  <div class="foot"><span>{t('cmd.hint.move')}</span><span>Enter</span><span>F2</span><span>Ctrl+Shift+D</span><span>Delete</span><span>{t('cmd.hint.close')}</span></div>
+  <div class="foot">
+    <span>{t('cmd.hint.move')}</span><span>Enter {t('scr.open')}</span><span>F2 {t('scr.rename')}</span><span>Ctrl+Shift+D {t('scr.duplicate')}</span>
+    <span>Alt+↑↓ {t('dlg.reorder')}</span><span>Delete</span><span>Ctrl+Shift+R {t('scr.restoreDefaults')}</span><span>{t('cmd.hint.close')}</span>
+  </div>
 </div>
 
 <style>

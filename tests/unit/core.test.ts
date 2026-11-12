@@ -71,6 +71,59 @@ describe('Core（スタブのプロバイダで端から端まで）', () => {
     expect(fav.ids).toEqual(['JP:8058'])
   })
 
+  it('P2 の指標が計算され、CSV・DB のバックアップが書ける（FR-S3）', async () => {
+    const [m] = await svc.call('metrics.get', { ids: ['JP:7203'] })
+    expect(m!.ma75).toBeGreaterThan(0)
+    expect(m!.ma200).toBeGreaterThan(0)
+    expect(typeof m!.anomaly).toBe('boolean')
+    const csv = await svc.call('bars.csv', { ids: ['JP:7203'], from: '2026-01-05', to: '2026-01-31' })
+    const lines = csv.trim().split('\r\n')
+    expect(lines[0]).toBe('code,date,open,high,low,close,volume')
+    expect(lines.length).toBeGreaterThan(10)
+    expect(lines.slice(1).every((l) => l.startsWith('7203,2026-01'))).toBe(true)
+    const name = await svc.call('data.backup', {})
+    expect(existsSync(join(dir, 'backups', name))).toBe(true)
+    expect(await svc.call('app.checkUpdate', {})).toBeNull() // スタブでは通信しない
+  })
+
+  it('保有の記録: 保存・取り込み・取り込みの取り消し（FR-H7〜H9）', async () => {
+    const saved = await svc.call('portfolio.save', {
+      holdings: [
+        {
+          code: '9434',
+          account: 'tokutei',
+          quantity: 0,
+          avgCost: 0,
+          lots: [{ date: '2024-03-01', side: 'buy', quantity: 100, price: 2000 }],
+        },
+      ],
+    })
+    // 取引の後の 10:1 分割（スタブの 9434 は 2024-09-27）で、数量 × 10・単価 ÷ 10
+    expect(saved[0]!.quantity).toBe(1000)
+    expect(saved[0]!.avgCost).toBe(200)
+    const json = await svc.call('portfolio.export', {})
+    expect(JSON.parse(json).format).toBe('elecxstock.holdings')
+    const incoming = JSON.stringify({
+      format: 'elecxstock.holdings',
+      version: 1,
+      holdings: [{ code: '8058', account: 'nisa_growth', quantity: 300, avgCost: 2680.5 }],
+    })
+    const p = await svc.call('portfolio.previewImport', { json: incoming })
+    expect(p.add).toHaveLength(1)
+    const after = await svc.call('portfolio.applyImport', { holdings: p.holdings, mode: 'replace' })
+    expect(after.map((h) => h.code)).toEqual(['8058'])
+    const back = await svc.call('portfolio.undoImport', {})
+    expect(back?.map((h) => h.code)).toEqual(['9434'])
+  })
+
+  it('名前を付けたレイアウトの保存と、既定のスクリーン', async () => {
+    await svc.call('user.saveLayouts', {
+      layouts: [{ id: 'l1', name: { ja: '朝', en: 'Morning' }, entry: { root: {} }, links: { '1': 'JP:7203' }, created: 1, updated: 1 }],
+    })
+    expect((await svc.call('user.load', {})).layouts[0]!.name.ja).toBe('朝')
+    expect((await svc.call('user.defaultScreens', {})).map((s) => s.id)).toContain('high-yield')
+  })
+
   it('日々の更新は一括気配が中心で、すぐ終わる（FR-F9）', async () => {
     const id = await svc.call('jobs.start', { kind: 'daily' })
     const j = await waitJob(id)

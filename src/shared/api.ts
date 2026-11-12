@@ -8,12 +8,15 @@ import type {
   DataStatus,
   Dividend,
   FetchFailure,
+  Holding,
+  HoldingsImportPreview,
   Instrument,
   InstrumentId,
   JobProgress,
   MetricsRow,
   Quote,
   RetentionPlan,
+  SavedLayout,
   SavedScreen,
   ScreenResult,
   Settings,
@@ -30,8 +33,12 @@ const cond = z.object({
   op: z.enum(['>=', '<=', '=', 'in', 'notin']),
   value: z.union([z.number(), z.string(), z.boolean(), z.array(z.string())]),
   includeMissing: z.boolean().optional(),
+  ref: z.string().max(64).optional(),
+  or: z.boolean().optional(),
+  v: z.number().int().min(1).max(1000).optional(),
 })
 const name = z.object({ ja: z.string().max(80), en: z.string().max(80) })
+const periods = z.array(z.number().int().min(2).max(400)).length(3)
 export const watchlistSchema = z.object({
   id: z.string().max(40),
   builtin: z.enum(['favorites', 'candidates']).optional(),
@@ -43,6 +50,8 @@ export const screenSchema = z.object({
   name,
   conditions: z.array(cond).max(40),
   sort: z.object({ field: z.string(), dir: z.union([z.literal(1), z.literal(-1)]) }).optional(),
+  columns: z.array(z.string().max(40)).max(60).optional(),
+  limit: z.number().int().min(1).max(5000).optional(),
   created: z.number(),
   updated: z.number(),
 })
@@ -56,6 +65,38 @@ export const settingsSchema = z.object({
   firstRunDone: z.boolean(),
   userInstruments: z.array(z.string().max(12)).max(500),
   reduceMotion: z.boolean(),
+  theme: z.enum(['dark', 'light']),
+  autoUpdate: z.boolean(),
+  checkUpdates: z.boolean(),
+  keymap: z.record(z.string().max(40), z.string().max(40)),
+  maPeriods: z.object({ D: periods, W: periods, M: periods }),
+})
+
+export const ACCOUNT_TYPES = ['nisa_growth', 'nisa_tsumitate', 'nisa_legacy', 'tokutei', 'ippan'] as const
+const jstDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+export const lotSchema = z.object({
+  date: jstDate,
+  side: z.enum(['buy', 'sell']),
+  quantity: z.number().positive().max(1e9),
+  price: z.number().nonnegative().max(1e9),
+  fee: z.number().nonnegative().max(1e9).optional(),
+})
+export const holdingSchema = z.object({
+  code: z.string().regex(/^[0-9A-Z]{4,5}$/),
+  account: z.enum(ACCOUNT_TYPES),
+  quantity: z.number().nonnegative().max(1e9),
+  avgCost: z.number().nonnegative().max(1e9),
+  lots: z.array(lotSchema).max(2000).optional(),
+  broker: z.string().max(80).optional(),
+  note: z.string().max(400).optional(),
+})
+export const savedLayoutSchema = z.object({
+  id: z.string().max(40),
+  name,
+  entry: z.unknown(),
+  links: z.record(z.string(), id),
+  created: z.number(),
+  updated: z.number(),
 })
 
 /** メソッドごとの入力スキーマ。Core は受け取ったらまずここで検証する */
@@ -65,10 +106,11 @@ export const PARAMS = {
   'instruments.get': z.object({ ids }),
   'instruments.all': z.object({}),
   'instruments.addUser': z.object({ code: z.string().min(1).max(12) }),
+  'instruments.removeUser': z.object({ code: z.string().min(1).max(12) }),
   'bars.get': z.object({ id, tf, adjustment: z.enum(['split', 'unadjusted', 'total']).optional() }),
   'bars.many': z.object({ ids: z.array(id).max(60), tf, count: z.number().int().min(2).max(3000) }),
   'dividends.get': z.object({ id }),
-  'returns.get': z.object({ ids, from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
+  'returns.get': z.object({ ids, from: jstDate }),
   'metrics.get': z.object({ ids }),
   'quotes.get': z.object({ ids }),
   'screener.run': z.object({ conditions: z.array(cond).max(40), favorites: ids, watchlists: z.record(z.string(), ids) }),
@@ -77,6 +119,17 @@ export const PARAMS = {
   'user.saveWatchlists': z.object({ watchlists: z.array(watchlistSchema).max(200) }),
   'user.saveScreens': z.object({ screens: z.array(screenSchema).max(500) }),
   'user.saveLayout': z.object({ layout: z.unknown() }),
+  'user.saveLayouts': z.object({ layouts: z.array(savedLayoutSchema).max(200) }),
+  'user.defaultScreens': z.object({}),
+  'portfolio.list': z.object({}),
+  'portfolio.save': z.object({ holdings: z.array(holdingSchema).max(5000) }),
+  'portfolio.export': z.object({}),
+  'portfolio.previewImport': z.object({ json: z.string().max(20_000_000) }),
+  'portfolio.applyImport': z.object({ holdings: z.array(holdingSchema).max(5000), mode: z.enum(['merge', 'replace']) }),
+  'portfolio.undoImport': z.object({}),
+  'bars.csv': z.object({ ids: z.array(id).max(500), from: jstDate.optional(), to: jstDate.optional() }),
+  'data.backup': z.object({}),
+  'app.checkUpdate': z.object({}),
   'user.exportAll': z.object({}),
   'user.importAll': z.object({ json: z.string().max(20_000_000) }),
   'jobs.start': z.object({ kind: z.enum(['initial', 'daily', 'universe']) }),
@@ -101,6 +154,7 @@ export interface UserData {
   watchlists: Watchlist[]
   screens: SavedScreen[]
   layout: unknown
+  layouts: SavedLayout[]
   readOnly: boolean
   error?: string
 }
@@ -111,6 +165,7 @@ export interface Results {
   'instruments.get': Instrument[]
   'instruments.all': Instrument[]
   'instruments.addUser': Instrument | null
+  'instruments.removeUser': undefined
   'bars.get': Bars & { dividends: Dividend[]; splits: Split[]; adjustment: Adjustment }
   'bars.many': Record<InstrumentId, Bars>
   'dividends.get': Dividend[]
@@ -123,6 +178,18 @@ export interface Results {
   'user.saveWatchlists': undefined
   'user.saveScreens': undefined
   'user.saveLayout': undefined
+  'user.saveLayouts': undefined
+  'user.defaultScreens': SavedScreen[]
+  'portfolio.list': Holding[]
+  'portfolio.save': Holding[]
+  'portfolio.export': string
+  'portfolio.previewImport': HoldingsImportPreview
+  'portfolio.applyImport': Holding[]
+  'portfolio.undoImport': Holding[] | null
+  'bars.csv': string
+  /** 書き出した DB のファイル名（data/backups の中） */
+  'data.backup': string
+  'app.checkUpdate': { version: string; url: string; newer: boolean } | null
   'user.exportAll': string
   'user.importAll': { watchlists: number; screens: number }
   'jobs.start': number

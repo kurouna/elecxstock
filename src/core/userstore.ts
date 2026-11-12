@@ -2,7 +2,7 @@
 // 読み込み・検証に失敗したら、そのファイルを退避して知らせ、読み取り専用で起動する（空で上書きしない）。
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { screenSchema, settingsSchema, watchlistSchema } from '@shared/api'
+import { holdingSchema, savedLayoutSchema, screenSchema, settingsSchema, watchlistSchema } from '@shared/api'
 import type { SavedScreen, Settings, Watchlist } from '@shared/types'
 import { z } from 'zod'
 
@@ -19,6 +19,11 @@ export const DEFAULT_SETTINGS: Settings = {
   firstRunDone: false,
   userInstruments: [],
   reduceMotion: false,
+  theme: 'dark',
+  autoUpdate: true,
+  checkUpdates: true,
+  keymap: {},
+  maPeriods: { D: [5, 25, 75], W: [13, 26, 52], M: [12, 24, 60] },
 }
 
 export function defaultWatchlists(): Watchlist[] {
@@ -66,13 +71,18 @@ const FILES = {
   watchlists: { schema: z.array(watchlistSchema), def: defaultWatchlists },
   screens: { schema: z.array(screenSchema), def: () => defaultScreens() },
   layout: { schema: z.unknown(), def: () => null },
+  layouts: { schema: z.array(savedLayoutSchema), def: () => [] },
+  holdings: { schema: z.array(holdingSchema), def: () => [] },
 } as const
+/** レイアウトは作業に追従して頻繁に保存されるので、世代は 10 分に 1 つだけ残す */
+const LAYOUT_GEN_MS = 10 * 60_000
 type Name = keyof typeof FILES
 
 export class UserStore {
   readOnly = false
   error: string | undefined
   private cache = new Map<Name, unknown>()
+  private lastGen = new Map<Name, number>()
   constructor(readonly dir: string) {
     mkdirSync(join(dir, 'backups'), { recursive: true })
   }
@@ -113,8 +123,10 @@ export class UserStore {
     const p = this.path(n)
     const body = JSON.stringify({ version: STORE_VERSION, data: parsed }, null, 1)
     if (existsSync(p) && readFileSync(p, 'utf8') === body) return
-    // 世代を残す（直近 10）
-    if (existsSync(p) && n !== 'layout') {
+    // 世代を残す（直近 10）。レイアウトは 10 分に 1 世代
+    const throttled = n === 'layout' && Date.now() - (this.lastGen.get(n) ?? 0) < LAYOUT_GEN_MS
+    if (existsSync(p) && !throttled) {
+      this.lastGen.set(n, Date.now())
       const b = join(this.dir, 'backups', `${n}.${Date.now()}.json`)
       try {
         writeFileSync(b, readFileSync(p))
@@ -131,6 +143,33 @@ export class UserStore {
     renameSync(tmp, p) // 一時ファイルに書いてから置き換える（途中で落ちても壊れない）
     this.cache.set(n, parsed)
   }
+  /** 世代のファイル名（新しい順） */
+  generations(n: Name): string[] {
+    try {
+      return readdirSync(join(this.dir, 'backups'))
+        .filter((f) => f.startsWith(`${n}.`) && /^\D+\.\d+\.json$/.test(f))
+        .sort()
+        .reverse()
+    } catch {
+      return []
+    }
+  }
+  /** 取り込みの前の記録を残す（FR-H9: 元に戻せる） */
+  keepBefore(n: Name, tag: string): void {
+    const p = this.path(n)
+    const q = join(this.dir, 'backups', `${n}.${tag}.json`)
+    if (existsSync(p)) writeFileSync(q, readFileSync(p))
+    else writeFileSync(q, JSON.stringify({ version: STORE_VERSION, data: FILES[n].def() }))
+  }
+  restoreBefore<N extends Name>(n: N, tag: string): z.infer<(typeof FILES)[N]['schema']> | null {
+    const q = join(this.dir, 'backups', `${n}.${tag}.json`)
+    if (!existsSync(q)) return null
+    const raw = JSON.parse(readFileSync(q, 'utf8')) as { data?: unknown }
+    const v = FILES[n].schema.parse(raw.data ?? raw) as z.infer<(typeof FILES)[N]['schema']>
+    this.save(n, v)
+    rmSync(q, { force: true })
+    return v
+  }
   exportAll(): string {
     return JSON.stringify(
       {
@@ -140,18 +179,20 @@ export class UserStore {
         settings: this.load('settings'),
         watchlists: this.load('watchlists'),
         screens: this.load('screens'),
+        layouts: this.load('layouts'),
       },
       null,
       1,
     )
   }
   importAll(json: string): { watchlists: number; screens: number } {
-    const o = JSON.parse(json) as { format?: string; watchlists?: unknown; screens?: unknown; settings?: unknown }
+    const o = JSON.parse(json) as { format?: string; watchlists?: unknown; screens?: unknown; settings?: unknown; layouts?: unknown }
     if (o.format !== 'elecxstock.userdata') throw new Error('not an elecxstock export')
     const wl = z.array(watchlistSchema).parse(o.watchlists ?? [])
     const sc = z.array(screenSchema).parse(o.screens ?? [])
     this.save('watchlists', ensureBuiltins(wl))
     this.save('screens', sc.length ? sc : defaultScreens())
+    if (o.layouts) this.save('layouts', z.array(savedLayoutSchema).parse(o.layouts))
     if (o.settings) this.save('settings', settingsSchema.parse({ ...this.load('settings'), ...(o.settings as object) }))
     return { watchlists: wl.length, screens: sc.length }
   }

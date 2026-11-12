@@ -3,8 +3,34 @@
 import type { InstrumentId } from '@shared/types'
 import { app, rpc } from './app.svelte'
 
-export type WidgetId = 'watchlist' | 'chart' | 'info' | 'screener' | 'grid' | 'jobs' | 'divcal'
-export const WIDGETS: WidgetId[] = ['chart', 'watchlist', 'screener', 'info', 'grid', 'divcal', 'jobs']
+export type WidgetId =
+  | 'watchlist'
+  | 'chart'
+  | 'mtf'
+  | 'info'
+  | 'screener'
+  | 'grid'
+  | 'jobs'
+  | 'divcal'
+  | 'portfolio'
+  | 'heatmap'
+  | 'ranking'
+  | 'market'
+export const WIDGETS: WidgetId[] = [
+  'chart',
+  'mtf',
+  'watchlist',
+  'screener',
+  'info',
+  'grid',
+  'divcal',
+  'portfolio',
+  'heatmap',
+  'ranking',
+  'market',
+  'jobs',
+]
+export type DockSide = 'left' | 'right'
 export interface PaneNode {
   kind: 'pane'
   id: string
@@ -28,10 +54,10 @@ export interface Dock {
 }
 export interface LayoutEntry {
   root: LNode
-  docks: { left?: Dock }
+  docks: { left?: Dock; right?: Dock }
 }
-export type PresetId = 'mtf' | 'grid' | 'screener' | 'income' | 'triple'
-export const PRESET_IDS: PresetId[] = ['mtf', 'grid', 'screener', 'income', 'triple']
+export type PresetId = 'mtf' | 'grid' | 'screener' | 'income' | 'triple' | 'market'
+export const PRESET_IDS: PresetId[] = ['mtf', 'grid', 'screener', 'income', 'triple', 'market']
 export interface LayoutDoc {
   version: 1
   active: PresetId
@@ -85,6 +111,12 @@ export function presetEntry(id: PresetId): LayoutEntry {
         ),
         docks: {},
       }
+    case 'market':
+      // §6.4 Market（P2）: heatmap + ranking + market-overview。右のドロワーに保有の一覧
+      return {
+        root: R([58, 42], C([64, 36], P('heatmap', 4), P('market', 4)), C([55, 45], P('ranking', 4), P('chart', 4, { tf: 'D' }))),
+        docks: { right: { panes: [P('portfolio', 4)], active: 0, pinned: false, width: 620 } },
+      }
   }
 }
 export function defaultDoc(): LayoutDoc {
@@ -93,6 +125,17 @@ export function defaultDoc(): LayoutDoc {
     active: 'mtf',
     entries: Object.fromEntries(PRESET_IDS.map((p) => [p, presetEntry(p)])) as Record<PresetId, LayoutEntry>,
     links: { '1': 'JP:7203', '2': 'JP:8951', '3': 'JP:2914', '4': 'JP:8306', '5': 'JP:3462' },
+  }
+}
+const fixDock = (fixNode: (n: unknown) => LNode | null, d: Dock | undefined): Dock | undefined => {
+  if (!d || !Array.isArray(d.panes)) return undefined
+  const panes = d.panes.map(fixNode).filter((x): x is PaneNode => x?.kind === 'pane')
+  if (!panes.length) return undefined
+  return {
+    panes,
+    active: Math.min(Math.max(0, d.active | 0), panes.length - 1),
+    pinned: !!d.pinned,
+    width: Math.min(1200, Math.max(280, d.width || 600)),
   }
 }
 
@@ -109,7 +152,7 @@ export function normalizeDoc(raw: unknown): LayoutDoc {
     if (seen.has(id)) id = nid()
     seen.add(id)
     if (x.kind === 'pane') {
-      if (!(['watchlist', 'chart', 'info', 'screener', 'grid', 'jobs', 'divcal'] as string[]).includes(x.widget)) return null
+      if (!(WIDGETS as string[]).includes(x.widget)) return null
       return {
         kind: 'pane',
         id,
@@ -134,18 +177,11 @@ export function normalizeDoc(raw: unknown): LayoutDoc {
     const e = o.entries?.[p]
     const root = e ? fixNode(e.root) : null
     if (!root) continue
-    const left = e?.docks?.left
     const docks: LayoutEntry['docks'] = {}
-    if (left && Array.isArray(left.panes)) {
-      const panes = left.panes.map(fixNode).filter((x): x is PaneNode => x?.kind === 'pane')
-      if (panes.length)
-        docks.left = {
-          panes,
-          active: Math.min(Math.max(0, left.active | 0), panes.length - 1),
-          pinned: !!left.pinned,
-          width: Math.min(1200, Math.max(280, left.width || 600)),
-        }
-    }
+    const left = fixDock(fixNode, e?.docks?.left)
+    const right = fixDock(fixNode, e?.docks?.right)
+    if (left) docks.left = left
+    if (right) docks.right = right
     d.entries[p] = { root, docks }
   }
   if (o.active && PRESET_IDS.includes(o.active)) d.active = o.active
@@ -153,9 +189,16 @@ export function normalizeDoc(raw: unknown): LayoutDoc {
   return d
 }
 
+/** 1 つのエントリ（保存したレイアウトなど）を正規化する */
+export function normalizeEntry(raw: unknown): LayoutEntry | null {
+  const doc = normalizeDoc({ version: 1, active: 'mtf', entries: { mtf: raw }, links: {} })
+  return raw && (raw as LayoutEntry).root ? doc.entries.mtf : null
+}
+
 class LayoutState {
   doc = $state<LayoutDoc>(defaultDoc())
-  dockOpen = $state(false)
+  /** 開いているドロワー（ピン留めしたものは別に開いたまま） */
+  dockOpen = $state<DockSide | null>(null)
   get entry(): LayoutEntry {
     return this.doc.entries[this.doc.active]
   }
@@ -173,15 +216,22 @@ export function allPanes(e: LayoutEntry = layout.entry, withDock = true): PaneNo
   const out: PaneNode[] = []
   const walk = (n: LNode) => (n.kind === 'pane' ? out.push(n) : n.children.forEach(walk))
   walk(e.root)
-  if (withDock && e.docks.left) out.push(...e.docks.left.panes)
+  if (withDock) for (const d of [e.docks.left, e.docks.right]) if (d) out.push(...d.panes)
   return out
 }
 export function findPane(id: string | null): PaneNode | undefined {
   if (!id) return undefined
   return allPanes().find((p) => p.id === id)
 }
+/** そのペインが入っているドロワー（本体なら null） */
+export function dockOf(id: string | null | undefined): DockSide | null {
+  if (!id) return null
+  if (layout.entry.docks.left?.panes.some((p) => p.id === id)) return 'left'
+  if (layout.entry.docks.right?.panes.some((p) => p.id === id)) return 'right'
+  return null
+}
 export function inDock(id: string): boolean {
-  return !!layout.entry.docks.left?.panes.some((p) => p.id === id)
+  return dockOf(id) != null
 }
 function parentOf(id: string, n: LNode = layout.entry.root): { parent: SplitNode; index: number } | null {
   if (n.kind === 'pane') return null
@@ -203,14 +253,16 @@ function eachSplit(n: LNode, f: (s: SplitNode) => void): void {
 // ---------------------------------------------------------------- ops
 export function setPreset(p: PresetId): void {
   layout.doc.active = p
-  layout.dockOpen = false
+  layout.dockOpen = null
   app.maximized = null
   saveLayout()
 }
-/** ドロワーを開く・閉じる（ピン留め中は閉じない） */
-export function toggleDockOpen(open: boolean): void {
-  if (!open && layout.entry.docks.left?.pinned) return
-  if (layout.dockOpen !== open) layout.dockOpen = open
+/** ドロワーを開く・閉じる（ピン留め中は閉じない）。side を省くと開いているものを閉じる */
+export function toggleDockOpen(open: boolean, side: DockSide | null = layout.dockOpen): void {
+  if (!side) return
+  if (!open && layout.entry.docks[side]?.pinned) return
+  if (open) layout.dockOpen = side
+  else if (layout.dockOpen === side) layout.dockOpen = null
 }
 export function setLinkSymbol(group: number, id: InstrumentId): void {
   if (!group) return
@@ -276,6 +328,7 @@ export function resetSizes(): boolean {
     s.sizes = t && t.length === s.sizes.length ? [...t] : s.sizes.map(() => 100 / s.sizes.length)
   })
   if (e.docks.left && preset.docks.left) e.docks.left.width = preset.docks.left.width
+  if (e.docks.right && preset.docks.right) e.docks.right.width = preset.docks.right.width
   saveLayout()
   if (undoTimer) clearTimeout(undoTimer)
   undoTimer = setTimeout(() => (undoSnap = null), 10_000)
@@ -344,6 +397,98 @@ export function changeWidget(paneId: string, widget: WidgetId): void {
   if (!p) return
   p.widget = widget
   p.state = widget === 'chart' ? { tf: 'D' } : {}
+  saveLayout()
+}
+/** 区切り線の比率を、プリセットの初期値に戻すときの元（保存レイアウトにも使う） */
+export function snapshotEntry(): LayoutEntry {
+  return JSON.parse(JSON.stringify($state.snapshot(layout.entry))) as LayoutEntry
+}
+/** 木からペインを抜く（閉じるのと同じ形の整理をする）。抜いたペインを返す */
+function detach(paneId: string): PaneNode | null {
+  const side = dockOf(paneId)
+  if (side) {
+    const d = layout.entry.docks[side]!
+    const i = d.panes.findIndex((p) => p.id === paneId)
+    const [p] = d.panes.splice(i, 1)
+    if (!d.panes.length) delete layout.entry.docks[side]
+    else d.active = Math.min(d.active, d.panes.length - 1)
+    return p ?? null
+  }
+  const pp = parentOf(paneId)
+  if (!pp) return null // 本体の最後の 1 枚は抜かない
+  const [p] = pp.parent.children.splice(pp.index, 1)
+  pp.parent.sizes.splice(pp.index, 1)
+  if (pp.parent.children.length === 1) {
+    const only = pp.parent.children[0]!
+    const gp = parentOf(pp.parent.id)
+    if (gp) gp.parent.children[gp.index] = only
+    else layout.entry.root = only
+  }
+  return (p as PaneNode) ?? null
+}
+/** ペインを別のペインの上下左右へ動かす（タイトルのドラッグ。FR-L2）。center は入れ替え */
+export function movePane(srcId: string, targetId: string, where: 'left' | 'right' | 'top' | 'bottom' | 'center'): boolean {
+  if (srcId === targetId) return false
+  if (where === 'center') {
+    if (inDock(srcId) || inDock(targetId)) return false
+    swapPane(srcId, targetId)
+    return true
+  }
+  if (inDock(targetId)) return false
+  if (!inDock(srcId) && !parentOf(srcId)) return false
+  const src = detach(srcId)
+  if (!src) return false
+  const dir = where === 'left' || where === 'right' ? 'row' : 'col'
+  const before = where === 'left' || where === 'top'
+  const target = findPane(targetId)!
+  const pp = parentOf(targetId)
+  if (pp && pp.parent.dir === dir) {
+    const s = pp.parent.sizes[pp.index]! / 2
+    pp.parent.children.splice(pp.index + (before ? 0 : 1), 0, src)
+    pp.parent.sizes.splice(pp.index, 1, s, s)
+  } else {
+    const node: SplitNode = { kind: 'split', id: nid(), dir, sizes: [50, 50], children: before ? [src, target] : [target, src] }
+    if (pp) pp.parent.children[pp.index] = node
+    else layout.entry.root = node
+  }
+  saveLayout()
+  return true
+}
+/** ペインをドロワーへ移す（FR-DR6）。ドロワーが無ければ作る */
+export function moveToDock(paneId: string, side: DockSide): boolean {
+  if (dockOf(paneId) === side) return false
+  if (!inDock(paneId) && !parentOf(paneId)) return false // 本体の最後の 1 枚
+  const p = detach(paneId)
+  if (!p) return false
+  const d = layout.entry.docks[side]
+  if (d) {
+    d.panes.push(p)
+    d.active = d.panes.length - 1
+  } else layout.entry.docks[side] = { panes: [p], active: 0, pinned: false, width: 600 }
+  saveLayout()
+  return true
+}
+/** ドロワーのペインを本体に戻す（FR-DR6）。本体の右端に足す */
+export function moveFromDock(paneId: string): boolean {
+  if (!inDock(paneId)) return false
+  const p = detach(paneId)
+  if (!p) return false
+  const root = layout.entry.root
+  if (root.kind === 'split' && root.dir === 'row') {
+    const s = 100 / (root.children.length + 1)
+    root.sizes = [...root.sizes.map((x) => x * (1 - s / 100)), s]
+    root.children.push(p)
+  } else layout.entry.root = { kind: 'split', id: nid(), dir: 'row', sizes: [70, 30], children: [root, p] }
+  saveLayout()
+  return true
+}
+/** 名前を付けて保存したレイアウトを今のプリセットに読み込む（FR-L4 の P2） */
+export function applyEntry(entry: LayoutEntry, links: Record<string, InstrumentId>): void {
+  layout.doc.entries[layout.doc.active] = JSON.parse(JSON.stringify(entry)) as LayoutEntry
+  layout.doc.links = { ...layout.doc.links, ...links }
+  layout.dockOpen = null
+  app.maximized = null
+  app.focus = null
   saveLayout()
 }
 /** 隣のペインと入れ替える（Ctrl+Alt+Shift+矢印。ドラッグ移動の代わり） */

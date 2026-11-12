@@ -40,13 +40,21 @@ const MIGRATIONS: string[] = [
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, status TEXT NOT NULL, items TEXT NOT NULL,
     pos INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL, updated TEXT NOT NULL
   );
-  CREATE TABLE metrics (
-    id TEXT PRIMARY KEY, as_of TEXT, prov INTEGER NOT NULL DEFAULT 0, record_months TEXT NOT NULL DEFAULT '',
-    gap_suspect INTEGER NOT NULL DEFAULT 0,
-    ${METRIC_COLUMNS.map((c) => `${c} REAL`).join(', ')}
-  );
+  ${metricsTable()}
   `,
+  // v2: 指標の列を足した（P2）。metrics は日足から作り直せるので、表を作り直して起動時に再計算する
+  `DROP TABLE metrics; ${metricsTable()}
+   INSERT INTO meta(key, value) VALUES('metricsStale', '1') ON CONFLICT(key) DO UPDATE SET value = '1';`,
 ]
+
+/** metrics 表（FR-S10）。列は登録表の METRIC_COLUMNS から作る。列を足したら MIGRATIONS に作り直しを足す */
+function metricsTable(): string {
+  return `CREATE TABLE metrics (
+    id TEXT PRIMARY KEY, as_of TEXT, prov INTEGER NOT NULL DEFAULT 0, record_months TEXT NOT NULL DEFAULT '',
+    gap_suspect INTEGER NOT NULL DEFAULT 0, anomaly INTEGER NOT NULL DEFAULT 0,
+    ${METRIC_COLUMNS.map((c) => `${c} REAL`).join(', ')}
+  );`
+}
 
 export class Db {
   readonly raw: DatabaseSync

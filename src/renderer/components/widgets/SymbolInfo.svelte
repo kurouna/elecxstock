@@ -1,4 +1,6 @@
 <script lang="ts">
+const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
+
 // 銘柄情報（FR-I1, H3, V12）: 指標と配当・分配金の履歴。利回りには「実績」と基準日・出所を必ず添える。
 
 import type { Dividend } from '@shared/types'
@@ -50,12 +52,12 @@ function draw() {
   recent.forEach((d, i) => {
     const hh = (d.amount / max) * (r.height - 16)
     const x = 2 + i * (bw + 2)
-    g.fillStyle = i >= n - 2 ? '#5b7db0' : '#33465f'
+    g.fillStyle = i >= n - 2 ? css('--focus') : css('--line-strong')
     g.beginPath()
     g.roundRect(x, r.height - 12 - hh, bw, hh, [2, 2, 0, 0])
     g.fill()
     if (i === 0 || d.date.slice(0, 4) !== recent[i - 1]!.date.slice(0, 4)) {
-      g.fillStyle = '#6e7884'
+      g.fillStyle = css('--text-3')
       g.fillText(d.date.slice(2, 4), x, r.height - 1)
     }
   })

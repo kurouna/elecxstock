@@ -1,4 +1,4 @@
-import { FIELDS, METRIC_COLUMNS } from '@shared/fields'
+import { FIELDS, METRIC_COLUMNS, migrateConditions, usable } from '@shared/fields'
 import { describe, expect, it } from 'vitest'
 
 describe('指標の登録表の整合（FR-FD4）', () => {
@@ -9,9 +9,37 @@ describe('指標の登録表の整合（FR-FD4）', () => {
       ids.add(f.id)
       expect(f.label.ja && f.label.en, f.id).toBeTruthy()
       expect(f.operators.length, f.id).toBeGreaterThan(0)
-      if (f.source.kind === 'metrics') expect(METRIC_COLUMNS as readonly string[]).toContain(f.source.column)
+      // recordMonths は metrics 表の record_months（配列）
+      if (f.source.kind === 'metrics' && f.source.column !== 'recordMonths')
+        expect(METRIC_COLUMNS as readonly string[]).toContain(f.source.column)
       if (f.type === 'enum' && f.source.kind === 'attr') expect(f.choices?.length).toBeGreaterThan(0)
       if (f.type === 'bool') expect(f.operators).toEqual(['='])
     }
+  })
+})
+
+describe('指標の版と移行（FR-FD5）', () => {
+  it('版の古い条件は移行し、移行できない条件は failed に入る', () => {
+    const byId = new Map(FIELDS.map((f) => [f.id, f]))
+    byId.set('x.old', { ...FIELDS[0]!, id: 'x.old', version: 3 })
+    const r = migrateConditions(
+      [
+        { field: 'x.old', op: '>=', value: 1, v: 1 }, // 1→2 は単位を 100 倍、2→3 は無い
+        { field: 'x.old', op: '>=', value: 1, v: 3 },
+        { field: 'income.yield', op: '>=', value: 3 },
+      ],
+      byId,
+      { 'x.old@1': (c) => ({ ...c, value: Number(c.value) * 100 }) },
+    )
+    expect(r.failed).toEqual([0])
+    expect(r.conditions[1]!.v).toBe(3)
+    const ok = migrateConditions([{ field: 'x.old', op: '>=', value: 1, v: 2 }], byId, {
+      'x.old@2': (c) => ({ ...c, value: Number(c.value) + 1 }),
+    })
+    expect(ok.failed).toEqual([])
+    expect(ok.conditions[0]).toMatchObject({ value: 2, v: 3 })
+  })
+  it('保有の指標（P3）は予約だけで、今の版では使えない', () => {
+    expect(usable(FIELDS.find((f) => f.id === 'holding.pnlPct'))).toBe(false)
   })
 })

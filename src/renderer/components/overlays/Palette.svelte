@@ -3,12 +3,13 @@
 
 import type { Instrument } from '@shared/types'
 import { onMount } from 'svelte'
-import { ACTIONS, type Action, sendSymbol } from '../../lib/commands'
+import { ACTIONS, type Action, keyOf, sendSymbol } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
 import { openScreenAnywhere } from '../../lib/screens'
 import { app, bridge, rpc, screenName, t, toast } from '../../stores/app.svelte'
 
-let { q = '' }: { q?: string } = $props()
+/** title があるときは銘柄だけを選ぶ（chart-grid のタイルの差し替えなど） */
+let { q = '', title }: { q?: string; title?: string } = $props()
 let query = $state('')
 let sel = $state(0)
 let syms = $state<Instrument[]>([])
@@ -22,7 +23,7 @@ type Item =
   | { kind: 'act'; a: Action }
   | { kind: 'add'; code: string }
 const norm = $derived(query.normalize('NFKC').trim())
-const actOnly = $derived(norm.startsWith('>'))
+const actOnly = $derived(!title && norm.startsWith('>'))
 const qq = $derived((actOnly ? norm.slice(1) : norm).trim().toLowerCase())
 $effect(() => {
   const s = qq
@@ -37,16 +38,19 @@ $effect(() => {
 })
 const tracked = (i: Instrument) => i.userAdded || i.market === 'P' || i.market === 'R' || i.market === 'I'
 const items = $derived.by((): Item[] => {
-  const acts = ACTIONS.filter((a) => !qq || a.label().toLowerCase().includes(qq) || a.id.toLowerCase().includes(qq)).map((a) => ({
-    kind: 'act' as const,
-    a,
-  }))
-  const scrs = actOnly
-    ? []
-    : app.screens
-        .filter((s) => !qq || screenName(s).toLowerCase().includes(qq))
-        .slice(0, 6)
-        .map((s) => ({ kind: 'scr' as const, id: s.id, name: screenName(s) }))
+  const acts = (title ? [] : ACTIONS)
+    .filter((a) => !qq || a.label().toLowerCase().includes(qq) || a.id.toLowerCase().includes(qq))
+    .map((a) => ({
+      kind: 'act' as const,
+      a,
+    }))
+  const scrs =
+    actOnly || title
+      ? []
+      : app.screens
+          .filter((s) => !qq || screenName(s).toLowerCase().includes(qq))
+          .slice(0, 6)
+          .map((s) => ({ kind: 'scr' as const, id: s.id, name: screenName(s) }))
   const out: Item[] = [...syms.map((i) => ({ kind: 'sym' as const, i })), ...scrs, ...acts]
   // 一覧に無いコードは「追加して取得する」（FR-U3）
   // 一覧にあっても取得の対象外（スタンダード・グロース・ETF など）なら「追加して取得する」を出す
@@ -92,7 +96,8 @@ onMount(() => {
 </script>
 
 <div class="dialog palette" role="dialog" aria-label="command bar">
-  <input class="search" bind:this={input} bind:value={query} placeholder={t('top.search')} onkeydown={key} oninput={() => (sel = 0)} />
+  {#if title}<div class="ttl">{title}</div>{/if}
+  <input class="search" bind:this={input} bind:value={query} placeholder={title ? t('cmd.symbolPh') : t('top.search')} onkeydown={key} oninput={() => (sel = 0)} />
   <div class="list res" bind:this={res}>
     {#each items as x, i (i)}
       {#if i === 0 || items[i - 1]!.kind !== x.kind}
@@ -106,7 +111,7 @@ onMount(() => {
         {:else if x.kind === 'scr'}
           <span class="c">⌕</span><span class="n">{x.name}</span>
         {:else}
-          <span class="n">{x.a.label()}</span>{#if x.a.key}<kbd>{x.a.key}</kbd>{/if}
+          <span class="n">{x.a.label()}</span>{#if keyOf(x.a)}<kbd>{keyOf(x.a)}</kbd>{/if}
         {/if}
       </button>
     {/each}

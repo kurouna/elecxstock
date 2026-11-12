@@ -37,6 +37,44 @@ describe('runScreen', () => {
     expect(run([{ field: 'attr.kind', op: 'notin', value: ['stock'] }])).toEqual(['JP:8951', 'JP:1306'])
     expect(run([{ field: 'attr.market', op: 'in', value: ['R'] }])).toEqual(['JP:8951'])
   })
+  it('「または」はすぐ上の条件とまとめ、まとまりどうしは「かつ」（FR-SC5）', () => {
+    // (業種 = 銀行業 または 種別 = REIT) かつ 利回り ≥ 3.5
+    expect(
+      run([
+        { field: 'attr.sector', op: 'in', value: ['銀行業'] },
+        { field: 'attr.kind', op: 'in', value: ['reit'], or: true },
+        { field: 'income.yield', op: '>=', value: 3.5 },
+      ]),
+    ).toEqual(['JP:8306', 'JP:8951'])
+  })
+  it('相対条件: 終値 ≥ 75日移動平均 +x%（FR-SC5）', () => {
+    const mm = new Map(metrics)
+    mm.set('JP:8306', { ...mm.get('JP:8306')!, ma75: 900 })
+    mm.set('JP:7203', { ...mm.get('JP:7203')!, ma75: 1100 })
+    const ids = (value: number) =>
+      runScreen({
+        conditions: [{ field: 'price.close', op: '>=', value, ref: 'price.ma75' }],
+        instruments,
+        metrics: mm,
+        favorites: new Set(),
+        watchlists: {},
+      }).ids
+    expect(ids(0)).toEqual(['JP:8306'])
+    expect(ids(15)).toEqual([]) // 900 × 1.15 = 1035 > 1000
+  })
+  it('権利確定月のような複数の値を持つ指標は、1 つでも当たれば含まれる', () => {
+    const mm = new Map(metrics)
+    mm.set('JP:8306', { ...mm.get('JP:8306')!, recordMonths: [3, 9] })
+    mm.set('JP:7203', { ...mm.get('JP:7203')!, recordMonths: [6] })
+    const r = runScreen({
+      conditions: [{ field: 'income.recordMonth', op: 'in', value: ['9', '12'] }],
+      instruments,
+      metrics: mm,
+      favorites: new Set(),
+      watchlists: {},
+    })
+    expect(r.ids).toEqual(['JP:8306'])
+  })
   it('お気に入りと、今の版に無い条件は無効として外す', () => {
     const r = runScreen({
       conditions: [

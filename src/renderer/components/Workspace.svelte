@@ -18,7 +18,7 @@ import Node from './Node.svelte'
 
 <div class="wsp">
   {#if layout.entry.docks.left}
-    <Dock dock={layout.entry.docks.left} />
+    <Dock dock={layout.entry.docks.left} side="left" />
   {/if}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="main" onmousedown={() => toggleDockOpen(false)}>
@@ -26,6 +26,9 @@ import Node from './Node.svelte'
       <Node node={layout.entry.root} />
     {/key}
   </div>
+  {#if layout.entry.docks.right}
+    <Dock dock={layout.entry.docks.right} side="right" />
+  {/if}
 </div>
 
 <style>

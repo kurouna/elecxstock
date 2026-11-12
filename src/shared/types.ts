@@ -79,8 +79,23 @@ export interface MetricsRow {
   ret3y: number | null
   rsi14: number | null
   volRatio: number | null
+  ma25: number | null
+  ma75: number | null
+  ma200: number | null
+  /** 配当性向（過去 12 か月の配当 ÷ EPS） */
+  payout: number | null
+  /** 連続増配・非減配の年数（暦年の合計で比べる。保存期間の範囲内） */
+  divUpYears: number | null
+  divNoCutYears: number | null
+  /** 25 日線と 75 日線のゴールデンクロス・デッドクロスからの取引日数 */
+  gcDays: number | null
+  dcDays: number | null
+  /** 直近 2 期の分配を年換算した利回り（FR-I3） */
+  yield2p: number | null
   recordMonths: number[] // 権利確定月（FR-H3）
   gapSuspect: boolean // 分割イベントのない ±50% 超のギャップ（FR-D5）
+  /** 高値 < 安値・終値 0 以下などの異常値（FR-D5 の残り） */
+  anomaly: boolean
 }
 
 export interface Quote {
@@ -109,6 +124,12 @@ export interface Condition {
   value: number | string | boolean | string[]
   /** 欠損値を含めるか（FR-SC8）。既定は除外 */
   includeMissing?: boolean
+  /** 相対条件（FR-SC5）: 別の指標と比べる。value はその指標からの差（%）。例: 終値 ≥ 75日移動平均 +0% */
+  ref?: string
+  /** すぐ上の条件と「または」でまとめる（FR-SC5）。「かつ」は「または」のまとまりどうしをつなぐ */
+  or?: boolean
+  /** 保存したときの指標の版（FR-FD5）。無ければ 1 */
+  v?: number
 }
 export interface LocalizedName {
   ja: string
@@ -119,6 +140,52 @@ export interface SavedScreen {
   name: LocalizedName
   conditions: Condition[]
   sort?: { field: string; dir: 1 | -1 }
+  /** 結果表の列（FR-SC14）。列の ID は lib/columns.ts */
+  columns?: string[]
+  /** 上位 N 件（FR-SC5）。並べ替えの順で上から */
+  limit?: number
+  created: number
+  updated: number
+}
+
+// ---------------------------------------------------------------- holdings（§6.9, FR-H7〜H10）
+
+/** NISA 成長投資枠・つみたて投資枠・旧 NISA・特定・一般 */
+export type AccountType = 'nisa_growth' | 'nisa_tsumitate' | 'nisa_legacy' | 'tokutei' | 'ippan'
+/** 保有の 1 回の取引（FR-H5, H7） */
+export interface Lot {
+  date: JstDate
+  side: 'buy' | 'sell'
+  quantity: number
+  price: number
+  fee?: number
+}
+/** 銘柄 × 口座区分ごとの保有（FR-H7）。lots があれば数量・平均取得単価は取引から計算する（移動平均法、FR-H5） */
+export interface Holding {
+  code: string
+  account: AccountType
+  quantity: number
+  avgCost: number
+  lots?: Lot[]
+  broker?: string
+  note?: string
+}
+export interface HoldingsImportPreview {
+  add: Holding[]
+  update: Holding[]
+  same: Holding[]
+  rejected: { index: number; code: string; reason: string }[]
+  /** 取り込むもの（検証済み）。applyImport にそのまま渡す */
+  holdings: Holding[]
+}
+
+/** 名前を付けて保存したレイアウト（FR-L4 の P2） */
+export interface SavedLayout {
+  id: string
+  name: LocalizedName
+  /** LayoutEntry（renderer の stores/layout.svelte.ts）とリンクの銘柄 */
+  entry: unknown
+  links: Record<string, InstrumentId>
   created: number
   updated: number
 }
@@ -149,6 +216,16 @@ export interface Settings {
   /** 設定ファイルで追加する銘柄のコード（FR-U3） */
   userInstruments: string[]
   reduceMotion: boolean
+  /** テーマ（FR-V8） */
+  theme: 'dark' | 'light'
+  /** 大引けの 30 分後から、起動時と起動中に自動で更新する（FR-F6） */
+  autoUpdate: boolean
+  /** 新しい版が GitHub Releases に出たら知らせる（NFR-Q9）。通信は api.github.com だけ */
+  checkUpdates: boolean
+  /** キーの割り当ての上書き（FR-KB6）。アクションの ID → キー（例 'Ctrl+Shift+K'）。'' は割り当てなし */
+  keymap: Record<string, string>
+  /** チャートの移動平均の期間（FR-C2）。時間軸ごとに 3 本 */
+  maPeriods: { D: number[]; W: number[]; M: number[] }
 }
 
 export type JobKind = 'universe' | 'initial' | 'daily' | 'refetch' | 'monthly' | 'reset' | 'retention'

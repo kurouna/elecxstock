@@ -1,5 +1,5 @@
 // main プロセス（薄い）: ウィンドウ・単一インスタンス・Core（utilityProcess）の起動と MessagePort の受け渡し・安全策（§8.1, NFR-S3）。
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,6 +31,30 @@ app.setAppUserModelId('dev.kurouna.elecxstock')
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }])
 
 if (!app.requestSingleInstanceLock()) app.quit()
+
+// ---------------------------------------------------------------- log（NFR-O1, Q11）: userData/logs に日付ごと。30 日より古いものは消す
+const logDir = () => join(app.getPath('userData'), 'data', 'logs')
+function log(msg: string): void {
+  try {
+    mkdirSync(logDir(), { recursive: true })
+    appendFileSync(join(logDir(), `main-${new Date().toISOString().slice(0, 10)}.log`), `${new Date().toISOString()} ${msg}\n`)
+  } catch {
+    /* ignore */
+  }
+}
+function pruneLogs(): void {
+  try {
+    const limit = Date.now() - 30 * 86400_000
+    for (const f of readdirSync(logDir())) {
+      const p = join(logDir(), f)
+      if (/\.log$/.test(f) && statSync(p).mtimeMs < limit) rmSync(p, { force: true })
+    }
+  } catch {
+    /* ignore */
+  }
+}
+process.on('uncaughtException', (e) => log(`uncaught ${e.stack ?? e}`))
+process.on('unhandledRejection', (e) => log(`unhandled ${String(e)}`))
 
 const EXTERNAL_ALLOW = [
   /^https:\/\/(www\.)?tradingview\.com\//,
@@ -108,13 +132,17 @@ function startCore(): void {
     }
   })
   core.stdout?.on('data', (d) => process.stdout.write(`[core] ${d}`))
-  core.stderr?.on('data', (d) => process.stderr.write(`[core] ${d}`))
+  core.stderr?.on('data', (d) => {
+    process.stderr.write(`[core] ${d}`)
+    log(`core stderr: ${String(d).trim()}`)
+  })
   core.on('exit', (code) => {
     core = null
     coreReady = false
     if (quitting) return
     // 落ちても自動で立ち上げ直し、ポートを渡し直す（NFR-Q11）
     console.error(`core exited (${code}); restarting`)
+    log(`core exited (${code}); restarting`)
     setTimeout(() => {
       startCore()
     }, 1000)
@@ -174,7 +202,11 @@ async function createWindow(): Promise<void> {
     wirePort()
   })
   win.webContents.on('render-process-gone', (_e, d) => {
+    log(`renderer gone: ${d.reason} (${d.exitCode})`)
     if (d.reason !== 'clean-exit') win?.webContents.reload()
+  })
+  win.webContents.on('console-message', (e) => {
+    if (e.level === 'error') log(`renderer error: ${e.message}`)
   })
   if (!devTools) {
     // 製品版では再読み込みのキーを無効にする（F5 はアプリの「データ更新」に使う）
@@ -227,9 +259,11 @@ ipcMain.handle('app:openExternal', (e, url: unknown) => {
 })
 ipcMain.handle('app:saveText', async (e, name: unknown, text: unknown) => {
   if (!fromApp(e) || typeof name !== 'string' || typeof text !== 'string' || !win) return false
+  const ext = extname(name).slice(1).toLowerCase() || 'json'
+  const label = { json: 'JSON', csv: 'CSV', txt: 'Text' }[ext] ?? ext.toUpperCase()
   const r = await dialog.showSaveDialog(win, {
     defaultPath: name.replace(/[\\/:*?"<>|]/g, '_'),
-    filters: [{ name: 'JSON', extensions: ['json'] }],
+    filters: [{ name: label, extensions: [ext] }],
   })
   if (r.canceled || !r.filePath) return false
   writeFileSync(r.filePath, text)
@@ -244,12 +278,35 @@ ipcMain.handle('app:notices', (e) => {
 })
 ipcMain.handle('app:openFile', async (e, kind: unknown) => {
   if (!fromApp(e) || !win) return null
-  const filters = kind === 'xlsx' ? [{ name: 'Excel', extensions: ['xlsx'] }] : [{ name: 'JSON', extensions: ['json'] }]
+  const filters =
+    kind === 'xlsx'
+      ? [{ name: 'Excel', extensions: ['xlsx'] }]
+      : kind === 'text'
+        ? [{ name: 'CSV / Text', extensions: ['csv', 'txt'] }]
+        : [{ name: 'JSON', extensions: ['json'] }]
   const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters })
   if (r.canceled || !r.filePaths[0]) return null
   const buf = readFileSync(r.filePaths[0])
   if (buf.length > 20_000_000) return null
   return kind === 'xlsx' ? new Uint8Array(buf) : buf.toString('utf8')
+})
+
+// Core が data/backups に書いた DB のバックアップを、利用者が選んだ場所へ写す（FR-S3）。元は data/backups の中だけ
+ipcMain.handle('app:exportBackup', async (e, file: unknown) => {
+  if (!fromApp(e) || typeof file !== 'string' || !/^market-[\w-]+\.db$/.test(file) || !win) return false
+  const src = join(app.getPath('userData'), 'data', 'backups', file)
+  if (!existsSync(src)) return false
+  const r = await dialog.showSaveDialog(win, { defaultPath: file, filters: [{ name: 'SQLite', extensions: ['db'] }] })
+  if (r.canceled || !r.filePath) return false
+  copyFileSync(src, r.filePath)
+  return true
+})
+// ログのフォルダを開く（ジョブ・設定から。NFR-O1）
+ipcMain.handle('app:openLogs', (e) => {
+  if (!fromApp(e)) return false
+  mkdirSync(logDir(), { recursive: true })
+  void shell.openPath(logDir())
+  return true
 })
 
 // ---------------------------------------------------------------- app
@@ -267,6 +324,8 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false)) // 権限の要求はすべて拒否
   session.defaultSession.setPermissionCheckHandler(() => false)
   registerProtocol()
+  pruneLogs()
+  log(`start ${__APP_VERSION__} ${process.platform} electron ${process.versions.electron}`)
   startCore()
   await createWindow()
 })

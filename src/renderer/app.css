@@ -29,6 +29,18 @@
   --l3: #3987e5;
   --l4: #c98500;
   --l5: #9085e9;
+  /* チャート（Lightweight Charts・グリッドの Canvas はここから色を読む） */
+  --chart-grid: #161a20;
+  --chart-cross: #55606d;
+  --chart-label: #2d3540;
+  --vol-up: #3d4756;
+  --vol-down: #2a3442;
+  --ind1: #4fb3d9;
+  --ind2: #d97a4f;
+  --ind3: #b5bd4f;
+  --ind4: #c25fa8;
+  --cloud-up: rgba(47, 174, 116, 0.12);
+  --cloud-down: rgba(229, 72, 77, 0.12);
   --fs-1: 11px;
   --fs-2: 12px;
   --fs-3: 13px;
@@ -43,6 +55,47 @@
   --font: "Noto Sans JP Variable", "Noto Sans JP", system-ui, sans-serif;
   --mono: "Noto Sans Mono", ui-monospace, monospace;
   color-scheme: dark;
+}
+/* ライトテーマ（FR-V8）。同じトークンを差し替えるだけ */
+:root[data-theme="light"] {
+  --bg: #e9ecf0;
+  --panel: #ffffff;
+  --panel-2: #f5f7fa;
+  --panel-3: #eceff3;
+  --line: #d6dbe1;
+  --line-soft: #e6e9ee;
+  --line-strong: #c3cad3;
+  --text: #1a1f26;
+  --text-2: #4a5562;
+  --text-3: #7a8592;
+  --focus: #2f6fe0;
+  --select: #e3ecfb;
+  --select-strong: #d3e1f8;
+  --hover: #f0f3f7;
+  --up: #d9363e;
+  --down: #1f6fc4;
+  --flat: #4a5562;
+  --warn: #9a6b00;
+  --danger: #c4282f;
+  --ok: #18804f;
+  --gold: #c08a00;
+  --ma1: #b57400;
+  --ma2: #6c5fd3;
+  --ma3: #11805a;
+  --chart-grid: #eef1f4;
+  --chart-cross: #8a95a3;
+  --chart-label: #4a5562;
+  --vol-up: #c7ced8;
+  --vol-down: #d9dee5;
+  --ind1: #1f8fbf;
+  --ind2: #c25f2a;
+  --ind3: #7f8a14;
+  --ind4: #a23f8a;
+  color-scheme: light;
+}
+:root[data-theme="light"][data-candle="us"] {
+  --up: #18804f;
+  --down: #d9363e;
 }
 :root[data-density="compact"] {
   --row: 20px;
@@ -241,6 +294,31 @@ kbd {
   line-height: 14px;
   margin-left: 6px;
   white-space: nowrap;
+}
+.tag.warn {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+/* 値が変わったセルを一瞬だけ光らせる（FR-V6）。動きを減らす設定では出さない */
+@keyframes flash-up {
+  from {
+    background: color-mix(in srgb, var(--up) 35%, transparent);
+  }
+}
+@keyframes flash-down {
+  from {
+    background: color-mix(in srgb, var(--down) 35%, transparent);
+  }
+}
+.flash-up {
+  animation: flash-up 900ms ease-out;
+}
+.flash-down {
+  animation: flash-down 900ms ease-out;
+}
+:root[data-reduce-motion="true"] .flash-up,
+:root[data-reduce-motion="true"] .flash-down {
+  animation: none;
 }
 .star {
   color: var(--text-3);
