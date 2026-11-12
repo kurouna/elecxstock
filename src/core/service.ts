@@ -132,6 +132,16 @@ export class CoreService {
         }
         return out as Results[M]
       }
+      case 'returns.get': {
+        // chart-grid の「期間騰落率」の並べ替え用（FR-G4）: 期間の始めの終値から最新の終値までの騰落率
+        const out: Record<string, number> = {}
+        for (const id of P.ids as string[]) {
+          const a = r.db.get<{ c: number }>('SELECT c FROM daily_bars WHERE id = ? AND d >= ? ORDER BY d LIMIT 1', id, String(P.from))
+          const b = r.db.get<{ c: number }>('SELECT c FROM daily_bars WHERE id = ? ORDER BY d DESC LIMIT 1', id)
+          if (a?.c && b?.c) out[id] = (b.c / a.c - 1) * 100
+        }
+        return out as Results[M]
+      }
       case 'dividends.get':
         return r.dividends(String(P.id)) as Results[M]
       case 'metrics.get': {

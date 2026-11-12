@@ -68,6 +68,7 @@ export const PARAMS = {
   'bars.get': z.object({ id, tf, adjustment: z.enum(['split', 'unadjusted', 'total']).optional() }),
   'bars.many': z.object({ ids: z.array(id).max(60), tf, count: z.number().int().min(2).max(3000) }),
   'dividends.get': z.object({ id }),
+  'returns.get': z.object({ ids, from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
   'metrics.get': z.object({ ids }),
   'quotes.get': z.object({ ids }),
   'screener.run': z.object({ conditions: z.array(cond).max(40), favorites: ids, watchlists: z.record(z.string(), ids) }),
@@ -111,6 +112,7 @@ export interface Results {
   'bars.get': Bars & { dividends: Dividend[]; splits: Split[]; adjustment: Adjustment }
   'bars.many': Record<InstrumentId, Bars>
   'dividends.get': Dividend[]
+  'returns.get': Record<InstrumentId, number>
   'metrics.get': MetricsRow[]
   'quotes.get': Quote[]
   'screener.run': ScreenResult

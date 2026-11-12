@@ -68,8 +68,11 @@ async function handle(msg: { id: number; method: string; params: unknown }): Pro
 }
 
 // Electron の utilityProcess が用意する親とのポート（型は Electron に依存しないようここで書く）
-const parentPort = (process as unknown as { parentPort: { on(ev: 'message', f: (e: { data: unknown; ports: PortLike[] }) => void): void } })
-  .parentPort
+interface ParentPort {
+  on(ev: 'message', f: (e: { data: unknown; ports: PortLike[] }) => void): void
+  postMessage(m: unknown): void
+}
+const parentPort = (process as unknown as { parentPort: ParentPort }).parentPort
 parentPort.on('message', (e) => {
   const d = e.data as { type?: string }
   if (d?.type === 'port' && e.ports[0]) {
@@ -79,6 +82,8 @@ parentPort.on('message', (e) => {
   }
 })
 service.start()
+// 準備ができたことを main に知らせる（main はこれを待ってから renderer とのポートを渡す）
+parentPort.postMessage({ type: 'ready' })
 
 process.on('uncaughtException', (e) => log(`uncaught ${e.stack ?? e}`))
 process.on('unhandledRejection', (e) => log(`unhandled ${String(e)}`))
