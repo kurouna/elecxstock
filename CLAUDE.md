@@ -8,6 +8,8 @@ elecxstock は、日本株と J-REIT のデータを手元の PC に取り込み
 - 要求仕様: [docs/requirements.md](docs/requirements.md)（要求は `FR-` / `NFR-` の ID で参照する。P1 / P2 / P3）
 - 設計判断と実測値: [docs/decisions.md](docs/decisions.md)
 - 画面のモック: [docs/mock/](docs/mock/README.md)
+- P3 の設計: [docs/design-p3.md](docs/design-p3.md)
+- 保有の JSON の形式: [docs/holdings-format.md](docs/holdings-format.md)
 
 仕様にある振る舞いを変えるときは、先に requirements.md の該当する ID を読み、変えたら requirements.md も直す。
 
