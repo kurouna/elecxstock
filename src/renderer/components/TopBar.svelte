@@ -5,6 +5,7 @@ import { doResetSizes, keyOf, runAction } from '../lib/commands'
 import type { Key } from '../lib/i18n'
 import { app, t } from '../stores/app.svelte'
 import { layout, PRESET_IDS, setPreset, sizesAtDefault } from '../stores/layout.svelte'
+import Icon from './Icon.svelte'
 
 let clock = $state('')
 let market = $state<'open' | 'closed' | 'holiday'>('closed')
@@ -37,7 +38,7 @@ onMount(() => {
   </button>
   <div class="right">
     <!-- 押しても変わらないとき（既定のまま・最大化中）は押せない -->
-    <button type="button" class="chip" onclick={doResetSizes} disabled={!!app.maximized || sizesAtDefault()} title={app.maximized ? t('top.resetSizesMax') : sizesAtDefault() ? t('top.resetSizesNone') : keyOf('resetSizes')}>⟲ {t('top.resetSizes')}</button>
+    <button type="button" class="ibtn" onclick={doResetSizes} disabled={!!app.maximized || sizesAtDefault()} aria-label={t('top.resetSizes')} title={`${t('top.resetSizes')}${app.maximized ? ` — ${t('top.resetSizesMax')}` : sizesAtDefault() ? ` — ${t('top.resetSizesNone')}` : ` (${keyOf('resetSizes')})`}`}><Icon name="resetSize" /></button>
     <span class="pill" class:open={market === 'open'}>{t(market === 'open' ? 'market.open' : market === 'holiday' ? 'market.holiday' : 'market.closed')}</span>
     <span class="clock num">{clock} JST</span>
     <button type="button" class="gear" title={`${t('act.settings')} (${keyOf('settings')})`} aria-label={t('act.settings')} onclick={() => runAction('settings')}>

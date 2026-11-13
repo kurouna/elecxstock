@@ -107,6 +107,7 @@ const G = $derived([
       [ja ? 'ヒートマップ: 期間' : 'Heatmap: period', 'P'],
       [ja ? 'ランキング: 指標 / 上位・下位 / 市場' : 'Ranking: metric / top-bottom / market', 'S / Shift+S / G'],
       [ja ? '保有: 楽天証券の CSV を取り込む / 送る' : 'Portfolio: import Rakuten CSV / send', 'Insert / Enter'],
+      [ja ? '銘柄情報: 配当の棒を選ぶ / 年・回の切り替え' : 'Symbol info: select dividend bar / per year–payout', '← → Home End / Y'],
     ],
   },
   {

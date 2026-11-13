@@ -23,6 +23,7 @@ import {
   toggleFav,
 } from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
+import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import RowCells from './RowCells.svelte'
 
@@ -309,12 +310,11 @@ $effect(() => {
   <button type="button" class="add" title={t('list.new')} onclick={newList}>＋</button>
 </div>
 <div class="filter">
-  <button type="button" class="toggle" class:on={starOnly} onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>{t('list.starOnly')}</button>
-  <kbd>Ctrl+Shift+F</kbd>
+  <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>★</button>
   <span class="grow"></span>
   {#if anchor >= 0}<span class="num">{t('list.selectedN', { n: hi - lo + 1 })}</span>{/if}
   <span class="num">{t('list.items', { n: rows.length })}</span>
-  <button type="button" class="chip" title="Ctrl+Shift+C" onclick={pickColumns}>{t('cols.button')}</button>
+  <button type="button" class="ibtn" aria-label={t('cols.choose')} title={`${t('cols.choose')} (Ctrl+Shift+C)`} onclick={pickColumns}><Icon name="columns" /></button>
 </div>
 <div class="scroll body" bind:this={scroller}>
   {#if !rows.length}

@@ -9,6 +9,7 @@ import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { app, bridge, codeOf, nameOf, rpc, t } from '../../stores/app.svelte'
 import { type PaneNode, setLinkSymbol } from '../../stores/layout.svelte'
+import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 
 let { pane }: { pane: PaneNode } = $props()
@@ -36,7 +37,7 @@ const running = (s: string) => s === 'running' || s === 'queued' || s === 'waiti
 </script>
 
 <PaneHeader {pane}>
-  <button type="button" class="chip" onclick={startUpdate}>{t('jobs.update')} <kbd>F5</kbd></button>
+  <button type="button" class="ibtn" aria-label={t('jobs.update')} title={`${t('jobs.update')} (F5)`} onclick={startUpdate}><Icon name="refresh" /></button>
 </PaneHeader>
 <div class="scroll">
   <table class="grid">
@@ -49,9 +50,11 @@ const running = (s: string) => s === 'running' || s === 'queued' || s === 'waiti
           <td class="l name">{t(`jobs.${j.status}` as Key)}</td>
           <td>{j.done.toLocaleString()} / {j.total.toLocaleString()}{j.failed ? ` · ✕${j.failed}` : ''}{j.message ? ` · ${j.message}` : ''}</td>
           <td>
-            {#if running(j.status)}<button type="button" class="chip" onclick={() => rpc('jobs.pause', { id: j.id })}>{t('jobs.pause')}</button>{/if}
-            {#if j.status === 'paused'}<button type="button" class="chip" onclick={() => rpc('jobs.resume', { id: j.id })}>{t('jobs.resume')}</button>{/if}
-            {#if running(j.status) || j.status === 'paused'}<button type="button" class="chip" onclick={() => rpc('jobs.cancel', { id: j.id })}>{t('jobs.cancel')}</button>{/if}
+            <span class="acts">
+              {#if running(j.status)}<button type="button" class="ibtn" aria-label={t('jobs.pause')} title={t('jobs.pause')} onclick={() => rpc('jobs.pause', { id: j.id })}><Icon name="pause" /></button>{/if}
+              {#if j.status === 'paused'}<button type="button" class="ibtn" aria-label={t('jobs.resume')} title={t('jobs.resume')} onclick={() => rpc('jobs.resume', { id: j.id })}><Icon name="play" /></button>{/if}
+              {#if running(j.status) || j.status === 'paused'}<button type="button" class="ibtn" aria-label={t('jobs.cancel')} title={t('jobs.cancel')} onclick={() => rpc('jobs.cancel', { id: j.id })}><Icon name="cancel" /></button>{/if}
+            </span>
           </td>
         </tr>
       {:else}
@@ -76,6 +79,11 @@ const running = (s: string) => s === 'running' || s === 'queued' || s === 'waiti
 </div>
 
 <style>
+  .acts {
+    display: inline-flex;
+    gap: 2px;
+    justify-content: flex-end;
+  }
   h4 {
     margin: var(--s-3) var(--s-2) 4px;
     font-size: var(--fs-1);

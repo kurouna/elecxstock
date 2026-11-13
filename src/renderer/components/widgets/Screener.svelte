@@ -13,6 +13,7 @@ import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, scr
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, bridge, choiceDialog, listName, promptDialog, screenName, t } from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
+import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import RowCells from './RowCells.svelte'
 
@@ -378,9 +379,9 @@ $effect(() => {
 <PaneHeader {pane}>
   <button type="button" class="chip scr" title="Ctrl+O" onclick={() => (app.overlay = { kind: 'screens' })}>▾ {scr ? screenName(scr) : t('scr.untitled')}</button>
   {#if dirty}<span class="dirty">● {t('scr.modified')}</span>{/if}
-  <button type="button" class="chip" title="Ctrl+S" disabled={!dirty} onclick={() => saveScreen(pane)}>{t('scr.save')}</button>
-  <button type="button" class="chip" title="Ctrl+Shift+S" onclick={() => saveScreenAs(pane)}>{t('scr.saveAs')}</button>
-  <button type="button" class="chip" title="Ctrl+Shift+G" onclick={openInGrid}>{t('scr.openGrid')}</button>
+  <button type="button" class="ibtn" aria-label={t('scr.save')} title={`${t('scr.save')} (Ctrl+S)`} disabled={!dirty} onclick={() => saveScreen(pane)}><Icon name="save" /></button>
+  <button type="button" class="ibtn" aria-label={t('scr.saveAsLabel')} title={`${t('scr.saveAsLabel')} (Ctrl+Shift+S)`} onclick={() => saveScreenAs(pane)}><Icon name="saveAs" /></button>
+  <button type="button" class="ibtn" aria-label={t('scr.openGrid')} title={`${t('scr.openGridTip')} (Ctrl+Shift+G)`} onclick={openInGrid}><Icon name="grid" /></button>
 </PaneHeader>
 <div class="conds">
   {#each conds as c, i (i)}
@@ -401,7 +402,7 @@ $effect(() => {
     <span class="num">
       {#if limit}<button type="button" class="chip" title="T" onclick={setLimit}>{t('scr.top', { n: limit })}</button>{/if}
       {t('scr.hits', { n: sorted.length, total: (app.status?.instruments ?? total).toLocaleString(), ms: result?.ms ?? '—' })}
-      <button type="button" class="chip" title="Ctrl+Shift+C" onclick={pickColumns}>{t('cols.button')}</button>
+      <button type="button" class="ibtn" aria-label={t('cols.choose')} title={`${t('cols.choose')} (Ctrl+Shift+C)`} onclick={pickColumns}><Icon name="columns" /></button>
     </span>
   </div>
 </div>

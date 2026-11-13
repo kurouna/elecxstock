@@ -27,6 +27,7 @@ import {
   toggleFav,
 } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
+import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import { drawTile } from './gridDraw'
 
@@ -458,10 +459,10 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   <span class="lbl">{t('grid.sort')}</span>
   <button type="button" class="chip" title="S" onclick={cycleSort}>{sortLabel}</button>
   <span class="grow"></span>
-  <button type="button" class="toggle" class:on={favOnly} title="Shift+F" onclick={() => set({ favOnly: !favOnly, page: 0 })}><span class="box"></span>★</button>
-  <button type="button" class="toggle" class:on={candOnly} title="Shift+Space" onclick={() => set({ candOnly: !candOnly, page: 0 })}><span class="box"></span>{t('grid.candOnly')} <span class="num">{candidates()?.items.length ?? 0}</span></button>
-  <button type="button" class="chip" title="Ctrl+Shift+A" onclick={candToList}>{t('grid.toList')}</button>
-  <button type="button" class="chip" title="P" onclick={pinCurrent}>⇩ {t('grid.pin')}</button>
+  <button type="button" class="toggle" class:on={favOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Shift+F)`} onclick={() => set({ favOnly: !favOnly, page: 0 })}><span class="box"></span>★</button>
+  <button type="button" class="toggle" class:on={candOnly} aria-label={t('grid.candOnlyLabel')} title={`${t('grid.candOnlyLabel')} (Shift+Space)`} onclick={() => set({ candOnly: !candOnly, page: 0 })}><span class="box"></span>◆ <span class="num">{candidates()?.items.length ?? 0}</span></button>
+  <button type="button" class="ibtn" aria-label={t('grid.toListLabel')} title={`${t('grid.toListLabel')} (Ctrl+Shift+A)`} onclick={candToList}><Icon name="listAdd" /></button>
+  <button type="button" class="ibtn" aria-label={t('grid.pin')} title={`${t('grid.pinTip')} (P)`} onclick={pinCurrent}><Icon name="pin" /></button>
   <span class="sep"></span>
   <button type="button" class="chip" title="−" onclick={() => set({ size: Math.max(0, size - 1), page: 0 })}>−</button>
   <span class="num">{dims[0]}×{dims[1]}</span>

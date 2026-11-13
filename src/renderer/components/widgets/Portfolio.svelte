@@ -9,8 +9,9 @@ import { cls, fmt, money, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import { accountName, exportHoldings, importBrokerCsv, importHoldings, loadHoldings, valuation } from '../../lib/portfolio'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
-import { app, codeOf, ensureMetrics, nameOf, t } from '../../stores/app.svelte'
+import { app, choiceDialog, codeOf, ensureMetrics, nameOf, t } from '../../stores/app.svelte'
 import { type PaneNode, setLinkSymbol } from '../../stores/layout.svelte'
+import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 
 let { pane }: { pane: PaneNode } = $props()
@@ -66,6 +67,15 @@ $effect(() => {
 const cur = $derived(items[sel]?.h)
 const idOf = (h: Holding) => `JP:${h.code}`
 const nm = (h: Holding) => nameOf(idOf(h)) || h.name || h.code
+/** 取り込む: 楽天証券の CSV か、保有の JSON（別の PC・バックアップ）を選ぶ。Insert は CSV へ直行 */
+async function importAny() {
+  const c = await choiceDialog(t('hold.importLabel'), [
+    { id: 'csv', label: t('hold.csvChoice'), hint: t('hold.csvChoiceHint') },
+    { id: 'json', label: t('hold.jsonChoice'), hint: t('hold.jsonChoiceHint') },
+  ])
+  if (c === 'csv') await importBrokerCsv()
+  else if (c === 'json') await importHoldings()
+}
 function send() {
   if (cur) setLinkSymbol(pane.link || 1, idOf(cur))
 }
@@ -108,15 +118,9 @@ onMount(() =>
 
 <PaneHeader {pane}>
   {#if importedAt}<span class="muted asof">{t('hold.asOf', { at: importedAt })}</span>{/if}
+  <button type="button" class="ibtn" aria-label={t('hold.importLabel')} title={t('hold.importTip')} onclick={importAny}><Icon name="import" /></button>
+  <button type="button" class="ibtn" aria-label={t('hold.exportLabel')} title={t('hold.exportTip')} onclick={exportHoldings}><Icon name="export" /></button>
 </PaneHeader>
-<div class="bar">
-  <button type="button" class="chip" title="Insert" onclick={importBrokerCsv}>{t('hold.csvImport')}</button>
-  <span class="sep"></span>
-  <button type="button" class="chip" title={t('hold.jsonHint')} onclick={importHoldings}>{t('hold.jsonImport')}</button>
-  <button type="button" class="chip" title={t('hold.jsonHint')} onclick={exportHoldings}>{t('hold.jsonExport')}</button>
-  <span class="grow"></span>
-  <span class="muted">{t('hold.keys')}</span>
-</div>
 {#if items.length}
   <div class="summary">
     <div class="stat">
@@ -206,24 +210,6 @@ onMount(() =>
 <div class="note muted">{t('hold.note')}</div>
 
 <style>
-  .bar {
-    display: flex;
-    gap: var(--s-2);
-    align-items: center;
-    height: 28px;
-    padding: 0 var(--s-2);
-    border-bottom: 1px solid var(--line);
-    flex: none;
-    font-size: var(--fs-1);
-  }
-  .grow {
-    flex: 1;
-  }
-  .sep {
-    width: 1px;
-    height: 14px;
-    background: var(--line-strong);
-  }
   .asof {
     font-size: var(--fs-1);
   }

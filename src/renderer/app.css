@@ -290,6 +290,29 @@ kbd {
   opacity: 0.4;
   cursor: default;
 }
+/* アイコンだけのボタン（FR-V13）: 名前は aria-label、説明とキーは title（ツールチップ） */
+.ibtn {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-2);
+  cursor: pointer;
+  flex: none;
+}
+.ibtn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--panel-3);
+  border-color: var(--line-strong);
+}
+.ibtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 .btn {
   height: 26px;
   padding: 0 12px;

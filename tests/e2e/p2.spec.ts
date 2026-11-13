@@ -42,7 +42,8 @@ test('P2: グリッドの差し替え・保存レイアウト・マーケット�
   // 保有タブ（FR-H11）: 保有の一覧にフォーカスがあり、楽天証券の CSV の取り込みを案内する（ファイルの選択は OS のダイアログなので E2E では開かない）
   await keys(page, 'Control+Shift+Digit8')
   const pf = page.locator('[data-widget="portfolio"]')
-  await expect(pf).toContainText('楽天証券の CSV を取り込む')
+  await expect(pf).toContainText('楽天証券の保有商品の CSV')
+  await expect(pf.getByRole('button', { name: '取り込む', exact: true })).toBeVisible()
   await expect(pf).toHaveClass(/focused/)
   await page.screenshot({ path: 'test-results/p2-portfolio.png' })
 
