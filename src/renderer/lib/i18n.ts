@@ -551,6 +551,12 @@ export const ja = {
   'cmd.hint.fav': 'Ctrl+D ☆',
   'cmd.hint.addTo': 'Ctrl+Enter {list} に追加',
   'drop.here': 'ここに表示',
+  'grid.unzoom': 'グリッドに戻る',
+  'grid.zoomHint': '拡大表示中 · Esc / Enter / ダブルクリック: グリッドに戻る',
+  'top.resetSizesNone': '区切りとドロワーの幅は既定のままです',
+  'top.resetSizesMax': '最大化を戻してから使えます',
+  'info.yoy': '前年同期比',
+  'jump.next': '続けて次のコードを入力（Esc で閉じる）',
 }
 
 export type Key = keyof typeof ja
@@ -1100,6 +1106,12 @@ export const en: Record<Key, string> = {
   'cmd.hint.fav': 'Ctrl+D ☆',
   'cmd.hint.addTo': 'Ctrl+Enter add to {list}',
   'drop.here': 'Show here',
+  'grid.unzoom': 'Back to grid',
+  'grid.zoomHint': 'Zoomed · Esc / Enter / double-click: back to grid',
+  'top.resetSizesNone': 'Dividers and drawer widths are already at their defaults',
+  'top.resetSizesMax': 'Restore the maximized pane first',
+  'info.yoy': 'vs a year ago',
+  'jump.next': 'Type the next code (Esc to close)',
 }
 
 export const DICTS = { ja, en }

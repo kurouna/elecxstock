@@ -1,6 +1,6 @@
 <script lang="ts">
 // 銘柄ジャンプ（FR-O1）: 1〜9 で始まるコードを 5 桁まで打ち、Enter でリンクグループに送る。
-// Ctrl+D（☆）でお気に入りに入れる・外す（閉じない）。ウォッチリストにフォーカスがあれば Ctrl+Enter（＋）でそのリストに足す。
+// Ctrl+D（☆）でお気に入りに入れる・外す。閉じずにコードを空にして、続けて次のコードを打てるようにする。ウォッチリストにフォーカスがあれば Ctrl+Enter（＋）でそのリストに足す。
 
 import type { Instrument } from '@shared/types'
 import { onMount } from 'svelte'
@@ -13,6 +13,7 @@ let buf = $state('')
 let sel = $state(0)
 let cand = $state<Instrument[]>([])
 let token = 0
+let box = $state<HTMLDivElement>()
 // 開いたときのフォーカス先（ジャンプ中もフォーカスは動かない）
 const target = focusedWatchlist()
 function show(i = sel) {
@@ -29,11 +30,17 @@ function add(i = sel) {
 }
 function fav(i = sel) {
   const x = cand[i]
-  if (x) toggleFav(x.id)
+  if (!x) return
+  toggleFav(x.id)
+  buf = ''
 }
 $effect(() => {
   const q = buf
   const my = ++token
+  if (!q) {
+    cand = []
+    return
+  }
   bridge.call('instruments.search', { q, limit: 6 }).then((r) => {
     if (my !== token) return
     cand = r.filter((i) => i.code.startsWith(q))
@@ -59,12 +66,20 @@ function onKey(e: KeyboardEvent) {
 }
 onMount(() => {
   buf = first
+  // 外をクリックしたら閉じる（クリックそのものは邪魔しない）
+  const outside = (e: PointerEvent) => {
+    if (box && !box.contains(e.target as Node)) closeOverlay()
+  }
   window.addEventListener('keydown', onKey, true)
-  return () => window.removeEventListener('keydown', onKey, true)
+  window.addEventListener('pointerdown', outside, true)
+  return () => {
+    window.removeEventListener('keydown', onKey, true)
+    window.removeEventListener('pointerdown', outside, true)
+  }
 })
 </script>
 
-<div class="dialog jump" role="dialog" aria-label={t('jump.title')}>
+<div class="dialog jump" bind:this={box} role="dialog" aria-label={t('jump.title')}>
   <div class="big num">{buf.length < 4 ? buf.padEnd(4, '_') : buf}</div>
   <div class="list">
     {#each cand as x, i (x.id)}
@@ -78,7 +93,7 @@ onMount(() => {
         <button type="button" class="side star" class:fav={on} aria-pressed={on} title={`${t(on ? 'cmd.favOff' : 'cmd.favOn')} (Ctrl+D)`} aria-label={t(on ? 'cmd.favOff' : 'cmd.favOn')} onclick={(e) => { e.stopPropagation(); fav(i) }}>{on ? '★' : '☆'}</button>
       </div>
     {:else}
-      <div class="it muted">{t('jump.none')}</div>
+      <div class="it muted">{buf ? t('jump.none') : t('jump.next')}</div>
     {/each}
   </div>
   <div class="foot"><span>{t('jump.hint')}</span><span>{t('cmd.hint.fav')}</span>{#if target && target.id !== 'favorites'}<span>{t('cmd.hint.addTo', { list: listName(target) })}</span>{/if}</div>

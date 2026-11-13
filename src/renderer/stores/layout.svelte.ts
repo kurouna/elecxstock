@@ -351,6 +351,27 @@ export function resetSizes(): boolean {
   undoTimer = setTimeout(() => (undoSnap = null), 10_000)
   return true
 }
+/** 区切りとドロワーの幅が既定のままか（「サイズを戻す」を押しても変わらないとき true） */
+export function sizesAtDefault(): boolean {
+  const e = layout.entry
+  const preset = presetEntry(layout.doc.active)
+  const target: number[][] = []
+  eachSplit(preset.root, (x) => target.push([...x.sizes]))
+  let k = 0
+  let same = true
+  eachSplit(e.root, (x) => {
+    const t = target[k++]
+    const want = t && t.length === x.sizes.length ? t : x.sizes.map(() => 100 / x.sizes.length)
+    const sum = x.sizes.reduce((a, b) => a + b, 0) || 1
+    if (x.sizes.some((v, i) => Math.abs((v / sum) * 100 - want[i]!) > 0.5)) same = false
+  })
+  for (const side of ['left', 'right'] as const) {
+    const d = e.docks[side]
+    const p = preset.docks[side]
+    if (d && p && Math.abs(d.width - p.width) > 1) same = false
+  }
+  return same
+}
 export function canUndoReset(): boolean {
   return !!undoSnap && undoSnap.preset === layout.doc.active
 }
@@ -476,6 +497,7 @@ export function movePane(srcId: string, targetId: string, where: 'left' | 'right
 export function moveToDock(paneId: string, side: DockSide): boolean {
   if (dockOf(paneId) === side) return false
   if (!inDock(paneId) && !parentOf(paneId)) return false // 本体の最後の 1 枚
+  rememberHome(paneId)
   const p = detach(paneId)
   if (!p) return false
   const d = layout.entry.docks[side]
@@ -486,11 +508,62 @@ export function moveToDock(paneId: string, side: DockSide): boolean {
   saveLayout()
   return true
 }
-/** ドロワーのペインを本体に戻す（FR-DR6）。本体の右端に足す */
+/** ドロワーへ移す前の位置（隣の要素・向き・前後・大きさ）。本体に戻すときにそこへ戻す */
+interface Home {
+  sib: string
+  dir: 'row' | 'col'
+  before: boolean
+  share: number
+}
+function rememberHome(paneId: string): void {
+  const pp = parentOf(paneId)
+  const p = findPane(paneId)
+  if (!pp || !p) return
+  const ch = pp.parent.children
+  const next = ch[pp.index + 1]
+  const sib = next ?? ch[pp.index - 1]
+  if (!sib) return
+  const sum = pp.parent.sizes.reduce((a, b) => a + b, 0) || 1
+  const home: Home = { sib: sib.id, dir: pp.parent.dir, before: !!next, share: (pp.parent.sizes[pp.index]! / sum) * 100 }
+  p.state = { ...p.state, _home: home }
+}
+/** 覚えておいた位置へ戻す。隣の要素がもう無ければ false */
+function placeHome(p: PaneNode, h: Home): boolean {
+  const root = layout.entry.root
+  const pp = parentOf(h.sib)
+  const node = pp ? pp.parent.children[pp.index] : root.id === h.sib ? root : null
+  if (!node) return false
+  const share = Math.min(80, Math.max(10, h.share))
+  if (pp && pp.parent.dir === h.dir) {
+    const sum = pp.parent.sizes.reduce((a, b) => a + b, 0) || 1
+    pp.parent.sizes = pp.parent.sizes.map((x) => (x / sum) * (100 - share))
+    const at = pp.index + (h.before ? 0 : 1)
+    pp.parent.children.splice(at, 0, p)
+    pp.parent.sizes.splice(at, 0, share)
+  } else {
+    const split: SplitNode = {
+      kind: 'split',
+      id: nid(),
+      dir: h.dir,
+      sizes: h.before ? [share, 100 - share] : [100 - share, share],
+      children: h.before ? [p, node] : [node, p],
+    }
+    if (pp) pp.parent.children[pp.index] = split
+    else layout.entry.root = split
+  }
+  return true
+}
+/** ドロワーのペインを本体に戻す（FR-DR6）。ドロワーへ移す前の位置に戻し、分からなければ本体の右端に足す */
 export function moveFromDock(paneId: string): boolean {
   if (!inDock(paneId)) return false
   const p = detach(paneId)
   if (!p) return false
+  const { _home, ...rest } = p.state
+  p.state = rest
+  if (_home && placeHome(p, _home as Home)) {
+    saveLayout()
+    return true
+  }
   const root = layout.entry.root
   if (root.kind === 'split' && root.dir === 'row') {
     const s = 100 / (root.children.length + 1)

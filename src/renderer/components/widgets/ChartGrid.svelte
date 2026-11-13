@@ -207,6 +207,10 @@ function startReplace(i = sel) {
 }
 /** 一覧の行をタイルに落としたら、そのタイルの銘柄を差し替える（C キーと同じ。FR-G10） */
 function dropAt(i: number, id: InstrumentId) {
+  if (zoom) {
+    zoom = id // 拡大中は、落とした銘柄を拡大して見せる
+    return
+  }
   if (!shown[i]) return addOwn(id)
   const at = Math.min(page, pages - 1) * perPage + i
   if (src !== 'own' || sortKey !== 'none') set({ own: [...codes], src: 'own', sort: 'none' })
@@ -463,6 +467,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
     >
       <div class="h">
         <span class="c">{codeOf(id)}</span><span class="n">{nameOf(id)}</span><span class="p num">{px(m?.close)}</span><span class={`r num ${cls(r)}`}>{sgn(r, 1, '%')}</span>
+        {#if zoom}<button type="button" class="back" title={`${t('grid.unzoom')} (Esc)`} onclick={(e) => { e.stopPropagation(); zoom = null }}>⤡ {t('grid.unzoom')}</button>{/if}
       </div>
       <div class="s">
         <button type="button" class="star" class:on={isFav(id)} title="F" onclick={(e) => { e.stopPropagation(); sel = i; toggleFav(id) }}>★</button>
@@ -476,7 +481,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   {/each}
 </div>
 
-<div class="hint muted">{t('grid.editHint')}</div>
+<div class="hint muted">{zoom ? t('grid.zoomHint') : t('grid.editHint')}</div>
 
 <style>
   .hint {
@@ -487,6 +492,20 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .back {
+    flex: none;
+    margin-left: auto;
+    background: var(--panel-3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    color: var(--text-2);
+    padding: 0 8px;
+    font-size: var(--fs-1);
+    cursor: pointer;
+  }
+  .back:hover {
+    color: var(--text);
   }
   .edit {
     background: none;

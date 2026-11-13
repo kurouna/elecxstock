@@ -15,6 +15,9 @@ test('銘柄: ジャンプの ☆ と Ctrl+Enter・ジャンプ後の Ctrl+D・�
   const pal = page.locator('.dialog.jump')
   await expect(pal).toContainText('トヨタ')
   await keys(page, 'Control+d')
+  // ☆ のあとはコードが空になり、閉じずに次のコードを待つ
+  await expect(pal).toContainText('続けて次のコード')
+  await keys(page, 'Digit7', 'Digit2', 'Digit0', 'Digit3')
   await expect(pal.getByRole('button', { name: 'お気に入りから外す' }).first()).toBeVisible()
   await keys(page, 'Enter')
   // 別の銘柄にジャンプしてから Ctrl+D: 前の行（7203）を外さずに、表示中の銘柄を入れる

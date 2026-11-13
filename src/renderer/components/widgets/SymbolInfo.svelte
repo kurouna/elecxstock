@@ -1,6 +1,4 @@
 <script lang="ts">
-const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
-
 // 銘柄情報（FR-I1, H3, V12）: 指標と配当・分配金の履歴。利回りには「実績」と基準日・出所を必ず添える。
 
 import type { Dividend } from '@shared/types'
@@ -17,7 +15,8 @@ const id = $derived(linkSymbol(pane.link) ?? 'JP:7203')
 const m = $derived(metric(id))
 const ins = $derived(inst(id))
 let divs = $state<Dividend[]>([])
-let cv = $state<HTMLCanvasElement>()
+let barsW = $state(0)
+let hover = $state(-1)
 let token = 0
 
 $effect(() => {
@@ -28,49 +27,20 @@ $effect(() => {
     if (my === token) divs = d
   })
 })
-$effect(() => {
-  void divs
-  void app.settings.candleStyle
-  requestAnimationFrame(draw)
-})
-
-function draw() {
-  if (!cv) return
-  const r = cv.parentElement!.getBoundingClientRect()
-  const dpr = devicePixelRatio
-  cv.width = r.width * dpr
-  cv.height = r.height * dpr
-  const g = cv.getContext('2d')!
-  g.setTransform(dpr, 0, 0, dpr, 0, 0)
-  g.clearRect(0, 0, r.width, r.height)
-  const recent = divs.slice(-14)
-  if (!recent.length) return
-  const max = Math.max(...recent.map((d) => d.amount))
-  const n = recent.length
-  const bw = Math.max(2, (r.width - 4) / n - 2)
-  g.font = `10px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`
-  recent.forEach((d, i) => {
-    const hh = (d.amount / max) * (r.height - 16)
-    const x = 2 + i * (bw + 2)
-    g.fillStyle = i >= n - 2 ? css('--focus') : css('--line-strong')
-    g.beginPath()
-    g.roundRect(x, r.height - 12 - hh, bw, hh, [2, 2, 0, 0])
-    g.fill()
-    if (i === 0 || d.date.slice(0, 4) !== recent[i - 1]!.date.slice(0, 4)) {
-      g.fillStyle = css('--text-3')
-      g.fillText(d.date.slice(2, 4), x, r.height - 1)
-    }
-  })
+// 配当・分配金の履歴の棒（直近 14 回）。棒の上に金額を出し（狭いときは直近と最大だけ）、ポインタを載せると詳細を出す
+const recent = $derived(divs.slice(-14))
+const maxAmt = $derived(Math.max(0, ...recent.map((d) => d.amount)))
+const showAll = $derived(recent.length > 0 && barsW / recent.length >= 36)
+const maxAt = $derived(recent.findIndex((d) => d.amount === maxAmt))
+/** 1 年前の同じ時期（± 45 日）の回と比べる */
+function yoy(i: number): number | null {
+  const d = recent[i]
+  if (!d) return null
+  const t0 = Date.parse(d.date) - 365 * 86400_000
+  const prev = divs.find((x) => Math.abs(Date.parse(x.date) - t0) <= 45 * 86400_000)
+  return prev?.amount ? (d.amount / prev.amount - 1) * 100 : null
 }
-onMount(() => {
-  const ro = new ResizeObserver(() => requestAnimationFrame(draw))
-  if (cv?.parentElement) ro.observe(cv.parentElement)
-  const off = registerPane(pane.id, { current: () => id })
-  return () => {
-    ro.disconnect()
-    off()
-  }
-})
+onMount(() => registerPane(pane.id, { current: () => id }))
 const reit = $derived(ins?.kind === 'reit')
 const mc = $derived(money(m?.marketCap))
 const tv = $derived(money(m?.turnover20))
@@ -111,7 +81,28 @@ const tv = $derived(money(m?.turnover20))
     <div class="kv"><span>{t('info.rsi')}</span><span>{fmt(m?.rsi14, 1)}</span></div>
     <div class="kv"><span>{t('info.recordMonths')}</span><span>{m?.recordMonths.length ? m.recordMonths.map((x) => (app.settings.lang === 'ja' ? `${x}月` : new Date(2026, x - 1, 1).toLocaleString('en', { month: 'short' }))).join(' · ') : '—'}</span></div>
     <h4><span>{t('info.divHistory')}</span><span class="muted">{reit ? t('info.perUnit') : t('info.perShare')}</span></h4>
-    <div class="bars"><canvas bind:this={cv}></canvas></div>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="bars" bind:clientWidth={barsW} onmouseleave={() => (hover = -1)}>
+      {#each recent as d, i (d.date)}
+        {@const h = maxAmt ? (d.amount / maxAmt) * 100 : 0}
+        <div class="b" class:on={hover === i} onmouseenter={() => (hover = i)}>
+          <div class="col">
+            <i class:recent={i >= recent.length - 2} style:height={`${h}%`}></i>
+            <span class="v num" class:show={showAll || i === recent.length - 1 || i === maxAt || hover === i} style:bottom={`calc(${h}% + 1px)`}>{px(d.amount)}</span>
+          </div>
+          <span class="y num">{i === 0 || d.date.slice(0, 4) !== recent[i - 1]!.date.slice(0, 4) ? d.date.slice(2, 4) : ''}</span>
+        </div>
+      {/each}
+      {#if hover >= 0 && recent[hover]}
+        {@const d = recent[hover]!}
+        {@const y = yoy(hover)}
+        <div class="tip" style:left={`${((hover + 0.5) / recent.length) * 100}%`} class:right={hover > recent.length / 2}>
+          <div>{t('info.exDate')} <b class="num">{date(d.date)}</b></div>
+          <div>{reit ? t('info.perUnit') : t('info.perShare')} <b class="num">{px(d.amount)}</b></div>
+          {#if y != null}<div>{t('info.yoy')} <b class={`num ${cls(y)}`}>{sgn(y, 1, '%')}</b></div>{/if}
+        </div>
+      {/if}
+    </div>
     {#each divs.slice(-6).reverse() as d (d.date)}
       <div class="kv"><span>{t('info.exDate')} {date(d.date)}</span><span>{px(d.amount)}</span></div>
     {:else}
@@ -195,14 +186,83 @@ const tv = $derived(money(m?.turnover20))
   }
   .bars {
     grid-column: 1 / -1;
-    height: 72px;
+    height: 104px;
+    padding-top: 16px;
+    position: relative;
+    display: flex;
+    gap: 2px;
+    align-items: stretch;
+  }
+  .b {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .col {
+    flex: 1;
     position: relative;
   }
-  .bars canvas {
+  .b i {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    min-height: 1px;
+    background: var(--line-strong);
+    border-radius: 2px 2px 0 0;
+  }
+  .b i.recent {
+    background: var(--focus);
+  }
+  .b.on i {
+    background: var(--text-2);
+  }
+  .v {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--text-2);
+    text-align: center;
+    white-space: nowrap;
+    overflow: visible;
+    line-height: 14px;
+    visibility: hidden;
+  }
+  .v.show {
+    visibility: visible;
+  }
+  .y {
+    height: 14px;
+    font-size: 10px;
+    color: var(--text-3);
+    line-height: 14px;
+  }
+  .tip {
+    position: absolute;
+    bottom: 100%;
+    transform: translateX(-50%);
+    z-index: 5;
+    background: var(--panel-3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 6px 8px;
+    font-size: var(--fs-1);
+    color: var(--text-2);
+    white-space: nowrap;
+    pointer-events: none;
+    display: grid;
+    gap: 2px;
+  }
+  .tip.right {
+    transform: translateX(-100%);
+  }
+  .tip b {
+    color: var(--text);
+    font-weight: 600;
+    margin-left: 6px;
   }
   .note {
     grid-column: 1 / -1;
