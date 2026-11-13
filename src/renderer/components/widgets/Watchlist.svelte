@@ -2,6 +2,7 @@
 // ウォッチリスト（§6.10, FR-FV2, §6.5.3）。↑↓ でめくると同じリンク色のチャートが追従する（FR-K2）。
 // 列は Ctrl+Shift+C で選ぶ（lib/columns.ts）。リストの作成・名前の変更・複製・削除・並べ替え（FR-W1）。
 
+import type { Watchlist } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, resolveColumns, sortIds } from '../../lib/columns'
@@ -28,7 +29,29 @@ import RowCells from './RowCells.svelte'
 let { pane }: { pane: PaneNode } = $props()
 
 const listId = $derived((pane.state.list as string) ?? 'favorites')
-const list = $derived(app.watchlists.find((w) => w.id === listId) ?? app.watchlists[0])
+/**
+ * 「保有」のタブ（FR-W10）: 保有の記録（証券会社の CSV・JSON から取り込んだもの）の銘柄を出す。ウォッチリストとしては
+ * 保存せず、保有から毎回作る（銘柄の追加・外す・並べ替え・名前の変更・削除はできない。複製は普通のリストとしてできる）
+ */
+const HOLDINGS = 'holdings'
+const holdingsList = $derived<Watchlist>({
+  id: HOLDINGS,
+  name: { ja: t('list.holdings'), en: t('list.holdings') },
+  items: [...new Set(app.holdings.filter((h) => h.quantity > 0).map((h) => `JP:${h.code}`))].sort(),
+})
+/** タブの並び: 組み込みのリスト（★・◆）、保有、利用者のリスト */
+const tabs = $derived.by(() => {
+  const b = app.watchlists.filter((w) => w.builtin)
+  return [...b, holdingsList, ...app.watchlists.filter((w) => !w.builtin)]
+})
+const isHoldings = $derived(listId === HOLDINGS)
+const list = $derived(isHoldings ? holdingsList : (app.watchlists.find((w) => w.id === listId) ?? app.watchlists[0]))
+/** 保有のタブでは中身を変えられないことを知らせる */
+function holdingsLocked(): boolean {
+  if (!isHoldings) return false
+  toast(t('list.holdingsLocked'))
+  return true
+}
 const starOnly = $derived(!!pane.state.starOnly)
 const sort = $derived(pane.state.sort as { k: string; dir: 1 | -1 } | undefined)
 let sel = $state(0)
@@ -81,6 +104,7 @@ async function newList() {
   setList(id)
 }
 async function renameList() {
+  if (holdingsLocked()) return
   if (!list || list.builtin) {
     toast(t('list.builtinLocked'))
     return
@@ -91,6 +115,7 @@ async function renameList() {
   saveWatchlists()
 }
 async function deleteList() {
+  if (holdingsLocked()) return
   if (!list || list.builtin) {
     toast(t('list.builtinLocked'))
     return
@@ -113,6 +138,7 @@ async function duplicateList() {
 }
 /** リストの並べ替え（FR-W1）。組み込みのリストは先頭から動かさない */
 function moveList(d: number) {
+  if (holdingsLocked()) return
   if (!list || list.builtin) {
     toast(t('list.builtinLocked'))
     return
@@ -126,6 +152,7 @@ function moveList(d: number) {
   saveWatchlists()
 }
 function removeSel() {
+  if (holdingsLocked()) return
   const ids = picked()
   if (!ids.length || !list) return
   if (list.builtin === 'favorites' && ids.length === 1) return toggleFav(ids[0]!)
@@ -136,6 +163,7 @@ function removeSel() {
   toast(ids.length === 1 ? t('list.removed', { name: nameOf(ids[0]!) }) : t('list.removedN', { n: ids.length }))
 }
 function moveRow(d: number) {
+  if (holdingsLocked()) return
   if (!list || sort || starOnly) return
   const i = sel
   const j = i + d
@@ -206,8 +234,8 @@ onMount(() => {
         return true
       }
       if ((k === 'PageDown' || k === 'PageUp') && ctrl) {
-        const i = app.watchlists.findIndex((w) => w.id === listId)
-        const next = app.watchlists[(i + (k === 'PageDown' ? 1 : -1) + app.watchlists.length) % app.watchlists.length]!
+        const i = tabs.findIndex((w) => w.id === listId)
+        const next = tabs[(i + (k === 'PageDown' ? 1 : -1) + tabs.length) % tabs.length]!
         setList(next.id)
         return true
       }
@@ -273,8 +301,8 @@ $effect(() => {
   <span class="dim">{list ? listName(list) : ''}</span>
 </PaneHeader>
 <div class="tabs" role="tablist">
-  {#each app.watchlists as w (w.id)}
-    <button type="button" role="tab" aria-selected={w.id === listId} onclick={() => setList(w.id)}>
+  {#each tabs as w (w.id)}
+    <button type="button" role="tab" class:hold={w.id === HOLDINGS} aria-selected={w.id === listId} onclick={() => setList(w.id)}>
       {listName(w)}<span class="count num">{w.items.length}</span>
     </button>
   {/each}
@@ -290,7 +318,7 @@ $effect(() => {
 </div>
 <div class="scroll body" bind:this={scroller}>
   {#if !rows.length}
-    <div class="state">{list?.builtin === 'favorites' ? t('empty.favorites') : t('list.empty')}</div>
+    <div class="state">{list?.builtin === 'favorites' ? t('empty.favorites') : isHoldings ? t('list.holdingsEmpty') : t('list.empty')}</div>
   {:else}
     <table class="grid">
       <colgroup>

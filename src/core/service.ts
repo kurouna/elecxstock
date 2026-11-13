@@ -2,10 +2,10 @@
 import { mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CoreError, Events, Method, Params, Results } from '@shared/api'
-import type { Adjustment, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
+import type { Adjustment, Holding, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
 import { addYears, jstNow, lastClosedSession } from './calendar'
 import { Db } from './db'
-import { applyImport, exportHoldings, normalize, previewImport } from './holdings'
+import { applyImport, exportHoldings, normalize, previewBrokerCsv, previewImport } from './holdings'
 import { JobRunner } from './jobs'
 import { parseJpx } from './providers/jpx'
 import type { Provider } from './providers/types'
@@ -68,18 +68,49 @@ export class CoreService {
     })
   }
 
+  /** アプリを閉じるとき: 取得を止めて続きを次の起動に回し、DB を閉じる（WAL を書き戻す） */
+  async shutdown(): Promise<void> {
+    await this.jobs.stop()
+    try {
+      this.db.raw.exec('PRAGMA optimize; PRAGMA wal_checkpoint(TRUNCATE);')
+    } catch {
+      /* 閉じられれば十分 */
+    }
+    this.db.close()
+  }
   start(): void {
     this.user.load('settings')
     if (this.user.error) this.emit('user.error', { message: this.user.error })
     // 指標の列を足した版に上げたら、日足から作り直す（DB の移行 v2）
     if (this.db.meta('metricsStale') === '1') {
-      setTimeout(() => {
-        this.jobs.recomputeAll()
+      setTimeout(async () => {
+        await this.jobs.recomputeAll()
         this.db.setMeta('metricsStale', '0')
         this.metricsCache = null
       }, 50)
     }
     this.jobs.resume()
+  }
+
+  /** 一覧に無い銘柄を利用者の銘柄として足し、データを取りにいく（銘柄の追加と、保有の CSV の取り込みで使う） */
+  private addUserInstrument(code: string, name?: string): InstrumentId {
+    const r = this.repo
+    const id = idOf(code)
+    if (!r.instrument(id)) {
+      r.db.run(
+        `INSERT INTO instruments(id, code, name_ja, name_en, market, kind, status, yahoo, updated) VALUES(?, ?, ?, '', 'X', 'other', 'active', ?, ?)`,
+        id,
+        code,
+        name || code,
+        this.provider.toSymbol(code, 'other'),
+        new Date().toISOString(),
+      )
+    }
+    const s = this.user.load('settings')
+    if (!s.userInstruments.includes(code)) this.user.save('settings', { ...s, userInstruments: [...s.userInstruments, code] })
+    r.setUserAdded(this.trackedCodes())
+    this.jobs.enqueue('refetch', [`F:${id}`, `M:${id}`])
+    return id
   }
 
   private holdings() {
@@ -130,22 +161,7 @@ export class CoreService {
       case 'instruments.all':
         return r.universe() as Results[M]
       case 'instruments.addUser': {
-        const code = String(P.code).toUpperCase()
-        const id = idOf(code)
-        if (!r.instrument(id)) {
-          r.db.run(
-            `INSERT INTO instruments(id, code, name_ja, name_en, market, kind, status, yahoo, updated) VALUES(?, ?, ?, '', 'X', 'other', 'active', ?, ?)`,
-            id,
-            code,
-            code,
-            this.provider.toSymbol(code, 'other'),
-            new Date().toISOString(),
-          )
-        }
-        const s = this.user.load('settings')
-        if (!s.userInstruments.includes(code)) this.user.save('settings', { ...s, userInstruments: [...s.userInstruments, code] })
-        r.setUserAdded(this.trackedCodes())
-        this.jobs.enqueue('refetch', [`F:${id}`, `M:${id}`])
+        const id = this.addUserInstrument(String(P.code).toUpperCase())
         return r.instrument(id) as Results[M]
       }
       case 'instruments.removeUser': {
@@ -197,9 +213,11 @@ export class CoreService {
       case 'bars.many': {
         const out: Record<string, unknown> = {}
         const today = jstNow().date
+        // タイルは最後の count 本だけ出すので、日足もその分だけ読む（週足は 1 本 5 日、月足は古い月を月次系列で補う）
+        const tf = P.tf as Timeframe
+        const need = tf === 'D' ? Number(P.count) : tf === 'W' ? Number(P.count) * 5 + 5 : Number(P.count) * 23 + 23
         for (const id of P.ids as string[]) {
-          const tf = P.tf as Timeframe
-          const daily = r.daily(id)
+          const daily = r.recentDaily(id, need)
           const all = tf === 'M' ? mergeMonthly(r.monthly(id), daily).bars : aggregate(daily, tf)
           out[id] = toBars(id, tf, all.slice(-Number(P.count)), today)
         }
@@ -290,16 +308,39 @@ export class CoreService {
           this.user.load('holdings'),
           (code) => r.instrument(`JP:${code}`)?.nameJa ?? '',
           `elecxstock ${this.version}`,
+          new Date(),
+          this.user.load('portfolioMeta'),
         ) as Results[M]
       case 'portfolio.previewImport':
         return previewImport(String(P.json), this.user.load('holdings'), (code) => !!r.instrument(`JP:${code}`)) as Results[M]
       case 'portfolio.applyImport': {
         this.user.keepBefore('holdings', 'preimport') // 取り込む前の記録を残し、元に戻せるようにする（FR-H9）
-        this.user.save('holdings', applyImport(this.user.load('holdings'), P.holdings as never, P.mode as 'merge' | 'replace'))
+        this.user.keepBefore('portfolioMeta', 'preimport')
+        const hs = P.holdings as Holding[]
+        // 別の PC で足した銘柄など、一覧に無いコードは銘柄として足してデータを取りにいく
+        for (const h of hs) if (!r.instrument(`JP:${h.code}`)) this.addUserInstrument(h.code, h.name)
+        this.user.save('holdings', applyImport(this.user.load('holdings'), hs, P.mode as 'merge' | 'replace'))
+        if (P.meta) this.user.save('portfolioMeta', P.meta as never)
         return this.holdings() as Results[M]
       }
       case 'portfolio.undoImport':
-        return (this.user.restoreBefore('holdings', 'preimport') ? this.holdings() : null) as Results[M]
+        if (!this.user.restoreBefore('holdings', 'preimport')) return null as Results[M]
+        this.user.restoreBefore('portfolioMeta', 'preimport')
+        return this.holdings() as Results[M]
+      case 'portfolio.meta':
+        return this.user.load('portfolioMeta') as Results[M]
+      case 'portfolio.previewCsv':
+        return previewBrokerCsv(String(P.text), this.user.load('holdings'), (code) => !!r.instrument(`JP:${code}`)) as Results[M]
+      case 'portfolio.applyCsv': {
+        // 取り込むたびに、保有は CSV の内容にすべて置き換える（FR-H11）。前の記録は世代に残して元に戻せる
+        this.user.keepBefore('holdings', 'preimport')
+        this.user.keepBefore('portfolioMeta', 'preimport')
+        const hs = P.holdings as Holding[]
+        for (const h of hs) if (!r.instrument(`JP:${h.code}`)) this.addUserInstrument(h.code, h.name)
+        this.user.save('holdings', hs)
+        this.user.save('portfolioMeta', P.meta as never)
+        return this.holdings() as Results[M]
+      }
       case 'user.exportAll':
         return this.user.exportAll() as Results[M]
       case 'user.importAll':
@@ -341,7 +382,7 @@ export class CoreService {
           // 確認のあと、範囲外の日足を削除して空き領域を回収する（FR-D6）
           r.deleteDailyBefore(addYears(jstNow().date, -years))
           this.db.vacuum()
-          this.jobs.recomputeAll()
+          await this.jobs.recomputeAll()
           return 0 as Results[M]
         }
         if (years > cur)

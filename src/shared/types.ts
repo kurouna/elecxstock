@@ -169,14 +169,42 @@ export interface Holding {
   lots?: Lot[]
   broker?: string
   note?: string
+  /** 証券会社の CSV から取り込んだときの銘柄名・現在値・取り込んだ日時（FR-H11） */
+  name?: string
+  price?: number
+  importedAt?: string
+}
+/** 最後に取り込んだ証券会社の CSV の情報（FR-H11）。累計の実現損益・配当金は CSV の資産合計欄の「国内株式」の行 */
+export interface PortfolioMeta {
+  broker: string
+  importedAt: string
+  realized: number | null
+  dividends: number | null
+}
+/** 証券会社の CSV の取り込み前の確認（FR-H11）。取り込むと保有はすべて CSV の内容に置き換わる */
+export interface BrokerCsvPreview {
+  add: Holding[]
+  update: Holding[]
+  same: Holding[]
+  removed: Holding[]
+  /** 取り込まない行（国内株式以外など） */
+  skipped: { kind: string; name: string; reason: string }[]
+  /** 銘柄の一覧に無いコード（取り込むと銘柄を足してデータを取りにいく） */
+  unknown: string[]
+  holdings: Holding[]
+  meta: PortfolioMeta
 }
 export interface HoldingsImportPreview {
   add: Holding[]
   update: Holding[]
   same: Holding[]
   rejected: { index: number; code: string; reason: string }[]
+  /** 銘柄の一覧に無いコード（取り込むと銘柄を足してデータを取りにいく。別の PC で足した銘柄など） */
+  unknown: string[]
   /** 取り込むもの（検証済み）。applyImport にそのまま渡す */
   holdings: Holding[]
+  /** 書き出した PC で最後に取り込んだ証券会社の CSV の情報（あれば） */
+  meta: PortfolioMeta | null
 }
 
 /** 名前を付けて保存したレイアウト（FR-L4 の P2） */

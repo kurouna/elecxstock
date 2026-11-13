@@ -51,7 +51,7 @@ test('銘柄: ジャンプの ☆ と Ctrl+Enter・ジャンプ後の Ctrl+D・�
   // MTF: ウォッチリストの行を日足のチャートに落とすと、リンク色の同じチャートがその銘柄になる
   await keys(page, 'Control+Shift+Digit1')
   const src = page.locator('[data-pane-id]').first().locator('tbody tr[draggable="true"]', { hasText: '8001' })
-  const chart = page.locator('[data-pane-id]').nth(1)
+  const chart = page.locator('[data-widget="chart"]').first()
   const a = (await src.boundingBox())!
   const b = (await chart.boundingBox())!
   await page.mouse.move(a.x + 40, a.y + a.height / 2)

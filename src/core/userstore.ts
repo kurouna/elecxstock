@@ -2,7 +2,7 @@
 // 読み込み・検証に失敗したら、そのファイルを退避して知らせ、読み取り専用で起動する（空で上書きしない）。
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { holdingSchema, savedLayoutSchema, screenSchema, settingsSchema, watchlistSchema } from '@shared/api'
+import { holdingSchema, portfolioMetaSchema, savedLayoutSchema, screenSchema, settingsSchema, watchlistSchema } from '@shared/api'
 import type { SavedScreen, Settings, Watchlist } from '@shared/types'
 import { z } from 'zod'
 
@@ -74,6 +74,7 @@ const FILES = {
   layout: { schema: z.unknown(), def: () => null },
   layouts: { schema: z.array(savedLayoutSchema), def: () => [] },
   holdings: { schema: z.array(holdingSchema), def: () => [] },
+  portfolioMeta: { schema: portfolioMetaSchema.nullable(), def: () => null },
 } as const
 /** レイアウトは作業に追従して頻繁に保存されるので、世代は 10 分に 1 つだけ残す */
 const LAYOUT_GEN_MS = 10 * 60_000
@@ -166,7 +167,9 @@ export class UserStore {
     const q = join(this.dir, 'backups', `${n}.${tag}.json`)
     if (!existsSync(q)) return null
     const raw = JSON.parse(readFileSync(q, 'utf8')) as { data?: unknown }
-    const v = FILES[n].schema.parse(raw.data ?? raw) as z.infer<(typeof FILES)[N]['schema']>
+    const v = FILES[n].schema.parse(raw && typeof raw === 'object' && 'data' in raw ? raw.data : raw) as z.infer<
+      (typeof FILES)[N]['schema']
+    >
     this.save(n, v)
     rmSync(q, { force: true })
     return v

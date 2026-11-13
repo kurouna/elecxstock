@@ -59,6 +59,12 @@
   --danger-bg: #2a1517;
   --danger-line: #5a2a2d;
   --brand: #10a5e8;
+  /* 口座区分の色（区分の識別だけ。損益の --up / --down とは別の色相） */
+  --acct-nisa_growth: #3987e5;
+  --acct-nisa_tsumitate: #199e70;
+  --acct-nisa_legacy: #9085e9;
+  --acct-tokutei: #c98500;
+  --acct-ippan: #8b95a2;
   --scrim: rgba(5, 6, 8, 0.55);
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   /* チャート（Lightweight Charts・グリッドの Canvas はここから色を読む） */

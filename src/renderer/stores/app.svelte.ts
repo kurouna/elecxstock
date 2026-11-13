@@ -10,6 +10,7 @@ import type {
   InstrumentId,
   JobProgress,
   MetricsRow,
+  PortfolioMeta,
   SavedLayout,
   SavedScreen,
   Settings,
@@ -117,6 +118,8 @@ class AppState {
   layouts = $state<SavedLayout[]>([])
   /** 保有の記録（FR-H7）。数量・平均取得単価は Core が取引から計算したもの */
   holdings = $state<Holding[]>([])
+  /** 最後に取り込んだ証券会社の CSV の情報（FR-H11） */
+  portfolioMeta = $state<PortfolioMeta | null>(null)
   /** 新しい版（NFR-Q9） */
   update = $state<{ version: string; url: string } | null>(null)
 }

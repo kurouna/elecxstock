@@ -15,21 +15,21 @@ test('キーボードだけで一日の流れを通す', async () => {
   await keys(page, 'Digit8', 'Digit0', 'Digit5', 'Digit8')
   await expect(page.getByRole('dialog', { name: '銘柄ジャンプ' })).toContainText('三菱商事')
   await keys(page, 'Enter')
-  await expect(page.locator('[data-pane-id]').nth(1)).toContainText('8058')
+  await expect(page.locator('[data-widget="chart"]').first()).toContainText('8058')
   await keys(page, 'Control+d')
   await keys(page, 'Digit7', 'Digit2', 'Digit0', 'Digit3', 'Enter', 'Control+d')
   await keys(page, 'Digit9', 'Digit4', 'Digit3', 'Digit4', 'Digit5', 'Enter', 'Control+d')
   // ウォッチリスト（★お気に入り）に移ってめくる → チャートが追従する（FR-K2）
-  await keys(page, 'Alt+ArrowLeft')
+  await keys(page, 'Alt+ArrowLeft', 'Alt+ArrowUp') // 左の列へ移り、上のウォッチリストへ
   await expect(page.locator('[data-pane-id]').first()).toContainText('94345')
   await keys(page, 'Home', 'ArrowDown')
-  await expect(page.locator('[data-pane-id]').nth(1)).toContainText('7203')
+  await expect(page.locator('[data-widget="chart"]').first()).toContainText('7203')
   await keys(page, 'w') // ウォッチリストにフォーカスがあるので週足キーは効かない（一覧のキー）
   await shot('1-mtf')
 
   // スクリーナー（高配当銘柄）→ 結果を ↓ でめくる → 監視リストに追加
   await keys(page, 'Control+Shift+Digit3')
-  const scr = page.locator('[data-pane-id]').first()
+  const scr = page.locator('[data-widget="screener"]') // 左の列（ウォッチリストの下）。タブを開くとここにフォーカス
   await expect(scr).toContainText('高配当銘柄')
   await expect(scr.locator('tbody tr').nth(2)).toBeVisible()
   await keys(page, 'Tab', 'ArrowRight') // 条件へ移り、利回りの閾値を上げる

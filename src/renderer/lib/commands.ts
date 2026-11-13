@@ -32,6 +32,7 @@ import {
   layout,
   moveFromDock,
   moveToDock,
+  moveToEdge,
   nudgeDivider,
   PRESET_IDS,
   type PresetId,
@@ -53,7 +54,7 @@ import { toCsv } from './columns'
 import type { Key } from './i18n'
 import { matches, normalizeKey } from './keys'
 import { paneApi } from './panes'
-import { exportHoldings, importHoldings, undoHoldingsImport } from './portfolio'
+import { exportHoldings, importBrokerCsv, importHoldings, undoHoldingsImport } from './portfolio'
 import { confirmCloseScreen } from './screens'
 
 export interface Action {
@@ -460,6 +461,14 @@ export const ACTIONS: Action[] = [
   { id: 'drawer', label: () => t('act.drawer'), key: 'Ctrl+B', when: 'global', run: () => toggleDock('left') },
   { id: 'drawerRight', label: () => t('act.drawerRight'), key: 'Ctrl+Shift+B', when: 'global', run: () => toggleDock('right') },
   { id: 'drawerPin', label: () => t('act.drawerPin'), key: 'Ctrl+Alt+B', when: 'global', run: () => pinDock() },
+  ...(['right', 'left', 'bottom', 'top'] as const).map((side) => ({
+    id: `paneToEdge-${side}`,
+    label: () => t(`act.paneToEdge.${side}` as Key),
+    run: () => {
+      const id = app.focus
+      if (id && moveToEdge(id, side)) app.focus = id
+    },
+  })),
   { id: 'toDrawer', label: () => t('act.toDrawer'), run: () => toDrawer('left') },
   { id: 'toDrawerRight', label: () => t('act.toDrawerRight'), run: () => toDrawer('right') },
   { id: 'fromDrawer', label: () => t('act.fromDrawer'), run: () => fromDrawer() },
@@ -481,6 +490,7 @@ export const ACTIONS: Action[] = [
   { id: 'exportUser', label: () => t('act.exportUser'), run: () => exportUser() },
   { id: 'importUser', label: () => t('act.importUser'), run: () => importUser() },
   { id: 'portfolio', label: () => t('act.portfolio'), run: () => openPane('portfolio') },
+  { id: 'importBrokerCsv', label: () => t('act.importBrokerCsv'), run: () => importBrokerCsv() },
   { id: 'exportHoldings', label: () => t('act.exportHoldings'), run: () => exportHoldings() },
   { id: 'importHoldings', label: () => t('act.importHoldings'), run: () => importHoldings() },
   { id: 'undoHoldings', label: () => t('act.undoHoldings'), run: () => undoHoldingsImport() },

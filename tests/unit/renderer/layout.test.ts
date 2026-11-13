@@ -27,11 +27,34 @@ describe('レイアウト', () => {
     const root = L.layout.entry.root as { sizes: number[] }
     root.sizes = [50, 50]
     L.resetSizes()
-    expect(root.sizes).toEqual([26, 74])
+    expect(root.sizes).toEqual([30, 70])
     expect(L.undoResetSizes()).toBe(true)
     expect(root.sizes).toEqual([50, 50])
     L.resetLayout()
-    expect((L.layout.entry.root as { sizes: number[] }).sizes).toEqual([26, 74])
+    expect((L.layout.entry.root as { sizes: number[] }).sizes).toEqual([30, 70])
+  })
+  it('サイズを戻すは木の位置でなく中身で比率を探す（左の列をドロワーに移したあとも日足は大きいまま）', () => {
+    L.setPreset('mtf')
+    L.resetLayout()
+    const col = (L.layout.entry.root as { children: { kind: string }[] }).children[0]!
+    // 左の列（ウォッチリスト・スクリーナー）の 2 枚をドロワーへ移すと、根は日足 / 週足・月足の区切りになる
+    for (const p of L.allPanes({ root: col as never, docks: {} })) L.moveToDock(p.id, 'left')
+    const root = L.layout.entry.root as { dir: string; sizes: number[] }
+    expect(root.dir).toBe('col')
+    root.sizes = [20, 80]
+    L.resetSizes()
+    expect(root.sizes).toEqual([62, 38])
+    expect(L.sizesAtDefault()).toBe(true)
+  })
+  it('前の版の形（左の列がウォッチリストだけ）でも、いちばん似た区切りの比率に戻る', () => {
+    L.setPreset('mtf')
+    L.resetLayout()
+    const root = L.layout.entry.root as { children: { kind: string; id: string }[]; sizes: number[] }
+    const scr = L.allPanes(L.layout.entry, false).find((p) => p.widget === 'screener')!
+    L.closePane(scr.id)
+    root.sizes = [50, 50]
+    L.resetSizes()
+    expect((L.layout.entry.root as { sizes: number[] }).sizes).toEqual([30, 70])
   })
   it('区切り線をキーで動かす（Alt+Shift+矢印）', () => {
     L.layout.doc = L.defaultDoc()
@@ -61,9 +84,94 @@ describe('ペインの移動とドロワー（FR-L2, DR6）', () => {
   })
   it('右のドロワーと新しいペインの種類も正規化で残る', () => {
     const d = L.defaultDoc()
+    d.entries.market.docks.right = {
+      panes: [{ kind: 'pane', id: 'pf', widget: 'portfolio', link: 4, state: {} }],
+      active: 0,
+      pinned: false,
+      width: 600,
+    }
     const n = L.normalizeDoc(JSON.parse(JSON.stringify(d)))
     expect(n.entries.market.docks.right?.panes[0]?.widget).toBe('portfolio')
     expect(L.allPanes(n.entries.market).map((p) => p.widget)).toContain('heatmap')
+    expect(L.allPanes(n.entries.holdings).map((p) => p.widget)).toEqual(['portfolio', 'chart', 'info'])
+  })
+  it('銘柄を選ぶ一覧はどのタブも左の列か左のドロワーにあり、右のドロワーは使わない（FR-L12）', () => {
+    const LISTS = ['watchlist', 'screener', 'ranking', 'divcal', 'portfolio']
+    for (const id of L.PRESET_IDS) {
+      const e = L.presetEntry(id)
+      expect(e.docks.right, id).toBeUndefined()
+      const left = e.docks.left ? e.docks.left.panes : e.root.kind === 'split' ? L.allPanes({ root: e.root.children[0]!, docks: {} }) : []
+      const lists = L.allPanes(e).filter((p) => LISTS.includes(p.widget))
+      // 一覧はすべて左（左のドロワーか、いちばん左の列）にある
+      for (const p of lists)
+        expect(
+          left.map((x) => x.id),
+          `${id}: ${p.widget}`,
+        ).toContain(p.id)
+      // ウォッチリストがあるタブは、それが左の一番上
+      if (left.some((p) => p.widget === 'watchlist')) expect(left[0]?.widget, id).toBe('watchlist')
+    }
+  })
+})
+
+describe('画面の外側の端へ移す（FR-L2）', () => {
+  type S = { kind: string; dir?: string; sizes?: number[]; children?: { kind: string; id: string }[] }
+  const fresh = () => {
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('free')
+    L.resetLayout()
+  }
+  it('一番右の列が上下に分かれていても、右端に新しい列を足す（大きさは等分）', () => {
+    fresh()
+    const right = (L.layout.entry.root as S).children![1] as S
+    const top = right.children![0]!.id
+    expect(L.moveToEdge(top, 'right')).toBe(true)
+    const root = L.layout.entry.root as S
+    expect(root.dir).toBe('row')
+    expect(root.children!.map((c) => c.kind)).toEqual(['pane', 'split', 'pane'])
+    expect(root.children![2]!.id).toBe(top)
+    expect(root.sizes!.map((v) => Math.round(v))).toEqual([33, 33, 33])
+    expect((root.children![1] as S).children).toHaveLength(2)
+  })
+  it('下端は全幅の新しい行（いちばん外の区切りを包む）。左端は先頭に足す', () => {
+    fresh()
+    const first = L.allPanes(L.layout.entry, false)[0]!.id
+    expect(L.moveToEdge(first, 'bottom')).toBe(true)
+    // 左の 1 枚が抜けると根は右の列（縦の区切り）だけになるので、その最後に全幅の行として足す
+    let root = L.layout.entry.root as S
+    expect(root.dir).toBe('col')
+    expect(root.children!.at(-1)!.id).toBe(first)
+    expect(root.children).toHaveLength(4)
+    expect(root.sizes!.at(-1)).toBe(25) // 4 行なら新しい行は 1/4、残りは元の比率のまま縮める
+    expect(root.sizes!.reduce((a, b) => a + b, 0)).toBeCloseTo(100)
+    // 根が横の区切りのときに下端へ移すと、根を包んで全幅の行にする
+    fresh()
+    const top = ((L.layout.entry.root as S).children![1] as S).children![0]!.id
+    expect(L.moveToEdge(top, 'bottom')).toBe(true)
+    root = L.layout.entry.root as S
+    expect(root.dir).toBe('col')
+    expect(root.sizes).toEqual([50, 50])
+    expect((root.children![0] as S).dir).toBe('row')
+    expect(root.children![1]!.id).toBe(top)
+    const other = L.allPanes(L.layout.entry, false)[0]!.id
+    expect(L.moveToEdge(other, 'top')).toBe(true)
+    root = L.layout.entry.root as S
+    expect(root.children![0]!.id).toBe(other)
+    expect(root.children).toHaveLength(3)
+  })
+  it('すでにその端にあるペイン・本体の最後の 1 枚は動かさない。ドロワーのペインは移せる', () => {
+    fresh()
+    const left = L.allPanes(L.layout.entry, false)[0]!.id
+    expect(L.moveToEdge(left, 'left')).toBe(false)
+    const wl = L.layout.entry.docks.left!.panes[0]!.id
+    expect(L.moveToEdge(wl, 'right')).toBe(true)
+    expect(L.dockOf(wl)).toBeNull()
+    expect((L.layout.entry.root as S).children!.at(-1)!.id).toBe(wl)
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('grid')
+    L.resetLayout()
+    const only = L.allPanes(L.layout.entry, false)[0]!.id
+    expect(L.moveToEdge(only, 'right')).toBe(false)
   })
 })
 

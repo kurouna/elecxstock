@@ -1,7 +1,7 @@
 // SQLite（node:sqlite）。スキーマの版を持ち、起動時に移行する（FR-S1, S2）。
 // リポジトリ層はここに閉じ込める（必要なら better-sqlite3 に替えられるように。decisions.md §3）。
 import { statSync } from 'node:fs'
-import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
+import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlite'
 import { METRIC_COLUMNS } from '@shared/fields'
 
 export type Row = Record<string, SQLInputValue>
@@ -60,7 +60,10 @@ export class Db {
   readonly raw: DatabaseSync
   constructor(readonly file: string) {
     this.raw = new DatabaseSync(file)
-    this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;')
+    // journal_size_limit: 大きなトランザクション（初回の取得・保存期間の短縮・全データの削除）のあとに、WAL を 64MB まで縮める
+    this.raw.exec(
+      'PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000; PRAGMA journal_size_limit = 67108864;',
+    )
     this.migrate()
   }
   private migrate(): void {
@@ -83,14 +86,33 @@ export class Db {
       throw e
     }
   }
+  /**
+   * 準備した文を SQL ごとに使い回す（取得・再計算の繰り返しの中で毎回 prepare しないため）。
+   * IN (?, ?, …) のように数が変わる文は種類が増えるので、上限を超えたら古いものから捨てる
+   */
+  private stmts = new Map<string, StatementSync>()
+  prepare(sql: string): StatementSync {
+    let st = this.stmts.get(sql)
+    if (st) {
+      // 使った順に並べ直す（Map は挿入順なので、消して入れ直すと最後になる）
+      this.stmts.delete(sql)
+      this.stmts.set(sql, st)
+      return st
+    }
+    st = this.raw.prepare(sql)
+    this.stmts.set(sql, st)
+    if (this.stmts.size > 200) this.stmts.delete(this.stmts.keys().next().value!)
+    return st
+  }
   all<T = Row>(sql: string, ...p: SQLInputValue[]): T[] {
-    return this.raw.prepare(sql).all(...p) as T[]
+    return this.prepare(sql).all(...p) as T[]
   }
   get<T = Row>(sql: string, ...p: SQLInputValue[]): T | undefined {
-    return this.raw.prepare(sql).get(...p) as T | undefined
+    return this.prepare(sql).get(...p) as T | undefined
   }
-  run(sql: string, ...p: SQLInputValue[]): void {
-    this.raw.prepare(sql).run(...p)
+  /** 変わった行の数を返す */
+  run(sql: string, ...p: SQLInputValue[]): number {
+    return Number(this.prepare(sql).run(...p).changes)
   }
   meta(key: string): string | null {
     return (this.get<{ value: string }>('SELECT value FROM meta WHERE key = ?', key)?.value as string | undefined) ?? null
@@ -109,10 +131,12 @@ export class Db {
     }
     return n
   }
+  /** 空き領域を回収する。WAL モードの VACUUM は DB と同じ大きさの WAL を残すので、そのあとも WAL を空にする */
   vacuum(): void {
-    this.raw.exec('PRAGMA wal_checkpoint(TRUNCATE); VACUUM;')
+    this.raw.exec('PRAGMA wal_checkpoint(TRUNCATE); VACUUM; PRAGMA wal_checkpoint(TRUNCATE);')
   }
   close(): void {
+    this.stmts.clear()
     this.raw.close()
   }
 }

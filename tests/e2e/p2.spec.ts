@@ -39,28 +39,19 @@ test('P2: グリッドの差し替え・保存レイアウト・マーケット�
   await keys(page, 'Escape')
   await page.screenshot({ path: 'test-results/p2-market.png' })
 
-  // 右のドロワーの保有に、数量と平均取得単価を直接入れて足す
-  await keys(page, 'Control+Shift+b', 'Insert')
-  await page.keyboard.type('7203')
-  await keys(page, 'Enter', 'Enter') // コード → 口座区分（NISA 成長投資枠）
-  await keys(page, 'ArrowDown', 'ArrowDown', 'Enter') // 数量と平均取得単価を直接入れる
-  await page.keyboard.type('100')
-  await keys(page, 'Enter')
-  await page.keyboard.press('Control+a')
-  await page.keyboard.type('2500')
-  await keys(page, 'Enter')
-  await expect(page.locator('.toasts')).toContainText('保有を保存しました')
-  await expect(page.locator('.dock.open')).toContainText('7203')
-  await expect(page.locator('.dock.open')).toContainText('NISA 成長投資枠')
+  // 保有タブ（FR-H11）: 保有の一覧にフォーカスがあり、楽天証券の CSV の取り込みを案内する（ファイルの選択は OS のダイアログなので E2E では開かない）
+  await keys(page, 'Control+Shift+Digit8')
+  const pf = page.locator('[data-widget="portfolio"]')
+  await expect(pf).toContainText('楽天証券の CSV を取り込む')
+  await expect(pf).toHaveClass(/focused/)
   await page.screenshot({ path: 'test-results/p2-portfolio.png' })
-  await keys(page, 'Escape')
 
   // チャート: I の指標メニューから RSI を足す（下に段が増える）
-  await keys(page, 'Control+Shift+Digit5', 'i', 'Enter') // トリプル: 最初のペインは日足のチャート
+  await keys(page, 'Control+Shift+Digit5', 'Alt+ArrowRight', 'i', 'Enter') // トリプル: 左の列のウォッチリストから右の日足のチャートへ
   await expect(page.locator('.dialog')).toContainText('RSI')
   for (let i = 0; i < 5; i++) await keys(page, 'ArrowDown')
   await keys(page, 'Space', 'Enter')
-  await expect(page.locator('[data-pane-id]').first()).toContainText('RSI14')
+  await expect(page.locator('[data-widget="chart"]').first()).toContainText('RSI14')
 
   // フォーカスの枠（FR-KB3）: キーで操作しているときだけ出し、クリックしたら消す
   const ring = () =>

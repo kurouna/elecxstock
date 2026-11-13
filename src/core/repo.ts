@@ -167,6 +167,24 @@ export class Repo {
         )
     return rows.map((r) => ({ d: r.d, o: r.o, h: r.h, l: r.l, c: r.c, v: r.v, ...(r.prov ? { prov: true } : {}) }))
   }
+  /** 直近 n 本の日足（古い順）。指標の再計算・グリッドのタイルのように最後の数百本だけ要るとき（全期間を読まない） */
+  recentDaily(id: InstrumentId, n: number): DayBar[] {
+    const rows = this.db.all<{ d: string; o: number; h: number; l: number; c: number; v: number; prov: number }>(
+      'SELECT d, o, h, l, c, v, prov FROM daily_bars WHERE id = ? ORDER BY d DESC LIMIT ?',
+      id,
+      n,
+    )
+    const out: DayBar[] = new Array(rows.length)
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[rows.length - 1 - i]!
+      out[i] = r.prov ? { d: r.d, o: r.o, h: r.h, l: r.l, c: r.c, v: r.v, prov: true } : { d: r.d, o: r.o, h: r.h, l: r.l, c: r.c, v: r.v }
+    }
+    return out
+  }
+  /** 最初の日足の日付（主キーで 1 行だけ引く） */
+  firstDaily(id: InstrumentId): JstDate | null {
+    return this.db.get<{ d: string }>('SELECT d FROM daily_bars WHERE id = ? ORDER BY d LIMIT 1', id)?.d ?? null
+  }
   dailyCount(id: InstrumentId, from: JstDate): number {
     return Number(this.db.get<{ n: number }>('SELECT COUNT(*) n FROM daily_bars WHERE id = ? AND d >= ? AND prov = 0', id, from)!.n)
   }
@@ -183,7 +201,7 @@ export class Repo {
   /** 日足を置き換える（from 以降）。取得に成功してから呼ぶ（FR-S11） */
   replaceDaily(id: InstrumentId, from: JstDate, bars: RawBar[]): void {
     this.db.run('DELETE FROM daily_bars WHERE id = ? AND d >= ?', id, from)
-    const st = this.db.raw.prepare('INSERT OR REPLACE INTO daily_bars(id, d, o, h, l, c, v, prov) VALUES(?, ?, ?, ?, ?, ?, ?, 0)')
+    const st = this.db.prepare('INSERT OR REPLACE INTO daily_bars(id, d, o, h, l, c, v, prov) VALUES(?, ?, ?, ?, ?, ?, ?, 0)')
     for (const b of bars) if (b.d >= from) st.run(id, b.d, b.o, b.h, b.l, b.c, b.v)
   }
   /** 一括気配で当日の「仮」の足を補う（FR-D8）。本物の足があれば触らない */
@@ -209,9 +227,8 @@ export class Repo {
     this.db.run('UPDATE daily_bars SET prov = 0 WHERE id = ? AND d = ? AND prov = 1', id, d)
   }
   deleteDailyBefore(d: JstDate): number {
-    const n = Number(this.db.get<{ n: number }>('SELECT COUNT(*) n FROM daily_bars WHERE d < ?', d)!.n)
-    this.db.run('DELETE FROM daily_bars WHERE d < ?', d)
-    return n
+    // 数えてから消すと表を 2 回走査するので、消した行の数を返してもらう
+    return this.db.run('DELETE FROM daily_bars WHERE d < ?', d)
   }
   countDailyBefore(d: JstDate): number {
     return Number(this.db.get<{ n: number }>('SELECT COUNT(*) n FROM daily_bars WHERE d < ?', d)!.n)
@@ -235,7 +252,7 @@ export class Repo {
   }
   replaceMonthly(id: InstrumentId, bars: RawBar[], currentMonth: string): void {
     this.db.run('DELETE FROM monthly_bars WHERE id = ?', id)
-    const st = this.db.raw.prepare('INSERT OR REPLACE INTO monthly_bars(id, m, o, h, l, c, v) VALUES(?, ?, ?, ?, ?, ?, ?)')
+    const st = this.db.prepare('INSERT OR REPLACE INTO monthly_bars(id, m, o, h, l, c, v) VALUES(?, ?, ?, ?, ?, ?, ?)')
     // 当月の足は途中の値なので使わない（FR-D7）
     for (const b of bars) if (b.d.slice(0, 7) < currentMonth) st.run(id, b.d, b.o, b.h, b.l, b.c, b.v)
   }
@@ -254,7 +271,7 @@ export class Repo {
   /** from 以降の配当・分割を置き換える（取得に成功してから） */
   replaceActions(id: InstrumentId, from: JstDate, dividends: Dividend[], splits: Split[]): void {
     this.db.run('DELETE FROM actions WHERE id = ? AND d >= ?', id, from)
-    const st = this.db.raw.prepare('INSERT OR REPLACE INTO actions(id, d, type, value) VALUES(?, ?, ?, ?)')
+    const st = this.db.prepare('INSERT OR REPLACE INTO actions(id, d, type, value) VALUES(?, ?, ?, ?)')
     for (const d of dividends) if (d.date >= from) st.run(id, d.date, 'div', d.amount)
     for (const s of splits) if (s.date >= from) st.run(id, s.date, 'split', s.ratio)
   }
@@ -358,6 +375,21 @@ export class Repo {
       reason.slice(0, 300),
       at,
     )
+  }
+  /** 月次系列の取り直しが要ると記録する（分割の検知。FR-D3） */
+  needMonthly(id: InstrumentId): void {
+    this.db.run('UPDATE fetch_state SET last_monthly = NULL WHERE id = ?', id)
+  }
+  /** 日足はあるのに月次系列が無い（取り直しが要る）取得対象の銘柄。指数（月次系列を使わない）は除く */
+  missingMonthly(): InstrumentId[] {
+    return this.db
+      .all<{ id: string }>(
+        `SELECT f.id FROM fetch_state f JOIN instruments i ON i.id = f.id
+          WHERE f.last_full IS NOT NULL AND f.last_monthly IS NULL
+            AND i.status = 'active' AND (i.market IN ('P', 'R') OR i.user_added = 1)
+          ORDER BY i.code`,
+      )
+      .map((r) => r.id)
   }
   fetchState(id: InstrumentId): { lastFull: string | null; lastMonthly: string | null } {
     const r = this.db.get<{ last_full: string | null; last_monthly: string | null }>(

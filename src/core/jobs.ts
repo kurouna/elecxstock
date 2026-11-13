@@ -2,7 +2,7 @@
 // 進捗の通知（F4）、表示中の銘柄を先に（F8）、日々の更新方式（F9）、分割の検知と取り直し（FR-D3, S11）。
 import type { InstrumentId, JobKind, JobProgress, JstDate } from '@shared/types'
 import { addDays, addYears, CLOSE_MINUTES, isTradingDay, jstNow, lastClosedSession, prevTradingDay, toJstDate } from './calendar'
-import { computeMetrics } from './metrics'
+import { computeMetrics, METRIC_BARS } from './metrics'
 import { type Provider, ProviderError, type RawBar } from './providers/types'
 import { idOf, type Repo } from './repo'
 
@@ -45,6 +45,8 @@ interface JobRow {
 /** 項目: 'U' ユニバース / 'Q:<n>' 一括気配のバッチ / 'H:<id>:<from>' 日足 / 'F:<id>' 全期間取り直し / 'M:<id>' 月次系列 / 'X' 指標の再計算 */
 export class JobRunner {
   private running = false
+  /** 閉じる途中（新しいジョブ・項目を始めない） */
+  private stopping = false
   private abort: AbortController | null = null
   /** 実行中のジョブの ID（止めるのはこのジョブだけ） */
   private currentId: number | null = null
@@ -123,13 +125,25 @@ export class JobRunner {
   prioritize(ids: InstrumentId[]): void {
     this.priority = new Set(ids)
   }
+  /**
+   * アプリを閉じるとき（FR-F1）: 実行中の項目を止め、ループが抜けるのを待つ。実行中のジョブは「待ち」に戻して、
+   * 次の起動で続きから再開する（項目の書き込みは 1 つのトランザクションなので、途中で止めても半端な状態は残らない）
+   */
+  async stop(timeoutMs = 2000): Promise<void> {
+    this.stopping = true
+    this.abort?.abort()
+    const until = Date.now() + timeoutMs
+    while (this.running && Date.now() < until) await sleep(20)
+    this.h.repo.db.run(`UPDATE jobs SET status = 'queued' WHERE status IN ('running','waiting-offline','provider-paused')`)
+    this.flushData()
+  }
   /** 起動時に、閉じる前に終わっていなかったジョブから再開する（FR-F1） */
   resume(): void {
     this.h.repo.db.run(`UPDATE jobs SET status = 'queued' WHERE status IN ('running','waiting-offline','provider-paused')`)
     this.kick()
   }
   private kick(): void {
-    if (this.running) return
+    if (this.running || this.stopping) return
     this.running = true
     void this.loop().finally(() => {
       this.running = false
@@ -155,6 +169,7 @@ export class JobRunner {
   private async loop(): Promise<void> {
     const db = this.h.repo.db
     for (;;) {
+      if (this.stopping) return
       const j = db.get<JobRow>(`SELECT * FROM jobs WHERE status = 'queued' ORDER BY id LIMIT 1`)
       if (!j) return
       db.run(`UPDATE jobs SET status = 'running', updated = ? WHERE id = ?`, nowIso(), j.id)
@@ -169,7 +184,7 @@ export class JobRunner {
       let failMsg: string | null = null
       while (j.pos < items.length) {
         const st = db.get<{ status: string }>('SELECT status FROM jobs WHERE id = ?', j.id)?.status
-        if (st === 'cancelled' || st === 'paused') break
+        if (st === 'cancelled' || st === 'paused' || this.stopping) break
         // 表示中の銘柄を先に（FR-F8）。日足（H・F）と月次系列（M）のどちらも
         const pi = this.priority.size
           ? items.findIndex((it, i) => i >= j.pos && /^[HFM]:/.test(it) && this.priority.has(it.split(':').slice(1, 3).join(':')))
@@ -256,8 +271,9 @@ export class JobRunner {
       let final: JobProgress['status'] = 'done'
       if (st === 'cancelled' || st === 'paused') final = st
       else if (j.pos < items.length && !failMsg) {
-        // 止められたが、このジョブ自身は取り消し・一時停止されていない: 完了にせず待ちに戻す
+        // 止められたが、このジョブ自身は取り消し・一時停止されていない（閉じるときも）: 完了にせず待ちに戻す
         db.run(`UPDATE jobs SET status = 'queued', updated = ? WHERE id = ?`, nowIso(), j.id)
+        if (this.stopping) return
         this.h.emitProgress(this.progressOf({ ...j, status: 'queued', items: JSON.stringify(items) }))
         continue
       } else if (failMsg) {
@@ -305,7 +321,7 @@ export class JobRunner {
     if (t === 'F') return this.history(`${rest[0]}:${rest[1]}`, this.retentionStart(), signal, true)
     if (t === 'M') return this.monthly(`${rest[0]}:${rest[1]}`, signal)
     if (t === 'X') {
-      this.recomputeAll()
+      await this.recomputeAll()
       return undefined
     }
     return undefined
@@ -331,7 +347,15 @@ export class JobRunner {
     const set = [...this.h.repo.fetchSet()].sort((a, b) => Number(listed.has(b.id)) - Number(listed.has(a.id)))
     const batches = Math.ceil(set.length / this.h.provider.quoteBatchSize)
     const q = Array.from({ length: batches }, (_, i) => `Q:${i}`)
-    if (kind === 'daily') return [...q, 'X']
+    if (kind === 'daily') {
+      // 月次系列が無い・取り直しが要る銘柄（分割のあとに閉じた、取得に失敗したなど）も拾う。
+      // 初回・全データの取り直しが終わっていないうちは、そちらが月次系列を取るので足さない
+      const big = this.h.repo.db.get(
+        `SELECT 1 FROM jobs WHERE kind IN ('initial','reset') AND status NOT IN ('done','failed','cancelled') LIMIT 1`,
+      )
+      const months = big ? [] : this.h.repo.missingMonthly().map((id) => `M:${id}`)
+      return [...q, 'X', ...months]
+    }
     // 初回: 気配 → 日足（全期間）→ 指標 → 月次系列（低い優先度、FR-D7）
     return [...q, ...set.map((s) => `F:${s.id}`), 'X', ...set.map((s) => `M:${s.id}`)]
   }
@@ -418,7 +442,13 @@ export class JobRunner {
   }
 
   /** 日足の取得。取得に成功してから置き換える（FR-S11）。分割を見つけたら全期間を取り直す（FR-D3） */
-  private async history(id: InstrumentId, from: JstDate, signal: AbortSignal, full = false): Promise<string[] | undefined> {
+  private async history(
+    id: InstrumentId,
+    from: JstDate,
+    signal: AbortSignal,
+    full = false,
+    afterSplit = false,
+  ): Promise<string[] | undefined> {
     const repo = this.h.repo
     const sym = repo.yahooOf(id)
     if (!sym) return undefined
@@ -437,8 +467,9 @@ export class JobRunner {
         if (c && Math.abs(b.c / c - 1) > 0.005) mismatch = true
       }
       if (newSplit || mismatch) {
-        // 分割・併合: 全期間と月次系列を取り直す（FR-D3）
-        await this.history(id, start, signal, true)
+        // 分割・併合: 全期間と月次系列を取り直す（FR-D3）。月次系列は古い基準のままなので、日足と同じトランザクションで
+        // 「月次系列の取り直しが要る」と記録する（ここで閉じても、次の日々の更新で取り直す）
+        await this.history(id, start, signal, true, true)
         return [`M:${id}`]
       }
     } else {
@@ -450,6 +481,7 @@ export class JobRunner {
       repo.replaceDaily(id, start, r.bars)
       repo.replaceActions(id, full ? '0000-00-00' : start, r.dividends, r.splits)
       repo.markFetched(id, full ? 'full' : 'daily', nowIso())
+      if (afterSplit) repo.needMonthly(id)
       this.recompute(id)
     })
     this.dataChanged(id)
@@ -474,18 +506,26 @@ export class JobRunner {
     return undefined
   }
 
+  /** 1 銘柄の指標を作り直す。日足は直近 METRIC_BARS 本と最初の日付だけを読む（全期間は読まない） */
   recompute(id: InstrumentId): void {
     const repo = this.h.repo
-    const m = computeMetrics(id, repo.daily(id), repo.dividends(id), repo.splits(id), repo.quote(id), lastClosedSession())
+    const bars = repo.recentDaily(id, METRIC_BARS)
+    const first = bars.length === METRIC_BARS ? (repo.firstDaily(id) ?? undefined) : bars[0]?.d
+    const m = computeMetrics(id, bars, repo.dividends(id), repo.splits(id), repo.quote(id), lastClosedSession(), first)
     repo.putMetrics(m)
   }
-  recomputeAll(): void {
+  /**
+   * 全銘柄の指標を作り直す。100 銘柄ごとに 1 つのトランザクションで書き、その合間に処理を譲って
+   * チャート・スクリーナーなどの呼び出しを待たせない
+   */
+  async recomputeAll(): Promise<void> {
     const repo = this.h.repo
     const ids = [...repo.fetchSet().map((s) => s.id)]
     for (let i = 0; i < ids.length; i += 100) {
       repo.db.tx(() => {
         for (const id of ids.slice(i, i + 100)) this.recompute(id)
       })
+      await new Promise<void>((r) => setImmediate(r))
     }
     this.h.emitData(['*'])
   }

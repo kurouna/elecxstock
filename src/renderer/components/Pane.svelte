@@ -47,6 +47,7 @@ function onerror(e: unknown) {
   class:focused
   class:maxed={app.maximized === pane.id}
   data-pane-id={pane.id}
+  data-widget={pane.widget}
   tabindex="0"
   onmousedown={() => (app.focus = pane.id)}
   onfocusin={() => (app.focus = pane.id)}

@@ -72,7 +72,7 @@ await session('ja', [
   ],
   ['help', async ({ k }) => k('Escape', 'F1')],
   ['settings', async ({ k }) => k('Escape', 'Control+Comma', 'ArrowDown', 'ArrowDown')],
-  ['market', async ({ k }) => k('Escape', 'Control+Shift+Digit6', 'ArrowRight')],
+  ['market', async ({ k }) => k('Escape', 'Control+Shift+Digit6', 'Alt+ArrowRight', 'ArrowRight')],
   [
     'light',
     async ({ k, page }) => {

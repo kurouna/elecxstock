@@ -316,14 +316,15 @@ ipcMain.handle('app:openFile', async (e, kind: unknown) => {
   const filters =
     kind === 'xlsx'
       ? [{ name: 'Excel', extensions: ['xlsx'] }]
-      : kind === 'text'
+      : kind === 'csv' || kind === 'text'
         ? [{ name: 'CSV / Text', extensions: ['csv', 'txt'] }]
         : [{ name: 'JSON', extensions: ['json'] }]
   const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters })
   if (r.canceled || !r.filePaths[0]) return null
   if (statSync(r.filePaths[0]).size > 20_000_000) return null
   const buf = readFileSync(r.filePaths[0])
-  return kind === 'xlsx' ? new Uint8Array(buf) : buf.toString('utf8')
+  // 証券会社の CSV は Shift_JIS のことが多いので、バイト列のまま渡して renderer で文字コードを判定する
+  return kind === 'xlsx' || kind === 'csv' ? new Uint8Array(buf) : buf.toString('utf8')
 })
 
 // Core が data/backups に書いた DB のバックアップを、利用者が選んだ場所へ写す（FR-S3）。元は data/backups の中だけ
@@ -364,8 +365,25 @@ app.whenReady().then(async () => {
   startCore()
   await createWindow()
 })
-app.on('before-quit', () => {
+// 閉じるとき: Core に止めるよう頼み、取得中の項目を止めて DB を閉じるのを待つ（続きは次の起動で再開。FR-F1）。
+// 応答が無ければ 4 秒で強制終了する（項目の書き込みはトランザクションなので、途中で切っても半端な状態は残らない）
+let coreStopped = false
+app.on('before-quit', (e) => {
   quitting = true
-  core?.kill()
+  const c = core
+  if (!c || coreStopped) return
+  e.preventDefault()
+  coreStopped = true
+  const done = () => {
+    clearTimeout(timer)
+    app.quit()
+  }
+  const timer = setTimeout(() => {
+    log('core did not stop in time; killing')
+    c.kill()
+    done()
+  }, 4000)
+  c.once('exit', done)
+  c.postMessage({ type: 'shutdown' })
 })
 app.on('window-all-closed', () => app.quit())

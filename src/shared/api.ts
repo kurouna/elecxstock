@@ -5,6 +5,7 @@ import type {
   Adjustment,
   AppInfo,
   Bars,
+  BrokerCsvPreview,
   DataStatus,
   Dividend,
   FetchFailure,
@@ -14,6 +15,7 @@ import type {
   InstrumentId,
   JobProgress,
   MetricsRow,
+  PortfolioMeta,
   Quote,
   RetentionPlan,
   SavedLayout,
@@ -90,6 +92,15 @@ export const holdingSchema = z.object({
   lots: z.array(lotSchema).max(2000).optional(),
   broker: z.string().max(80).optional(),
   note: z.string().max(400).optional(),
+  name: z.string().max(120).optional(),
+  price: z.number().nonnegative().max(1e9).optional(),
+  importedAt: z.string().max(40).optional(),
+})
+export const portfolioMetaSchema = z.object({
+  broker: z.string().max(80),
+  importedAt: z.string().max(40),
+  realized: z.number().nullable(),
+  dividends: z.number().nullable(),
 })
 export const savedLayoutSchema = z.object({
   id: z.string().max(40),
@@ -127,8 +138,15 @@ export const PARAMS = {
   'portfolio.save': z.object({ holdings: z.array(holdingSchema).max(5000) }),
   'portfolio.export': z.object({}),
   'portfolio.previewImport': z.object({ json: z.string().max(20_000_000) }),
-  'portfolio.applyImport': z.object({ holdings: z.array(holdingSchema).max(5000), mode: z.enum(['merge', 'replace']) }),
+  'portfolio.applyImport': z.object({
+    holdings: z.array(holdingSchema).max(5000),
+    mode: z.enum(['merge', 'replace']),
+    meta: portfolioMetaSchema.nullable().optional(),
+  }),
   'portfolio.undoImport': z.object({}),
+  'portfolio.meta': z.object({}),
+  'portfolio.previewCsv': z.object({ text: z.string().max(20_000_000) }),
+  'portfolio.applyCsv': z.object({ holdings: z.array(holdingSchema).max(5000), meta: portfolioMetaSchema }),
   'bars.csv': z.object({ ids: z.array(id).max(500), from: jstDate.optional(), to: jstDate.optional() }),
   'data.backup': z.object({}),
   'app.checkUpdate': z.object({}),
@@ -190,6 +208,9 @@ export interface Results {
   'portfolio.previewImport': HoldingsImportPreview
   'portfolio.applyImport': Holding[]
   'portfolio.undoImport': Holding[] | null
+  'portfolio.meta': PortfolioMeta | null
+  'portfolio.previewCsv': BrokerCsvPreview
+  'portfolio.applyCsv': Holding[]
   'bars.csv': string
   /** 書き出した DB のファイル名（data/backups の中） */
   'data.backup': string

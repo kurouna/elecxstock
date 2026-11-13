@@ -182,6 +182,37 @@ function send() {
   const id = shown[sel]
   if (id) setLinkSymbol(pane.link || 1, id)
 }
+/** ページをめくる（FR-G2）。at はめくった先で選ぶタイル（ページの枚数に収める）。端では何もしない */
+function goPage(delta: number, at = 0): boolean {
+  const cur = Math.min(page, pages - 1)
+  const next = Math.max(0, Math.min(pages - 1, cur + delta))
+  if (next === cur) return false
+  set({ page: next })
+  const n = Math.min(perPage, codes.length - next * perPage)
+  sel = Math.max(0, Math.min(n - 1, at))
+  send()
+  return true
+}
+/**
+ * 矢印でタイルを動かす。ページの端を越えるときは隣のページへ（→ は最後のタイルから次のページの先頭、← は先頭から
+ * 前のページの最後、↓ は最下段から次のページの同じ列、↑ は最上段から前のページの最下段の同じ列）
+ */
+function moveSel(k: string): void {
+  const n = pageIds.length
+  const col = sel % cols
+  if (k === 'ArrowRight' && sel >= n - 1) {
+    if (goPage(1, 0)) return
+  } else if (k === 'ArrowLeft' && sel <= 0) {
+    if (goPage(-1, perPage - 1)) return
+  } else if (k === 'ArrowDown' && sel + cols >= n) {
+    if (goPage(1, col)) return
+  } else if (k === 'ArrowUp' && sel - cols < 0) {
+    if (goPage(-1, (dims[1] - 1) * cols + col)) return
+  }
+  const mv = ({ ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols } as Record<string, number>)[k] ?? 0
+  sel = Math.max(0, Math.min(n - 1, sel + mv))
+  send()
+}
 function addOwn(id: InstrumentId) {
   const next = own.includes(id) ? own : [...own, id]
   set({ own: next, src: 'own', sort: 'none', page: Math.floor((next.length - 1) / perPage) })
@@ -299,10 +330,8 @@ onMount(() => {
         return true
       }
       if (ctrl || e.altKey) return false
-      const mv = ({ ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols } as Record<string, number>)[k]
-      if (mv && !zoom) {
-        sel = Math.max(0, Math.min(pageIds.length - 1, sel + mv))
-        send()
+      if (!zoom && (k === 'ArrowRight' || k === 'ArrowLeft' || k === 'ArrowDown' || k === 'ArrowUp')) {
+        moveSel(k)
         return true
       }
       if (k === 'Home' || k === 'End') {
@@ -311,8 +340,7 @@ onMount(() => {
         return true
       }
       if (k === 'PageDown' || k === 'PageUp') {
-        set({ page: Math.max(0, Math.min(pages - 1, page + (k === 'PageDown' ? 1 : -1))) })
-        sel = 0
+        goPage(k === 'PageDown' ? 1 : -1, 0)
         return true
       }
       if (!e.shiftKey && (c === 'KeyD' || c === 'KeyW' || c === 'KeyM')) {
@@ -438,7 +466,11 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   <button type="button" class="chip" title="−" onclick={() => set({ size: Math.max(0, size - 1), page: 0 })}>−</button>
   <span class="num">{dims[0]}×{dims[1]}</span>
   <button type="button" class="chip" title="+" onclick={() => set({ size: Math.min(GRIDS.length - 1, size + 1), page: 0 })}>＋</button>
-  <span class="num muted">{t('grid.page', { p: Math.min(page, pages - 1) + 1, n: pages })}</span>
+  <span class="pager">
+    <button type="button" class="chip" title={`${t('grid.prevPage')} (PageUp)`} aria-label={t('grid.prevPage')} disabled={Math.min(page, pages - 1) <= 0} onclick={() => goPage(-1, 0)}>‹</button>
+    <span class="num muted">{t('grid.page', { p: Math.min(page, pages - 1) + 1, n: pages })}</span>
+    <button type="button" class="chip" title={`${t('grid.nextPage')} (PageDown)`} aria-label={t('grid.nextPage')} disabled={Math.min(page, pages - 1) >= pages - 1} onclick={() => goPage(1, 0)}>›</button>
+  </span>
 </div>
 <div class="tiles" use:symbolDrop={addOwn} class:dense={cols >= 5} bind:this={tiles} style:grid-template-columns={`repeat(${cols}, 1fr)`} style:grid-template-rows={`repeat(${rows}, 1fr)`}>
   {#if !shown.length}
@@ -538,6 +570,15 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
     color: var(--text-3);
     white-space: nowrap;
     overflow: hidden;
+  }
+  .pager {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-1);
+  }
+  .pager .chip:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
   .sep {
     width: 1px;

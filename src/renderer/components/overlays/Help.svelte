@@ -25,7 +25,7 @@ const G = $derived([
       [ja ? 'ペインを入れ替える（タイトルのドラッグでも）' : 'Swap pane (or drag the title)', 'Ctrl+Alt+Shift+Arrows'],
       [ja ? 'サイズを元に戻す / 取り消し' : 'Reset sizes / undo', `${K('resetSizes')} / Ctrl+Z`],
       [ja ? 'リンク色 1〜5 / 解除' : 'Link color 1–5 / none', 'Ctrl+1–5 / Ctrl+0'],
-      [ja ? 'レイアウト（プリセット）' : 'Layouts (presets)', 'Ctrl+Shift+1–7'],
+      [ja ? 'レイアウト（プリセット）' : 'Layouts (presets)', 'Ctrl+Shift+1–8'],
       [ja ? 'レイアウトの一覧（名前を付けて保存）' : 'Saved layouts', K('layouts')],
       [ja ? 'お気に入り' : 'Favorite', K('fav')],
       [ja ? 'ウォッチリストに追加' : 'Add to watchlist', K('addTo')],
@@ -85,7 +85,7 @@ const G = $derived([
     id: 'grid',
     title: t('help.grid'),
     rows: [
-      [ja ? 'タイルを移動 / ページ' : 'Move tile / page', 'Arrows / PgUp PgDn'],
+      [ja ? 'タイルを移動（端を越えると次・前のページ）/ ページ' : 'Move tile (wraps to next/prev page) / page', 'Arrows / PgUp PgDn'],
       [ja ? '全タイルの時間軸 / 期間' : 'All tiles: timeframe / period', 'D W M / Alt+1–6'],
       [ja ? '格子を細かく / 粗く' : 'Finer / coarser grid', '+ / −'],
       [ja ? '対数 / 比較% / MA / 並べ替え' : 'Log / compare % / MA / sort', 'L / N / I / S'],
@@ -106,7 +106,7 @@ const G = $derived([
       [ja ? 'ヒートマップ: 移動 / 業種の中へ / 戻る' : 'Heatmap: move / drill in / back', 'Arrows / Enter / Esc'],
       [ja ? 'ヒートマップ: 期間' : 'Heatmap: period', 'P'],
       [ja ? 'ランキング: 指標 / 上位・下位 / 市場' : 'Ranking: metric / top-bottom / market', 'S / Shift+S / G'],
-      [ja ? '保有: 足す / 直す / 外す' : 'Portfolio: add / edit / remove', 'Insert / E / Delete'],
+      [ja ? '保有: 楽天証券の CSV を取り込む / 送る' : 'Portfolio: import Rakuten CSV / send', 'Insert / Enter'],
     ],
   },
   {

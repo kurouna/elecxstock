@@ -3,6 +3,8 @@ import type { Dividend, InstrumentId, JstDate, MetricsRow, Quote, Split } from '
 import { addDays, addYears, isTradingDay } from './calendar'
 import type { DayBar } from './series'
 
+/** 指標の計算に要る直近の日足の本数（いちばん長い 3 年騰落率 735 本 + 余裕）。これより古い足は読まない */
+export const METRIC_BARS = 800
 export const NEED = { hi52: 245, ret1m: 21, ret3m: 63, ret1y: 245, ret3y: 735, ma25: 25, ma75: 75, rsi: 15, turnover: 20 } as const
 
 function sma(bars: DayBar[], n: number): number | null {
@@ -47,6 +49,8 @@ export function computeMetrics(
   splits: Split[],
   quote: Quote | null,
   lastSession: JstDate,
+  /** 最初の日足の日付。bars が直近だけのとき（METRIC_BARS 本）に、全期間の始まりを渡す */
+  firstBar: JstDate | undefined = bars[0]?.d,
 ): MetricsRow {
   const last = bars.at(-1)
   const prev = bars.at(-2)
@@ -96,7 +100,7 @@ export function computeMetrics(
   // 実績利回り: 過去 12 か月（権利落ち日ベース）の配当合計 ÷ 終値。上場 12 か月未満は欠損（期間不足）
   const from = addYears(asOf, -1)
   const div12 = dividends.filter((d) => d.date > from && d.date <= asOf).reduce((s, d) => s + d.amount, 0)
-  const longEnough = bars[0]!.d <= addDays(from, 7)
+  const longEnough = (firstBar ?? bars[0]!.d) <= addDays(from, 7)
   const yieldTrailing = longEnough && close > 0 ? (div12 / close) * 100 : null
   const win = bars.slice(-NEED.hi52)
   const hi52 = bars.length >= NEED.hi52 ? Math.max(...win.map((b) => b.h)) : null
@@ -150,7 +154,7 @@ export function computeMetrics(
     ma75,
     ma200: sma(bars, 200),
     payout: div12 > 0 && quote?.eps && quote.eps > 0 ? (div12 / quote.eps) * 100 : null,
-    ...divYears(dividends, asOf, bars[0]!.d),
+    ...divYears(dividends, asOf, firstBar ?? bars[0]!.d),
     ...crossDays(bars),
     yield2p: yieldTwoPeriods(dividends, asOf, close),
     recordMonths: [...months].sort((a, b) => a - b),

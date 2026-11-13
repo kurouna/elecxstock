@@ -1,7 +1,8 @@
 // 保有の記録（§6.9, FR-H5, H7〜H10）。純粋関数。保存は UserStore（holdings.json）で、市場データの DB には置かない。
-import { holdingSchema } from '@shared/api'
-import type { Holding, HoldingsImportPreview, Lot, Split } from '@shared/types'
+import { holdingSchema, portfolioMetaSchema } from '@shared/api'
+import type { BrokerCsvPreview, Holding, HoldingsImportPreview, Lot, PortfolioMeta, Split } from '@shared/types'
 import { z } from 'zod'
+import { parseRakutenCsv } from './brokers/rakuten'
 
 export const HOLDINGS_FORMAT = 'elecxstock.holdings'
 export const HOLDINGS_VERSION = 1
@@ -42,16 +43,26 @@ export function normalize(h: Holding, splits: Split[] = []): Holding {
 }
 
 const keyOf = (h: Pick<Holding, 'code' | 'account'>) => `${h.code}/${h.account}`
+/** 中身が同じかを比べる鍵（確認用の銘柄名・CSV の現在値・取り込んだ日時は比べない） */
+const sig = ({ name: _n, price: _p, importedAt: _i, ...rest }: Holding) => JSON.stringify(rest)
 
-/** 保有の JSON を書き出す（FR-H8）。市場データは含めない。銘柄名は確認用 */
-export function exportHoldings(holdings: Holding[], nameOf: (code: string) => string, app: string, now = new Date()): string {
+/** 保有の JSON を書き出す（FR-H8）。市場データ（CSV の現在値 price も）は含めない。銘柄名は確認用（銘柄の一覧の名前、無ければ CSV の名前） */
+export function exportHoldings(
+  holdings: Holding[],
+  nameOf: (code: string) => string,
+  app: string,
+  now = new Date(),
+  meta: PortfolioMeta | null = null,
+): string {
   return JSON.stringify(
     {
       format: HOLDINGS_FORMAT,
       version: HOLDINGS_VERSION,
       exportedAt: now.toISOString(),
       app,
-      holdings: holdings.map((h) => ({ ...h, name: nameOf(h.code) })),
+      // 最後に取り込んだ証券会社の CSV の情報（累計の実現損益・配当金）。別の PC に移しても同じ表示にする
+      ...(meta ? { meta } : {}),
+      holdings: holdings.map(({ price: _price, ...h }) => ({ ...h, name: nameOf(h.code) || h.name || '' })),
     },
     null,
     1,
@@ -60,7 +71,8 @@ export function exportHoldings(holdings: Holding[], nameOf: (code: string) => st
 
 /**
  * 保有の JSON を読み、取り込む前の確認に使う差分を作る（FR-H9）。
- * 1 件ずつ zod で検証し、知らないコード・不正な値は「取り込めない」に入れて残りを取り込めるようにする
+ * 1 件ずつ zod で検証し、不正な値は「取り込めない」に入れて残りを取り込めるようにする。
+ * 銘柄の一覧に無いコード（書き出した PC で足した銘柄など）は取り込み、unknown に挙げる（取り込むときに銘柄を足す）
  */
 export function previewImport(json: string, current: Holding[], known: (code: string) => boolean): HoldingsImportPreview {
   let o: unknown
@@ -76,7 +88,16 @@ export function previewImport(json: string, current: Holding[], known: (code: st
   if (top.data.version > HOLDINGS_VERSION)
     throw Object.assign(new Error(`format version ${top.data.version} is newer`), { code: 'invalid-params' })
   const cur = new Map(current.map((h) => [keyOf(h), h]))
-  const out: HoldingsImportPreview = { add: [], update: [], same: [], rejected: [], holdings: [] }
+  const m = portfolioMetaSchema.safeParse((o as { meta?: unknown }).meta)
+  const out: HoldingsImportPreview = {
+    add: [],
+    update: [],
+    same: [],
+    rejected: [],
+    unknown: [],
+    holdings: [],
+    meta: m.success ? m.data : null,
+  }
   const seen = new Set<string>()
   top.data.holdings.forEach((raw, index) => {
     const code = String((raw as { code?: unknown })?.code ?? '').toUpperCase()
@@ -85,10 +106,7 @@ export function previewImport(json: string, current: Holding[], known: (code: st
       out.rejected.push({ index, code, reason: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') })
       return
     }
-    if (!known(r.data.code)) {
-      out.rejected.push({ index, code, reason: 'unknown-code' })
-      return
-    }
+    if (!known(r.data.code) && !out.unknown.includes(r.data.code)) out.unknown.push(r.data.code)
     const k = keyOf(r.data)
     if (seen.has(k)) {
       out.rejected.push({ index, code, reason: 'duplicate' })
@@ -99,7 +117,7 @@ export function previewImport(json: string, current: Holding[], known: (code: st
     out.holdings.push(h)
     const was = cur.get(k)
     if (!was) out.add.push(h)
-    else if (JSON.stringify(was) === JSON.stringify(h)) out.same.push(h)
+    else if (sig(was) === sig(h)) out.same.push(h)
     else out.update.push(h)
   })
   return out
@@ -111,4 +129,49 @@ export function applyImport(current: Holding[], incoming: Holding[], mode: 'merg
   const map = new Map(current.map((h) => [keyOf(h), h]))
   for (const h of incoming) map.set(keyOf(h), h)
   return [...map.values()]
+}
+
+/**
+ * 証券会社の CSV（楽天証券）を読み、取り込む前の確認に使う差分を作る（FR-H11）。
+ * 取り込むと保有はすべて CSV の内容に置き換わるので、CSV に無い今の保有は「無くなる」に入る。
+ * 同じ銘柄・口座区分が 2 行あれば、数量を足し、平均取得単価は数量で重みを付けて平均する
+ */
+export function previewBrokerCsv(text: string, current: Holding[], known: (code: string) => boolean, now = new Date()): BrokerCsvPreview {
+  const p = parseRakutenCsv(text, now.toISOString())
+  const merged = new Map<string, Holding>()
+  for (const h of p.holdings) {
+    const k = keyOf(h)
+    const was = merged.get(k)
+    if (!was) merged.set(k, h)
+    else {
+      const q = was.quantity + h.quantity
+      merged.set(k, { ...was, quantity: q, avgCost: q > 0 ? (was.avgCost * was.quantity + h.avgCost * h.quantity) / q : 0 })
+    }
+  }
+  const holdings = [...merged.values()]
+  const cur = new Map(current.map((h) => [keyOf(h), h]))
+  const out: BrokerCsvPreview = {
+    add: [],
+    update: [],
+    same: [],
+    removed: [],
+    skipped: p.skipped,
+    unknown: [...new Set(holdings.filter((h) => !known(h.code)).map((h) => h.code))],
+    holdings,
+    meta: {
+      broker: 'rakuten',
+      importedAt: now.toISOString(),
+      realized: p.summary?.realized ?? null,
+      dividends: p.summary?.dividends ?? null,
+    },
+  }
+  for (const h of holdings) {
+    const was = cur.get(keyOf(h))
+    if (!was) out.add.push(h)
+    else if (was.quantity === h.quantity && Math.abs(was.avgCost - h.avgCost) < 1e-6) out.same.push(h)
+    else out.update.push(h)
+  }
+  const next = new Set(holdings.map(keyOf))
+  out.removed = current.filter((h) => !next.has(keyOf(h)) && h.quantity > 0)
+  return out
 }

@@ -105,3 +105,21 @@ describe('P2 の指標（増配年数・クロス・2 期の年換算・異常�
     expect(anomalous([...ok, { d: '2026-02-02', o: 100, h: 100, l: 0, c: 0, v: 1 }])).toBe(true)
   })
 })
+
+describe('直近の日足だけで指標を作る（METRIC_BARS）', () => {
+  it('全期間を渡したときと、直近 METRIC_BARS 本 + 最初の日付を渡したときで、指標がすべて同じ', async () => {
+    const { METRIC_BARS } = await import('@core/metrics')
+    // 10 年分の波打つ系列（クロス・52 週高値・3 年騰落率がどれも出る）
+    const bars = days('2014-01-06', '2024-10-31', (i) => 1000 + 300 * Math.sin(i / 40) + i * 0.5)
+    expect(bars.length).toBeGreaterThan(METRIC_BARS * 2)
+    const dividends = [2015, 2017, 2019, 2021, 2022, 2023, 2024].flatMap((y) => [
+      { date: `${y}-03-28`, amount: 10 + (y - 2015) },
+      { date: `${y}-09-27`, amount: 10 + (y - 2015) },
+    ])
+    const full = computeMetrics('JP:1', bars, dividends, [], null, '2024-10-31')
+    const recent = computeMetrics('JP:1', bars.slice(-METRIC_BARS), dividends, [], null, '2024-10-31', bars[0]!.d)
+    expect(recent).toEqual(full)
+    expect(full.ret3y).not.toBeNull()
+    expect(full.divNoCutYears).not.toBeNull()
+  })
+})

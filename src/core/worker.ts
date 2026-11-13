@@ -79,6 +79,19 @@ interface ParentPort {
 const parentPort = (process as unknown as { parentPort: ParentPort }).parentPort
 parentPort.on('message', (e) => {
   const d = e.data as { type?: string }
+  if (d?.type === 'shutdown') {
+    // 閉じる直前に renderer が送った保存（レイアウト・ウォッチリスト）を先に処理してから止める
+    setTimeout(() => {
+      void service
+        .shutdown()
+        .catch((err) => log(`shutdown ${String(err)}`))
+        .finally(() => {
+          log('core shutdown')
+          process.exit(0)
+        })
+    }, 150)
+    return
+  }
   if (d?.type === 'port' && e.ports[0]) {
     port = e.ports[0]
     port.on('message', (m) => void handle(m.data as { id: number; method: string; params: unknown }))

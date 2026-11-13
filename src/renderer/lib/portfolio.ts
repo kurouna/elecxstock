@@ -1,102 +1,102 @@
-// 保有の記録（§6.9, FR-H7〜H10）の画面側の操作。計算（移動平均法・分割の調整）は Core（src/core/holdings.ts）。
-import { ACCOUNT_TYPES } from '@shared/api'
-import type { AccountType, Holding, InstrumentId, Lot } from '@shared/types'
-import { app, choiceDialog, confirmDialog, metric, nameOf, promptDialog, rpc, t, toast } from '../stores/app.svelte'
+// 保有の記録（§6.9, FR-H7〜H11）の画面側の操作。保有は証券会社の CSV を取り込んで作る（FR-H11）。
+// CSV の読み取りと差分は Core（src/core/holdings.ts, src/core/brokers/rakuten.ts）。
+import type { AccountType, Holding } from '@shared/types'
+import { app, choiceDialog, confirmDialog, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
 import type { Key } from './i18n'
 
 export const accountName = (a: AccountType) => t(`acct.${a}` as Key)
 
 export async function loadHoldings(): Promise<void> {
   app.holdings = await rpc('portfolio.list', {})
-}
-async function save(next: Holding[]): Promise<void> {
-  app.holdings = await rpc('portfolio.save', { holdings: next })
+  app.portfolioMeta = await rpc('portfolio.meta', {})
 }
 
-/** 1 行の評価（評価額・評価損益・損益率・取得単価利回り） */
-export function valuation(h: Holding): { value: number | null; pnl: number | null; pnlPct: number | null; yoc: number | null } {
+/** NISA の口座区分（配当・売却益が非課税） */
+export const isNisa = (a: AccountType) => a.startsWith('nisa')
+/** 配当にかかる税（所得税・住民税・復興特別所得税） */
+export const DIVIDEND_TAX = 0.20315
+
+export interface Valuation {
+  /** 現在値: 取り込んだ日足の最新の終値。無ければ CSV の現在値 */
+  close: number | null
+  value: number | null
+  cost: number
+  pnl: number | null
+  pnlPct: number | null
+  /** 前日比（1 株と、保有数量ぶんの金額） */
+  chgPct: number | null
+  dayPnl: number | null
+  /** 過去 12 か月の配当 × 数量（税引前・税引後。NISA は非課税） */
+  div: number | null
+  divNet: number | null
+  yoc: number | null
+}
+/** 1 行の評価（評価額・評価損益・損益率・前日比・配当の見込み・取得単価利回り） */
+export function valuation(h: Holding): Valuation {
   const m = metric(`JP:${h.code}`)
-  const close = m?.close ?? null
+  const close = m?.close ?? h.price ?? null
   const value = close != null ? close * h.quantity : null
   const cost = h.avgCost * h.quantity
   const pnl = value != null ? value - cost : null
+  const div = m?.div12 != null ? m.div12 * h.quantity : null
   return {
+    close,
     value,
+    cost,
     pnl,
     pnlPct: pnl != null && cost > 0 ? (pnl / cost) * 100 : null,
+    chgPct: m?.chgPct ?? null,
+    dayPnl: m?.chg != null ? m.chg * h.quantity : null,
+    div,
+    divNet: div != null ? (isNisa(h.account) ? div : div * (1 - DIVIDEND_TAX)) : null,
     yoc: m?.div12 != null && h.avgCost > 0 ? (m.div12 / h.avgCost) * 100 : null,
   }
 }
 
-/** 直接入れた数量・単価は今の基準なので、その日付で取引にする（それより前の分割で調整されないように） */
-const jstToday = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
-const num = (s: string | null) => {
-  if (s == null) return null
-  const v = Number(s.replace(/[,，円¥\s]/g, ''))
-  return Number.isFinite(v) && v >= 0 ? v : null
+/** 証券会社の CSV のバイト列を文字列にする。UTF-8 として読めなければ Shift_JIS（楽天証券の既定） */
+export function decodeCsv(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return new TextDecoder('shift_jis').decode(bytes)
+  }
 }
 
 /**
- * 保有を足す・直す（FR-H7）。入力は「取引（買い・売り）を足す」か「数量と平均取得単価を直接入れる」のどちらでもよい。
- * id が無ければ、フォーカス中の銘柄から始める
+ * 楽天証券の保有商品の CSV を取り込む（FR-H11）。取り込むたびに、保有はすべて CSV の内容に置き換わる。
+ * 取り込む前に差分（追加・更新・変わらない・無くなる・対象外）を見せて確認し、前の記録は元に戻せるように残す
  */
-export async function editHolding(id: InstrumentId | null, cur?: Holding): Promise<void> {
-  const code = cur?.code ?? (await promptDialog(t('hold.code'), id?.replace(/^\w+:/, '') ?? ''))?.toUpperCase()
-  if (!code || !/^[0-9][0-9A-Z]{3,4}$/.test(code)) return
-  const account = (cur?.account ??
-    (await choiceDialog(
-      t('hold.account'),
-      ACCOUNT_TYPES.map((a) => ({ id: a, label: accountName(a) })),
-    ))) as AccountType | null
-  if (!account) return
-  const exist = app.holdings.find((h) => h.code === code && h.account === account)
-  const mode = await choiceDialog(t('hold.mode', { name: nameOf(`JP:${code}`) || code }), [
-    { id: 'buy', label: t('hold.buy') },
-    { id: 'sell', label: t('hold.sell'), hint: exist ? '' : t('hold.noPosition') },
-    { id: 'direct', label: t('hold.direct'), hint: t('hold.directHint') },
-  ])
-  if (!mode) return
-  let next: Holding
-  if (mode === 'direct') {
-    const q = num(await promptDialog(t('hold.qty'), String(exist?.quantity ?? '')))
-    if (q == null) return
-    const p = num(await promptDialog(t('hold.avg'), String(exist?.avgCost ?? metric(`JP:${code}`)?.close ?? '')))
-    if (p == null) return
-    // 直接入れたら、取引の履歴は持たない（数量と単価がその値になる）
-    next = { ...(exist ?? {}), code, account, quantity: q, avgCost: p }
-    delete next.lots
-  } else {
-    if (mode === 'sell' && !exist) {
-      toast(t('hold.noPosition'))
-      return
-    }
-    const date = await promptDialog(t('hold.date'), jstToday())
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return
-    const q = num(await promptDialog(t('hold.qty'), ''))
-    if (!q) return
-    const p = num(await promptDialog(t('hold.price'), String(metric(`JP:${code}`)?.close ?? '')))
-    if (p == null) return
-    const fee = num(await promptDialog(t('hold.fee'), '0')) ?? 0
-    const lot: Lot = { date, side: mode as 'buy' | 'sell', quantity: q, price: p, ...(fee ? { fee } : {}) }
-    // 直接入れた保有に取引を足すときは、今の数量・単価を最初の取引として残す
-    const base: Lot[] =
-      exist?.lots ??
-      (exist && exist.quantity > 0 ? [{ date: jstToday(), side: 'buy', quantity: exist.quantity, price: exist.avgCost }] : [])
-    next = { ...(exist ?? { code, account, quantity: 0, avgCost: 0 }), lots: [...base, lot] }
+export async function importBrokerCsv(): Promise<void> {
+  const bytes = await window.elecxstock.openFile('csv')
+  if (!(bytes instanceof Uint8Array)) return
+  const p = await rpc('portfolio.previewCsv', { text: decodeCsv(bytes) })
+  const line = (h: Holding) => `${h.code} ${h.name || nameOf(`JP:${h.code}`)} · ${accountName(h.account)} · ${h.quantity.toLocaleString()}`
+  const out = new Set(p.skipped.map((x) => x.kind || '?'))
+  const items = [
+    t('hold.prevAdd', { n: p.add.length }),
+    ...p.add.slice(0, 6).map((h) => `＋ ${line(h)}`),
+    t('hold.prevUpdate', { n: p.update.length }),
+    ...p.update.slice(0, 6).map((h) => `↻ ${line(h)}`),
+    t('hold.prevSame', { n: p.same.length }),
+    t('hold.prevRemoved', { n: p.removed.length }),
+    ...p.removed.slice(0, 6).map((h) => `− ${line(h)}`),
+    ...(p.unknown.length ? [t('hold.prevUnknown', { n: p.unknown.length, codes: p.unknown.slice(0, 8).join(', ') })] : []),
+    ...(p.skipped.length ? [t('hold.prevSkipped', { n: p.skipped.length, kinds: [...out].join('・') })] : []),
+  ]
+  if (!p.holdings.length) {
+    await confirmDialog({ title: t('hold.csvEmpty'), items, ok: t('common.close') })
+    return
   }
-  const rest = app.holdings.filter((h) => !(h.code === code && h.account === account))
-  await save([...rest, next])
-  toast(t('hold.saved', { name: nameOf(`JP:${code}`) || code }))
-}
-
-export async function removeHolding(h: Holding): Promise<void> {
   const r = await confirmDialog({
-    title: t('hold.removeTitle', { name: nameOf(`JP:${h.code}`) || h.code, acct: accountName(h.account) }),
-    ok: t('hold.remove'),
-    danger: true,
+    title: t('hold.csvTitle', { n: p.holdings.length }),
+    body: t('hold.csvBody'),
+    items,
+    ok: t('hold.csvDo'),
   })
   if (!r.ok) return
-  await save(app.holdings.filter((x) => x !== h && !(x.code === h.code && x.account === h.account)))
+  app.holdings = await rpc('portfolio.applyCsv', { holdings: p.holdings, meta: p.meta })
+  app.portfolioMeta = p.meta
+  toast(t('hold.imported', { n: p.holdings.length }), { label: t('hold.undo'), run: () => void undoHoldingsImport() }, 10_000)
 }
 
 /** 保有の JSON 書き出し（FR-H8, H10）。個人の資産情報なので、他人と共有しないことを示す */
@@ -112,17 +112,17 @@ export async function importHoldings(): Promise<void> {
   const text = await window.elecxstock.openFile('json')
   if (typeof text !== 'string') return
   const p = await rpc('portfolio.previewImport', { json: text })
-  const line = (h: Holding) => `${h.code} ${nameOf(`JP:${h.code}`)} · ${accountName(h.account)} · ${h.quantity.toLocaleString()}`
+  const line = (h: Holding) =>
+    `${h.code} ${nameOf(`JP:${h.code}`) || h.name || ''} · ${accountName(h.account)} · ${h.quantity.toLocaleString()}`
   const items = [
     t('hold.prevAdd', { n: p.add.length }),
     ...p.add.slice(0, 8).map((h) => `＋ ${line(h)}`),
     t('hold.prevUpdate', { n: p.update.length }),
     ...p.update.slice(0, 8).map((h) => `↻ ${line(h)}`),
     t('hold.prevSame', { n: p.same.length }),
+    ...(p.unknown.length ? [t('hold.prevUnknown', { n: p.unknown.length, codes: p.unknown.slice(0, 8).join(', ') })] : []),
     t('hold.prevRejected', { n: p.rejected.length }),
-    ...p.rejected
-      .slice(0, 8)
-      .map((r) => `✕ #${r.index + 1} ${r.code || '?'}: ${r.reason === 'unknown-code' ? t('hold.unknownCode') : r.reason}`),
+    ...p.rejected.slice(0, 8).map((r) => `✕ #${r.index + 1} ${r.code || '?'}: ${r.reason}`),
   ]
   const r = await confirmDialog({ title: t('hold.importTitle'), items, ok: t('hold.importNext') })
   if (!r.ok || !p.holdings.length) return
@@ -131,7 +131,8 @@ export async function importHoldings(): Promise<void> {
     { id: 'replace', label: t('hold.replace'), hint: t('hold.replaceHint') },
   ])
   if (mode !== 'merge' && mode !== 'replace') return
-  app.holdings = await rpc('portfolio.applyImport', { holdings: p.holdings, mode })
+  app.holdings = await rpc('portfolio.applyImport', { holdings: p.holdings, mode, meta: p.meta })
+  app.portfolioMeta = await rpc('portfolio.meta', {})
   toast(t('hold.imported', { n: p.holdings.length }), { label: t('hold.undo'), run: () => void undoHoldingsImport() }, 10_000)
 }
 export async function undoHoldingsImport(): Promise<void> {
@@ -141,5 +142,6 @@ export async function undoHoldingsImport(): Promise<void> {
     return
   }
   app.holdings = r
+  app.portfolioMeta = await rpc('portfolio.meta', {})
   toast(t('hold.undone'))
 }

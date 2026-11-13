@@ -56,8 +56,8 @@ export interface LayoutEntry {
   root: LNode
   docks: { left?: Dock; right?: Dock }
 }
-export type PresetId = 'mtf' | 'grid' | 'screener' | 'income' | 'triple' | 'market' | 'free'
-export const PRESET_IDS: PresetId[] = ['mtf', 'grid', 'screener', 'income', 'triple', 'market', 'free']
+export type PresetId = 'mtf' | 'grid' | 'screener' | 'income' | 'triple' | 'market' | 'free' | 'holdings'
+export const PRESET_IDS: PresetId[] = ['mtf', 'grid', 'screener', 'income', 'triple', 'market', 'free', 'holdings']
 export interface LayoutDoc {
   version: 1
   active: PresetId
@@ -71,32 +71,53 @@ const P = (widget: WidgetId, link = 1, state: Record<string, unknown> = {}): Pan
 const R = (sizes: number[], ...children: LNode[]): SplitNode => ({ kind: 'split', id: nid(), dir: 'row', sizes, children })
 const C = (sizes: number[], ...children: LNode[]): SplitNode => ({ kind: 'split', id: nid(), dir: 'col', sizes, children })
 
-/** プリセット（§6.4）。選ぶとこの初期状態から始まり、変更はそのプリセットの「今のレイアウト」になる */
+/**
+ * プリセット（§6.4）。選ぶとこの初期状態から始まり、変更はそのプリセットの「今のレイアウト」になる。
+ * 並べ方の決まり（FR-L12）: 銘柄を選ぶ一覧（ウォッチリスト・スクリーナー・そのタブの一覧）は、どのタブも**左の 1 列**に置き、
+ * 上にウォッチリスト、下にスクリーナー（またはタブの一覧）。チャートと銘柄情報は右。
+ * 画面いっぱいにチャートを見せるタブ（グリッド・フリー）は、同じ並びを**左のドロワー**に入れる。右のドロワーはプリセットでは使わない
+ */
+const DOCK_WIDTH = 620
+const selectCol = (link: number, below: PaneNode = P('screener', link), split = [55, 45]) =>
+  C(split, P('watchlist', link, { list: 'favorites' }), below)
+const selectDock = (link: number, active: number): Dock => ({
+  panes: [P('watchlist', link, { list: 'favorites' }), P('screener', link)],
+  active,
+  pinned: false,
+  width: DOCK_WIDTH,
+})
+/** タブを開いたときに最初にフォーカスするペイン（無ければ木の最初のペイン） */
+export const PRESET_FOCUS: Partial<Record<PresetId, WidgetId>> = { screener: 'screener', holdings: 'portfolio' }
+
 export function presetEntry(id: PresetId): LayoutEntry {
   switch (id) {
     case 'mtf':
       return {
         root: R(
-          [26, 74],
-          P('watchlist', 1, { list: 'favorites' }),
+          [30, 70],
+          selectCol(1),
           C([62, 38], P('chart', 1, { tf: 'D' }), R([50, 50], P('chart', 1, { tf: 'W' }), P('chart', 1, { tf: 'M' }))),
         ),
         docks: {},
       }
     case 'grid':
-      return {
-        root: P('grid', 1, { src: 'live' }),
-        docks: { left: { panes: [P('watchlist', 1, { list: 'favorites' }), P('screener', 1)], active: 1, pinned: false, width: 660 } },
-      }
+      // グリッドはスクリーナーの結果を並べることが多いので、ドロワーはスクリーナーを前に出す
+      return { root: P('grid', 1, { src: 'live' }), docks: { left: selectDock(1, 1) } }
     case 'screener':
+      // スクリーナーが主役なので、左の列を広げ、スクリーナーに高さを多く割く
       return {
-        root: R([46, 54], P('screener', 1), C([58, 42], R([62, 38], P('chart', 1, { tf: 'D' }), P('chart', 1, { tf: 'W' })), P('info', 1))),
+        root: R(
+          [42, 58],
+          selectCol(1, P('screener', 1), [30, 70]),
+          C([58, 42], R([62, 38], P('chart', 1, { tf: 'D' }), P('chart', 1, { tf: 'W' })), P('info', 1)),
+        ),
         docks: {},
       }
     case 'income':
+      // 高配当のウォッチリストと、下に配当カレンダー（このタブの一覧）
       return {
         root: R(
-          [48, 52],
+          [40, 60],
           C([45, 55], P('watchlist', 3, { list: 'income' }), P('divcal', 3)),
           C([55, 45], P('chart', 3, { tf: 'M' }), P('info', 3)),
         ),
@@ -104,18 +125,22 @@ export function presetEntry(id: PresetId): LayoutEntry {
       }
     case 'triple':
       return {
-        root: C(
-          [64, 36],
-          R([34, 33, 33], P('chart', 1, { tf: 'D' }), P('chart', 1, { tf: 'W' }), P('chart', 1, { tf: 'M' })),
-          R([30, 70], P('watchlist', 1, { list: 'favorites' }), P('info', 1)),
+        root: R(
+          [30, 70],
+          selectCol(1),
+          C([64, 36], R([34, 33, 33], P('chart', 1, { tf: 'D' }), P('chart', 1, { tf: 'W' }), P('chart', 1, { tf: 'M' })), P('info', 1)),
         ),
         docks: {},
       }
     case 'market':
-      // §6.4 Market（P2）: heatmap + ranking + market-overview。右のドロワーに保有の一覧
+      // §6.4 Market（P2）: 左の列にウォッチリストとランキング（このタブの一覧）、右に heatmap・チャート・market-overview
       return {
-        root: R([58, 42], C([64, 36], P('heatmap', 4), P('market', 4)), C([55, 45], P('ranking', 4), P('chart', 4, { tf: 'D' }))),
-        docks: { right: { panes: [P('portfolio', 4)], active: 0, pinned: false, width: 620 } },
+        root: R(
+          [30, 70],
+          selectCol(4, P('ranking', 4), [40, 60]),
+          C([64, 36], R([60, 40], P('heatmap', 4), P('chart', 4, { tf: 'D' })), P('market', 4)),
+        ),
+        docks: {},
       }
     case 'free':
       // §6.4 フリー: 分割を重ねて自由に並べる。リンク色の無いチャートは、それぞれ自分の銘柄を持つ（FR-L11）。
@@ -131,7 +156,13 @@ export function presetEntry(id: PresetId): LayoutEntry {
             P('chart', 0, { tf: 'D', sym: 'JP:9434' }),
           ),
         ),
-        docks: { left: { panes: [P('watchlist', 1, { list: 'favorites' }), P('screener', 1)], active: 0, pinned: false, width: 560 } },
+        docks: { left: selectDock(1, 0) },
+      }
+    case 'holdings':
+      // §6.4 保有（FR-H11）: 左に保有の一覧（このタブの一覧。列が多いので広め）、右にチャートと銘柄情報（リンク 2）
+      return {
+        root: R([58, 42], P('portfolio', 2), C([60, 40], P('chart', 2, { tf: 'D' }), P('info', 2))),
+        docks: {},
       }
   }
 }
@@ -359,16 +390,56 @@ function snapshotSizes(e: LayoutEntry): SizeSnap {
   }
 }
 /** サイズを元に戻す（FR-L9）。並び・中身は変えない。10 秒間は元に戻せる */
+/** 区切りの子ごとの中のペイン（種類・時間軸）。木の位置ではなく中身で既定の比率を探すため */
+function childKeys(s: SplitNode): string[][] {
+  const panes = (n: LNode): string[] =>
+    n.kind === 'pane' ? [`${n.widget}${typeof n.state.tf === 'string' ? `:${n.state.tf}` : ''}`] : n.children.flatMap(panes)
+  return s.children.map((c) => panes(c).sort())
+}
+/** 2 つの区切りの似ている度合い（0〜1）。向きと子の数が違えば 0。子ごとに中のペインの重なり（Jaccard）を平均する */
+function similarity(a: SplitNode, b: SplitNode): number {
+  if (a.dir !== b.dir || a.children.length !== b.children.length) return 0
+  const ka = childKeys(a)
+  const kb = childKeys(b)
+  let sum = 0
+  ka.forEach((x, i) => {
+    const y = kb[i]!
+    const inter = x.filter((v) => y.includes(v)).length
+    const union = new Set([...x, ...y]).size
+    sum += union ? inter / union : 0
+  })
+  return sum / ka.length
+}
+/**
+ * 今の木の区切りごとの既定の比率（FR-L9）。プリセットのうち中身がいちばん似ている区切り（向き・子の数が同じで、
+ * 子の中のペインが重なるもの）の比率を使い、似たものが無ければ等分。ペインをドロワーに移したり、前の版で保存した
+ * レイアウトで形が違っても、残った区切り（例: 日足 / 週足・月足）は元の比率に戻る
+ */
+function defaultSizesOf(root: LNode, preset: LayoutEntry): Map<SplitNode, number[]> {
+  const cands: SplitNode[] = []
+  eachSplit(preset.root, (s) => cands.push(s))
+  const out = new Map<SplitNode, number[]>()
+  eachSplit(root, (s) => {
+    let best: SplitNode | null = null
+    let bs = 0
+    for (const c of cands) {
+      const v = similarity(s, c)
+      if (v > bs) {
+        bs = v
+        best = c
+      }
+    }
+    out.set(s, best ? [...best.sizes] : s.sizes.map(() => 100 / s.sizes.length))
+  })
+  return out
+}
 export function resetSizes(): boolean {
   const e = layout.entry
   const preset = presetEntry(layout.doc.active)
-  const target: number[][] = []
-  eachSplit(preset.root, (s) => target.push([...s.sizes]))
+  const target = defaultSizesOf(e.root, preset)
   undoSnap = snapshotSizes(e)
-  let k = 0
   eachSplit(e.root, (s) => {
-    const t = target[k++]
-    s.sizes = t && t.length === s.sizes.length ? [...t] : s.sizes.map(() => 100 / s.sizes.length)
+    s.sizes = [...target.get(s)!]
   })
   if (e.docks.left && preset.docks.left) e.docks.left.width = preset.docks.left.width
   if (e.docks.right && preset.docks.right) e.docks.right.width = preset.docks.right.width
@@ -381,13 +452,10 @@ export function resetSizes(): boolean {
 export function sizesAtDefault(): boolean {
   const e = layout.entry
   const preset = presetEntry(layout.doc.active)
-  const target: number[][] = []
-  eachSplit(preset.root, (x) => target.push([...x.sizes]))
-  let k = 0
+  const target = defaultSizesOf(e.root, preset)
   let same = true
   eachSplit(e.root, (x) => {
-    const t = target[k++]
-    const want = t && t.length === x.sizes.length ? t : x.sizes.map(() => 100 / x.sizes.length)
+    const want = target.get(x)!
     const sum = x.sizes.reduce((a, b) => a + b, 0) || 1
     if (x.sizes.some((v, i) => Math.abs((v / sum) * 100 - want[i]!) > 0.5)) same = false
   })
@@ -518,6 +586,39 @@ export function movePane(srcId: string, targetId: string, where: 'left' | 'right
     const node: SplitNode = { kind: 'split', id: nid(), dir, sizes: [50, 50], children: before ? [src, target] : [target, src] }
     if (pp) pp.parent.children[pp.index] = node
     else layout.entry.root = node
+  }
+  saveLayout()
+  return true
+}
+/**
+ * ペインを画面（本体）の外側の端へ動かす（FR-L2）。右・左は新しい列、上・下は新しい行として、いちばん外の区切りに足す。
+ * 一番右の列が上下に分かれているときでも、その右に新しい列を作れる（ペインの端に落とすと、そのペインの隣にしか入らないため）。
+ * 新しい列・行の大きさは等分（n 列なら 1/(n+1)）。ドロワーのペインも移せる。本体の最後の 1 枚は動かさない
+ */
+export function moveToEdge(srcId: string, side: 'left' | 'right' | 'top' | 'bottom'): boolean {
+  if (!inDock(srcId) && !parentOf(srcId)) return false
+  const dir = side === 'left' || side === 'right' ? 'row' : 'col'
+  const first = side === 'left' || side === 'top'
+  const root = layout.entry.root
+  // すでにその端にある（いちばん外の区切りの端の子）なら何もしない
+  if (root.kind === 'split' && root.dir === dir && root.children[first ? 0 : root.children.length - 1]?.id === srcId) return false
+  const src = detach(srcId)
+  if (!src) return false
+  const r = layout.entry.root
+  if (r.kind === 'split' && r.dir === dir) {
+    const n = r.children.length
+    const share = 100 / (n + 1)
+    const total = r.sizes.reduce((a, b) => a + b, 0) || 100
+    r.sizes = r.sizes.map((v) => (v / total) * (100 - share))
+    if (first) {
+      r.children.unshift(src)
+      r.sizes.unshift(share)
+    } else {
+      r.children.push(src)
+      r.sizes.push(share)
+    }
+  } else {
+    layout.entry.root = { kind: 'split', id: nid(), dir, sizes: [50, 50], children: first ? [src, r] : [r, src] }
   }
   saveLayout()
   return true

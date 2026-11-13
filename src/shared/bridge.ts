@@ -7,7 +7,7 @@ export interface ElecxstockBridge {
   prioritize(ids: string[]): void
   openExternal(url: string): Promise<boolean>
   saveText(name: string, text: string): Promise<boolean>
-  openFile(kind: 'json' | 'xlsx' | 'text'): Promise<string | Uint8Array | null>
+  openFile(kind: 'json' | 'xlsx' | 'text' | 'csv'): Promise<string | Uint8Array | null>
   /** data/backups の DB のバックアップを、選んだ場所へ写す */
   exportBackup(file: string): Promise<boolean>
   openLogs(): Promise<boolean>

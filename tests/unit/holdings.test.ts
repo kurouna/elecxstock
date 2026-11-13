@@ -29,7 +29,7 @@ describe('fromLots（移動平均法、FR-H5）', () => {
 
 describe('保有の JSON（FR-H8, H9）', () => {
   const cur: Holding[] = [
-    { code: '8058', account: 'nisa_growth', quantity: 300, avgCost: 2680.5 },
+    { code: '8058', account: 'nisa_growth', quantity: 300, avgCost: 2680.5, price: 3300, broker: 'rakuten' },
     { code: '7203', account: 'tokutei', quantity: 100, avgCost: 2500 },
   ]
   it('書き出しには形式・版・銘柄名が入り、取り込みの差分は追加・更新・同じ・取り込めないに分かれる', () => {
@@ -37,6 +37,7 @@ describe('保有の JSON（FR-H8, H9）', () => {
     const o = JSON.parse(json)
     expect(o.format).toBe('elecxstock.holdings')
     expect(o.holdings[0].name).toBe('三菱商事')
+    expect(o.holdings[0]).not.toHaveProperty('price') // 市場データ（CSV の現在値）は書き出さない
     o.holdings[1].quantity = 200
     o.holdings.push({ code: '8951', account: 'tokutei', quantity: 10, avgCost: 118400, broker: '○○証券' })
     o.holdings.push({ code: '9999', account: 'tokutei', quantity: 1, avgCost: 1 })
@@ -44,10 +45,18 @@ describe('保有の JSON（FR-H8, H9）', () => {
     const p = previewImport(JSON.stringify(o), cur, (c) => c !== '9999')
     expect(p.same.map((h) => h.code)).toEqual(['8058'])
     expect(p.update.map((h) => h.code)).toEqual(['7203'])
-    expect(p.add.map((h) => h.code)).toEqual(['8951'])
-    expect(p.rejected.map((r) => r.code)).toEqual(['9999', '8306'])
-    expect(applyImport(cur, p.holdings, 'merge')).toHaveLength(3)
-    expect(applyImport([...cur, { code: '9432', account: 'ippan', quantity: 1, avgCost: 1 }], p.holdings, 'replace')).toHaveLength(3)
+    // 一覧に無いコード（別の PC で足した銘柄など）も取り込み、銘柄を足す対象として挙げる
+    expect(p.add.map((h) => h.code)).toEqual(['8951', '9999'])
+    expect(p.unknown).toEqual(['9999'])
+    expect(p.rejected.map((r) => r.code)).toEqual(['8306'])
+    expect(p.meta).toBeNull()
+    expect(applyImport(cur, p.holdings, 'merge')).toHaveLength(4)
+    expect(applyImport([...cur, { code: '9432', account: 'ippan', quantity: 1, avgCost: 1 }], p.holdings, 'replace')).toHaveLength(4)
+  })
+  it('CSV の累計（実現損益・配当金）も書き出し、別の PC で取り込める', () => {
+    const meta = { broker: 'rakuten', importedAt: '2026-11-13T17:42:59.504Z', realized: 1000, dividends: 2000 }
+    const json = exportHoldings(cur, () => '', 'elecxstock 0.1.0', new Date('2026-11-13T12:00:00Z'), meta)
+    expect(previewImport(json, [], () => true).meta).toEqual(meta)
   })
   it('別の形式・新しすぎる版は取り込まない', () => {
     expect(() => previewImport('{"format":"other","version":1,"holdings":[]}', cur, () => true)).toThrow()
