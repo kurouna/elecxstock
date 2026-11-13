@@ -239,10 +239,11 @@ export const ja = {
   'layout.sizesReset': 'サイズを元に戻しました',
   'layout.undo': '元に戻す',
   'layout.undone': '元に戻しました',
-  'layout.resetTitle': 'レイアウトを初期状態に戻しますか？',
-  'layout.resetBody': 'ペインの並び・区切り線・ドロワー・グリッドの銘柄と設定が、プリセットの初期状態に戻ります。',
+  'layout.resetTitle': '「{tab}」のレイアウトを初期状態に戻しますか？',
+  'layout.resetBody':
+    'このタブのペインの並び・区切り線・ドロワー・グリッドの銘柄と設定が、プリセットの初期状態に戻ります。ほかのタブ、ウォッチリスト・スクリーン・保有、名前を付けて保存したレイアウトは変わりません。',
   'layout.resetDo': '初期状態に戻す',
-  'layout.resetDone': 'レイアウトを初期状態に戻しました',
+  'layout.resetDone': '「{tab}」のレイアウトを初期状態に戻しました',
   'layout.noDrawer': 'このレイアウトにはドロワーがありません',
   'link.set': 'リンク: {n}',
   'drawer.pin': 'ピン留め',
@@ -285,7 +286,7 @@ export const ja = {
   'act.help': 'ショートカット一覧',
   'act.screens': 'スクリーンを開く…',
   'act.resetSizes': 'サイズを元に戻す（今のレイアウト）',
-  'act.resetLayout': 'レイアウトを初期状態に戻す…',
+  'act.resetLayout': 'このタブのレイアウトを初期状態に戻す…',
   'act.drawer': '左のドロワーを開く / 閉じる',
   'act.drawerPin': 'ドロワーをピン留め',
   'act.openGrid': 'スクリーナーの結果をグリッドで開く',
@@ -557,6 +558,11 @@ export const ja = {
   'top.resetSizesMax': '最大化を戻してから使えます',
   'info.yoy': '前年同期比',
   'jump.next': '続けて次のコードを入力（Esc で閉じる）',
+  'preset.free': 'フリー',
+  'chart.change': '銘柄を変える',
+  'chart.changeTitle': '「{name}」の代わりに表示する銘柄',
+  'act.quit': 'アプリを終了',
+  'dlg.confirmKeys': '← → で選ぶ · Enter で決定 · Esc で取り消し',
 }
 
 export type Key = keyof typeof ja
@@ -798,10 +804,11 @@ export const en: Record<Key, string> = {
   'layout.sizesReset': 'Pane sizes reset',
   'layout.undo': 'Undo',
   'layout.undone': 'Undone',
-  'layout.resetTitle': 'Reset this layout to its preset?',
-  'layout.resetBody': 'Panes, dividers, drawers and the grid’s symbols and settings return to the preset.',
+  'layout.resetTitle': 'Reset the “{tab}” layout to its preset?',
+  'layout.resetBody':
+    'This tab’s panes, dividers, drawers and the grid’s symbols and settings return to the preset. Other tabs, watchlists, screens, holdings and saved layouts are not changed.',
   'layout.resetDo': 'Reset layout',
-  'layout.resetDone': 'Layout reset to preset',
+  'layout.resetDone': '“{tab}” layout reset to preset',
   'layout.noDrawer': 'No drawer in this layout',
   'link.set': 'Link: {n}',
   'drawer.pin': 'Pin',
@@ -843,7 +850,7 @@ export const en: Record<Key, string> = {
   'act.help': 'Keyboard shortcuts',
   'act.screens': 'Open screen…',
   'act.resetSizes': 'Reset pane sizes (this layout)',
-  'act.resetLayout': 'Reset layout to preset…',
+  'act.resetLayout': 'Reset this tab’s layout to preset…',
   'act.drawer': 'Toggle left drawer',
   'act.drawerPin': 'Pin drawer',
   'act.openGrid': 'Open screener results in grid',
@@ -1112,6 +1119,11 @@ export const en: Record<Key, string> = {
   'top.resetSizesMax': 'Restore the maximized pane first',
   'info.yoy': 'vs a year ago',
   'jump.next': 'Type the next code (Esc to close)',
+  'preset.free': 'Free',
+  'chart.change': 'Change symbol',
+  'chart.changeTitle': 'Show instead of {name}',
+  'act.quit': 'Quit',
+  'dlg.confirmKeys': '← → choose · Enter confirm · Esc cancel',
 }
 
 export const DICTS = { ja, en }

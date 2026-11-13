@@ -29,7 +29,7 @@
 - **ウォッチリスト**: 複数のリスト、お気に入り（★）、並べ替え・複製、複数選択、列の選択、CSV の書き出しとコードの一覧の取り込み、JSON での書き出し・取り込み。
 - **保有（ポートフォリオ）**: 銘柄 × 口座区分（NISA 成長投資枠・つみたて投資枠・旧 NISA・特定・一般）ごとに、取引か数量・平均取得単価で記録し、評価額・評価損益・取得利回りを口座区分ごと・合計で見られます。JSON で書き出し・取り込み（[形式](docs/holdings-format.md)）。
 - **マーケット**: 33 業種のヒートマップ（面積 = 時価総額、色 = 騰落率）、ランキング、指数・指数連動 ETF の小さなチャート。
-- **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、6 つのプリセット（MTF・Grid・Screener・Income・Triple・Market）、名前を付けて保存したレイアウト、サイズのリセット。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。
+- **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、7 つのプリセット（MTF・Grid・Screener・Income・Triple・Market・Free）、名前を付けて保存したレイアウト、サイズのリセット。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。
 - **配当カレンダー**、銘柄情報、取得ジョブの進捗と一時停止。
 - **日本語／英語**の表示、ダーク／ライトのテーマ、陽線・陰線の色（日本式／欧米式）、キーの割り当ての変更。
 - 大引け後の自動更新、新しい版の通知、市場データの DB のバックアップ、日足の CSV 書き出し。
@@ -66,14 +66,15 @@
 | 銘柄ジャンプ                                 | 数字キー（証券コード）→ Enter                |
 | ジャンプの候補をお気に入りに / リストに足す  | Ctrl+D / Ctrl+Enter                          |
 | ペイン間の移動                               | Alt+← → ↑ ↓                                  |
-| レイアウトの切り替え / 一覧                  | Ctrl+Shift+1〜6 / Ctrl+Shift+L               |
+| レイアウトの切り替え / 一覧                  | Ctrl+Shift+1〜7 / Ctrl+Shift+L               |
 | 左 / 右のドロワー                            | Ctrl+B / Ctrl+Shift+B（ピン留め Ctrl+Alt+B） |
 | お気に入り / リストに追加                    | Ctrl+D / Ctrl+Shift+A                        |
 | 日足 / 週足 / 月足・チャートの指標           | D / W / M・I                                 |
 | 列の選択（一覧）                             | Ctrl+Shift+C                                 |
-| グリッドのタイルの銘柄を差し替え             | C                                            |
+| チャート / グリッドのタイルの銘柄を変える    | C                                            |
 | データの更新                                 | F5                                           |
 | ショートカット一覧                           | F1                                           |
+| アプリを終了                                 | Ctrl+Shift+Q                                 |
 
 すべてのキーは F1 の一覧と [docs/requirements.md](docs/requirements.md) §6.5 にあります。アプリ全体のキーは「設定 > キー」で変えられます。
 
@@ -121,7 +122,7 @@ Everything can be done with the keyboard alone.
 - **Watchlists**: multiple lists, favorites (★), sorting, duplicate, multi-select, columns, CSV export and code-list import, JSON export/import.
 - **Portfolio**: holdings per symbol and account type (NISA, specified, general) entered as trades or quantity/average cost, with value and P/L by account; JSON export/import ([format](docs/holdings-format.md)).
 - **Market**: sector heatmap, rankings and index mini-charts.
-- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, six presets, named layouts, size reset. Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
+- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, seven presets (including Free, where each unlinked chart keeps its own symbol), named layouts, size reset. Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
 - **Dividend calendar**, symbol info, fetch jobs with progress and pause.
 - **Japanese / English** UI, dark / light themes, candle colors (Japanese or Western) and remappable keys.
 - Automatic update after the close, new-version notice, database backup, daily-bar CSV export.

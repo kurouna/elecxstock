@@ -3,7 +3,7 @@
 // キーでは同じことを C（タイルの差し替え）と Enter（リンクグループに送る）で行う（FR-KB4）。
 import type { InstrumentId } from '@shared/types'
 import { t } from '../stores/app.svelte'
-import { layout, type PaneNode, saveLayout, setLinkSymbol } from '../stores/layout.svelte'
+import { layout, type PaneNode, setPaneSymbol } from '../stores/layout.svelte'
 
 export const SYMBOL_MIME = 'application/x-elecxstock-symbol'
 
@@ -36,13 +36,9 @@ export function droppedSymbol(e: DragEvent): InstrumentId | null {
   return (e.dataTransfer?.getData(SYMBOL_MIME) || dragging) ?? null
 }
 
-/** チャートのペインに落としたら、そのリンクグループ（リンクの無いペインはそのペイン）の銘柄にする */
+/** チャートのペインに落としたら、そのリンクグループ（リンクの無いペインはそのペインだけ）の銘柄にする */
 export function dropOnChart(pane: PaneNode, id: InstrumentId): void {
-  if (pane.link) setLinkSymbol(pane.link, id)
-  else {
-    layout.doc.links['0'] = id
-    saveLayout()
-  }
+  setPaneSymbol(pane, id)
 }
 
 /**

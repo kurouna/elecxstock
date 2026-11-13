@@ -3,18 +3,18 @@
 // Tab / Shift+Tab で段を移り、D/W/M はフォーカス中の段の時間軸を替える。V で並べ方を切り替える。
 import type { Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
-import { cancelCompare, chartKey, chartMenu, takeCompare } from '../../lib/chartMenu'
+import { cancelCompare, changeSymbol, chartKey, chartMenu, takeCompare } from '../../lib/chartMenu'
 import { cls, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import { app, codeOf, ensureMetrics, isFav, metric, nameOf, t, toggleFav } from '../../stores/app.svelte'
-import { linkSymbol, type PaneNode, patchState } from '../../stores/layout.svelte'
+import { type PaneNode, paneSymbol, patchState } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import ChartView, { type ChartViewApi } from './ChartView.svelte'
 
 let { pane }: { pane: PaneNode } = $props()
 const tfs = $derived(((pane.state.tfs as Timeframe[] | undefined) ?? ['D', 'W', 'M']) as Timeframe[])
 const arr = $derived((pane.state.arr as 'cols' | 'one2') ?? 'one2')
-const id = $derived(linkSymbol(pane.link) ?? 'JP:7203')
+const id = $derived(paneSymbol(pane) ?? 'JP:7203')
 const m = $derived(metric(id))
 let active = $state(0)
 const views: (ChartViewApi | null)[] = [null, null, null]
@@ -54,7 +54,7 @@ onMount(() =>
 
 <PaneHeader {pane}>
   <button type="button" class="star" class:on={isFav(id)} title="Ctrl+D" onclick={() => toggleFav(id)}>★</button>
-  <span class="sym"><span class="code">{codeOf(id)}</span>{nameOf(id)}</span>
+  <button type="button" class="sym" title={`${t('chart.change')} (C)`} onclick={() => changeSymbol(pane)}><span class="code">{codeOf(id)}</span>{nameOf(id)}</button>
   <span class="num">{px(m?.close)}</span>
   <span class={`num ${cls(m?.chgPct)}`}>{sgn(m?.chgPct, 2, '%')}</span>
   <span class="seg">
@@ -78,6 +78,12 @@ onMount(() =>
 
 <style>
   .sym {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
     font-weight: 700;
     font-size: var(--fs-3);
     min-width: 0;

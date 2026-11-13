@@ -9,6 +9,9 @@ let value = $state('')
 let sel = $state(0)
 let input = $state<HTMLInputElement>()
 let first = $state<HTMLButtonElement>()
+let okBtn = $state<HTMLButtonElement>()
+/** 確認ダイアログで選んでいるボタン（0: 取り消し、1: 実行）。危険な操作は取り消しから始める */
+let csel = $state(0)
 
 function done<T>(f: (v: T) => void, v: T) {
   app.overlay = null
@@ -22,7 +25,10 @@ onMount(() => {
       input?.select()
     })
   } else if (overlay.kind === 'checklist') queueMicrotask(() => box?.focus())
-  else first?.focus()
+  else if (overlay.kind === 'confirm') {
+    csel = overlay.danger ? 0 : 1
+    ;(csel ? okBtn : first)?.focus()
+  } else first?.focus()
 })
 let box = $state<HTMLDivElement>()
 const intoView = () => queueMicrotask(() => box?.querySelector('.it.sel')?.scrollIntoView({ block: 'nearest' }))
@@ -42,6 +48,20 @@ function choiceKey(e: KeyboardEvent) {
   } else return
   intoView()
   e.preventDefault()
+}
+/** 確認: ← → ↑ ↓ で取り消し / 実行を選び、Enter で決める（Esc は取り消し） */
+function confirmKey(e: KeyboardEvent) {
+  if (overlay.kind !== 'confirm' || e.isComposing) return
+  if ((e.target as HTMLElement).tagName === 'INPUT') return // チェックボックスの上では Space / 矢印をそのまま
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') csel = 0
+  else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') csel = 1
+  else if (e.key === 'Enter') {
+    e.preventDefault()
+    done(overlay.resolve, { ok: csel === 1, checked })
+    return
+  } else return
+  e.preventDefault()
+  ;(csel ? okBtn : first)?.focus()
 }
 function checkKey(e: KeyboardEvent) {
   if (overlay.kind !== 'checklist') return
@@ -69,15 +89,17 @@ function checkKey(e: KeyboardEvent) {
 </script>
 
 {#if overlay.kind === 'confirm'}
-  <div class="dialog box" role="alertdialog">
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="dialog box" role="alertdialog" tabindex="-1" onkeydown={confirmKey}>
     <h3>{overlay.title}</h3>
     {#if overlay.body}<p class="dim">{overlay.body}</p>{/if}
     {#if overlay.items}<ul>{#each overlay.items as x (x)}<li>{x}</li>{/each}</ul>{/if}
     {#if overlay.check}<label class="chk"><input type="checkbox" bind:checked /> {overlay.check}</label>{/if}
     <div class="actions">
-      <button type="button" class="btn" bind:this={first} onclick={() => done(overlay.resolve, { ok: false, checked })}>{t('common.cancel')}</button>
-      <button type="button" class="btn" class:danger={overlay.danger} class:primary={!overlay.danger} onclick={() => done(overlay.resolve, { ok: true, checked })}>{overlay.ok}</button>
+      <button type="button" class="btn" class:sel={csel === 0} bind:this={first} onfocus={() => (csel = 0)} onclick={() => done(overlay.resolve, { ok: false, checked })}>{t('common.cancel')}</button>
+      <button type="button" class="btn" class:sel={csel === 1} class:danger={overlay.danger} class:primary={!overlay.danger} bind:this={okBtn} onfocus={() => (csel = 1)} onclick={() => done(overlay.resolve, { ok: true, checked })}>{overlay.ok}</button>
     </div>
+    <div class="keys muted">{t('dlg.confirmKeys')}</div>
   </div>
 {:else if overlay.kind === 'prompt'}
   <div class="dialog box" role="dialog">
@@ -187,6 +209,16 @@ function checkKey(e: KeyboardEvent) {
   .box2.on {
     background: var(--focus);
     border-color: var(--focus);
+  }
+  /* 選んでいるボタン: マウスで操作しているときもフォーカスの枠と同じ縁取りを出す */
+  .actions .btn.sel {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .keys {
+    margin-top: var(--s-2);
+    font-size: var(--fs-1);
+    text-align: right;
   }
   .chk {
     display: flex;

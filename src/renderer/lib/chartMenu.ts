@@ -1,9 +1,9 @@
-// チャートの表示の操作（§6.5.4）: L 対数軸・A 価格の調整・T 種類・I 指標メニュー（指標・移動平均の期間・比較・表示期間をそろえる）。
+// チャートの表示の操作（§6.5.4）: C 銘柄を変える・L 対数軸・A 価格の調整・T 種類・I 指標メニュー（指標・移動平均の期間・比較・表示期間をそろえる）。
 // chart と mtf-chart が同じものを使う。表示はペインの状態に保存する（FR-L4）。
 import type { Adjustment, InstrumentId } from '@shared/types'
 import type { ChartType, Indicator } from '../components/widgets/ChartView.svelte'
 import { app, checklistDialog, choiceDialog, nameOf, promptDialog, saveSettings, t, toast } from '../stores/app.svelte'
-import { type PaneNode, patchState } from '../stores/layout.svelte'
+import { type PaneNode, paneSymbol, patchState } from '../stores/layout.svelte'
 import type { Key } from './i18n'
 
 const IND: Indicator[] = ['ma', 'vol', 'volma', 'bb', 'ichimoku', 'rsi', 'macd', 'stoch', 'divs']
@@ -94,9 +94,22 @@ export async function chartMenu(pane: PaneNode): Promise<void> {
 }
 
 /** chart・mtf-chart の共通のキー。扱えたら true */
+/**
+ * このチャートの銘柄を変える（C キー・見出しの銘柄名）。コマンドバーで選んだ銘柄は sendSymbol でこのペインに届く:
+ * リンク色があればそのグループ、無ければこのチャートだけが変わる（FR-L11）
+ */
+export function changeSymbol(pane: PaneNode): void {
+  app.focus = pane.id
+  const cur = paneSymbol(pane)
+  app.overlay = { kind: 'palette', q: '', title: t('chart.changeTitle', { name: cur ? nameOf(cur) : '' }) }
+}
 export function chartKey(pane: PaneNode, e: KeyboardEvent): boolean {
   if (e.ctrlKey || e.altKey || e.metaKey) return false
   const c = e.code
+  if (c === 'KeyC' && !e.shiftKey) {
+    changeSymbol(pane)
+    return true
+  }
   if (c === 'KeyL') {
     patchState(pane, { log: !pane.state.log })
     toast(`${t('chart.log')}: ${pane.state.log ? 'ON' : 'OFF'}`)

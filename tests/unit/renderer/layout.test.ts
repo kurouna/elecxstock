@@ -66,3 +66,31 @@ describe('ペインの移動とドロワー（FR-L2, DR6）', () => {
     expect(L.allPanes(n.entries.market).map((p) => p.widget)).toContain('heatmap')
   })
 })
+
+describe('フリーのレイアウトとペインごとの銘柄（FR-L11）', () => {
+  it('フリーは 2 列（左 1 枚・右 3 枚）で、リンク色の無いチャートはそれぞれの銘柄を持つ', () => {
+    L.layout.doc = L.defaultDoc()
+    L.layout.doc.active = 'free'
+    const panes = L.allPanes(L.layout.entry, false)
+    expect(panes.map((p) => L.paneSymbol(p))).toEqual(['JP:7203', 'JP:8306', 'JP:8058', 'JP:9434'])
+    const root = L.layout.entry.root as { dir: string; children: { kind: string; children?: unknown[] }[] }
+    expect(root.dir).toBe('row')
+    expect(root.children[1]!.children).toHaveLength(3)
+  })
+  it('リンク色の無いペインの銘柄はそのペインだけ変わり、分割すると引き継ぐ', () => {
+    L.layout.doc = L.defaultDoc()
+    L.layout.doc.active = 'free'
+    const [a, b] = L.allPanes(L.layout.entry, false)
+    L.setPaneSymbol(a!, 'JP:8001')
+    expect(L.paneSymbol(a!)).toBe('JP:8001')
+    expect(L.paneSymbol(b!)).toBe('JP:8306')
+    const id = L.splitPane(a!.id, 'col')!
+    expect(L.paneSymbol(L.findPane(id)!)).toBe('JP:8001')
+  })
+  it('リンク色のあるペインはグループの銘柄を共有する', () => {
+    L.layout.doc = L.defaultDoc()
+    const [a, b] = L.allPanes(L.layout.entry, false).filter((p) => p.link === 1)
+    L.setPaneSymbol(a!, 'JP:2914')
+    expect(L.paneSymbol(b!)).toBe('JP:2914')
+  })
+})

@@ -56,8 +56,8 @@ export interface LayoutEntry {
   root: LNode
   docks: { left?: Dock; right?: Dock }
 }
-export type PresetId = 'mtf' | 'grid' | 'screener' | 'income' | 'triple' | 'market'
-export const PRESET_IDS: PresetId[] = ['mtf', 'grid', 'screener', 'income', 'triple', 'market']
+export type PresetId = 'mtf' | 'grid' | 'screener' | 'income' | 'triple' | 'market' | 'free'
+export const PRESET_IDS: PresetId[] = ['mtf', 'grid', 'screener', 'income', 'triple', 'market', 'free']
 export interface LayoutDoc {
   version: 1
   active: PresetId
@@ -116,6 +116,22 @@ export function presetEntry(id: PresetId): LayoutEntry {
       return {
         root: R([58, 42], C([64, 36], P('heatmap', 4), P('market', 4)), C([55, 45], P('ranking', 4), P('chart', 4, { tf: 'D' }))),
         docks: { right: { panes: [P('portfolio', 4)], active: 0, pinned: false, width: 620 } },
+      }
+    case 'free':
+      // §6.4 フリー: 分割を重ねて自由に並べる。リンク色の無いチャートは、それぞれ自分の銘柄を持つ（FR-L11）。
+      // 左のドロワーにウォッチリスト・スクリーナー（リンク 1）。左の大きいチャートはリンク 1 で一覧の選択に従い、右の 3 枚は独立
+      return {
+        root: R(
+          [50, 50],
+          P('chart', 1, { tf: 'D' }),
+          C(
+            [34, 33, 33],
+            P('chart', 0, { tf: 'D', sym: 'JP:8306' }),
+            P('chart', 0, { tf: 'D', sym: 'JP:8058' }),
+            P('chart', 0, { tf: 'D', sym: 'JP:9434' }),
+          ),
+        ),
+        docks: { left: { panes: [P('watchlist', 1, { list: 'favorites' }), P('screener', 1)], active: 0, pinned: false, width: 560 } },
       }
   }
 }
@@ -283,6 +299,16 @@ export function setLinkSymbol(group: number, id: InstrumentId): void {
 export function linkSymbol(group: number): InstrumentId | undefined {
   return layout.doc.links[String(group)]
 }
+/** ペインが表示する銘柄: リンク色があればそのグループの銘柄、無ければペイン自身の銘柄（FR-L11） */
+export function paneSymbol(pane: PaneNode): InstrumentId | undefined {
+  if (pane.link) return linkSymbol(pane.link)
+  return (pane.state.sym as InstrumentId | undefined) ?? linkSymbol(0)
+}
+/** ペインの銘柄を変える。リンク色があればグループ全体、無ければそのペインだけ */
+export function setPaneSymbol(pane: PaneNode, id: InstrumentId): void {
+  if (pane.link) setLinkSymbol(pane.link, id)
+  else patchState(pane, { sym: id })
+}
 export function patchState(pane: PaneNode, patch: Record<string, unknown>): void {
   pane.state = { ...pane.state, ...patch }
   saveLayout()
@@ -401,7 +427,10 @@ export function splitPane(paneId: string, dir: 'row' | 'col', widget: WidgetId =
   if (inDock(paneId)) return null
   const pane = findPane(paneId)
   if (!pane) return null
-  const fresh = P(widget, pane.link, widget === 'chart' ? { tf: 'D' } : {})
+  const fresh = P(widget, pane.link, {
+    ...(widget === 'chart' ? { tf: 'D' } : {}),
+    ...(!pane.link && pane.state.sym ? { sym: pane.state.sym } : {}),
+  })
   const pp = parentOf(paneId)
   if (pp && pp.parent.dir === dir) {
     const s = pp.parent.sizes[pp.index]! / 2

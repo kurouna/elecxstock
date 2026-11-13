@@ -2,17 +2,17 @@
 // チャート（§7）。1 銘柄・1 時間軸。本体は ChartView、表示の操作は lib/chartMenu.ts。
 import type { Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
-import { cancelCompare, chartKey, chartMenu, takeCompare } from '../../lib/chartMenu'
+import { cancelCompare, changeSymbol, chartKey, chartMenu, takeCompare } from '../../lib/chartMenu'
 import { cls, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import { app, codeOf, ensureMetrics, isFav, metric, nameOf, t, toggleFav } from '../../stores/app.svelte'
-import { linkSymbol, type PaneNode, patchState } from '../../stores/layout.svelte'
+import { type PaneNode, paneSymbol, patchState } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import ChartView, { type ChartViewApi } from './ChartView.svelte'
 
 let { pane }: { pane: PaneNode } = $props()
 const tf = $derived(((pane.state.tf as Timeframe) ?? 'D') as Timeframe)
-const id = $derived(linkSymbol(pane.link) ?? 'JP:7203')
+const id = $derived(paneSymbol(pane) ?? 'JP:7203')
 const m = $derived(metric(id))
 let view: ChartViewApi | null = null
 $effect(() => ensureMetrics([id]))
@@ -37,7 +37,7 @@ onMount(() =>
 
 <PaneHeader {pane}>
   <button type="button" class="star" class:on={isFav(id)} title="Ctrl+D" onclick={() => toggleFav(id)}>★</button>
-  <span class="sym"><span class="code">{codeOf(id)}</span>{nameOf(id)}</span>
+  <button type="button" class="sym" title={`${t('chart.change')} (C)`} onclick={() => changeSymbol(pane)}><span class="code">{codeOf(id)}</span>{nameOf(id)}</button>
   <span class="num">{px(m?.close)}</span>
   <span class={`num ${cls(m?.chgPct)}`}>{sgn(m?.chgPct, 2, '%')}</span>
   <span class="seg">
@@ -53,6 +53,12 @@ onMount(() =>
 
 <style>
   .sym {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
     font-weight: 700;
     font-size: var(--fs-3);
     min-width: 0;

@@ -42,6 +42,9 @@ function act(id: string) {
   {:else}
     <span class="tools">
       <!-- ドロワーへ移すと、帯にポインタを載せたときだけ出る（自動で隠れる・ピン留めできる。FR-DR3） -->
+      <button type="button" title={`${t('act.split')} (${keyOf('split')})`} aria-label={t('act.split')} onclick={() => act('split')}>◫</button>
+      <button type="button" title={`${t('act.splitDown')} (${keyOf('splitDown')})`} aria-label={t('act.splitDown')} onclick={() => act('splitDown')}>⊟</button>
+      <button type="button" title={`${t('act.changeWidget')} (${keyOf('changeWidget')})`} aria-label={t('act.changeWidget')} onclick={() => act('changeWidget')}>▾</button>
       <button type="button" title={t('act.toDrawer')} aria-label={t('act.toDrawer')} onclick={() => act('toDrawer')}>⇤</button>
       <button type="button" title={`${t('act.max')} (${keyOf('max')})`} aria-label={t('act.max')} onclick={() => act('max')}>⤢</button>
       <button type="button" title={`${t('act.close')} (${keyOf('close')})`} aria-label={t('act.close')} onclick={async () => { if (await confirmCloseScreen(pane)) closePane(pane.id) }}>✕</button>

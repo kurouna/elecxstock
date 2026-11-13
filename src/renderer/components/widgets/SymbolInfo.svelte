@@ -7,11 +7,11 @@ import { cls, date, fmt, money, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { app, bridge, codeOf, ensureMetrics, inst, isFav, metric, nameOf, rpc, t, toast, toggleFav } from '../../stores/app.svelte'
-import { linkSymbol, type PaneNode } from '../../stores/layout.svelte'
+import { type PaneNode, paneSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 
 let { pane }: { pane: PaneNode } = $props()
-const id = $derived(linkSymbol(pane.link) ?? 'JP:7203')
+const id = $derived(paneSymbol(pane) ?? 'JP:7203')
 const m = $derived(metric(id))
 const ins = $derived(inst(id))
 let divs = $state<Dividend[]>([])

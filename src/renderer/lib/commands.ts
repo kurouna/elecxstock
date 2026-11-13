@@ -35,11 +35,13 @@ import {
   nudgeDivider,
   PRESET_IDS,
   type PresetId,
+  paneSymbol,
   patchState,
   resetLayout,
   resetSizes,
   saveLayout,
   setLinkSymbol,
+  setPaneSymbol,
   setPreset,
   splitPane,
   swapPane,
@@ -109,9 +111,16 @@ export function setFocus(id: string | null): void {
 }
 
 /** 選んだ銘柄を、フォーカス中のペインに送る（リンクグループ、または chart-grid の銘柄） */
+/** リンク色が無いとき、自分の銘柄を持つペイン */
+const OWN_SYMBOL = new Set<WidgetId>(['chart', 'mtf', 'info'])
 export function sendSymbol(id: InstrumentId): void {
   const pane = findPane(app.focus)
   if (paneApi(app.focus)?.receive?.(id)) return
+  // リンク色の無いチャート・銘柄情報は、そのペインだけを変える（FR-L11）
+  if (pane && !pane.link && OWN_SYMBOL.has(pane.widget)) {
+    setPaneSymbol(pane, id)
+    return
+  }
   const group = pane?.link || 1
   setLinkSymbol(group, id)
 }
@@ -158,10 +167,17 @@ export function doResetSizes(): void {
   toast(t('layout.sizesReset'), { label: `${t('layout.undo')} (Ctrl+Z)`, run: () => undoResetSizes() && toast(t('layout.undone')) }, 10_000)
 }
 export async function doResetLayout(): Promise<void> {
-  const r = await confirmDialog({ title: t('layout.resetTitle'), body: t('layout.resetBody'), ok: t('layout.resetDo'), danger: true })
+  // 戻すのは表示中のタブだけ。どのタブかを名前で示す
+  const tab = t(`preset.${layout.doc.active}` as Key)
+  const r = await confirmDialog({
+    title: t('layout.resetTitle', { tab }),
+    body: t('layout.resetBody'),
+    ok: t('layout.resetDo'),
+    danger: true,
+  })
   if (!r.ok) return
   resetLayout()
-  toast(t('layout.resetDone'))
+  toast(t('layout.resetDone', { tab }))
 }
 
 export async function startUpdate(): Promise<void> {
@@ -492,6 +508,8 @@ export const ACTIONS: Action[] = [
   { id: 'changeWidget', label: () => t('act.changeWidget'), key: 'Ctrl+Shift+N', when: 'global', run: () => changeWidgetDialog() },
   { id: 'jobs', label: () => t('act.jobs'), run: () => openPane('jobs') },
   { id: 'fullscreen', label: () => t('act.fullscreen'), key: 'F11', when: 'global', run: () => toggleFullscreen() },
+  // アプリを終了する。閉じる前の保存（beforeunload）はウィンドウを閉じるときと同じ
+  { id: 'quit', label: () => t('act.quit'), key: 'Ctrl+Shift+Q', when: 'global', run: () => window.close() },
 ]
 
 function focusNew(id: string | null): void {
@@ -673,7 +691,9 @@ export function handleKey(e: KeyboardEvent): boolean {
   if (ctrl && !e.shiftKey && !e.altKey && /^Digit[0-5]$/.test(c)) {
     const p = findPane(app.focus)
     if (p) {
+      const was = paneSymbol(p)
       p.link = Number(c.slice(5))
+      if (!p.link && was) p.state = { ...p.state, sym: was }
       saveLayout()
       toast(t('link.set', { n: p.link || '—' }))
     }
