@@ -1,7 +1,7 @@
 <script lang="ts">
 import { isMarketOpen, isTradingDay, jstNow } from '@shared/calendar'
 import { onMount } from 'svelte'
-import { doResetSizes } from '../lib/commands'
+import { doResetSizes, keyOf, runAction } from '../lib/commands'
 import type { Key } from '../lib/i18n'
 import { app, t } from '../stores/app.svelte'
 import { layout, PRESET_IDS, setPreset } from '../stores/layout.svelte'
@@ -36,9 +36,12 @@ onMount(() => {
     <span class="ic">›</span><span class="ph">{t('top.search')}</span><kbd>Ctrl+K</kbd>
   </button>
   <div class="right">
-    <button type="button" class="chip" onclick={doResetSizes} title="Ctrl+Alt+R">⟲ {t('top.resetSizes')}</button>
+    <button type="button" class="chip" onclick={doResetSizes} title={keyOf('resetSizes')}>⟲ {t('top.resetSizes')}</button>
     <span class="pill" class:open={market === 'open'}>{t(market === 'open' ? 'market.open' : market === 'holiday' ? 'market.holiday' : 'market.closed')}</span>
     <span class="clock num">{clock} JST</span>
+    <button type="button" class="gear" title={`${t('act.settings')} (${keyOf('settings')})`} aria-label={t('act.settings')} onclick={() => runAction('settings')}>
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.03 7.03 0 0 0-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0-.06.94c0 .32.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.6.22l2.39-.96c.5.38 1.05.7 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54a7.03 7.03 0 0 0 1.63-.94l2.39.96c.22.08.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+    </button>
   </div>
 </header>
 
@@ -154,5 +157,20 @@ onMount(() => {
   }
   .clock {
     color: var(--text-2);
+  }
+  .gear {
+    width: 28px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--text-3);
+    cursor: pointer;
+  }
+  .gear:hover {
+    background: var(--hover);
+    color: var(--text);
   }
 </style>

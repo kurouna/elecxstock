@@ -1,9 +1,15 @@
 // スクリーニングの判定（§5.2）: 数値の閾値・欠損の扱い・属性（市場・業種・種別）・お気に入り・無効な条件
 import { describe, expect, it } from 'vitest'
-import { runScreen } from '../../src/core/screener'
+import { runScreen, screenable } from '../../src/core/screener'
 import type { Instrument, MetricsRow } from '../../src/shared/types'
 
-const ins = (code: string, market: Instrument['market'], kind: Instrument['kind'], sectorJa: string): Instrument => ({
+const ins = (
+  code: string,
+  market: Instrument['market'],
+  kind: Instrument['kind'],
+  sectorJa: string,
+  extra: Partial<Instrument> = {},
+): Instrument => ({
   id: `JP:${code}`,
   code,
   nameJa: code,
@@ -14,6 +20,7 @@ const ins = (code: string, market: Instrument['market'], kind: Instrument['kind'
   sectorEn: '',
   status: 'active',
   userAdded: false,
+  ...extra,
 })
 const m = (code: string, yieldTrailing: number | null) => ({ id: `JP:${code}`, close: 1000, yieldTrailing }) as unknown as MetricsRow
 
@@ -21,13 +28,30 @@ const instruments = [
   ins('8306', 'P', 'stock', '銀行業'),
   ins('7203', 'P', 'stock', '輸送用機器'),
   ins('8951', 'R', 'reit', ''),
-  ins('1306', 'E', 'etf', ''),
+  ins('1306', 'E', 'etf', '', { userAdded: true }), // ETF は利用者が足したときだけデータがある
 ]
 const metrics = new Map([m('8306', 3.6), m('7203', 2.4), m('8951', 4.1), m('1306', null)].map((x) => [x.id, x]))
 const run = (conditions: Parameters<typeof runScreen>[0]['conditions'], favorites: string[] = []) =>
   runScreen({ conditions, instruments, metrics, favorites: new Set(favorites), watchlists: {} }).ids
 
 describe('runScreen', () => {
+  it('廃止した銘柄と、取得をやめた銘柄（プライム・J-REIT から外れ、ウォッチリストにも無い）は対象にしない（FR-U4, U8）', () => {
+    const extra = [
+      ins('9999', 'P', 'stock', '銀行業', { status: 'delisted' }),
+      ins('8888', 'S', 'stock', '銀行業'),
+      ins('7777', 'S', 'stock', '銀行業', { userAdded: true }),
+    ]
+    const ms = new Map([...metrics, ...[m('9999', 5), m('8888', 5), m('7777', 5)].map((x) => [x.id, x] as const)])
+    const r = runScreen({
+      conditions: [{ field: 'income.yield', op: '>=', value: 3.5 }],
+      instruments: [...instruments, ...extra],
+      metrics: ms,
+      favorites: new Set(),
+      watchlists: {},
+    })
+    expect(r.ids).toEqual(['JP:8306', 'JP:8951', 'JP:7777'])
+    expect(extra.map(screenable)).toEqual([false, false, true])
+  })
   it('数値の閾値と、欠損の除外・含める', () => {
     expect(run([{ field: 'income.yield', op: '>=', value: 3.5 }])).toEqual(['JP:8306', 'JP:8951'])
     expect(run([{ field: 'income.yield', op: '>=', value: 3.5, includeMissing: true }])).toEqual(['JP:8306', 'JP:8951', 'JP:1306'])

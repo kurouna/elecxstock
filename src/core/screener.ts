@@ -59,6 +59,11 @@ function test(c: Condition, ins: Instrument, m: MetricsRow, inp: ScreenInput, wl
   return c.op === 'in' ? hit : !hit
 }
 
+/** スクリーニング・ランキング・ヒートマップの対象か: いま取得している銘柄だけ（FR-U4, U8） */
+export function screenable(ins: Instrument): boolean {
+  return ins.status === 'active' && (ins.market === 'P' || ins.market === 'R' || ins.userAdded)
+}
+
 export function runScreen(inp: ScreenInput): ScreenResult {
   const t0 = performance.now()
   const invalid: number[] = []
@@ -79,6 +84,9 @@ export function runScreen(inp: ScreenInput): ScreenResult {
   const rows: MetricsRow[] = []
   for (const ins of inp.instruments) {
     if (ins.market === 'I') continue
+    // 廃止した銘柄と、取得をやめた銘柄（プライム・J-REIT から外れ、どのウォッチリストにも無い）は対象にしない。
+    // 指標が取得をやめた時点のまま古くなっているため（FR-SC1, FR-U4, U8）
+    if (!screenable(ins)) continue
     const m = inp.metrics.get(ins.id)
     if (!m) continue
     let ok = true

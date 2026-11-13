@@ -1,7 +1,7 @@
 <script lang="ts">
 // ドロワー（§6.12）: 閉じているときは細い帯だけ。ポインタを 200ms 載せるか Ctrl+B で本体の上にスライドインし、
 // フォーカスとポインタが外れたら閉じる。ピン留めすると本体の幅を詰めて並ぶ。帯にフォーカスがあれば ↑↓ が中の一覧に届く（FR-DR4）。
-import { setFocus } from '../lib/commands'
+import { keyOf, setFocus } from '../lib/commands'
 import type { Key } from '../lib/i18n'
 import { paneApi } from '../lib/panes'
 import { t } from '../stores/app.svelte'
@@ -30,6 +30,11 @@ function leavePanel() {
   timer = setTimeout(() => {
     if (!wrap?.contains(document.activeElement)) toggleDockOpen(false, side)
   }, 300)
+}
+/** 帯から、開いたドロワーを通らずに離れたときも閉じる（開く前に離れたら開かない） */
+function leaveRail(e: MouseEvent) {
+  if (timer) clearTimeout(timer)
+  if (!wrap?.contains(e.relatedTarget as Node | null)) leavePanel()
 }
 function railKey(e: KeyboardEvent) {
   const api = paneApi(dock.panes[dock.active]!.id)
@@ -73,11 +78,11 @@ function resize(e: MouseEvent) {
 
 <div class="dock" class:open class:pinned={dock.pinned} class:right={side === 'right'} bind:this={wrap}>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="rail" data-dock-rail={side} tabindex="0" title={t('drawer.hint')} onmouseenter={enterRail} onmouseleave={() => timer && clearTimeout(timer)} onkeydown={railKey} ondragover={dragOver} ondrop={dropIn} role="toolbar" aria-label="drawer">
+  <div class="rail" data-dock-rail={side} tabindex="0" title={t('drawer.hint')} onmouseenter={enterRail} onmouseleave={leaveRail} onkeydown={railKey} ondragover={dragOver} ondrop={dropIn} role="toolbar" aria-label="drawer">
     {#each dock.panes as p, i (p.id)}
       <button type="button" class:on={i === dock.active} onclick={() => choose(i)}><span>{t(`widget.${p.widget}` as Key)}</span></button>
     {/each}
-    <span class="key">{side === 'left' ? 'Ctrl+B' : 'Ctrl+Shift+B'}</span>
+    <span class="key">{keyOf(side === 'left' ? 'drawer' : 'drawerRight')}</span>
   </div>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="panel" style:width={`${dock.width}px`} onmouseleave={leavePanel} onmouseenter={() => timer && clearTimeout(timer)}>
@@ -87,7 +92,7 @@ function resize(e: MouseEvent) {
         <button type="button" role="tab" aria-selected={i === dock.active} onclick={() => choose(i)}>{t(`widget.${p.widget}` as Key)}</button>
       {/each}
       <span class="spacer"></span>
-      <button type="button" class="pin" class:on={dock.pinned} title="Ctrl+Alt+B" onclick={pin}>⊿ {t('drawer.pin')}</button>
+      <button type="button" class="pin" class:on={dock.pinned} title={keyOf('drawerPin')} onclick={pin}>⊿ {t('drawer.pin')}</button>
     </div>
     <div class="body">
       {#each dock.panes as p, i (p.id)}

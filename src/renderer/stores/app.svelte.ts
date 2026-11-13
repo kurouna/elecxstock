@@ -37,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   firstRunDone: false,
   userInstruments: [],
   reduceMotion: false,
+  focusAlways: false,
   theme: 'dark',
   autoUpdate: true,
   checkUpdates: true,
@@ -274,6 +275,7 @@ export function applySettingsToDom(): void {
   r.dataset.density = app.settings.density
   r.dataset.reduceMotion = String(app.settings.reduceMotion)
   r.dataset.theme = app.settings.theme
+  r.dataset.focusAlways = String(app.settings.focusAlways)
   void raw.setChrome?.(app.settings.theme, app.settings.uiScale)
   r.style.zoom = String(app.settings.uiScale)
 }

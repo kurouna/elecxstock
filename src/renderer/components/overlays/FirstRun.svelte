@@ -59,6 +59,7 @@ async function importJpx() {
       <button type="button" class="btn" onclick={later}>{t('first.later')}</button>
       <button type="button" class="btn primary" bind:this={first} onclick={start}>{t('first.start')}</button>
     </div>
+    <p class="credit"><button type="button" class="credit-link" onclick={() => window.elecxstock.openExternal('https://www.tradingview.com/')}>{t('set.attribution')}</button></p>
   {/if}
 </div>
 
@@ -96,5 +97,23 @@ async function importJpx() {
   }
   .small {
     font-size: var(--fs-1);
+  }
+  .credit {
+    margin: var(--s-4) 0 0;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .credit-link {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-size: var(--fs-1);
+    color: var(--text-3);
+    cursor: pointer;
+  }
+  .credit-link:hover {
+    color: var(--text-2);
+    text-decoration: underline;
   }
 </style>

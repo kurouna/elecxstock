@@ -490,6 +490,9 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   .tile.sel .edit {
     opacity: 1;
   }
+  :global(:root[data-input='pointer']) .tile.sel:not(:hover) .edit {
+    opacity: 0;
+  }
   .edit:hover {
     color: var(--text);
   }
@@ -542,6 +545,13 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   }
   .tile.sel {
     box-shadow: inset 0 0 0 1px var(--focus);
+  }
+  /* マウスで操作しているときは枠を出さず、ポインタを載せたタイルを淡く縁取る（FR-KB3） */
+  :global(:root[data-input='pointer']:not([data-focus-always='true'])) .tile.sel {
+    box-shadow: none;
+  }
+  :global(:root[data-input='pointer']) .tile:hover {
+    box-shadow: inset 0 0 0 1px var(--line-strong);
   }
   .tile.cand .h {
     box-shadow: inset 2px 0 0 var(--gold);

@@ -156,6 +156,10 @@ async function importJpx() {
         <span>{t('set.motion')}</span>
         <button type="button" class="toggle" class:on={app.settings.reduceMotion} aria-label={t('set.motion')} onclick={() => saveSettings({ reduceMotion: !app.settings.reduceMotion })}><span class="box"></span></button>
       </div>
+      <div class="field">
+        <span title={t('set.focusAlwaysHint')}>{t('set.focusAlways')}</span>
+        <button type="button" class="toggle" class:on={app.settings.focusAlways} aria-label={t('set.focusAlways')} onclick={() => saveSettings({ focusAlways: !app.settings.focusAlways })}><span class="box"></span></button>
+      </div>
     {:else if cur === 'data'}
       <div class="stat">
         <div><b class="num">{Math.round((app.status?.dbBytes ?? 0) / 1048576).toLocaleString()} MB</b><span>{t('set.dbSize')}</span></div>

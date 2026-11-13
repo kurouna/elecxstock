@@ -65,6 +65,7 @@ export const settingsSchema = z.object({
   firstRunDone: z.boolean(),
   userInstruments: z.array(z.string().max(12)).max(500),
   reduceMotion: z.boolean(),
+  focusAlways: z.boolean(),
   theme: z.enum(['dark', 'light']),
   autoUpdate: z.boolean(),
   checkUpdates: z.boolean(),

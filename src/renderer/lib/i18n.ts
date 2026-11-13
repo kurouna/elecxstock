@@ -137,7 +137,7 @@ export const ja = {
   'sort.maDev75': '75日線乖離',
   'sort.fromHi52': '高値から',
   'sort.turnover20': '売買代金',
-  'jobs.idle': '待機',
+  'jobs.idle': '待機中',
   'jobs.running': '更新中',
   'jobs.queued': '待ち',
   'jobs.done': '完了',
@@ -537,6 +537,13 @@ export const ja = {
   'divcal.subtitle': '権利確定月 · 全ウォッチリスト',
   'scr.unitOku': '（億円）',
   'chart.maInvalid': '期間は 3 つ（2〜400）を入れてください',
+  'set.focusAlways': 'フォーカスの枠を常に出す',
+  'set.focusAlwaysHint': 'オフのときは、キーで操作しているときだけペインとタイルに枠を出します',
+  'status.connOk': 'データ源に接続できています',
+  'status.connOff': 'データ源に接続できていません（既存のデータで表示しています）',
+  'status.lastFailed': '前回の更新に失敗しました',
+  'status.lastPartial': '前回の更新で {n} 件を取得できませんでした',
+  'status.resume': '再開',
 }
 
 export type Key = keyof typeof ja
@@ -1072,6 +1079,13 @@ export const en: Record<Key, string> = {
   'divcal.subtitle': 'Record month · all watchlists',
   'scr.unitOku': ' (×100M JPY)',
   'chart.maInvalid': 'Enter three periods (2–400)',
+  'set.focusAlways': 'Always show focus outline',
+  'set.focusAlwaysHint': 'When off, panes and tiles are outlined only while you use the keyboard',
+  'status.connOk': 'Connected to the data source',
+  'status.connOff': 'Not connected to the data source (showing stored data)',
+  'status.lastFailed': 'Last update failed',
+  'status.lastPartial': 'Last update: {n} items failed',
+  'status.resume': 'Resume',
 }
 
 export const DICTS = { ja, en }

@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   firstRunDone: false,
   userInstruments: [],
   reduceMotion: false,
+  focusAlways: false,
   theme: 'dark',
   autoUpdate: true,
   checkUpdates: true,

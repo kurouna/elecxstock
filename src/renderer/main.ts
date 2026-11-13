@@ -4,5 +4,7 @@ import '@fontsource/noto-sans-mono/latin-500.css'
 import './app.css'
 import { mount } from 'svelte'
 import App from './components/App.svelte'
+import { trackInputMode } from './lib/inputMode'
 
+trackInputMode()
 mount(App, { target: document.getElementById('app')! })

@@ -216,6 +216,8 @@ export interface Settings {
   /** 設定ファイルで追加する銘柄のコード（FR-U3） */
   userInstruments: string[]
   reduceMotion: boolean
+  /** フォーカスの枠をマウス操作のときも出す（FR-KB3） */
+  focusAlways: boolean
   /** テーマ（FR-V8） */
   theme: 'dark' | 'light'
   /** 大引けの 30 分後から、起動時と起動中に自動で更新する（FR-F6） */

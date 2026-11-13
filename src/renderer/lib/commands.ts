@@ -706,6 +706,10 @@ export function handleKey(e: KeyboardEvent): boolean {
   return false
 }
 
+/** アクションを ID で実行する（ステータスバーのボタンなど、キー以外から呼ぶとき） */
+export function runAction(id: string): boolean {
+  return run(id)
+}
 function run(id: string): boolean {
   const a = ACTIONS.find((x) => x.id === id)
   if (a) void a.run()

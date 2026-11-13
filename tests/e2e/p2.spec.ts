@@ -61,5 +61,22 @@ test('P2: グリッドの差し替え・保存レイアウト・マーケット�
   for (let i = 0; i < 5; i++) await keys(page, 'ArrowDown')
   await keys(page, 'Space', 'Enter')
   await expect(page.locator('[data-pane-id]').first()).toContainText('RSI14')
+
+  // フォーカスの枠（FR-KB3）: キーで操作しているときだけ出し、クリックしたら消す
+  const ring = () =>
+    page
+      .locator('.pane.focused')
+      .first()
+      .evaluate((el) => getComputedStyle(el).boxShadow)
+  await expect(page.locator('html')).toHaveAttribute('data-input', 'keyboard')
+  expect(await ring()).not.toBe('none')
+  await page
+    .locator('.pane')
+    .first()
+    .click({ position: { x: 40, y: 8 } })
+  await expect(page.locator('html')).toHaveAttribute('data-input', 'pointer')
+  expect(await ring()).toBe('none')
+  await keys(page, 'Alt+ArrowRight')
+  expect(await ring()).not.toBe('none')
   await app.close()
 })

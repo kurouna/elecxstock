@@ -142,7 +142,8 @@ function build() {
       textColor: css('--text-3'),
       fontFamily: css('--mono'),
       fontSize: 11,
-      attributionLogo: true,
+      // ロゴは出さない（グリッドのタイルとそろえる）。帰属の表示とリンクは初回の確認と設定 > このアプリについて に置く（Lightweight Charts の NOTICE）
+      attributionLogo: false,
       panes: { separatorColor: css('--line'), separatorHoverColor: css('--line-strong') },
     },
     localization: {
