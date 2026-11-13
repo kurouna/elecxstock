@@ -10,7 +10,7 @@ test('P2: グリッドの差し替え・保存レイアウト・マーケット�
   await expect(page.locator('footer')).toContainText(/待機/, { timeout: 60_000 })
 
   // グリッド: 選んだタイルの銘柄を C で差し替える（このグリッドの銘柄に固定される）
-  await keys(page, 'Control+Shift+Digit2')
+  await keys(page, 'Control+Shift+Digit3')
   const grid = page.locator('[data-pane-id]').filter({ hasText: 'チャートグリッド' })
   await expect(grid.locator('.tile').first()).toBeVisible()
   await keys(page, 'c')
@@ -27,12 +27,12 @@ test('P2: グリッドの差し替え・保存レイアウト・マーケット�
   await page.keyboard.type('朝の確認')
   await keys(page, 'Enter')
   await expect(page.locator('.dialog')).toContainText('朝の確認')
-  await keys(page, 'Escape', 'Control+Shift+Digit1', 'Control+Shift+l', 'Enter')
+  await keys(page, 'Escape', 'Control+Shift+Digit4', 'Control+Shift+l', 'Enter')
   await expect(page.locator('.toasts')).toContainText('レイアウトを開きました')
   await expect(page.locator('[data-pane-id]').filter({ hasText: 'チャートグリッド' })).toBeVisible()
 
   // Market: ヒートマップ（33 業種）とランキング
-  await keys(page, 'Control+Shift+Digit6')
+  await keys(page, 'Control+Shift+Digit1')
   await expect(page.locator('.map .cell').first()).toBeVisible()
   await keys(page, 'ArrowRight', 'Enter') // 業種の中へ
   await expect(page.locator('.map .cell').first()).toBeVisible()
@@ -40,7 +40,7 @@ test('P2: グリッドの差し替え・保存レイアウト・マーケット�
   await page.screenshot({ path: 'test-results/p2-market.png' })
 
   // 保有タブ（FR-H11）: 保有の一覧にフォーカスがあり、楽天証券の CSV の取り込みを案内する（ファイルの選択は OS のダイアログなので E2E では開かない）
-  await keys(page, 'Control+Shift+Digit8')
+  await keys(page, 'Control+Shift+Digit7')
   const pf = page.locator('[data-widget="portfolio"]')
   await expect(pf).toContainText('楽天証券の保有商品の CSV')
   await expect(pf.getByRole('button', { name: '取り込む', exact: true })).toBeVisible()

@@ -18,7 +18,7 @@ async function openFree() {
   await r.page.getByRole('dialog').first().waitFor()
   await keys(r.page, 'Enter', 'Enter')
   await expect(r.page.locator('footer')).toContainText(/待機中/, { timeout: 60_000 })
-  await keys(r.page, 'Control+Shift+Digit7')
+  await keys(r.page, 'Control+Shift+Digit8')
   await expect(r.page.locator('.main [data-pane-id]')).toHaveCount(4)
   return r
 }

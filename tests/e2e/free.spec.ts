@@ -7,7 +7,7 @@ test('フリー: チャートごとに別の銘柄・ジャンプはそのチャ
   await page.getByRole('dialog').first().waitFor()
   await keys(page, 'Enter', 'Enter')
   await expect(page.locator('footer')).toContainText(/待機中/, { timeout: 60_000 })
-  await keys(page, 'Control+Shift+Digit7')
+  await keys(page, 'Control+Shift+Digit8')
   const panes = page.locator('.main [data-pane-id]')
   await expect(panes).toHaveCount(4)
   await expect(panes.nth(0).locator('.ph')).toContainText('7203')

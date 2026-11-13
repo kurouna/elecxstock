@@ -56,3 +56,38 @@ test('銘柄情報: 広いペインでは指標とグラフを左右に並べ、
   await expect(chart.locator('.tip')).toContainText('権利落ち日')
   await app.close()
 })
+
+test('銘柄情報: 計算で求める指標と保有を出し、縦長のペインでもグラフで下まで埋める', async () => {
+  const { app, page } = await launch()
+  await expect(page.getByRole('dialog', { name: /elecxstock/ })).toBeVisible()
+  await keys(page, 'Enter', 'Enter')
+  await expect(page.locator('footer')).toContainText(/待機/, { timeout: 60_000 })
+  // 7203 を保有する（保有タブを開くと読み込む）
+  await page.evaluate(async () => {
+    const meta = { broker: 'rakuten', importedAt: '2026-11-14T00:00:00Z', realized: null, dividends: null }
+    await (window as unknown as { elecxstock: { call: (m: string, p: unknown) => Promise<unknown> } }).elecxstock.call(
+      'portfolio.applyCsv',
+      {
+        holdings: [{ code: '7203', account: 'tokutei', quantity: 100, avgCost: 2500 }],
+        meta,
+      },
+    )
+  })
+  await keys(page, 'Control+Shift+Digit7', 'Control+Shift+Digit2') // 保有 → スクリーナー（左の列が縦長）
+  const info = page.locator('[data-widget="info"]')
+  await expect(info).toContainText('7203')
+  for (const label of ['EPS', 'ROE', '益利回り', '3年', '200日線乖離', '出来高倍率'])
+    await expect(info.locator('.metrics')).toContainText(label)
+  // 持っている銘柄は「保有」のまとまりを出す
+  const held = info.locator('section.held')
+  await expect(held).toContainText('100')
+  await expect(held).toContainText('評価損益')
+  // 縦長のときもグラフが下まで伸びて、大きな余白を残さない
+  const ib = (await info.boundingBox())!
+  const cb = (await info.locator('.dchart').boundingBox())!
+  expect(ib.y + ib.height - (cb.y + cb.height)).toBeLessThan(80)
+  // 注釈は (i) のボタンに入れる
+  await expect(info.locator('.foot')).toHaveCount(0)
+  await expect(info.getByRole('button', { name: '説明', exact: true })).toHaveAttribute('title', /過去12か月/)
+  await app.close()
+})

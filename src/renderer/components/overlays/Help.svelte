@@ -72,7 +72,7 @@ const G = $derived([
     title: t('help.chart'),
     rows: [
       [ja ? '日足 / 週足 / 月足' : 'Daily / weekly / monthly', 'D / W / M'],
-      [ja ? '銘柄を変える' : 'Change symbol', 'C'],
+      [ja ? '銘柄を変える（一覧・銘柄情報ではリンク先のチャート）' : 'Change symbol (from lists: the linked charts)', 'C'],
       [ja ? '対数軸 / 価格の調整 / 種類' : 'Log scale / adjustment / type', 'L / A / T'],
       [ja ? '指標・移動平均・比較・表示期間の同期' : 'Indicators, MAs, compare, range sync', 'I'],
       [ja ? 'ズーム / 既定に戻す' : 'Zoom / reset', '+ − / 0'],
@@ -106,7 +106,7 @@ const G = $derived([
       [ja ? 'ヒートマップ: 移動 / 業種の中へ / 戻る' : 'Heatmap: move / drill in / back', 'Arrows / Enter / Esc'],
       [ja ? 'ヒートマップ: 期間' : 'Heatmap: period', 'P'],
       [ja ? 'ランキング: 指標 / 上位・下位 / 市場' : 'Ranking: metric / top-bottom / market', 'S / Shift+S / G'],
-      [ja ? '保有: 楽天証券の CSV を取り込む / 送る' : 'Portfolio: import Rakuten CSV / send', 'Insert / Enter'],
+      [ja ? '保有: 足す / 直す / 外す / 送る' : 'Portfolio: add / edit / remove / send', 'Insert / E / Delete / Enter'],
       [ja ? '銘柄情報: 配当の棒を選ぶ / 年・回の切り替え' : 'Symbol info: select dividend bar / per year–payout', '← → Home End / Y'],
     ],
   },

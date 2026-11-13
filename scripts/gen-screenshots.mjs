@@ -58,28 +58,28 @@ async function session(lang, shots) {
 
 await session('ja', [
   ['mtf', async ({ k }) => k('Alt+ArrowLeft', 'Home', 'ArrowDown')],
-  ['grid', async ({ k }) => k('Control+Shift+Digit2', 'w', 'Alt+Digit4', 'Space', 'ArrowRight', 'ArrowRight', 'Space')],
+  ['grid', async ({ k }) => k('Control+Shift+Digit3', 'w', 'Alt+Digit4', 'Space', 'ArrowRight', 'ArrowRight', 'Space')],
   ['grid-drawer', async ({ k }) => k('Control+b')],
-  ['screener', async ({ k }) => k('Escape', 'Control+Shift+Digit3', 'ArrowDown', 'ArrowDown')],
-  ['income', async ({ k }) => k('Control+Shift+Digit4')],
+  ['screener', async ({ k }) => k('Escape', 'Control+Shift+Digit2', 'ArrowDown', 'ArrowDown')],
+  ['income', async ({ k }) => k('Control+Shift+Digit6')],
   ['triple', async ({ k }) => k('Control+Shift+Digit5')],
   [
     'palette',
     async ({ k, page }) => {
-      await k('Control+Shift+Digit1', 'Control+k')
+      await k('Control+Shift+Digit4', 'Control+k')
       await page.keyboard.type('日本')
     },
   ],
   ['help', async ({ k }) => k('Escape', 'F1')],
   ['settings', async ({ k }) => k('Escape', 'Control+Comma', 'ArrowDown', 'ArrowDown')],
-  ['market', async ({ k }) => k('Escape', 'Control+Shift+Digit6', 'Alt+ArrowRight', 'ArrowRight')],
+  ['market', async ({ k }) => k('Escape', 'Control+Shift+Digit1', 'Alt+ArrowRight', 'ArrowRight')],
   [
     'light',
     async ({ k, page }) => {
       await k('Control+k')
       await page.keyboard.type('テーマ')
-      await k('Enter', 'Control+Shift+Digit2')
+      await k('Enter', 'Control+Shift+Digit3')
     },
   ],
 ])
-await session('en', [['grid-en', async ({ k }) => k('Control+Shift+Digit2', 'n', 'Alt+Digit3')]])
+await session('en', [['grid-en', async ({ k }) => k('Control+Shift+Digit3', 'n', 'Alt+Digit3')]])

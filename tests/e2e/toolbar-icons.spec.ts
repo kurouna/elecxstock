@@ -19,12 +19,12 @@ async function iconButton(scope: Locator, name: string, tip: RegExp) {
 test('保有: 取り込む・書き出すはアイコンのボタンで、取り込むは CSV と JSON を選ぶ', async () => {
   const { app, page } = await launch()
   await ready(page)
-  await keys(page, 'Control+Shift+Digit8')
+  await keys(page, 'Control+Shift+Digit7')
   const pf = page.locator('[data-widget="portfolio"]')
   // 説明文のラベル・キーの説明は出さない（ツールチップに入れる）
   await expect(pf).not.toContainText('楽天証券の CSV を取り込む')
   await expect(pf).not.toContainText('Enter 送る')
-  const imp = await iconButton(pf, '取り込む', /楽天証券の CSV.*JSON.*Insert/s)
+  const imp = await iconButton(pf, '取り込む', /楽天証券の CSV.*JSON/s)
   await iconButton(pf, '書き出す', /JSON/)
   await imp.click()
   const dlg = page.locator('.dialog')
@@ -44,7 +44,7 @@ test('ほかのタブのツールバーもアイコンのボタンにそろえ�
   await iconButton(wl, '★のみ表示', /Ctrl\+Shift\+F/)
   await iconButton(wl, '列を選ぶ', /Ctrl\+Shift\+C/)
   // スクリーナー: 保存・名前を付けて保存・グリッドで開く・列
-  await keys(page, 'Control+Shift+Digit3')
+  await keys(page, 'Control+Shift+Digit2')
   const scr = page.locator('[data-widget="screener"]')
   await iconButton(scr, '名前を付けて保存', /Ctrl\+Shift\+S/)
   await iconButton(scr, 'グリッドで開く', /Ctrl\+Shift\+G/)
@@ -53,7 +53,7 @@ test('ほかのタブのツールバーもアイコンのボタンにそろえ�
   const info = page.locator('[data-widget="info"]')
   await iconButton(info, '取り直す', /Shift\+F5/)
   // グリッド: 今の銘柄で固定・候補をリストへ
-  await keys(page, 'Control+Shift+Digit2')
+  await keys(page, 'Control+Shift+Digit3')
   const grid = page.locator('[data-widget="grid"]')
   await iconButton(grid, '今の銘柄で固定', /P/)
   await iconButton(grid, '売買候補をリストに追加', /Ctrl\+Shift\+A/)

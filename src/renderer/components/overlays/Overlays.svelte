@@ -3,6 +3,7 @@ import { app, closeOverlay } from '../../stores/app.svelte'
 import Dialogs from './Dialogs.svelte'
 import FirstRun from './FirstRun.svelte'
 import Help from './Help.svelte'
+import HoldingForm from './HoldingForm.svelte'
 import Jump from './Jump.svelte'
 import Layouts from './Layouts.svelte'
 import Palette from './Palette.svelte'
@@ -32,6 +33,8 @@ function backdrop(e: MouseEvent) {
         <Layouts />
       {:else if app.overlay.kind === 'firstrun'}
         <FirstRun />
+      {:else if app.overlay.kind === 'holding'}
+        <HoldingForm holding={app.overlay.holding} resolve={app.overlay.resolve} />
       {:else}
         <!-- ダイアログが続けて開いても、選択の位置などを前のものから持ち越さない -->
         {#key app.overlay}

@@ -28,7 +28,7 @@ test('キーボードだけで一日の流れを通す', async () => {
   await shot('1-mtf')
 
   // スクリーナー（高配当銘柄）→ 結果を ↓ でめくる → 監視リストに追加
-  await keys(page, 'Control+Shift+Digit3')
+  await keys(page, 'Control+Shift+Digit2')
   const scr = page.locator('[data-widget="screener"]') // 左の列（ウォッチリストの下）。タブを開くとここにフォーカス
   await expect(scr).toContainText('高配当銘柄')
   await expect(scr.locator('tbody tr').nth(2)).toBeVisible()
@@ -64,7 +64,7 @@ test('キーボードだけで一日の流れを通す', async () => {
   await keys(page, 'Escape')
 
   // レイアウトの切り替えとサイズのリセット・取り消し
-  await keys(page, 'Control+Shift+Digit1', 'Alt+Shift+ArrowRight', 'Alt+Shift+ArrowRight', 'Control+Alt+r')
+  await keys(page, 'Control+Shift+Digit4', 'Alt+Shift+ArrowRight', 'Alt+Shift+ArrowRight', 'Control+Alt+r')
   await expect(page.locator('.toasts')).toContainText('サイズを元に戻しました')
   await keys(page, 'F1')
   await expect(page.getByRole('dialog', { name: 'ショートカット' })).toBeVisible()
@@ -82,7 +82,7 @@ test('再起動してもレイアウト・グリッド・スクリーンが残�
   await first.page.getByRole('dialog').waitFor()
   await keys(first.page, 'Enter', 'Enter')
   await expect(first.page.locator('footer')).toContainText(/待機/, { timeout: 60_000 })
-  await keys(first.page, 'Control+Shift+Digit2')
+  await keys(first.page, 'Control+Shift+Digit3')
   await keys(first.page, 'm', 'Alt+Digit5', 'Digit8', 'Digit9', 'Digit5', 'Digit1', 'Enter')
   await expect(first.page.locator('.bar select.srcsel')).toHaveValue('own')
   await first.page.waitForTimeout(800)

@@ -9,7 +9,7 @@ test('銘柄: ジャンプの ☆ と Ctrl+Enter・ジャンプ後の Ctrl+D・�
   await expect(page.locator('footer')).toContainText(/待機中/, { timeout: 60_000 })
 
   // MTF: ウォッチリスト（お気に入り）にフォーカス。ジャンプ → Ctrl+D でお気に入りに入れる（コマンドバーは開いたまま）
-  await keys(page, 'Control+Shift+Digit1')
+  await keys(page, 'Control+Shift+Digit4')
   await page.waitForTimeout(300)
   await keys(page, 'Digit7', 'Digit2', 'Digit0', 'Digit3')
   const pal = page.locator('.dialog.jump')
@@ -31,7 +31,7 @@ test('銘柄: ジャンプの ☆ と Ctrl+Enter・ジャンプ後の Ctrl+D・�
   await expect(wl).toContainText('8001')
 
   // インカム: 高配当のリストにフォーカスして Ctrl+Enter でそのリストに足す
-  await keys(page, 'Control+Shift+Digit4')
+  await keys(page, 'Control+Shift+Digit6')
   await page.waitForTimeout(300)
   await keys(page, 'Digit8', 'Digit0', 'Digit5', 'Digit8')
   await expect(pal).toContainText('高配当 に追加')
@@ -39,7 +39,7 @@ test('銘柄: ジャンプの ☆ と Ctrl+Enter・ジャンプ後の Ctrl+D・�
   await expect(page.locator('[data-pane-id]').first()).toContainText('8058')
 
   // グリッド: ドロワーのスクリーナーの行をタイルにドラッグすると、ドロワーが畳まれてタイルが差し替わる
-  await keys(page, 'Control+Shift+Digit2', 'Control+b')
+  await keys(page, 'Control+Shift+Digit3', 'Control+b')
   const row = page.locator('.dock .slot:not([hidden]) tbody tr[draggable="true"]').first()
   await expect(row).toBeVisible()
   const code = (await row.locator('td').first().textContent())!.replace(/\D/g, '')
@@ -49,7 +49,7 @@ test('銘柄: ジャンプの ☆ と Ctrl+Enter・ジャンプ後の Ctrl+D・�
   await expect(page.locator('.tile').nth(2).locator('.h')).toContainText(code)
 
   // MTF: ウォッチリストの行を日足のチャートに落とすと、リンク色の同じチャートがその銘柄になる
-  await keys(page, 'Control+Shift+Digit1')
+  await keys(page, 'Control+Shift+Digit4')
   const src = page.locator('[data-pane-id]').first().locator('tbody tr[draggable="true"]', { hasText: '8001' })
   const chart = page.locator('[data-widget="chart"]').first()
   const a = (await src.boundingBox())!

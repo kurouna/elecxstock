@@ -118,6 +118,8 @@ export function holdingsTabLocked(): boolean {
   toast(t('list.holdingsLocked'))
   return true
 }
+/** C キーで表示する銘柄を変えられるペイン（チャートは各ペインのキーで扱う） */
+const C_PANES = new Set<WidgetId>(['watchlist', 'screener', 'ranking', 'portfolio', 'info', 'divcal'])
 /** リンク色が無いとき、自分の銘柄を持つペイン */
 const OWN_SYMBOL = new Set<WidgetId>(['chart', 'mtf', 'info'])
 /** 選んだ銘柄を、フォーカス中のペインに送る（リンクグループ、または chart-grid の銘柄） */
@@ -730,6 +732,15 @@ export function handleKey(e: KeyboardEvent): boolean {
   }
   // ペイン自身のキー（一覧の ↑↓、チャートの D/W/M、グリッドの Space など）
   if (pane?.key?.(e)) return true
+  // C: 表示する銘柄を変える。一覧・銘柄情報からも、同じリンク色のチャート（リンク色が無ければそのペイン）の銘柄を変える
+  if (c === 'KeyC' && !ctrl && !e.altKey && !e.shiftKey) {
+    const p = findPane(app.focus)
+    if (p && C_PANES.has(p.widget)) {
+      const cur = paneSymbol(p)
+      app.overlay = { kind: 'palette', q: '', title: t('chart.changeTitle', { name: cur ? nameOf(cur) : '' }) }
+      return true
+    }
+  }
   if (runMatching(e, 'late')) return true
   const arrow = ARROW[e.key]
   if (arrow && e.altKey && e.shiftKey && !ctrl) {

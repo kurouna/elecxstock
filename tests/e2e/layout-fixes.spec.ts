@@ -11,7 +11,7 @@ test('画面: 拡大から戻る・サイズを戻すの無効・ドロワーか
 
   // 既定の大きさのままなら「サイズを戻す」は押せない
   const reset = page.getByRole('button', { name: /サイズを戻す/ })
-  await keys(page, 'Control+Shift+Digit2')
+  await keys(page, 'Control+Shift+Digit3')
   await expect(reset).toBeDisabled()
 
   // グリッド: タイルをダブルクリックで拡大 →「グリッドに戻る」で戻る
@@ -21,7 +21,7 @@ test('画面: 拡大から戻る・サイズを戻すの無効・ドロワーか
   await expect(page.locator('.tile').nth(1)).toBeVisible()
 
   // インカム: ウォッチリストをドロワーへ → ピン留め → 本体へ戻すと、元の位置（左の列の上）に戻る
-  await keys(page, 'Control+Shift+Digit4')
+  await keys(page, 'Control+Shift+Digit6')
   const wl = page.locator('[data-pane-id]').first()
   const before = (await wl.boundingBox())!
   await wl.hover()

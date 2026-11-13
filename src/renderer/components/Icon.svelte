@@ -15,6 +15,8 @@ const PATHS = {
   pause: 'M8 5v14M16 5v14',
   play: 'M7 5l12 7-12 7z',
   cancel: 'M6 6l12 12M18 6L6 18',
+  plus: 'M12 5v14M5 12h14',
+  info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 11v6M12 7.5v.5',
   resetSize: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M9 9l-5-5M15 9l5-5M9 15l-5 5M15 15l5 5',
 } as const
 export type IconName = keyof typeof PATHS

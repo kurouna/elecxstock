@@ -1,7 +1,7 @@
 // 保有の記録（§6.9, FR-H7〜H11）の画面側の操作。保有は証券会社の CSV を取り込んで作る（FR-H11）。
 // CSV の読み取りと差分は Core（src/core/holdings.ts, src/core/brokers/rakuten.ts）。
 import type { AccountType, Holding } from '@shared/types'
-import { app, choiceDialog, confirmDialog, loadInstruments, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
+import { app, choiceDialog, confirmDialog, holdingDialog, inst, loadInstruments, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
 import type { Key } from './i18n'
 
 export const accountName = (a: AccountType) => t(`acct.${a}` as Key)
@@ -107,6 +107,38 @@ export async function importBrokerCsv(): Promise<void> {
   app.holdings = await rpc('portfolio.applyCsv', { holdings: p.holdings, meta: p.meta })
   await afterImport()
   toast(t('hold.imported', { n: p.holdings.length }), { label: t('hold.undo'), run: () => void undoHoldingsImport() }, 10_000)
+}
+
+/** 同じ銘柄・口座区分を 1 つと数える鍵 */
+const keyOf = (h: Pick<Holding, 'code' | 'account'>) => `${h.code}/${h.account}`
+
+/**
+ * 保有を足す・直す（FR-H7）。銘柄・口座区分・数量・平均取得単価をフォームで入れる。
+ * 直した保有は取引の履歴（旧版の lots）を持たない。一覧に無いコードは利用者の銘柄として足してデータを取りにいく。
+ * 証券会社の CSV を取り込むと、保有はまた CSV の内容に置き換わる
+ */
+export async function editHolding(cur?: Holding): Promise<void> {
+  const h = await holdingDialog(cur)
+  if (!h) return
+  const { lots: _lots, price: _price, ...next } = h
+  if (!inst(`JP:${next.code}`)) {
+    await rpc('instruments.addUser', { code: next.code })
+    await loadInstruments()
+  }
+  const drop = new Set([keyOf(next), ...(cur ? [keyOf(cur)] : [])])
+  app.holdings = await rpc('portfolio.save', { holdings: [...app.holdings.filter((x) => !drop.has(keyOf(x))), next] })
+  app.settings = (await rpc('user.load', {})).settings
+  toast(t('hold.saved', { name: nameOf(`JP:${next.code}`) || next.code }))
+}
+/** 保有を外す（確認してから。取り消しから始まる） */
+export async function removeHolding(h: Holding): Promise<void> {
+  const r = await confirmDialog({
+    title: t('hold.removeTitle', { name: `${h.code} ${nameOf(`JP:${h.code}`) || h.name || ''}`.trim(), acct: accountName(h.account) }),
+    ok: t('hold.remove'),
+    danger: true,
+  })
+  if (!r.ok) return
+  app.holdings = await rpc('portfolio.save', { holdings: app.holdings.filter((x) => keyOf(x) !== keyOf(h)) })
 }
 
 /** 保有の JSON 書き出し（FR-H8, H10）。個人の資産情報なので、他人と共有しないことを示す */

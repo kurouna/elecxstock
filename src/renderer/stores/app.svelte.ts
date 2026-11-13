@@ -75,6 +75,7 @@ export type Overlay =
       resolve: (v: CheckItem[] | null) => void
     }
   | { kind: 'layouts' }
+  | { kind: 'holding'; holding?: Holding; resolve: (h: Holding | null) => void }
 
 export interface CheckItem {
   id: string
@@ -304,6 +305,12 @@ export function promptDialog(title: string, value: string): Promise<string | nul
 export function choiceDialog(title: string, choices: { id: string; label: string; hint?: string }[]): Promise<string | null> {
   return new Promise((resolve) => {
     app.overlay = { kind: 'choice', title, choices, resolve }
+  })
+}
+/** 保有を足す・直すフォーム（FR-H7） */
+export function holdingDialog(holding?: Holding): Promise<Holding | null> {
+  return new Promise((resolve) => {
+    app.overlay = { kind: 'holding', ...(holding ? { holding } : {}), resolve }
   })
 }
 export function ask3(title: string, body: string): Promise<'save' | 'discard' | 'cancel'> {

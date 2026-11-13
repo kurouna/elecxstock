@@ -10,7 +10,7 @@ test('ウォッチリスト: 保有のタブに保有の銘柄が並び、外す
   const wl = page.locator('[data-widget="watchlist"]').first()
   // 保有が無いときは、取り込み方を案内する
   await wl.getByRole('tab', { name: /保有/ }).click()
-  await expect(wl).toContainText('保有タブ（Ctrl+Shift+8）')
+  await expect(wl).toContainText('保有タブ（Ctrl+Shift+7）')
 
   // 保有を取り込む（CSV の取り込みと同じ API。ファイルの選択は OS のダイアログなので使わない）
   const h = (code: string, account: string, quantity: number, avgCost: number) => ({ code, account, quantity, avgCost, broker: 'rakuten' })
@@ -28,7 +28,7 @@ test('ウォッチリスト: 保有のタブに保有の銘柄が並び、外す
     [h('8058', 'nisa_growth', 100, 3500), h('7203', 'tokutei', 200, 2500), h('7203', 'nisa_growth', 100, 2600)],
   )
   // 保有の一覧を読み直す（保有タブを開くと読み込む）
-  await keys(page, 'Control+Shift+Digit8', 'Control+Shift+Digit1')
+  await keys(page, 'Control+Shift+Digit7', 'Control+Shift+Digit4')
   const tab = wl.getByRole('tab', { name: /保有/ })
   await tab.click()
   await expect(tab).toHaveAttribute('aria-selected', 'true')

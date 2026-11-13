@@ -9,6 +9,7 @@ import { annualDividends, eventYoy, yearsThatFit } from '../../lib/dividends'
 import { cls, date, fmt, money, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
+import { accountName, valuation } from '../../lib/portfolio'
 import { app, bridge, codeOf, ensureMetrics, inst, isFav, metric, nameOf, rpc, t, toast, toggleFav } from '../../stores/app.svelte'
 import { type PaneNode, paneSymbol, patchState } from '../../stores/layout.svelte'
 import Icon from '../Icon.svelte'
@@ -113,6 +114,44 @@ onMount(() =>
   }),
 )
 const reit = $derived(ins?.kind === 'reit')
+/** 計算で求める指標: 益利回り（1 ÷ PER）、ROE（EPS ÷ BPS）、200 日線乖離 */
+const calc = $derived({
+  ey: m?.per && m.per > 0 ? 100 / m.per : null,
+  roe: m?.eps != null && m?.bps && m.bps > 0 ? (m.eps / m.bps) * 100 : null,
+  dev200: m?.close != null && m?.ma200 ? (m.close / m.ma200 - 1) * 100 : null,
+})
+const crossText = $derived(
+  m?.gcDays != null && (m.dcDays == null || m.gcDays <= m.dcDays)
+    ? t('info.gcAgo', { n: m.gcDays })
+    : m?.dcDays != null
+      ? t('info.dcAgo', { n: m.dcDays })
+      : '—',
+)
+/** この銘柄の保有（口座区分をまたいで合計。評価は最新の終値） */
+const held = $derived.by(() => {
+  const code = id.replace(/^\w+:/, '')
+  const hs = app.holdings.filter((h) => h.code === code && h.quantity > 0)
+  if (!hs.length) return null
+  let qty = 0
+  let cost = 0
+  let value = 0
+  for (const h of hs) {
+    const v = valuation(h)
+    qty += h.quantity
+    cost += v.cost
+    value += v.value ?? v.cost
+  }
+  const avg = qty ? cost / qty : 0
+  return {
+    qty,
+    avg,
+    value,
+    pnl: value - cost,
+    pnlPct: cost > 0 ? (value / cost - 1) * 100 : null,
+    yoc: m?.div12 != null && avg > 0 ? (m.div12 / avg) * 100 : null,
+    accounts: hs.map((h) => accountName(h.account)).join(' · '),
+  }
+})
 const mc = $derived(money(m?.marketCap))
 const tv = $derived(money(m?.turnover20))
 const months = $derived(
@@ -135,6 +174,7 @@ const months = $derived(
     aria-label={t('info.refetch')}
     title={`${t('info.refetchHint')} (Shift+F5)`}
     onclick={() => rpc('jobs.refetch', { ids: [id] }).then(() => toast(t('refetch.started', { n: 1 })))}><Icon name="refresh" /></button>
+  <button type="button" class="ibtn" aria-label={t('common.about')} title={`${t('info.trailingNote', { date: date(m?.asOf) })}\n${t('info.calcNote')}`}><Icon name="info" /></button>
 </PaneHeader>
 <div class="scroll">
   <div class="info">
@@ -156,6 +196,7 @@ const months = $derived(
         <h5>{t('info.gIncome')}</h5>
         <div class="kv lead"><span>{t('info.trailingYield')}</span><span>{m?.yieldTrailing != null ? `${fmt(m.yieldTrailing)}%` : m?.asOf ? t('info.shortHistory') : '—'}</span></div>
         {#if reit}<div class="kv" title={t('info.yield2pNote')}><span>{t('info.yield2p')}</span><span>{m?.yield2p != null ? `${fmt(m.yield2p)}%` : '—'}</span></div>{/if}
+        <div class="kv"><span>{reit ? t('info.div12Unit') : t('info.div12')}</span><span>{px(m?.div12)}</span></div>
         <div class="kv" title={t('info.streakNote')}><span>{t('info.streak')}</span><span>{m?.divUpYears != null ? t('info.years', { up: m.divUpYears, nocut: m.divNoCutYears ?? 0 }) : '—'}</span></div>
         <div class="kv"><span>{t('info.payout')}</span><span>{m?.payout != null ? `${fmt(m.payout, 0)}%` : '—'}</span></div>
         <div class="kv"><span>{t('info.recordMonths')}</span><span>{months}</span></div>
@@ -164,6 +205,9 @@ const months = $derived(
         <h5>{t('info.gValue')}</h5>
         <div class="kv"><span>{reit ? t('info.pbrBook') : t('col.pbr')}</span><span>{m?.pbr != null ? `${fmt(m.pbr)}×` : '—'}</span></div>
         <div class="kv"><span>{t('col.per')}</span><span>{m?.per != null ? `${fmt(m.per, 1)}×` : '—'}</span></div>
+        <div class="kv" title={t('info.earningsYieldNote')}><span>{t('info.earningsYield')}</span><span>{calc.ey != null ? `${fmt(calc.ey)}%` : '—'}</span></div>
+        <div class="kv" title={t('info.roeNote')}><span>ROE</span><span>{calc.roe != null ? `${fmt(calc.roe, 1)}%` : '—'}</span></div>
+        <div class="kv"><span>EPS / BPS</span><span>{px(m?.eps)} / {px(m?.bps)}</span></div>
         <div class="kv"><span>{t('info.mcap')}</span><span>{mc.n}<span class="unit">{mc.u}</span></span></div>
         <div class="kv" title={t('info.turnoverNote')}><span>{t('info.turnover20')}</span><span>{tv.n}<span class="unit">{tv.u}</span></span></div>
       </section>
@@ -171,11 +215,25 @@ const months = $derived(
         <h5>{t('info.gPrice')}</h5>
         <div class="kv"><span>{t('info.range52')}</span><span>{px(m?.lo52)} – {px(m?.hi52)}</span></div>
         <div class="kv"><span>{t('info.fromHi')}</span><span>{sgn(m?.fromHi52, 1, '%')}</span></div>
-        <div class="kv"><span>{t('col.ret1y')}</span><span class={cls(m?.ret1y)}>{sgn(m?.ret1y, 1, '%')}</span></div>
-        <div class="kv"><span>{t('info.maDev75')}</span><span class={cls(m?.maDev75)}>{sgn(m?.maDev75, 1, '%')}</span></div>
+        <div class="kv"><span>{t('info.ret13')}</span><span><span class={cls(m?.ret1m)}>{sgn(m?.ret1m, 1, '%')}</span> / <span class={cls(m?.ret3m)}>{sgn(m?.ret3m, 1, '%')}</span></span></div>
+        <div class="kv"><span>{t('info.ret13y')}</span><span><span class={cls(m?.ret1y)}>{sgn(m?.ret1y, 1, '%')}</span> / <span class={cls(m?.ret3y)}>{sgn(m?.ret3y, 1, '%')}</span></span></div>
+        <div class="kv"><span>{t('info.maDev2575')}</span><span><span class={cls(m?.maDev25)}>{sgn(m?.maDev25, 1, '%')}</span> / <span class={cls(m?.maDev75)}>{sgn(m?.maDev75, 1, '%')}</span></span></div>
+        <div class="kv"><span>{t('info.maDev200')}</span><span class={cls(calc.dev200)}>{sgn(calc.dev200, 1, '%')}</span></div>
+        <div class="kv" title={t('info.crossNote')}><span>{t('info.cross')}</span><span>{crossText}</span></div>
         <div class="kv"><span>{t('info.rsi')}</span><span>{fmt(m?.rsi14, 1)}</span></div>
+        <div class="kv" title={t('info.volRatioNote')}><span>{t('info.volRatio')}</span><span>{m?.volRatio != null ? `${fmt(m.volRatio, 2)}×` : '—'}</span></div>
       </section>
-      <div class="foot">{t('info.trailingNote', { date: date(m?.asOf) })}</div>
+      {#if held}
+        <section class="held">
+          <h5>{t('info.gHeld')}</h5>
+          <div class="kv"><span>{t('hold.qty')}</span><span>{fmt(held.qty, 0)}</span></div>
+          <div class="kv"><span>{t('hold.avgShort')}</span><span>{px(held.avg)}</span></div>
+          <div class="kv"><span>{t('hold.value')}</span><span>{fmt(held.value, 0)}</span></div>
+          <div class="kv"><span>{t('hold.pnl')}</span><span class={cls(held.pnl)}>{sgn(held.pnl, 0)} ({sgn(held.pnlPct, 1, '%')})</span></div>
+          <div class="kv"><span>{t('hold.yoc')}</span><span>{held.yoc != null ? `${fmt(held.yoc)}%` : '—'}</span></div>
+          <div class="kv"><span>{t('info.accounts')}</span><span class="accts">{held.accounts}</span></div>
+        </section>
+      {/if}
     </div>
 
     <div class="dchart">
@@ -252,6 +310,7 @@ const months = $derived(
     padding: var(--s-2) var(--s-3);
     display: grid;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto 1fr;
     grid-template-areas: 'head' 'notes' 'metrics' 'chart';
     gap: var(--s-2) var(--s-4);
     align-content: start;
@@ -332,15 +391,16 @@ const months = $derived(
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  .accts {
+    font-family: var(--font) !important;
+    font-size: var(--fs-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .kv.lead > span:last-child {
     font-size: var(--fs-3);
     color: var(--text);
     font-weight: 600;
-  }
-  .foot {
-    grid-column: 1 / -1;
-    color: var(--text-3);
-    font-size: var(--fs-1);
   }
   h4 {
     margin: 0 0 4px;
@@ -375,7 +435,6 @@ const months = $derived(
     position: relative;
     flex: 1;
     min-height: 120px;
-    max-height: 240px;
     padding-top: 16px;
   }
   .grid50,

@@ -7,7 +7,7 @@ test('グリッド: ‹ › と矢印でページをめくる', async () => {
   await expect(page.getByRole('dialog', { name: /elecxstock/ })).toBeVisible()
   await keys(page, 'Enter', 'Enter')
   await expect(page.locator('footer')).toContainText(/待機/, { timeout: 60_000 })
-  await keys(page, 'Control+Shift+Digit2')
+  await keys(page, 'Control+Shift+Digit3')
   const grid = page.locator('[data-widget="grid"]')
   // いちばん小さい格子（2×2）にしてページを増やす
   for (let i = 0; i < 6; i++) await keys(page, 'Minus')

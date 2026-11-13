@@ -7,7 +7,7 @@ test('ドロワー: 見出しから移す・自動で隠れる・ピン留め・
   await page.getByRole('dialog').first().waitFor()
   await keys(page, 'Enter', 'Enter')
   await expect(page.locator('footer')).toContainText(/待機中/, { timeout: 60_000 })
-  await keys(page, 'Control+Shift+Digit1')
+  await keys(page, 'Control+Shift+Digit4')
   const wl = page.locator('[data-pane-id]').first()
   await wl.hover()
   await wl.getByRole('button', { name: 'ペインを左のドロワーへ' }).click()

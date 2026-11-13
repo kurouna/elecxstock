@@ -7,7 +7,16 @@ import type { AccountType, Holding } from '@shared/types'
 import { onMount } from 'svelte'
 import { cls, fmt, money, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
-import { accountName, exportHoldings, importBrokerCsv, importHoldings, loadHoldings, valuation } from '../../lib/portfolio'
+import {
+  accountName,
+  editHolding,
+  exportHoldings,
+  importBrokerCsv,
+  importHoldings,
+  loadHoldings,
+  removeHolding,
+  valuation,
+} from '../../lib/portfolio'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, choiceDialog, codeOf, ensureMetrics, nameOf, t } from '../../stores/app.svelte'
 import { type PaneNode, setLinkSymbol } from '../../stores/layout.svelte'
@@ -107,7 +116,15 @@ onMount(() =>
         return true
       }
       if (k === 'Insert') {
-        void importBrokerCsv()
+        void editHolding()
+        return true
+      }
+      if ((e.code === 'KeyE' || k === 'F2') && cur) {
+        void editHolding(cur)
+        return true
+      }
+      if (k === 'Delete' && cur) {
+        void removeHolding(cur)
         return true
       }
       return false
@@ -118,8 +135,10 @@ onMount(() =>
 
 <PaneHeader {pane}>
   {#if importedAt}<span class="muted asof">{t('hold.asOf', { at: importedAt })}</span>{/if}
+  <button type="button" class="ibtn" aria-label={t('hold.addLabel')} title={`${t('hold.addTitle')} (Insert) · ${t('hold.editKeys')}`} onclick={() => editHolding()}><Icon name="plus" /></button>
   <button type="button" class="ibtn" aria-label={t('hold.importLabel')} title={t('hold.importTip')} onclick={importAny}><Icon name="import" /></button>
   <button type="button" class="ibtn" aria-label={t('hold.exportLabel')} title={t('hold.exportTip')} onclick={exportHoldings}><Icon name="export" /></button>
+  <button type="button" class="ibtn" aria-label={t('common.about')} title={t('hold.note')}><Icon name="info" /></button>
 </PaneHeader>
 {#if items.length}
   <div class="summary">
@@ -144,8 +163,8 @@ onMount(() =>
       <div class="s num muted">{t('hold.yieldPair', { v: fmt(pct(total.div, total.value), 2), c: fmt(pct(total.div, total.cost), 2) })}</div>
     </div>
     {#if meta && (meta.realized != null || meta.dividends != null)}
-      <div class="stat">
-        <div class="k">{t('hold.fromCsv')}</div>
+      <div class="stat" title={t('hold.totalsTip')}>
+        <div class="k">{t('hold.totals')}</div>
         <div class="s num">{t('hold.realized')} <span class={cls(meta.realized)}>{sgn(meta.realized, 0)}</span></div>
         <div class="s num">{t('hold.received')} {fmt(meta.dividends, 0)}</div>
       </div>
@@ -179,7 +198,7 @@ onMount(() =>
           {#if r.kind === 'h'}
             {@const k = items.indexOf(r)}
             {@const v = r.v}
-            <tr draggable="true" ondragstart={(e) => startSymbolDrag(e, idOf(r.h))} ondragend={endSymbolDrag} class:sel={k === sel} onclick={() => { sel = k; send() }}>
+            <tr draggable="true" ondragstart={(e) => startSymbolDrag(e, idOf(r.h))} ondragend={endSymbolDrag} class:sel={k === sel} onclick={() => { sel = k; send() }} ondblclick={() => editHolding(r.h)}>
               <td class="l code">{codeOf(idOf(r.h)) || r.h.code}</td>
               <td class="l name">{nm(r.h)}</td>
               <td>{fmt(r.h.quantity, 0)}</td>
@@ -207,21 +226,20 @@ onMount(() =>
     </table>
   {/if}
 </div>
-<div class="note muted">{t('hold.note')}</div>
 
 <style>
   .asof {
     font-size: var(--fs-1);
   }
   .summary {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
     flex: none;
     border-bottom: 1px solid var(--line);
   }
   .stat {
-    flex: 1 1 120px;
     min-width: 0;
+    overflow: hidden;
     padding: 6px var(--s-3) 8px;
     border-right: 1px solid var(--line);
   }
@@ -232,6 +250,8 @@ onMount(() =>
     font-size: var(--fs-1);
     color: var(--text-3);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .v {
     font-size: 20px;
@@ -246,6 +266,8 @@ onMount(() =>
   .s {
     font-size: var(--fs-1);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .alloc {
     display: flex;
@@ -281,11 +303,5 @@ onMount(() =>
     height: 8px;
     border-radius: var(--radius);
     margin-right: 6px;
-  }
-  .note {
-    flex: none;
-    font-size: var(--fs-1);
-    padding: 4px var(--s-2);
-    border-top: 1px solid var(--line);
   }
 </style>

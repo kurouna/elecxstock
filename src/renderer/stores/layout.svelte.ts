@@ -57,7 +57,8 @@ export interface LayoutEntry {
   docks: { left?: Dock; right?: Dock }
 }
 export type PresetId = 'mtf' | 'grid' | 'screener' | 'income' | 'triple' | 'market' | 'free' | 'holdings'
-export const PRESET_IDS: PresetId[] = ['mtf', 'grid', 'screener', 'income', 'triple', 'market', 'free', 'holdings']
+/** タブの並び（Ctrl+Shift+1〜8 の順）: 市場全体 → 探す → 見比べる → 1 銘柄を深く → 配当 → 保有 → 自由に組む */
+export const PRESET_IDS: PresetId[] = ['market', 'screener', 'grid', 'mtf', 'triple', 'income', 'holdings', 'free']
 export interface LayoutDoc {
   version: 1
   active: PresetId

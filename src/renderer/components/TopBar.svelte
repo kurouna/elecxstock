@@ -29,7 +29,7 @@ onMount(() => {
   <nav class="presets" aria-label={t('a11y.layouts')}>
     {#each PRESET_IDS as p, i (p)}
       <button type="button" aria-current={layout.doc.active === p} onclick={() => setPreset(p)} title={`Ctrl+Shift+${i + 1}`}>
-        <span>{t(`preset.${p}` as Key)}</span><kbd>{i + 1}</kbd>
+        <span>{t(`preset.${p}` as Key)}</span><kbd class="keycap">{i + 1}</kbd>
       </button>
     {/each}
   </nav>
@@ -108,10 +108,24 @@ onMount(() => {
     border-bottom-color: var(--focus);
     background: var(--panel-2);
   }
-  .presets kbd {
-    border: 0;
-    background: none;
-    padding: 0;
+  /* ショートカットの数字はキーの形（Ctrl+Shift+数字） */
+  .presets kbd.keycap {
+    display: inline-grid;
+    place-items: center;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border: 1px solid var(--line-strong);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    background: var(--panel-3);
+    color: var(--text-3);
+    font-size: 10px;
+    line-height: 1;
+  }
+  .presets button[aria-current='true'] kbd.keycap {
+    color: var(--text-2);
+    border-color: var(--text-3);
   }
   .cmd {
     flex: 1;
