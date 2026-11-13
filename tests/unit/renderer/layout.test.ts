@@ -202,3 +202,17 @@ describe('フリーのレイアウトとペインごとの銘柄（FR-L11）', (
     expect(L.paneSymbol(b!)).toBe('JP:2914')
   })
 })
+
+describe('種類の変更（レビューの修正）', () => {
+  it('リンク色の無いペインは、種類を変えても自分の銘柄を引き継ぐ', () => {
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('free')
+    L.resetLayout()
+    const own = L.allPanes(L.layout.entry, false).find((p) => p.link === 0)!
+    const sym = own.state.sym
+    expect(sym).toBeTruthy()
+    L.changeWidget(own.id, 'info')
+    expect(L.findPane(own.id)?.widget).toBe('info')
+    expect(L.findPane(own.id)?.state.sym).toBe(sym)
+  })
+})

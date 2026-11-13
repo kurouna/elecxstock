@@ -57,10 +57,6 @@ export function num(s: string | undefined): number | null {
 /** 全角の英数字を半角にする（銘柄名は「ＮＴＴ」のように全角で来る） */
 const half = (s: string) => s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/　/g, ' ')
 
-export function isRakutenCsv(text: string): boolean {
-  return /"?種別"?,"?銘柄コード・ティッカー"?/.test(text)
-}
-
 export function parseRakutenCsv(text: string, importedAt = new Date().toISOString()): RakutenParsed {
   const lines = text.replace(/^﻿/, '').split(/\r?\n/)
   const hi = lines.findIndex((l) => /^"?種別"?,"?銘柄コード・ティッカー"?/.test(l))

@@ -227,15 +227,21 @@ function addOwn(id: InstrumentId) {
 let replacing: number | null = null
 function startReplace(i = sel) {
   if (!shown[i]) return
-  replacing = Math.min(page, pages - 1) * perPage + i
+  const cur = shown[i]
   if (src !== 'own') {
     set({ own: [...codes], src: 'own', sort: 'none' })
   } else if (sortKey !== 'none') {
     // 並べ替え中は見えている順を固定してから差し替える
     set({ own: [...codes], sort: 'none' })
   }
+  // ★・◆で絞り込んでいるときは見えている並びと own がずれるので、銘柄で own の位置を探す
+  replacing = ownIndex(cur)
   sel = i
   app.overlay = { kind: 'palette', q: '', title: t('grid.replaceTitle', { name: nameOf(shown[i]) }) }
+}
+/** このグリッドの銘柄（own）の中での位置。絞り込み中も見えているタイルの銘柄から探す */
+function ownIndex(id: InstrumentId): number {
+  return ((pane.state.own as InstrumentId[] | undefined) ?? []).indexOf(id)
 }
 /** 一覧の行をタイルに落としたら、そのタイルの銘柄を差し替える（C キーと同じ。FR-G10） */
 function dropAt(i: number, id: InstrumentId) {
@@ -243,12 +249,13 @@ function dropAt(i: number, id: InstrumentId) {
     zoom = id // 拡大中は、落とした銘柄を拡大して見せる
     return
   }
-  if (!shown[i]) return addOwn(id)
-  const at = Math.min(page, pages - 1) * perPage + i
+  const cur = shown[i]
+  if (!cur) return addOwn(id)
   if (src !== 'own' || sortKey !== 'none') set({ own: [...codes], src: 'own', sort: 'none' })
   sel = i
   setFocus(pane.id)
-  if (own[at] !== id) replaceAt(at, id)
+  const at = ownIndex(cur)
+  if (at >= 0 && own[at] !== id) replaceAt(at, id)
 }
 function replaceAt(at: number, id: InstrumentId) {
   const old = own[at]

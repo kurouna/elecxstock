@@ -17,11 +17,14 @@ test('グリッド: ‹ › と矢印でページをめくる', async () => {
   const next = grid.getByRole('button', { name: '次のページ' })
   await expect(prev).toBeDisabled()
 
-  // 最後のタイルで → は次のページの先頭、先頭で ← は前のページへ
+  // 最後のタイルで → は次のページの先頭、先頭で ← は前のページの最後
+  const tiles = grid.locator('.tile')
   await keys(page, 'End', 'ArrowRight')
   await expect(label).toHaveText(/^ページ 2\//)
+  await expect(tiles.first()).toHaveClass(/sel/)
   await keys(page, 'ArrowLeft')
   await expect(label).toHaveText(/^ページ 1\//)
+  await expect(tiles.last()).toHaveClass(/sel/)
   // 最下段で ↓ は次のページ、最上段で ↑ は前のページ
   await keys(page, 'Home', 'ArrowDown', 'ArrowDown')
   await expect(label).toHaveText(/^ページ 2\//)

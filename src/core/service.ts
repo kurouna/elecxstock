@@ -92,25 +92,37 @@ export class CoreService {
     this.jobs.resume()
   }
 
-  /** 一覧に無い銘柄を利用者の銘柄として足し、データを取りにいく（銘柄の追加と、保有の CSV の取り込みで使う） */
-  private addUserInstrument(code: string, name?: string): InstrumentId {
+  /**
+   * 一覧に無い銘柄を利用者の銘柄として足し、データを取りにいく（銘柄の追加と、保有の CSV・JSON の取り込みで使う）。
+   * 何銘柄でも設定の保存・取得対象の更新・取得のジョブは 1 回ずつ（設定の世代を押し流さない）。上限（500）を超える分は足さない
+   */
+  private addUserInstruments(list: { code: string; name?: string }[]): InstrumentId[] {
     const r = this.repo
-    const id = idOf(code)
-    if (!r.instrument(id)) {
-      r.db.run(
-        `INSERT INTO instruments(id, code, name_ja, name_en, market, kind, status, yahoo, updated) VALUES(?, ?, ?, '', 'X', 'other', 'active', ?, ?)`,
-        id,
-        code,
-        name || code,
-        this.provider.toSymbol(code, 'other'),
-        new Date().toISOString(),
-      )
-    }
     const s = this.user.load('settings')
-    if (!s.userInstruments.includes(code)) this.user.save('settings', { ...s, userInstruments: [...s.userInstruments, code] })
+    const have = new Set(s.userInstruments)
+    const room = Math.max(0, 500 - have.size)
+    const add = list.filter((x) => !have.has(x.code)).slice(0, room)
+    const ids: InstrumentId[] = []
+    for (const x of list) {
+      const id = idOf(x.code)
+      if (!r.instrument(id)) {
+        if (!have.has(x.code) && !add.some((y) => y.code === x.code)) continue
+        r.db.run(
+          `INSERT INTO instruments(id, code, name_ja, name_en, market, kind, status, yahoo, updated) VALUES(?, ?, ?, '', 'X', 'other', 'active', ?, ?)`,
+          id,
+          x.code,
+          x.name || x.code,
+          this.provider.toSymbol(x.code, 'other'),
+          new Date().toISOString(),
+        )
+      }
+      ids.push(id)
+    }
+    if (add.length) this.user.save('settings', { ...s, userInstruments: [...s.userInstruments, ...add.map((x) => x.code)] })
     r.setUserAdded(this.trackedCodes())
-    this.jobs.enqueue('refetch', [`F:${id}`, `M:${id}`])
-    return id
+    const fetch = ids.filter((id) => !r.fetchState(id).lastFull)
+    if (fetch.length) this.jobs.enqueue('refetch', [...fetch.map((id) => `F:${id}`), ...fetch.map((id) => `M:${id}`)])
+    return ids
   }
 
   private holdings() {
@@ -161,7 +173,12 @@ export class CoreService {
       case 'instruments.all':
         return r.universe() as Results[M]
       case 'instruments.addUser': {
-        const id = this.addUserInstrument(String(P.code).toUpperCase())
+        const code = String(P.code).toUpperCase()
+        const id = idOf(code)
+        const known = !!r.instrument(id)
+        this.addUserInstruments([{ code }])
+        // すでに一覧にあった銘柄も、明示して足したら取り直す
+        if (known) this.jobs.enqueue('refetch', [`F:${id}`, `M:${id}`])
         return r.instrument(id) as Results[M]
       }
       case 'instruments.removeUser': {
@@ -267,7 +284,9 @@ export class CoreService {
         } as Results[M]
       case 'user.saveSettings': {
         const prev = this.user.load('settings')
-        this.user.save('settings', P.settings as never)
+        // 利用者の銘柄は Core が持つ（取り込み・追加は Core で行い、外すのは instruments.removeUser）。
+        // renderer の設定の写しは古いことがあるので、その userInstruments では上書きしない
+        this.user.save('settings', { ...(P.settings as object), userInstruments: prev.userInstruments } as never)
         const next = this.user.load('settings')
         if (prev.userInstruments.join() !== next.userInstruments.join()) r.setUserAdded(this.trackedCodes())
         return undefined as Results[M]
@@ -318,7 +337,7 @@ export class CoreService {
         this.user.keepBefore('portfolioMeta', 'preimport')
         const hs = P.holdings as Holding[]
         // 別の PC で足した銘柄など、一覧に無いコードは銘柄として足してデータを取りにいく
-        for (const h of hs) if (!r.instrument(`JP:${h.code}`)) this.addUserInstrument(h.code, h.name)
+        this.addUserInstruments(hs.filter((h) => !r.instrument(`JP:${h.code}`)).map((h) => ({ code: h.code, name: h.name })))
         this.user.save('holdings', applyImport(this.user.load('holdings'), hs, P.mode as 'merge' | 'replace'))
         if (P.meta) this.user.save('portfolioMeta', P.meta as never)
         return this.holdings() as Results[M]
@@ -330,13 +349,13 @@ export class CoreService {
       case 'portfolio.meta':
         return this.user.load('portfolioMeta') as Results[M]
       case 'portfolio.previewCsv':
-        return previewBrokerCsv(String(P.text), this.user.load('holdings'), (code) => !!r.instrument(`JP:${code}`)) as Results[M]
+        return previewBrokerCsv(String(P.text), this.holdings(), (code) => !!r.instrument(`JP:${code}`)) as Results[M]
       case 'portfolio.applyCsv': {
         // 取り込むたびに、保有は CSV の内容にすべて置き換える（FR-H11）。前の記録は世代に残して元に戻せる
         this.user.keepBefore('holdings', 'preimport')
         this.user.keepBefore('portfolioMeta', 'preimport')
         const hs = P.holdings as Holding[]
-        for (const h of hs) if (!r.instrument(`JP:${h.code}`)) this.addUserInstrument(h.code, h.name)
+        this.addUserInstruments(hs.filter((h) => !r.instrument(`JP:${h.code}`)).map((h) => ({ code: h.code, name: h.name })))
         this.user.save('holdings', hs)
         this.user.save('portfolioMeta', P.meta as never)
         return this.holdings() as Results[M]

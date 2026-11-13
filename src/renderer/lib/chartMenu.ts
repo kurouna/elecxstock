@@ -93,7 +93,6 @@ export async function chartMenu(pane: PaneNode): Promise<void> {
   }
 }
 
-/** chart・mtf-chart の共通のキー。扱えたら true */
 /**
  * このチャートの銘柄を変える（C キー・見出しの銘柄名）。コマンドバーで選んだ銘柄は sendSymbol でこのペインに届く:
  * リンク色があればそのグループ、無ければこのチャートだけが変わる（FR-L11）
@@ -103,6 +102,7 @@ export function changeSymbol(pane: PaneNode): void {
   const cur = paneSymbol(pane)
   app.overlay = { kind: 'palette', q: '', title: t('chart.changeTitle', { name: cur ? nameOf(cur) : '' }) }
 }
+/** chart・mtf-chart の共通のキー。扱えたら true */
 export function chartKey(pane: PaneNode, e: KeyboardEvent): boolean {
   if (e.ctrlKey || e.altKey || e.metaKey) return false
   const c = e.code

@@ -1,6 +1,7 @@
 <script lang="ts">
 // ペインの入れ物。ウィジェットの例外はそのペインだけを止め、再試行とエラー通知を出す（FR-L8）。
 
+import { setFocus } from '../lib/commands'
 import { dropOnChart, symbolDrop } from '../lib/symbolDrag'
 import { app, t, toast } from '../stores/app.svelte'
 import { inDock, movePane, type PaneNode } from '../stores/layout.svelte'
@@ -34,7 +35,7 @@ function drop(e: DragEvent) {
   zone = null
   if (!src || !z || src === pane.id) return
   e.preventDefault()
-  if (movePane(src, pane.id, z)) app.focus = src
+  if (movePane(src, pane.id, z)) setFocus(src)
 }
 function onerror(e: unknown) {
   toast(t('err.generic', { msg: String((e as Error)?.message ?? e) }), undefined, 5000)
@@ -53,7 +54,7 @@ function onerror(e: unknown) {
   onfocusin={() => (app.focus = pane.id)}
   aria-label={pane.widget}
   bind:this={el}
-  use:symbolDrop={pane.widget === 'chart' || pane.widget === 'mtf' ? (id) => dropOnChart(pane, id) : null}
+  use:symbolDrop={pane.widget === 'chart' || pane.widget === 'mtf' || pane.widget === 'info' ? (id) => dropOnChart(pane, id) : null}
   ondragover={over}
   ondragleave={(e) => {
     if (!el?.contains(e.relatedTarget as Node)) zone = null

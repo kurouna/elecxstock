@@ -321,7 +321,7 @@ export class JobRunner {
     if (t === 'F') return this.history(`${rest[0]}:${rest[1]}`, this.retentionStart(), signal, true)
     if (t === 'M') return this.monthly(`${rest[0]}:${rest[1]}`, signal)
     if (t === 'X') {
-      await this.recomputeAll()
+      await this.recomputeAll(signal)
       return undefined
     }
     return undefined
@@ -457,9 +457,10 @@ export class JobRunner {
     const r = await this.h.provider.fetchHistory(sym, { from: start, interval: '1d', signal })
     if (signal.aborted) throw new Error('aborted')
     if (!r.bars.length) throw new ProviderError('symbol', 'empty response')
+    // 保存済みの分割（取り直しで新しい分割が見つかったかを見る）
+    const known = new Set(repo.splits(id).map((s) => s.date))
+    const newSplit = r.splits.some((s) => !known.has(s.date))
     if (!full) {
-      const known = new Set(repo.splits(id).map((s) => s.date))
-      const newSplit = r.splits.some((s) => !known.has(s.date))
       // 重ね取り区間で保存済みの終値と食い違えば、分割・併合を疑って全期間を取り直す
       let mismatch = false
       for (const b of r.bars.slice(0, 10)) {
@@ -469,23 +470,25 @@ export class JobRunner {
       if (newSplit || mismatch) {
         // 分割・併合: 全期間と月次系列を取り直す（FR-D3）。月次系列は古い基準のままなので、日足と同じトランザクションで
         // 「月次系列の取り直しが要る」と記録する（ここで閉じても、次の日々の更新で取り直す）
-        await this.history(id, start, signal, true, true)
-        return [`M:${id}`]
+        return (await this.history(id, start, signal, true, true)) ?? [`M:${id}`]
       }
     } else {
       const existing = repo.dailyCount(id, start)
       if (existing > 50 && r.bars.length < existing * 0.5)
         throw new ProviderError('symbol', `suspicious response (${r.bars.length} < ${existing})`)
     }
+    // 全期間の取り直し（気配の照合・ギャップ・利用者の取り直しから）でも、前に日足があって新しい分割が見つかれば、
+    // 月次系列は古い基準のままなので取り直す（FR-D3）。初めての取得は月次系列を別に取るので除く
+    const split = afterSplit || (full && newSplit && repo.fetchState(id).lastFull != null)
     repo.db.tx(() => {
       repo.replaceDaily(id, start, r.bars)
       repo.replaceActions(id, full ? '0000-00-00' : start, r.dividends, r.splits)
       repo.markFetched(id, full ? 'full' : 'daily', nowIso())
-      if (afterSplit) repo.needMonthly(id)
+      if (split) repo.needMonthly(id)
       this.recompute(id)
     })
     this.dataChanged(id)
-    return undefined
+    return split ? [`M:${id}`] : undefined
   }
 
   /** 月次系列（FR-D7）: 1 銘柄 1 リクエストで上場以来の月足 */
@@ -518,10 +521,12 @@ export class JobRunner {
    * 全銘柄の指標を作り直す。100 銘柄ごとに 1 つのトランザクションで書き、その合間に処理を譲って
    * チャート・スクリーナーなどの呼び出しを待たせない
    */
-  async recomputeAll(): Promise<void> {
+  async recomputeAll(signal?: AbortSignal): Promise<void> {
     const repo = this.h.repo
     const ids = [...repo.fetchSet().map((s) => s.id)]
     for (let i = 0; i < ids.length; i += 100) {
+      // 閉じる・全データの削除・取り消しのときは、残りのバッチを書かずに止める（項目は待ちに戻る）
+      if (signal?.aborted || this.stopping) throw new Error('aborted')
       repo.db.tx(() => {
         for (const id of ids.slice(i, i + 100)) this.recompute(id)
       })

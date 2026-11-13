@@ -1,7 +1,10 @@
 <script lang="ts">
 import { setFocus } from '../lib/commands'
-import { app } from '../stores/app.svelte'
-import { allPanes, findPane, layout, PRESET_FOCUS, toggleDockOpen } from '../stores/layout.svelte'
+import { app, t } from '../stores/app.svelte'
+import { allPanes, findPane, layout, moveToEdge, PRESET_FOCUS, toggleDockOpen } from '../stores/layout.svelte'
+import Dock from './Dock.svelte'
+import { DRAG_MIME } from './dragPane'
+import Node from './Node.svelte'
 
 // レイアウトを開いたとき、フォーカスが無ければそのタブの主役のペイン（PRESET_FOCUS）か最初のペインに置く
 // （キーボードだけで始められるように）
@@ -15,12 +18,6 @@ $effect(() => {
   }
 })
 
-import { t } from '../stores/app.svelte'
-import { moveToEdge } from '../stores/layout.svelte'
-import Dock from './Dock.svelte'
-import { DRAG_MIME } from './dragPane'
-import Node from './Node.svelte'
-
 // 画面の外側の端（ドラッグ中だけ出る細い帯）: 落とすと、いちばん外に新しい列・行を足す（FR-L2）
 type Edge = 'left' | 'right' | 'top' | 'bottom'
 const EDGES: Edge[] = ['left', 'right', 'top', 'bottom']
@@ -30,12 +27,28 @@ function edgeOver(e: DragEvent, side: Edge) {
   e.preventDefault()
   edgeOn = side
 }
+// ペインを動かすと元の見出しが作り直され、dragend が届かないことがある。どこで終わっても帯を隠す
+$effect(() => {
+  const clear = () => {
+    document.body.classList.remove('dragging-pane')
+    edgeOn = null
+  }
+  window.addEventListener('dragend', clear, true)
+  window.addEventListener('drop', clear, true)
+  return () => {
+    window.removeEventListener('dragend', clear, true)
+    window.removeEventListener('drop', clear, true)
+  }
+})
 function edgeDrop(e: DragEvent, side: Edge) {
   const src = e.dataTransfer?.getData(DRAG_MIME)
   edgeOn = null
   if (!src) return
   e.preventDefault()
-  if (moveToEdge(src, side)) app.focus = src
+  if (moveToEdge(src, side)) {
+    layout.dockOpen = null
+    setFocus(src)
+  }
 }
 </script>
 

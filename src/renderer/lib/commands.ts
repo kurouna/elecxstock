@@ -111,9 +111,16 @@ export function setFocus(id: string | null): void {
   })
 }
 
-/** 選んだ銘柄を、フォーカス中のペインに送る（リンクグループ、または chart-grid の銘柄） */
+/** フォーカス中のウォッチリストが「保有」のタブ（中身を変えられない。FR-W10）なら、そう知らせて true */
+export function holdingsTabLocked(): boolean {
+  const p = findPane(app.focus)
+  if (p?.widget !== 'watchlist' || p.state.list !== 'holdings') return false
+  toast(t('list.holdingsLocked'))
+  return true
+}
 /** リンク色が無いとき、自分の銘柄を持つペイン */
 const OWN_SYMBOL = new Set<WidgetId>(['chart', 'mtf', 'info'])
+/** 選んだ銘柄を、フォーカス中のペインに送る（リンクグループ、または chart-grid の銘柄） */
 export function sendSymbol(id: InstrumentId): void {
   const pane = findPane(app.focus)
   if (paneApi(app.focus)?.receive?.(id)) return
@@ -466,7 +473,9 @@ export const ACTIONS: Action[] = [
     label: () => t(`act.paneToEdge.${side}` as Key),
     run: () => {
       const id = app.focus
-      if (id && moveToEdge(id, side)) app.focus = id
+      if (!id || !moveToEdge(id, side)) return toast(t('layout.cannotMove'))
+      layout.dockOpen = null
+      setFocus(id)
     },
   })),
   { id: 'toDrawer', label: () => t('act.toDrawer'), run: () => toDrawer('left') },

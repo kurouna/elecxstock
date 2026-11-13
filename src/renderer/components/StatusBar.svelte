@@ -2,7 +2,7 @@
 import { keyOf, runAction } from '../lib/commands'
 import { dateTime } from '../lib/format'
 import type { Key } from '../lib/i18n'
-import { app, t } from '../stores/app.svelte'
+import { app, rpc, t } from '../stores/app.svelte'
 
 const ACTIVE = ['running', 'waiting-offline', 'provider-paused', 'paused', 'queued']
 // 実行中を先に、次に待っているもの（新しい順に並んでいるので、そのまま find すると後から積んだ待ちが先に出る）
@@ -32,7 +32,7 @@ const offline = $derived(app.provider.offline || app.provider.paused)
   </button>
   {#if !active || active.status === 'paused'}
     <!-- 押すと何が起きるかを言葉で出す（「待機 F5」が「F5 で待機」と読めないように） -->
-    <button type="button" class="seg" onclick={() => runAction('update')}>
+    <button type="button" class="seg" onclick={() => (active?.status === 'paused' ? void rpc('jobs.resume', { id: active.id }) : runAction('update'))}>
       {active ? t('status.resume') : t('act.update')} <kbd>{keyOf('update')}</kbd>
     </button>
   {/if}

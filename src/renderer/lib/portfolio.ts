@@ -1,7 +1,7 @@
 // 保有の記録（§6.9, FR-H7〜H11）の画面側の操作。保有は証券会社の CSV を取り込んで作る（FR-H11）。
 // CSV の読み取りと差分は Core（src/core/holdings.ts, src/core/brokers/rakuten.ts）。
 import type { AccountType, Holding } from '@shared/types'
-import { app, choiceDialog, confirmDialog, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
+import { app, choiceDialog, confirmDialog, loadInstruments, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
 import type { Key } from './i18n'
 
 export const accountName = (a: AccountType) => t(`acct.${a}` as Key)
@@ -53,6 +53,14 @@ export function valuation(h: Holding): Valuation {
   }
 }
 
+/**
+ * 取り込みのあと: Core が一覧に無い銘柄を利用者の銘柄として足すので、設定（追加した銘柄）・銘柄の一覧・CSV の情報を読み直す
+ */
+async function afterImport(): Promise<void> {
+  app.portfolioMeta = await rpc('portfolio.meta', {})
+  app.settings = (await rpc('user.load', {})).settings
+  await loadInstruments()
+}
 /** 証券会社の CSV のバイト列を文字列にする。UTF-8 として読めなければ Shift_JIS（楽天証券の既定） */
 export function decodeCsv(bytes: Uint8Array): string {
   try {
@@ -70,7 +78,8 @@ export async function importBrokerCsv(): Promise<void> {
   const bytes = await window.elecxstock.openFile('csv')
   if (!(bytes instanceof Uint8Array)) return
   const p = await rpc('portfolio.previewCsv', { text: decodeCsv(bytes) })
-  const line = (h: Holding) => `${h.code} ${h.name || nameOf(`JP:${h.code}`)} · ${accountName(h.account)} · ${h.quantity.toLocaleString()}`
+  const line = (h: Holding) =>
+    `${h.code} ${nameOf(`JP:${h.code}`) || h.name || ''} · ${accountName(h.account)} · ${h.quantity.toLocaleString()}`
   const out = new Set(p.skipped.map((x) => x.kind || '?'))
   const items = [
     t('hold.prevAdd', { n: p.add.length }),
@@ -83,7 +92,8 @@ export async function importBrokerCsv(): Promise<void> {
     ...(p.unknown.length ? [t('hold.prevUnknown', { n: p.unknown.length, codes: p.unknown.slice(0, 8).join(', ') })] : []),
     ...(p.skipped.length ? [t('hold.prevSkipped', { n: p.skipped.length, kinds: [...out].join('・') })] : []),
   ]
-  if (!p.holdings.length) {
+  // 何も無い CSV でも、今の保有が無くなる（すべて売った）ときは取り込める
+  if (!p.holdings.length && !p.removed.length) {
     await confirmDialog({ title: t('hold.csvEmpty'), items, ok: t('common.close') })
     return
   }
@@ -95,7 +105,7 @@ export async function importBrokerCsv(): Promise<void> {
   })
   if (!r.ok) return
   app.holdings = await rpc('portfolio.applyCsv', { holdings: p.holdings, meta: p.meta })
-  app.portfolioMeta = p.meta
+  await afterImport()
   toast(t('hold.imported', { n: p.holdings.length }), { label: t('hold.undo'), run: () => void undoHoldingsImport() }, 10_000)
 }
 
@@ -132,7 +142,7 @@ export async function importHoldings(): Promise<void> {
   ])
   if (mode !== 'merge' && mode !== 'replace') return
   app.holdings = await rpc('portfolio.applyImport', { holdings: p.holdings, mode, meta: p.meta })
-  app.portfolioMeta = await rpc('portfolio.meta', {})
+  await afterImport()
   toast(t('hold.imported', { n: p.holdings.length }), { label: t('hold.undo'), run: () => void undoHoldingsImport() }, 10_000)
 }
 export async function undoHoldingsImport(): Promise<void> {

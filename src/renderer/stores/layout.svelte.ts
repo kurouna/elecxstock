@@ -182,7 +182,7 @@ const fixDock = (fixNode: (n: unknown) => LNode | null, d: Dock | undefined): Do
     panes,
     active: Math.min(Math.max(0, d.active | 0), panes.length - 1),
     pinned: !!d.pinned,
-    width: Math.min(1200, Math.max(280, d.width || 600)),
+    width: Math.min(1200, Math.max(280, d.width || DOCK_WIDTH)),
   }
 }
 
@@ -333,7 +333,7 @@ export function linkSymbol(group: number): InstrumentId | undefined {
 /** ペインが表示する銘柄: リンク色があればそのグループの銘柄、無ければペイン自身の銘柄（FR-L11） */
 export function paneSymbol(pane: PaneNode): InstrumentId | undefined {
   if (pane.link) return linkSymbol(pane.link)
-  return (pane.state.sym as InstrumentId | undefined) ?? linkSymbol(0)
+  return pane.state.sym as InstrumentId | undefined
 }
 /** ペインの銘柄を変える。リンク色があればグループ全体、無ければそのペインだけ */
 export function setPaneSymbol(pane: PaneNode, id: InstrumentId): void {
@@ -389,7 +389,6 @@ function snapshotSizes(e: LayoutEntry): SizeSnap {
     ...(e.docks.right ? { dockRight: e.docks.right.width } : {}),
   }
 }
-/** サイズを元に戻す（FR-L9）。並び・中身は変えない。10 秒間は元に戻せる */
 /** 区切りの子ごとの中のペイン（種類・時間軸）。木の位置ではなく中身で既定の比率を探すため */
 function childKeys(s: SplitNode): string[][] {
   const panes = (n: LNode): string[] =>
@@ -433,6 +432,7 @@ function defaultSizesOf(root: LNode, preset: LayoutEntry): Map<SplitNode, number
   })
   return out
 }
+/** サイズを元に戻す（FR-L9）。並び・中身は変えない。10 秒間は元に戻せる */
 export function resetSizes(): boolean {
   const e = layout.entry
   const preset = presetEntry(layout.doc.active)
@@ -532,7 +532,9 @@ export function changeWidget(paneId: string, widget: WidgetId): void {
   const p = findPane(paneId)
   if (!p) return
   p.widget = widget
-  p.state = widget === 'chart' ? { tf: 'D' } : {}
+  // リンク色の無いペインは自分の銘柄を持つので、種類を変えても引き継ぐ（FR-L11）
+  const sym = !p.link ? p.state.sym : undefined
+  p.state = { ...(widget === 'chart' ? { tf: 'D' } : {}), ...(sym ? { sym } : {}) }
   saveLayout()
 }
 /** 区切り線の比率を、プリセットの初期値に戻すときの元（保存レイアウトにも使う） */
@@ -546,8 +548,10 @@ function detach(paneId: string): PaneNode | null {
     const d = layout.entry.docks[side]!
     const i = d.panes.findIndex((p) => p.id === paneId)
     const [p] = d.panes.splice(i, 1)
-    if (!d.panes.length) delete layout.entry.docks[side]
-    else d.active = Math.min(d.active, d.panes.length - 1)
+    if (!d.panes.length) {
+      delete layout.entry.docks[side]
+      if (layout.dockOpen === side) layout.dockOpen = null
+    } else d.active = Math.min(d.active, d.panes.length - 1)
     return p ?? null
   }
   const pp = parentOf(paneId)
@@ -634,7 +638,7 @@ export function moveToDock(paneId: string, side: DockSide): boolean {
   if (d) {
     d.panes.push(p)
     d.active = d.panes.length - 1
-  } else layout.entry.docks[side] = { panes: [p], active: 0, pinned: false, width: 600 }
+  } else layout.entry.docks[side] = { panes: [p], active: 0, pinned: false, width: DOCK_WIDTH }
   saveLayout()
   return true
 }

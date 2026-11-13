@@ -1,28 +1,3 @@
-[data-drop="on"]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  background: color-mix(in srgb, var(--focus) 12%, transparent);
-  box-shadow: inset 0 0 0 2px var(--focus);
-  pointer-events: none;
-}
-[data-drop="on"]::before {
-  content: attr(data-drop-label);
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 31;
-  padding: 4px 12px;
-  border-radius: var(--radius);
-  background: var(--focus);
-  color: var(--panel);
-  font-size: var(--fs-2);
-  font-weight: 600;
-  white-space: nowrap;
-  pointer-events: none;
-}
 /* elecxstock デザイントークン（FR-V1, V8, V10, NFR-Q1）。色・文字・余白はここの変数だけから取る。 */
 :root {
   --bg: #0b0d10;

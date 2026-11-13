@@ -95,6 +95,8 @@ test('一番右の列が上下に分かれていても、画面の右端に落�
   // 画面の右端に、上から下まで通しの列として入る（ほかの列の右）
   expect(near(moved.x + moved.width, mb.x + mb.width, 4)).toBe(true)
   expect(near(moved.height, mb.height, 4)).toBe(true)
+  // 落としたあとは画面の端の帯が隠れる（見出しのボタンを覆わない）
+  await expect(page.locator('[data-edge="top"]')).toBeHidden()
   // 3 列になり、元の右の列には 2 枚が残る
   const xs = new Set<number>()
   for (const p of await panes(page).all()) xs.add(Math.round((await boxOf(p)).x / 10))

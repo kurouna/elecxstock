@@ -381,13 +381,17 @@ export class Repo {
     this.db.run('UPDATE fetch_state SET last_monthly = NULL WHERE id = ?', id)
   }
   /** 日足はあるのに月次系列が無い（取り直しが要る）取得対象の銘柄。指数（月次系列を使わない）は除く */
-  missingMonthly(): InstrumentId[] {
+  missingMonthly(now = new Date()): InstrumentId[] {
+    // 取得に失敗し続ける銘柄を毎日取りに行かない: 直近 7 日に失敗していれば見送る
+    const since = new Date(now.getTime() - 7 * 86400_000).toISOString()
     return this.db
       .all<{ id: string }>(
         `SELECT f.id FROM fetch_state f JOIN instruments i ON i.id = f.id
           WHERE f.last_full IS NOT NULL AND f.last_monthly IS NULL
             AND i.status = 'active' AND (i.market IN ('P', 'R') OR i.user_added = 1)
+            AND (f.fails = 0 OR f.last_error_at IS NULL OR f.last_error_at < ?)
           ORDER BY i.code`,
+        since,
       )
       .map((r) => r.id)
   }

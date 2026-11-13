@@ -24,6 +24,11 @@ let plotW = $state(0)
 let sel = $state(-1)
 let token = 0
 
+// 銘柄が変わったら、選んでいた棒をはずす（別の銘柄の同じ位置の棒を指さないように）
+$effect(() => {
+  void id
+  sel = -1
+})
 $effect(() => {
   void app.dataVersion
   const my = ++token
@@ -196,28 +201,27 @@ const months = $derived(
               <div class="col">
                 <i class:latest={b.latest} class:partial={b.partial} class:cut={b.cut} style:height={`${h}%`}></i>
                 <span class="v num" class:show={showAll || b.latest || i === maxAt || sel === i} style:bottom={`calc(${h}% + 1px)`}>{px(b.v)}</span>
+                {#if sel === i}
+                <div class="tip" aria-live="polite" class:right={i > bars.length / 2}>
+                  {#if mode === 'year'}
+                    {@const y = years[i]!}
+                    <div>{t('info.yearOf', { y: y.year })}{y.partial ? ` · ${t('info.partialYear', { n: y.count })}` : ` · ${t('info.times', { n: y.count })}`}</div>
+                    <div>{unitLabel} <b class="num">{px(y.total)}</b></div>
+                    {#if y.yoy != null}<div>{t('info.yoyYear')} <b class={y.cut ? 'num cutc' : 'num'}>{sgn(y.yoy, 1, '%')}</b></div>{/if}
+                  {:else}
+                    {@const d = events[i]!}
+                    {@const yy = eventYoy(divs, divs.length - events.length + i)}
+                    <div>{t('info.exDate')} <b class="num">{date(d.date)}</b></div>
+                    <div>{unitLabel} <b class="num">{px(b.v)}</b></div>
+                    {#if yy != null}<div>{t('info.yoy')} <b class="num">{sgn(yy, 1, '%')}</b></div>{/if}
+                  {/if}
+                </div>
+                {/if}
               </div>
               <span class="y num">{b.label}{#if b.cut}<span class="cutmark">▼</span>{/if}</span>
             </div>
           {/each}
         </div>
-        {#if sel >= 0 && bars[sel]}
-          {@const b = bars[sel]!}
-          <div class="tip" aria-live="polite" style:left={`${((sel + 0.5) / bars.length) * 100}%`} class:right={sel > bars.length / 2}>
-            {#if mode === 'year'}
-              {@const y = years[sel]!}
-              <div>{t('info.yearOf', { y: y.year })}{y.partial ? ` · ${t('info.partialYear', { n: y.count })}` : ` · ${t('info.times', { n: y.count })}`}</div>
-              <div>{unitLabel} <b class="num">{px(y.total)}</b></div>
-              {#if y.yoy != null}<div>{t('info.yoyYear')} <b class={y.cut ? 'num cutc' : 'num'}>{sgn(y.yoy, 1, '%')}</b></div>{/if}
-            {:else}
-              {@const d = events[sel]!}
-              {@const yy = eventYoy(divs, divs.length - events.length + sel)}
-              <div>{t('info.exDate')} <b class="num">{date(d.date)}</b></div>
-              <div>{unitLabel} <b class="num">{px(b.v)}</b></div>
-              {#if yy != null}<div>{t('info.yoy')} <b class="num">{sgn(yy, 1, '%')}</b></div>{/if}
-            {/if}
-          </div>
-        {/if}
       </div>
       <div class="recent num">
         {#if divs.length}{t('info.recentDivs')} {divs.slice(-4).reverse().map((d) => `${date(d.date)} ${px(d.amount)}`).join(' · ')}{:else}—{/if}
@@ -464,9 +468,11 @@ const months = $derived(
     color: var(--warn);
     margin-left: 1px;
   }
+  /* 選んだ棒の上に出す（棒の位置に合わせる。端の棒では内側へ寄せる） */
   .tip {
     position: absolute;
-    top: 0;
+    bottom: calc(100% + 4px);
+    left: 50%;
     transform: translateX(-50%);
     z-index: 5;
     background: var(--panel-3);
@@ -482,7 +488,13 @@ const months = $derived(
     gap: 2px;
   }
   .tip.right {
-    transform: translateX(-100%);
+    left: auto;
+    right: 0;
+    transform: none;
+  }
+  .b:first-child .tip:not(.right) {
+    left: 0;
+    transform: none;
   }
   .tip b {
     color: var(--text);

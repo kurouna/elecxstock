@@ -3,7 +3,7 @@
 
 import type { Instrument } from '@shared/types'
 import { onMount } from 'svelte'
-import { ACTIONS, type Action, focusedWatchlist, keyOf, sendSymbol } from '../../lib/commands'
+import { ACTIONS, type Action, focusedWatchlist, holdingsTabLocked, keyOf, sendSymbol } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
 import { openScreenAnywhere } from '../../lib/screens'
 import { addToList, app, bridge, isFav, listName, rpc, screenName, t, toast, toggleFav } from '../../stores/app.svelte'
@@ -89,7 +89,7 @@ async function fav(i = sel) {
 }
 /** フォーカス中のウォッチリストに足して、その銘柄を表示する */
 async function addTo(i = sel) {
-  if (!target) return
+  if (!target) return void holdingsTabLocked()
   const list = target.id
   const id = await idOf(items[i])
   if (!id) return
@@ -118,7 +118,7 @@ function key(e: KeyboardEvent) {
   if (e.key === 'ArrowDown') sel = Math.min(items.length - 1, sel + 1)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
   else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-    if (!target) return
+    if (!target) return void holdingsTabLocked()
     void addTo()
   } else if (e.key === 'Enter') void go()
   else if (e.code === 'KeyD' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && !title) void fav()

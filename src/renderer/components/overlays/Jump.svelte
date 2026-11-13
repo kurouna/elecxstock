@@ -4,7 +4,7 @@
 
 import type { Instrument } from '@shared/types'
 import { onMount } from 'svelte'
-import { focusedWatchlist, sendSymbol } from '../../lib/commands'
+import { focusedWatchlist, holdingsTabLocked, sendSymbol } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
 import { addToList, app, bridge, closeOverlay, isFav, listName, t, toggleFav } from '../../stores/app.svelte'
 
@@ -23,7 +23,8 @@ function show(i = sel) {
 }
 function add(i = sel) {
   const x = cand[i]
-  if (!x || !target) return
+  if (!x) return
+  if (!target) return void holdingsTabLocked()
   app.overlay = null
   addToList(target.id, [x.id])
   sendSymbol(x.id)

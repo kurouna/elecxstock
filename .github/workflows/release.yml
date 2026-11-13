@@ -28,8 +28,11 @@ jobs:
         run: npx electron-builder --win --publish never
       - name: Publish the release
         shell: bash
+        # リリースノートは docs/releases/<タグ>.md があればそれを使い、無ければ自動で作る
         run: |
-          gh release create "$GITHUB_REF_NAME" --title "${GITHUB_REF_NAME#v}" --generate-notes \
+          notes="docs/releases/$GITHUB_REF_NAME.md"
+          if [ -f "$notes" ]; then set -- --notes-file "$notes"; else set -- --generate-notes; fi
+          gh release create "$GITHUB_REF_NAME" --title "${GITHUB_REF_NAME#v}" "$@" \
             release/*-setup.exe release/*-setup.exe.blockmap release/latest.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

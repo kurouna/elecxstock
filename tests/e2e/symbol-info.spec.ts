@@ -44,6 +44,10 @@ test('銘柄情報: 広いペインでは指標とグラフを左右に並べ、
   await expect(chart.locator('.tip')).toContainText('年')
   await keys(page, 'ArrowLeft')
   await expect(chart.locator('.b.on')).toHaveCount(1)
+  // 詳細は選んだ棒の近くに出る（棒は右に寄せてあるので、グラフの幅の比率で置くとずれる）
+  const on = (await chart.locator('.b.on').boundingBox())!
+  const tip = (await chart.locator('.tip').boundingBox())!
+  expect(Math.abs(tip.x + tip.width / 2 - (on.x + on.width / 2))).toBeLessThan(tip.width)
   await keys(page, 'Escape')
   await expect(chart.locator('.tip')).toHaveCount(0)
   await keys(page, 'y')
