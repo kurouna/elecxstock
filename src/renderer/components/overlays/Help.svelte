@@ -13,6 +13,7 @@ const G = $derived([
     title: t('help.general'),
     rows: [
       [ja ? '銘柄ジャンプ' : 'Symbol jump', '1–9'],
+      [ja ? 'ジャンプの候補をお気に入りに / 見ているリストに足す' : 'Jump: favorite / add to the focused list', 'Ctrl+D / Ctrl+Enter'],
       [ja ? 'コマンドバー' : 'Command bar', 'Ctrl+K'],
       [ja ? 'ショートカット一覧' : 'Shortcuts', K('help')],
       [ja ? 'ペイン間の移動' : 'Move between panes', 'Alt+← → ↑ ↓'],

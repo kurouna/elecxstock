@@ -2,10 +2,11 @@
 // ウォッチリスト（§6.10, FR-FV2, §6.5.3）。↑↓ でめくると同じリンク色のチャートが追従する（FR-K2）。
 // 列は Ctrl+Shift+C で選ぶ（lib/columns.ts）。リストの作成・名前の変更・複製・削除・並べ替え（FR-W1）。
 
-import { onMount } from 'svelte'
+import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, resolveColumns, sortIds } from '../../lib/columns'
 import { registerPane } from '../../lib/panes'
+import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import {
   app,
   bridge,
@@ -161,7 +162,8 @@ onMount(() => {
   const ro = new ResizeObserver(() => (width = scroller?.clientWidth ?? 600))
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
-    current: () => rows[sel] ?? linkSymbol(pane.link),
+    // 「いまの銘柄」はリンク先のチャートが表示している銘柄（銘柄ジャンプのあとに Ctrl+D が前の行に効かないように）
+    current: () => (pane.link ? linkSymbol(pane.link) : null) ?? rows[sel],
     selected: () => picked(),
     columns: () => ({ ids: rows, cols: allCols, name: list ? listName(list) : 'watchlist' }),
     key(e) {
@@ -256,6 +258,15 @@ onMount(() => {
     off()
   }
 })
+// 銘柄ジャンプなどでリンク先の銘柄が変わったら、一覧にあればその行を選ぶ
+$effect(() => {
+  const id = pane.link ? linkSymbol(pane.link) : null
+  const i = id ? rows.indexOf(id) : -1
+  if (i >= 0)
+    untrack(() => {
+      if (sel !== i) sel = i
+    })
+})
 </script>
 
 <PaneHeader {pane}>
@@ -296,7 +307,7 @@ onMount(() => {
       </thead>
       <tbody>
         {#each rows as id, i (id)}
-          <tr class:sel={i === sel} class:multi={anchor >= 0 && i >= lo && i <= hi} class:stale={app.metrics.get(id)?.stale} onclick={(e) => { if (e.shiftKey) { if (anchor < 0) anchor = sel } else anchor = -1; sel = i; send() }}>
+          <tr draggable="true" ondragstart={(e) => startSymbolDrag(e, id)} ondragend={endSymbolDrag} class:sel={i === sel} class:multi={anchor >= 0 && i >= lo && i <= hi} class:stale={app.metrics.get(id)?.stale} onclick={(e) => { if (e.shiftKey) { if (anchor < 0) anchor = sel } else anchor = -1; sel = i; send() }}>
             <RowCells {id} {cols} />
           </tr>
         {/each}

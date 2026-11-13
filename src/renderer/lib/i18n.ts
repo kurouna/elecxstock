@@ -40,7 +40,8 @@ export const ja = {
   'list.starOnly': '★のみ',
   'list.items': '{n} 銘柄',
   'list.new': '新しいリスト',
-  'list.empty': 'このリストは空です。1〜9 で銘柄ジャンプして Enter、またはスクリーナーの結果から Ctrl+Shift+A で追加できます。',
+  'list.empty':
+    'このリストは空です。1〜9 で銘柄ジャンプして Ctrl+Enter（または候補の ＋）でこのリストに追加できます。スクリーナーの結果からは Ctrl+Shift+A で追加できます。',
   'list.added': '「{list}」に追加しました: {name}',
   'list.removed': 'リストから外しました: {name}',
   'list.removedN': '{n} 銘柄をリストから外しました',
@@ -178,7 +179,7 @@ export const ja = {
   'cmd.hint.actions': '> でアクションのみ',
   'cmd.addUser': '銘柄 {code} を追加して取得する',
   'jump.title': '銘柄ジャンプ',
-  'jump.hint': 'Enter でリンクグループに送る',
+  'jump.hint': 'Enter 表示',
   'jump.none': '該当なし',
   'help.title': 'ショートカット',
   'help.focus': '● フォーカス中のペインで効くキー',
@@ -544,6 +545,12 @@ export const ja = {
   'status.lastFailed': '前回の更新に失敗しました',
   'status.lastPartial': '前回の更新で {n} 件を取得できませんでした',
   'status.resume': '再開',
+  'cmd.addToList': '{list} に追加して表示',
+  'cmd.favOn': 'お気に入りに入れる',
+  'cmd.favOff': 'お気に入りから外す',
+  'cmd.hint.fav': 'Ctrl+D ☆',
+  'cmd.hint.addTo': 'Ctrl+Enter {list} に追加',
+  'drop.here': 'ここに表示',
 }
 
 export type Key = keyof typeof ja
@@ -586,7 +593,8 @@ export const en: Record<Key, string> = {
   'list.starOnly': '★ only',
   'list.items': '{n} items',
   'list.new': 'New list',
-  'list.empty': 'This list is empty. Type 1–9 to jump to a symbol and press Enter, or add screener results with Ctrl+Shift+A.',
+  'list.empty':
+    'This list is empty. Type 1–9 to jump to a symbol and press Ctrl+Enter (or + on the candidate) to add it here. Add screener results with Ctrl+Shift+A.',
   'list.added': 'Added to "{list}": {name}',
   'list.removed': 'Removed from list: {name}',
   'list.removedN': 'Removed {n} symbols from the list',
@@ -724,7 +732,7 @@ export const en: Record<Key, string> = {
   'cmd.hint.actions': '> for actions only',
   'cmd.addUser': 'Add {code} and fetch it',
   'jump.title': 'Symbol jump',
-  'jump.hint': 'Enter sends to the link group',
+  'jump.hint': 'Enter show',
   'jump.none': 'No match',
   'help.title': 'Keyboard shortcuts',
   'help.focus': '● keys for the focused pane',
@@ -1086,6 +1094,12 @@ export const en: Record<Key, string> = {
   'status.lastFailed': 'Last update failed',
   'status.lastPartial': 'Last update: {n} items failed',
   'status.resume': 'Resume',
+  'cmd.addToList': 'Add to {list} and show',
+  'cmd.favOn': 'Add to favorites',
+  'cmd.favOff': 'Remove from favorites',
+  'cmd.hint.fav': 'Ctrl+D ☆',
+  'cmd.hint.addTo': 'Ctrl+Enter add to {list}',
+  'drop.here': 'Show here',
 }
 
 export const DICTS = { ja, en }

@@ -3,13 +3,14 @@
 
 import { FIELD_BY_ID, FIELDS, MARKET_CHOICES, refFields, usable } from '@shared/fields'
 import type { Condition, InstrumentId, ScreenResult } from '@shared/types'
-import { onMount } from 'svelte'
+import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, resolveColumns, sortIds } from '../../lib/columns'
 import { openInGrid } from '../../lib/commands'
 import { fmt, money } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
+import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, bridge, choiceDialog, listName, promptDialog, screenName, t } from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -238,7 +239,8 @@ onMount(() => {
   const ro = new ResizeObserver(() => (viewH = scroller?.clientHeight ?? 400))
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
-    current: () => rows[sel] ?? linkSymbol(pane.link),
+    // 「いまの銘柄」はリンク先のチャートが表示している銘柄（銘柄ジャンプのあとに Ctrl+D が前の行に効かないように）
+    current: () => (pane.link ? linkSymbol(pane.link) : null) ?? rows[sel],
     selected: () => rows.slice(lo, hi + 1),
     columns: () => ({ ids: rows, cols, name: scr ? screenName(scr) : 'screener' }),
     run(action) {
@@ -362,6 +364,15 @@ onMount(() => {
     off()
   }
 })
+// 銘柄ジャンプなどでリンク先の銘柄が変わったら、一覧にあればその行を選ぶ
+$effect(() => {
+  const id = pane.link ? linkSymbol(pane.link) : null
+  const i = id ? rows.indexOf(id) : -1
+  if (i >= 0)
+    untrack(() => {
+      if (sel !== i) sel = i
+    })
+})
 </script>
 
 <PaneHeader {pane}>
@@ -408,7 +419,7 @@ onMount(() => {
       {#if start > 0}<tr class="spacer" style:height={`${start * ROW}px`}><td colspan={cols.length}></td></tr>{/if}
       {#each rows.slice(start, end) as id, k (id)}
         {@const i = start + k}
-        <tr class:sel={i === sel} class:multi={anchor >= 0 && i >= lo && i <= hi} class:stale={app.metrics.get(id)?.stale} onclick={(e) => { if (e.shiftKey) { if (anchor < 0) anchor = sel } else anchor = -1; sel = i; ci = -1; send() }}>
+        <tr draggable="true" ondragstart={(e) => startSymbolDrag(e, id)} ondragend={endSymbolDrag} class:sel={i === sel} class:multi={anchor >= 0 && i >= lo && i <= hi} class:stale={app.metrics.get(id)?.stale} onclick={(e) => { if (e.shiftKey) { if (anchor < 0) anchor = sel } else anchor = -1; sel = i; ci = -1; send() }}>
           <RowCells {id} {cols} />
         </tr>
       {/each}

@@ -7,6 +7,7 @@ import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, type ListCol, resolveColumns, sortIds } from '../../lib/columns'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
+import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, bridge, isFav, t } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -121,7 +122,7 @@ const mkLabel = (i: number) => (MARKETS[i] ?? []).map((m) => t(`mkt.${m}` as Key
       <thead><tr><th>#</th>{#each cols as c (c.id)}<th class:l={c.l}>{c.label()}</th>{/each}</tr></thead>
       <tbody>
         {#each rows as id, i (id)}
-          <tr class:sel={i === sel} onclick={() => { sel = i; send() }}>
+          <tr draggable="true" ondragstart={(e) => startSymbolDrag(e, id)} ondragend={endSymbolDrag} class:sel={i === sel} onclick={() => { sel = i; send() }}>
             <td class="dim rk">{i + 1}</td>
             <RowCells {id} cols={cols} />
           </tr>

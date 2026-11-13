@@ -4,10 +4,11 @@ import { addDays, jstNow } from '@shared/calendar'
 
 import type { Bars, Condition, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
-import { addToListDialog } from '../../lib/commands'
+import { addToListDialog, setFocus } from '../../lib/commands'
 import { cls, fmt, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
+import { symbolDrop } from '../../lib/symbolDrag'
 import {
   app,
   bridge,
@@ -203,6 +204,15 @@ function startReplace(i = sel) {
   }
   sel = i
   app.overlay = { kind: 'palette', q: '', title: t('grid.replaceTitle', { name: nameOf(shown[i]) }) }
+}
+/** 一覧の行をタイルに落としたら、そのタイルの銘柄を差し替える（C キーと同じ。FR-G10） */
+function dropAt(i: number, id: InstrumentId) {
+  if (!shown[i]) return addOwn(id)
+  const at = Math.min(page, pages - 1) * perPage + i
+  if (src !== 'own' || sortKey !== 'none') set({ own: [...codes], src: 'own', sort: 'none' })
+  sel = i
+  setFocus(pane.id)
+  if (own[at] !== id) replaceAt(at, id)
 }
 function replaceAt(at: number, id: InstrumentId) {
   const old = own[at]
@@ -426,7 +436,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   <button type="button" class="chip" title="+" onclick={() => set({ size: Math.min(GRIDS.length - 1, size + 1), page: 0 })}>＋</button>
   <span class="num muted">{t('grid.page', { p: Math.min(page, pages - 1) + 1, n: pages })}</span>
 </div>
-<div class="tiles" class:dense={cols >= 5} bind:this={tiles} style:grid-template-columns={`repeat(${cols}, 1fr)`} style:grid-template-rows={`repeat(${rows}, 1fr)`}>
+<div class="tiles" use:symbolDrop={addOwn} class:dense={cols >= 5} bind:this={tiles} style:grid-template-columns={`repeat(${cols}, 1fr)`} style:grid-template-rows={`repeat(${rows}, 1fr)`}>
   {#if !shown.length}
     <div class="state">{src === 'own' ? t('grid.emptyOwn') : t('grid.empty')}</div>
   {/if}
@@ -436,6 +446,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div
       class="tile"
+      use:symbolDrop={(x) => dropAt(i, x)}
       class:sel={i === sel && !zoom}
       class:cand={isCand(id)}
       onclick={() => { sel = i; send() }}

@@ -2,7 +2,7 @@
 // キーは物理キー（KeyboardEvent.code）で判定し、日本語 IME の変換中は無視する（FR-KB5）。
 // 登録表のキーは設定で変えられる（FR-KB6。settings.keymap が上書き）。ペインの中の単キーは各ペインが持つ。
 import { addDays, jstNow } from '@shared/calendar'
-import type { InstrumentId } from '@shared/types'
+import type { InstrumentId, Watchlist } from '@shared/types'
 import {
   app,
   applySettingsToDom,
@@ -87,6 +87,13 @@ export function focusedSymbol(): InstrumentId | null {
   if (fromApi) return fromApi
   if (p?.link) return layout.doc.links[String(p.link)] ?? null
   return layout.doc.links['1'] ?? null
+}
+
+/** フォーカス中のペインがウォッチリストなら、表示しているリスト（銘柄ジャンプ・コマンドバーの Ctrl+Enter で足す先） */
+export function focusedWatchlist(): Watchlist | null {
+  const p = findPane(app.focus)
+  if (p?.widget !== 'watchlist') return null
+  return app.watchlists.find((w) => w.id === ((p.state.list as string) ?? 'favorites')) ?? null
 }
 
 export function setFocus(id: string | null): void {
