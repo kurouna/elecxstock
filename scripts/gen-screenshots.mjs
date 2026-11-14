@@ -76,9 +76,29 @@ await session('ja', [
   ['settings', async ({ k }) => k('Escape', 'Control+Comma', 'ArrowDown', 'ArrowDown')],
   ['market', async ({ k }) => k('Escape', 'Control+Shift+Digit1', 'Alt+ArrowRight', 'ArrowRight')],
   [
+    // アラート（FR-AL1・AL2・AL9）: 銘柄のアラートを 2 つ（1 つは成立中）とスクリーンのアラートを作り、チャートの点線を撮る
+    'alert-line',
+    async ({ k, type, page }) => {
+      await k('Control+Shift+Digit4')
+      await page
+        .locator('[data-widget="chart"]')
+        .first()
+        .click({ position: { x: 300, y: 200 } })
+      await type('8058')
+      await k('Enter', 'Control+Alt+a', 'KeyO', 'Control+Enter')
+      await type('7203')
+      await k('Enter', 'Control+Alt+a', 'Control+Enter')
+      await k('Control+Shift+Digit2', 'Control+Alt+a', 'Control+Enter', 'Control+Shift+Digit4')
+      await page.locator('[data-widget="chart"] canvas').first().waitFor()
+      await wait(1500)
+    },
+  ],
+  ['alerts', async ({ k }) => k('Control+Alt+l')],
+  [
     // 2 枚目のモニタ用のフリーのウィンドウ（Ctrl+Alt+N → 4 分割）
     'free',
     async ({ k, page, app }) => {
+      await k('Escape')
       const next = app.waitForEvent('window')
       await k('Control+Alt+n')
       await page.locator('.dialog').getByText('4 分割', { exact: true }).click()
