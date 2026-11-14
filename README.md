@@ -84,6 +84,7 @@
 - コード署名をしていないため、初回は Windows SmartScreen の警告が出ます。「詳細情報」→「実行」で進めてください。
 - アプリの自動アップデートはありません。新しい版が出ると知らせるので、Releases から入れ直してください（データは残ります）。
 - データは `%APPDATA%\elecxstock\data` に保存されます。アンインストール時に消すかどうかを尋ねます。
+- 保有・ウォッチリスト・アラートなどの利用者のデータは、`%APPDATA%\elecxstock\` の下に**暗号化せずに**保存されます。同じ Windows ユーザーで動くほかのアプリからも読めます。守るには BitLocker などのディスク暗号化を使い、このフォルダを共有フォルダやクラウドの同期の場所（OneDrive など）に置かないでください。
 
 初回起動で注意書きに同意すると、銘柄一覧と既定 5 年分の日足の取得が始まります（プライム + J-REIT で数十分ほど）。
 取得中もアプリは使えます。以降は起動時と大引け後に差分だけを更新します。
@@ -176,6 +177,7 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 Download `elecxstock-<version>-setup.exe` from [Releases](https://github.com/kurouna/elecxstock/releases) (Windows 10/11, x64).
 The installer is not code-signed, so SmartScreen warns on first run ("More info" → "Run anyway"). There is no auto-update; the app tells you when a new version is out.
 Data is stored in `%APPDATA%\elecxstock\data`.
+Your holdings, watchlists and alerts are stored **unencrypted** under `%APPDATA%\elecxstock\`, so any app running as the same Windows user can read them. To protect them, use disk encryption such as BitLocker, and do not put this folder in a shared or synced location (such as OneDrive).
 
 ### Development
 
