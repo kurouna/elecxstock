@@ -3,6 +3,9 @@
 import { z } from 'zod'
 import type {
   Adjustment,
+  Alert,
+  AlertFire,
+  AlertView,
   AppInfo,
   Bars,
   BrokerCsvPreview,
@@ -40,6 +43,24 @@ const cond = z.object({
   v: z.number().int().min(1).max(1000).optional(),
 })
 const name = z.object({ ja: z.string().max(80), en: z.string().max(80) })
+const alertDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+/** アラート（FR-AL1）。条件の中身（使える指標・比べ方）は Core が登録表と照らして確かめる */
+export const alertSchema = z.object({
+  id: z.string().min(1).max(40),
+  target: z.object({ kind: z.literal('symbol'), id }),
+  conditions: z.array(cond).min(1).max(3),
+  basis: alertDay,
+  repeat: z.boolean(),
+  enabled: z.boolean(),
+  note: z.string().max(200).optional(),
+  created: z.string().max(40),
+})
+const alertState = z.object({
+  met: z.boolean().nullable(),
+  asOf: alertDay.optional(),
+  lastFired: z.string().max(40).optional(),
+  invalid: z.enum(['missing', 'stale', 'suspect', 'delisted', 'noHoldings', 'loading', 'condition']).optional(),
+})
 const periods = z.array(z.number().int().min(2).max(400)).length(3)
 export const watchlistSchema = z.object({
   id: z.string().max(40),
@@ -136,6 +157,17 @@ export const PARAMS = {
   'user.defaultScreens': z.object({}),
   'user.undoImport': z.object({}),
   'portfolio.list': z.object({}),
+  'alerts.list': z.object({}),
+  /** 新規は id を空にする（Core が付ける） */
+  'alerts.save': z.object({
+    alert: alertSchema.extend({ id: z.string().max(40), basis: jstDate.optional(), created: z.string().max(40).optional() }),
+  }),
+  'alerts.remove': z.object({ id: z.string().max(40) }),
+  'alerts.restore': z.object({ alert: alertSchema, state: alertState }),
+  'alerts.setEnabled': z.object({ id: z.string().max(40), enabled: z.boolean() }),
+  'alerts.history': z.object({ limit: z.number().int().min(1).max(500).optional() }),
+  'alerts.markRead': z.object({ ids: z.array(z.string().max(40)).max(500).optional() }),
+  'alerts.unread': z.object({}),
   'portfolio.save': z.object({ holdings: z.array(holdingSchema).max(5000) }),
   'portfolio.export': z.object({}),
   'portfolio.previewImport': z.object({ json: z.string().max(20_000_000) }),
@@ -206,6 +238,14 @@ export interface Results {
   /** 取り込む前の状態に戻せたか */
   'user.undoImport': boolean
   'portfolio.list': Holding[]
+  'alerts.list': AlertView[]
+  'alerts.save': AlertView
+  'alerts.remove': { alert: Alert; state: AlertView['state'] } | null
+  'alerts.restore': AlertView
+  'alerts.setEnabled': AlertView | null
+  'alerts.history': AlertFire[]
+  'alerts.markRead': number
+  'alerts.unread': number
   'portfolio.save': Holding[]
   'portfolio.export': string
   'portfolio.previewImport': HoldingsImportPreview
@@ -243,7 +283,13 @@ export interface Events {
   'user.error': { message: string }
   'provider.state': { offline: boolean; paused: boolean; message?: string }
   /** 利用者のデータが変わった（マルチモニタ）。from は変えたウィンドウ。op は★・◆の切り替え */
-  'user.changed': { kind: 'settings' | 'watchlists' | 'holdings' | 'screens' | 'all'; from: string; op?: { list: string; id: string } }
+  'user.changed': {
+    kind: 'settings' | 'watchlists' | 'holdings' | 'screens' | 'alerts' | 'all'
+    from: string
+    op?: { list: string; id: string }
+  }
+  /** アラートが鳴った（FR-AL5）。1 回の判定で 1 回。unread は未読の数 */
+  'alerts.fired': { fires: AlertFire[]; unread: number }
 }
 export type EventName = keyof Events
 

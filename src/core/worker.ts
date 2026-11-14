@@ -69,6 +69,9 @@ async function handle(slot: string, port: PortLike, msg: { id: number; method: s
       prioritizeAll()
       return send({ id, result: null })
     }
+    // アラートの変更は 1 枚目だけ（AL1。フリー N からの作成は AL2 で足す）
+    if (slot !== 'main' && /^alerts\.(save|remove|restore|setEnabled|markRead)$/.test(method))
+      throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
     // フリー N は自分の配置だけを書ける
     if (method === 'user.saveWindowLayout' && (msg.params as { slot?: unknown } | null)?.slot !== slot)
       throw { code: 'invalid-params', message: 'slot' } satisfies CoreError

@@ -1,0 +1,115 @@
+// アラートを Core に通して確かめる（FR-AL3・AL4・AL5・AL10）。スタブのプロバイダ（架空の値）
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createStubProvider } from '@core/providers/stub'
+import { CoreService } from '@core/service'
+import type { Alert } from '@shared/types'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+const dir = mkdtempSync(join(tmpdir(), 'elecxstock-alerts-'))
+const events: { name: string; data: unknown }[] = []
+const svc = new CoreService(dir, createStubProvider(), (name, data) => events.push({ name, data }), 'test')
+const idle = async () => {
+  for (let i = 0; i < 600 && (await svc.call('jobs.list', {})).some((j) => j.status !== 'done' && j.status !== 'failed'); i++)
+    await new Promise((r) => setTimeout(r, 20))
+}
+beforeAll(async () => {
+  await svc.call('jobs.start', { kind: 'initial' })
+  await idle()
+}, 60_000)
+afterAll(() => {
+  svc.close()
+  try {
+    rmSync(dir, { recursive: true, force: true })
+  } catch {
+    /* Windows では閉じた直後に消せないことがある */
+  }
+})
+const draft = (o: Partial<Alert> = {}) => ({
+  id: '',
+  target: { kind: 'symbol' as const, id: 'JP:7203' },
+  conditions: [{ field: 'price.close', op: '<=' as const, value: 1_000_000 }],
+  repeat: true,
+  enabled: true,
+  ...o,
+})
+
+describe('アラートを Core に通して', () => {
+  it('作った直後は成り立っていても鳴らず「成立中」。外れてから成り立つと 1 回鳴る', async () => {
+    const v = await svc.call('alerts.save', { alert: draft() })
+    expect(v.id).toMatch(/^al-/)
+    expect(v.state.met).toBe(true)
+    expect(events.filter((e) => e.name === 'alerts.fired')).toHaveLength(0)
+    // 前の判定で「成り立たない」だったことにして、ジョブの終わりの判定を走らせる
+    svc.alertBook.setStates({ [v.id]: { met: false, asOf: '2000-01-04' } })
+    const fires = svc.evaluateAlerts()
+    expect(fires).toHaveLength(1)
+    expect(fires[0]).toMatchObject({ alertId: v.id, instrument: 'JP:7203', read: false })
+    const ev = events.filter((e) => e.name === 'alerts.fired').at(-1)?.data as { unread: number }
+    expect(ev.unread).toBe(1)
+    // 同じ基準日では鳴り直さない
+    expect(svc.evaluateAlerts()).toHaveLength(0)
+    expect(await svc.call('alerts.unread', {})).toBe(1)
+    expect(await svc.call('alerts.markRead', {})).toBe(0)
+  })
+
+  it('1 回だけのアラートは鳴ったら止まる', async () => {
+    const v = await svc.call('alerts.save', { alert: draft({ repeat: false }) })
+    svc.alertBook.setStates({ ...svc.alertBook.states(), [v.id]: { met: false, asOf: '2000-01-04' } })
+    expect(svc.evaluateAlerts().some((f) => f.alertId === v.id)).toBe(true)
+    const list = await svc.call('alerts.list', {})
+    expect(list.find((x) => x.id === v.id)?.enabled).toBe(false)
+  })
+
+  it('取得のジョブが終わると判定する（基準日が入る）', async () => {
+    const v = await svc.call('alerts.save', { alert: draft({ conditions: [{ field: 'income.yield', op: '>=', value: 99 }] }) })
+    svc.alertBook.setStates({ ...svc.alertBook.states(), [v.id]: { met: false } })
+    await svc.call('jobs.start', { kind: 'daily' })
+    await idle()
+    const s = svc.alertBook.states()[v.id]
+    expect(s?.met).toBe(false)
+    expect(s?.asOf).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('使えない条件は保存できない', async () => {
+    await expect(
+      svc.call('alerts.save', { alert: draft({ conditions: [{ field: 'attr.market', op: 'in', value: ['R'] }] }) }),
+    ).rejects.toBeTruthy()
+  })
+
+  it('プライム・J-REIT 以外の銘柄に付けたアラートは、その銘柄を取得の対象にする', async () => {
+    expect(svc.trackedCodes()).not.toContain('130A')
+    await svc.call('alerts.save', { alert: draft({ target: { kind: 'symbol', id: 'JP:130A' } }) })
+    expect(svc.trackedCodes()).toContain('130A')
+  })
+
+  it('消して、id と状態を保ったまま戻せる（Ctrl+Z）', async () => {
+    const v = await svc.call('alerts.save', { alert: draft({ note: '消して戻す' }) })
+    const removed = await svc.call('alerts.remove', { id: v.id })
+    expect(removed?.alert.id).toBe(v.id)
+    expect((await svc.call('alerts.list', {})).some((x) => x.id === v.id)).toBe(false)
+    const back = await svc.call('alerts.restore', { alert: removed!.alert, state: removed!.state })
+    expect(back.id).toBe(v.id)
+    expect(back.state.met).toBe(removed!.state.met)
+  })
+
+  it('書き出しと取り込みの対象になる。取り込むと判定の基準を取り直す', async () => {
+    const json = await svc.call('user.exportAll', {})
+    const o = JSON.parse(json)
+    expect(o.alerts.length).toBeGreaterThan(0)
+    await svc.call('user.importAll', { json })
+    expect(svc.alertBook.states()).toEqual({})
+  })
+
+  it('保有を変えたら、保有の条件のアラートは鳴らさずに基準を取り直す', async () => {
+    await svc.call('portfolio.save', { holdings: [{ code: '7203', account: 'tokutei', quantity: 100, avgCost: 1_000_000 }] })
+    const v = await svc.call('alerts.save', { alert: draft({ conditions: [{ field: 'holding.pnlPct', op: '<=', value: -10 }] }) })
+    expect(v.state.met).toBe(true)
+    svc.alertBook.setStates({ ...svc.alertBook.states(), [v.id]: { met: false, asOf: '2000-01-04' } })
+    const before = events.filter((e) => e.name === 'alerts.fired').length
+    await svc.call('portfolio.save', { holdings: [{ code: '7203', account: 'tokutei', quantity: 200, avgCost: 1_000_000 }] })
+    expect(events.filter((e) => e.name === 'alerts.fired').length).toBe(before)
+    expect(svc.alertBook.states()[v.id]?.met).toBe(true)
+  })
+})

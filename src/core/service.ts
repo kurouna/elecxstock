@@ -2,7 +2,8 @@
 import { mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CoreError, Events, Method, Params, Results } from '@shared/api'
-import type { Adjustment, Holding, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
+import type { Adjustment, Alert, AlertFire, AlertState, AlertView, Holding, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
+import { ALERT_LIMIT, AlertBook, adjustedConditions, alertConditionOk, decide, distanceOf, evaluateAlert, nowValueOf } from './alerts'
 import { addYears, jstNow, lastClosedSession } from './calendar'
 import { Db } from './db'
 import { applyImport, exportHoldings, normalize, previewBrokerCsv, previewImport } from './holdings'
@@ -42,6 +43,8 @@ export class CoreService {
   readonly user: UserStore
   readonly jobs: JobRunner
   private metricsCache: Map<InstrumentId, MetricsRow> | null = null
+  /** アラートの判定の状態と履歴（世代なし。§2） */
+  readonly alertBook: AlertBook
 
   constructor(
     dataDir: string,
@@ -54,6 +57,7 @@ export class CoreService {
     this.db = new Db(join(dataDir, 'market.db'))
     this.repo = new Repo(this.db)
     this.user = new UserStore(join(dataDir, 'user'))
+    this.alertBook = new AlertBook(join(dataDir, 'user'))
     if (this.user.readOnly || this.user.load('settings') == null) {
       /* settings を最初に読んで読み取り専用かを決める */
     }
@@ -62,9 +66,13 @@ export class CoreService {
       provider,
       retentionYears: () => this.user.load('settings').retentionYears,
       userCodes: () => this.trackedCodes(),
-      // 先に取る銘柄: ウォッチリストと保有（FR-F8）
+      // 先に取る銘柄: ウォッチリストと保有・アラートの銘柄（FR-F8、FR-AL10）
       listed: () =>
-        new Set([...this.user.load('watchlists').flatMap((w) => w.items), ...this.user.load('holdings').map((h) => idOf(h.code))]),
+        new Set([
+          ...this.user.load('watchlists').flatMap((w) => w.items),
+          ...this.user.load('holdings').map((h) => idOf(h.code)),
+          ...this.user.load('alerts').map((a) => a.target.id),
+        ]),
       emitProgress: (p) => emit('jobs.progress', p),
       emitData: (ids) => {
         this.metricsCache = null
@@ -72,6 +80,8 @@ export class CoreService {
       },
       emitProvider: (s) => emit('provider.state', s),
       log,
+      // 取得のジョブが終わったら、アラートを 1 回判定する（FR-AL3）
+      jobDone: () => this.evaluateAlerts(),
     })
   }
 
@@ -94,6 +104,7 @@ export class CoreService {
         await this.jobs.recomputeAll()
         this.db.setMeta('metricsStale', '0')
         this.metricsCache = null
+        this.evaluateAlerts()
       }, 50)
     }
     this.jobs.resume()
@@ -365,7 +376,9 @@ export class CoreService {
         return undefined as Results[M]
       case 'user.undoImport': {
         let any = false
-        for (const n of ['watchlists', 'screens', 'layouts', 'settings'] as const) if (this.user.restoreBefore(n, 'preimport')) any = true
+        for (const n of ['watchlists', 'screens', 'layouts', 'settings', 'alerts'] as const)
+          if (this.user.restoreBefore(n, 'preimport')) any = true
+        if (any) this.alertBook.setStates({}) // 取り込み・元に戻すで定義が変わったので、判定の基準を取り直す
         if (any) this.syncTracked()
         return any as Results[M]
       }
@@ -417,8 +430,74 @@ export class CoreService {
       }
       case 'user.exportAll':
         return this.user.exportAll() as Results[M]
+      case 'alerts.list':
+        return this.alertViews() as Results[M]
+      case 'alerts.save': {
+        const a = P.alert as Alert
+        if (!a.conditions.every(alertConditionOk)) throw { code: 'invalid-params', args: { field: 'conditions' } } satisfies CoreError
+        const list = [...this.user.load('alerts')]
+        const at = a.id ? list.findIndex((x) => x.id === a.id) : -1
+        if (at < 0 && list.length >= ALERT_LIMIT) throw { code: 'invalid-params', args: { limit: ALERT_LIMIT } } satisfies CoreError
+        // 作った日・直した日を価格のしきい値の基準日にする（§3.3）
+        const next: Alert = {
+          ...a,
+          id: at >= 0 ? a.id : `al-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+          basis: jstNow().date,
+          created: at >= 0 ? list[at]!.created : new Date().toISOString(),
+        }
+        if (at >= 0) list[at] = next
+        else list.push(next)
+        this.user.save('alerts', list)
+        this.syncTracked() // アラートの銘柄を取得の対象にする（FR-AL10）
+        this.evaluateAlerts(new Set([next.id])) // 基準を取り直す（鳴らさない）
+        return this.alertViews().find((v) => v.id === next.id) as Results[M]
+      }
+      case 'alerts.remove': {
+        const list = this.user.load('alerts')
+        const a = list.find((x) => x.id === P.id)
+        if (!a) return null as Results[M]
+        this.user.save(
+          'alerts',
+          list.filter((x) => x.id !== a.id),
+        )
+        const states = { ...this.alertBook.states() }
+        const state = states[a.id] ?? { met: null }
+        delete states[a.id]
+        this.alertBook.setStates(states)
+        this.syncTracked()
+        return { alert: a, state } as Results[M]
+      }
+      case 'alerts.restore': {
+        const a = P.alert as Alert
+        const list = this.user.load('alerts').filter((x) => x.id !== a.id)
+        this.user.save('alerts', [...list, a])
+        this.alertBook.setStates({ ...this.alertBook.states(), [a.id]: P.state as AlertState })
+        this.syncTracked()
+        return this.alertViews().find((v) => v.id === a.id) as Results[M]
+      }
+      case 'alerts.setEnabled': {
+        const list = this.user.load('alerts')
+        const a = list.find((x) => x.id === P.id)
+        if (!a) return null as Results[M]
+        this.user.save(
+          'alerts',
+          list.map((x) => (x.id === a.id ? { ...x, enabled: Boolean(P.enabled) } : x)),
+        )
+        if (P.enabled) this.evaluateAlerts(new Set([a.id])) // 再開したら基準を取り直す（鳴らさない）
+        return this.alertViews().find((v) => v.id === a.id) as Results[M]
+      }
+      case 'alerts.history':
+        return this.alertBook.fires().slice(0, Number(P.limit ?? 500)) as Results[M]
+      case 'alerts.markRead': {
+        const ids = P.ids as string[] | undefined
+        this.alertBook.setFires(this.alertBook.fires().map((f) => (!ids || ids.includes(f.id) ? { ...f, read: true } : f)))
+        return this.alertBook.unread() as Results[M]
+      }
+      case 'alerts.unread':
+        return this.alertBook.unread() as Results[M]
       case 'user.importAll': {
         const res = this.user.importAll(String(P.json))
+        this.alertBook.setStates({}) // 取り込んだアラートは判定の基準を取り直す
         this.syncTracked() // 取り込んだウォッチリスト・設定の銘柄を取得の対象にする
         return res as Results[M]
       }
@@ -460,6 +539,7 @@ export class CoreService {
           r.deleteDailyBefore(addYears(jstNow().date, -years))
           this.db.vacuum()
           await this.jobs.recomputeAll()
+          this.evaluateAlerts()
           return 0 as Results[M]
         }
         if (years > cur)
@@ -520,7 +600,100 @@ export class CoreService {
       .filter((id) => id.startsWith('JP:'))
       .map((id) => id.slice(3))
     const held = this.user.load('holdings').map((h) => h.code)
-    return [...new Set([...this.user.load('settings').userInstruments, ...fromLists, ...held])]
+    const alerted = this.user
+      .load('alerts')
+      .map((a) => a.target.id)
+      .filter((id) => id.startsWith('JP:'))
+      .map((id) => id.slice(3))
+    return [...new Set([...this.user.load('settings').userInstruments, ...fromLists, ...held, ...alerted])]
+  }
+
+  /** 一覧に出す形（今の値・条件までの距離・分割で換算した条件を添える） */
+  private alertViews(): AlertView[] {
+    const metrics = this.metricsMap()
+    const held = this.heldMap()
+    const states = this.alertBook.states()
+    return this.user.load('alerts').map((a) => {
+      const m = metrics.get(a.target.id)
+      const adj = adjustedConditions(a, this.repo.splits(a.target.id))
+      return {
+        ...a,
+        state: states[a.id] ?? { met: null },
+        now: nowValueOf(a, m, held),
+        distance: distanceOf(adj ?? a.conditions, m, held, a.target.id),
+        ...(adj ? { adjusted: adj } : {}),
+      }
+    })
+  }
+
+  /**
+   * アラートを判定する（FR-AL3・AL4）。取得のジョブの終わり・指標の再計算のあと・保有を変えたあとに呼ぶ。
+   * rebase の id は基準を取り直すだけで鳴らさない（作った・直した・再開した直後、保有を変えた直後の保有の条件）。
+   * 例外は投げない（判定でジョブや保存を失敗させない）
+   */
+  evaluateAlerts(rebase?: Set<string>): AlertFire[] {
+    try {
+      const defs = this.user.load('alerts')
+      if (!defs.length) return []
+      this.metricsCache = null // 取得の直後の値で判定する
+      const metrics = this.metricsMap()
+      const held = this.heldMap()
+      const loading = !!this.db.get(
+        `SELECT 1 FROM jobs WHERE kind IN ('initial','reset') AND status NOT IN ('done','failed','cancelled') LIMIT 1`,
+      )
+      const lastSession = lastClosedSession()
+      const now = new Date().toISOString()
+      const states = { ...this.alertBook.states() }
+      const fires: AlertFire[] = []
+      const stopped = new Set<string>()
+      for (const a of defs) {
+        if (!a.enabled) continue
+        const id = a.target.id
+        const r = evaluateAlert(a, {
+          instrument: this.repo.instrument(id) ?? undefined,
+          metrics: metrics.get(id),
+          holdings: held,
+          splits: this.repo.splits(id),
+          loading,
+          lastSession,
+        })
+        const d = decide(rebase?.has(a.id) ? { met: null } : states[a.id], r, now)
+        states[a.id] = d.state
+        if (!d.fire) continue
+        fires.push({
+          id: `af-${Date.now().toString(36)}-${fires.length}`,
+          alertId: a.id,
+          at: now,
+          instrument: id,
+          conditions: r.conditions,
+          values: r.values,
+          splitAdjusted: r.splitAdjusted,
+          asOf: r.asOf ?? lastSession,
+          provisional: r.provisional,
+          read: false,
+        })
+        if (!a.repeat) stopped.add(a.id) // 1 回だけのアラートは鳴ったら止める
+      }
+      this.alertBook.setStates(states)
+      if (stopped.size) {
+        try {
+          this.user.save(
+            'alerts',
+            defs.map((a) => (stopped.has(a.id) ? { ...a, enabled: false } : a)),
+          )
+        } catch {
+          /* 読み取り専用のときは止めない（次の判定でも成り立ち続けるので鳴らない） */
+        }
+      }
+      if (fires.length) {
+        this.alertBook.setFires([...fires, ...this.alertBook.fires()])
+        this.emit('alerts.fired', { fires, unread: this.alertBook.unread() })
+      }
+      return fires
+    } catch (e) {
+      this.log(`alerts: ${String((e as Error)?.message ?? e)}`)
+      return []
+    }
   }
   /**
    * 保有を変えたあと: 保有の銘柄は市場によらず取得の対象にする（スタンダード・グロース・ETF も）。
@@ -534,6 +707,11 @@ export class CoreService {
     )
   }
   private trackHoldings(): void {
+    const pnl = this.user
+      .load('alerts')
+      .filter((a) => a.conditions.some((c) => c.field.startsWith('holding.')))
+      .map((a) => a.id)
+    if (pnl.length) this.evaluateAlerts(new Set(pnl))
     const r = this.repo
     const hs = this.user.load('holdings')
     const unknown = [

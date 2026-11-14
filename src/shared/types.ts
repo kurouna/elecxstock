@@ -174,6 +174,59 @@ export interface Holding {
   price?: number
   importedAt?: string
 }
+/** アラート（FR-AL1。requirements.md §6.14・design-alerts.md）。定義は利用者のデータ（alerts.json） */
+export interface Alert {
+  id: string
+  /** AL1 は銘柄のアラートだけ。スクリーンのアラート（FR-AL2）は AL3 */
+  target: { kind: 'symbol'; id: InstrumentId }
+  /** 条件（1〜3 個、「かつ」）。数値の市場の指標と保有の損益率、比べ方は >= <= と相対条件だけ */
+  conditions: Condition[]
+  /** 価格のしきい値の基準日（作った日・直した日）。これより後の分割・併合で換算する */
+  basis: JstDate
+  /** 成り立ち直すたびに鳴る / 1 回だけ（鳴ったら止める） */
+  repeat: boolean
+  enabled: boolean
+  note?: string
+  created: string
+}
+/** 判定できない理由 */
+export type AlertInvalid = 'missing' | 'stale' | 'suspect' | 'delisted' | 'noHoldings' | 'loading' | 'condition'
+/** 判定の状態（Core だけが書く。書き出しの対象外） */
+export interface AlertState {
+  /** 前の判定で成り立っていたか。null はまだ基準が無い（作った・直した・再開した直後） */
+  met: boolean | null
+  /** 前に判定した基準日（同じ基準日では判定し直さない） */
+  asOf?: JstDate
+  lastFired?: string
+  invalid?: AlertInvalid
+}
+/** 一覧に出す形: 定義・状態と、今の値・条件までの距離・換算したしきい値 */
+export interface AlertView extends Alert {
+  state: AlertState
+  /** 1 つめの条件の指標の今の値 */
+  now: number | null
+  /** 成り立っていない条件のうちいちばん遠いもの。kind は「あと何 %」か「あと何ポイント」 */
+  distance: { kind: 'pct' | 'pt'; value: number } | null
+  /** 分割・併合で換算した条件（換算が無ければ無い） */
+  adjusted?: Condition[]
+}
+/** 鳴った記録（最大 500 件。書き出しの対象外） */
+export interface AlertFire {
+  id: string
+  alertId: string
+  at: string
+  instrument: InstrumentId
+  conditions: Condition[]
+  /** 判定に使った値（指標 ID → 値） */
+  values: Record<string, number | null>
+  /** 分割・併合で換算したしきい値で判定した */
+  splitAdjusted: boolean
+  asOf: JstDate
+  /** 大引け後の気配から作った仮の足で判定した（FR-D8） */
+  provisional: boolean
+  read: boolean
+}
+
 /** 最後に取り込んだ証券会社の CSV の情報（FR-H11）。累計の実現損益・配当金は CSV の資産合計欄の「国内株式」の行 */
 export interface PortfolioMeta {
   broker: string

@@ -2,7 +2,15 @@
 // 読み込み・検証に失敗したら、そのファイルを退避して知らせ、読み取り専用で起動する（空で上書きしない）。
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { holdingSchema, portfolioMetaSchema, savedLayoutSchema, screenSchema, settingsSchema, watchlistSchema } from '@shared/api'
+import {
+  alertSchema,
+  holdingSchema,
+  portfolioMetaSchema,
+  savedLayoutSchema,
+  screenSchema,
+  settingsSchema,
+  watchlistSchema,
+} from '@shared/api'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { SavedScreen, Watchlist } from '@shared/types'
 import { z } from 'zod'
@@ -60,6 +68,8 @@ const FILES = {
   layouts: { schema: z.array(savedLayoutSchema), def: () => [] },
   holdings: { schema: z.array(holdingSchema), def: () => [] },
   portfolioMeta: { schema: portfolioMetaSchema.nullable(), def: () => null },
+  /** アラートの定義（FR-AL10）。判定の状態と履歴は alerts.ts の AlertBook（世代なし） */
+  alerts: { schema: z.array(alertSchema).max(500), def: () => [] },
 } as const
 /** レイアウトは作業に追従して頻繁に保存されるので、世代は 10 分に 1 つだけ残す */
 const LAYOUT_GEN_MS = 10 * 60_000
@@ -169,24 +179,34 @@ export class UserStore {
         watchlists: this.load('watchlists'),
         screens: this.load('screens'),
         layouts: this.load('layouts'),
+        alerts: this.load('alerts'),
       },
       null,
       1,
     )
   }
   importAll(json: string): { watchlists: number; screens: number } {
-    const o = JSON.parse(json) as { format?: string; watchlists?: unknown; screens?: unknown; settings?: unknown; layouts?: unknown }
+    const o = JSON.parse(json) as {
+      format?: string
+      watchlists?: unknown
+      screens?: unknown
+      settings?: unknown
+      layouts?: unknown
+      alerts?: unknown
+    }
     if (o.format !== 'elecxstock.userdata') throw new Error('not an elecxstock export')
     // すべて検証してから保存する（途中で失敗して半分だけ入ることが無いように）
     const wl = z.array(watchlistSchema).parse(o.watchlists ?? [])
     const sc = z.array(screenSchema).parse(o.screens ?? [])
     const ly = o.layouts ? z.array(savedLayoutSchema).parse(o.layouts) : null
     const st = o.settings ? settingsSchema.parse({ ...this.load('settings'), ...(o.settings as object) }) : null
-    for (const n of ['watchlists', 'screens', 'layouts', 'settings'] as const) this.keepBefore(n, 'preimport')
+    const al = o.alerts ? z.array(alertSchema).max(500).parse(o.alerts) : null
+    for (const n of ['watchlists', 'screens', 'layouts', 'settings', 'alerts'] as const) this.keepBefore(n, 'preimport')
     this.save('watchlists', ensureBuiltins(wl))
     this.save('screens', sc.length ? sc : defaultScreens())
     if (ly) this.save('layouts', ly)
     if (st) this.save('settings', st)
+    if (al) this.save('alerts', al)
     return { watchlists: wl.length, screens: sc.length }
   }
 }

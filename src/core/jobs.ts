@@ -31,6 +31,8 @@ export interface JobsHost {
   emitData: (ids: InstrumentId[]) => void
   emitProvider: (s: { offline: boolean; paused: boolean; message?: string }) => void
   log: (msg: string) => void
+  /** ジョブが終わった（done）とき。アラートの判定に使う（FR-AL3）。例外は投げない */
+  jobDone?: (kind: JobKind) => void
 }
 
 interface JobRow {
@@ -301,6 +303,11 @@ export class JobRunner {
       } else {
         db.run(`UPDATE jobs SET status = 'done', updated = ? WHERE id = ?`, nowIso(), j.id)
         if (j.kind === 'initial' || j.kind === 'daily' || j.kind === 'reset') db.setMeta('lastUpdate', nowIso())
+        try {
+          this.h.jobDone?.(j.kind)
+        } catch (e) {
+          this.h.log(`jobDone: ${String((e as Error)?.message ?? e)}`)
+        }
       }
       this.h.emitProgress(this.progressOf({ ...j, status: final, items: JSON.stringify(items) }, failMsg ?? undefined))
       this.flushData()

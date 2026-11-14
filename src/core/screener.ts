@@ -70,6 +70,36 @@ function test(c: Condition, ins: Instrument, m: MetricsRow, inp: ScreenInput, wl
   return c.op === 'in' ? hit : !hit
 }
 
+/**
+ * 1 銘柄について、条件をすべて（「かつ」）判定する（アラート。FR-AL1）。保存したときの版から移し、使えない条件があれば invalid。
+ * どれかの値が欠けていれば met は null
+ */
+export function evaluateConditions(
+  conditions: Condition[],
+  ins: Instrument,
+  m: MetricsRow,
+  holdings?: Map<InstrumentId, { qty: number; cost: number }>,
+): { met: boolean | null; invalid?: true } {
+  const { conditions: cs, failed } = migrateConditions(conditions)
+  if (failed.length || !cs.every(conditionValid)) return { met: null, invalid: true }
+  const inp: ScreenInput = {
+    conditions: cs,
+    instruments: [],
+    metrics: new Map(),
+    favorites: new Set(),
+    watchlists: {},
+    ...(holdings ? { holdings } : {}),
+  }
+  const wl = new Map<string, Set<InstrumentId>>()
+  let all = true
+  for (const c of cs) {
+    const r = test(c, ins, m, inp, wl)
+    if (r === null) return { met: null }
+    if (!r) all = false
+  }
+  return { met: all }
+}
+
 /** スクリーニング・ランキング・ヒートマップの対象か: いま取得している銘柄だけ（FR-U4, U8） */
 export function screenable(ins: Instrument): boolean {
   return ins.status === 'active' && (ins.market === 'P' || ins.market === 'R' || ins.userAdded)
