@@ -37,6 +37,7 @@ import {
   moveToDock,
   moveToEdge,
   nudgeDivider,
+  type PaneNode,
   PRESET_IDS,
   type PresetId,
   paneSymbol,
@@ -310,7 +311,7 @@ export async function importUser(): Promise<void> {
   const text = await window.elecxstock.openFile('json')
   if (typeof text !== 'string') return
   // 置き換える前に、何が置き換わるかを示して確かめる（取り込む前の状態は残り、元に戻せる）
-  let o: { watchlists?: unknown[]; screens?: unknown[]; layouts?: unknown[]; settings?: unknown }
+  let o: { watchlists?: unknown[]; screens?: unknown[]; layouts?: unknown[]; settings?: unknown; alerts?: unknown[] }
   try {
     o = JSON.parse(text)
   } catch {
@@ -323,6 +324,7 @@ export async function importUser(): Promise<void> {
       t('import.userLists', { from: app.watchlists.length, to: o.watchlists?.length ?? 0 }),
       t('import.userScreens', { from: app.screens.length, to: o.screens?.length ?? 0 }),
       ...(o.layouts ? [t('import.userLayouts', { from: app.layouts.length, to: o.layouts.length })] : []),
+      ...(o.alerts ? [t('import.userAlerts', { from: app.alerts.length, to: o.alerts.length })] : []),
       ...(o.settings ? [t('import.userSettings')] : []),
     ],
     body: t('import.userBody'),
@@ -340,6 +342,8 @@ async function reloadUser(): Promise<void> {
   app.settings = u.settings
   app.layouts = u.layouts
   applySettingsToDom()
+  app.alertsRev++ // アラートの一覧・チャートの点線（自分の窓の user.changed は届かない）
+  app.alertsUnread = await rpc('alerts.unread', {}).catch(() => app.alertsUnread)
   await loadInstruments() // 取り込んだウォッチリストの銘柄が取得の対象になる
 }
 async function undoUserImport(): Promise<void> {
@@ -434,18 +438,22 @@ export function openInGrid(): void {
     setFocus(g.id)
   }
 }
-/** そのペインの種類があればフォーカスし、無ければフォーカス中のペインの下に開く */
+/** ペインを見せてフォーカスする。ドロワーの中なら、そのタブに切り替えてドロワーを開く（ピン留めしていなければ） */
+export function revealPane(p: PaneNode): void {
+  const side = dockOf(p.id)
+  if (side) {
+    const d = layout.entry.docks[side]!
+    d.active = d.panes.indexOf(p)
+    if (!d.pinned) layout.dockOpen = side
+  }
+  setFocus(p.id)
+}
+/** そのペインの種類があればフォーカスし（ドロワーの中なら開いて見せる）、無ければフォーカス中のペインの下に開く */
 export function openPane(widget: WidgetId): void {
   if (IS_FREE && !FREE_WIDGETS.includes(widget)) return void toast(t('win.notInFree'))
   const p = allPanes().find((x) => x.widget === widget)
   if (p) {
-    const side = dockOf(p.id)
-    if (side) {
-      const d = layout.entry.docks[side]!
-      d.active = d.panes.indexOf(p)
-      if (!d.pinned) layout.dockOpen = side
-    }
-    setFocus(p.id)
+    revealPane(p)
     return
   }
   const base = app.focus && !inDock(app.focus) ? app.focus : allPanes(layout.entry, false)[0]!.id

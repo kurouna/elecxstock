@@ -37,10 +37,12 @@ const m = $derived(metric(id))
 /** 保有（損益率の条件の「いま」に使う。Core と同じく数量と取得額を足し合わせる） */
 const held = $derived(heldFrom(app.holdings))
 
-/** アラートに使える指標（数値の市場の指標と保有の損益率。保有が無ければ損益率は出さない） */
+/** アラートに使える指標（数値の市場の指標と保有の損益率。保有が無ければ損益率は出さない。直すときは今の条件の指標を残す） */
 const fields = FIELDS.filter(
   (f) =>
-    usable(f) && alertConditionOk({ field: f.id, op: '<=', value: 0 }) && (!f.requires?.includes('holdings') || app.holdings.length > 0),
+    usable(f) &&
+    alertConditionOk({ field: f.id, op: '<=', value: 0 }) &&
+    (!f.requires?.includes('holdings') || app.holdings.length > 0 || !!edit?.conditions.some((c) => c.field === f.id)),
 )
 
 /** 価格の刻み（17,500 なら 100、3,000 なら 10、500 なら 1） */
@@ -109,7 +111,10 @@ let touched = false
 let defaulted = false
 $effect(() => {
   if (id === NONE || defaulted) return
-  if (!m) return ensureMetrics([id])
+  if (!m) {
+    ensureMetrics([id])
+    return
+  }
   defaulted = true
   if (!edit && !touched) conds = [defaultCond(untrack(() => conds[0]?.field) ?? 'price.close')]
 })

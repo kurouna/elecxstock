@@ -99,7 +99,13 @@ describe('アラートを Core に通して', () => {
     const o = JSON.parse(json)
     expect(o.alerts.length).toBeGreaterThan(0)
     await svc.call('user.importAll', { json })
-    expect(svc.alertBook.states()).toEqual({})
+    // 取り込んだら、鳴らさずに今の値で基準を取り直す（次の更新で鳴る準備ができている）
+    const states = svc.alertBook.states()
+    const enabled = (await svc.call('alerts.list', {})).filter((a) => a.enabled)
+    expect(enabled.length).toBeGreaterThan(0)
+    for (const a of enabled) expect(states[a.id]?.met ?? states[a.id]?.invalid).not.toBeUndefined()
+    await svc.call('user.undoImport', {})
+    for (const a of enabled) expect(svc.alertBook.states()[a.id]).toBeDefined()
   })
 
   it('保有を変えたら、保有の条件のアラートは鳴らさずに基準を取り直す', async () => {

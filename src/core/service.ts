@@ -418,8 +418,10 @@ export class CoreService {
         let any = false
         for (const n of ['watchlists', 'screens', 'layouts', 'settings', 'alerts'] as const)
           if (this.user.restoreBefore(n, 'preimport')) any = true
-        if (any) this.alertBook.setStates({}) // 取り込み・元に戻すで定義が変わったので、判定の基準を取り直す
-        if (any) this.syncTracked()
+        if (any) {
+          this.syncTracked()
+          this.rebaseAllAlerts() // 取り込み・元に戻すで定義が変わったので、鳴らさずに基準を取り直す
+        }
         return any as Results[M]
       }
       case 'user.defaultScreens':
@@ -551,8 +553,8 @@ export class CoreService {
         return this.alertBook.unread() as Results[M]
       case 'user.importAll': {
         const res = this.user.importAll(String(P.json))
-        this.alertBook.setStates({}) // 取り込んだアラートは判定の基準を取り直す
         this.syncTracked() // 取り込んだウォッチリスト・設定の銘柄を取得の対象にする
+        this.rebaseAllAlerts() // 取り込んだアラートは、鳴らさずに今の値で基準を取り直す
         return res as Results[M]
       }
       case 'jobs.start': {
@@ -798,6 +800,11 @@ export class CoreService {
       watchlists: Object.fromEntries(lists.map((w) => [w.id, w.items])),
       holdings: this.heldMap(),
     })
+  }
+  /** すべてのアラートの判定の状態を捨て、鳴らさずに今の値で基準を取り直す（取り込み・元に戻す） */
+  private rebaseAllAlerts(): void {
+    this.alertBook.setStates({})
+    this.evaluateAlerts(new Set(this.user.load('alerts').map((a) => a.id)), true)
   }
   /** 保存したスクリーンの条件（変わったかを比べるため） */
   private screenConditions(): Map<string, string> {

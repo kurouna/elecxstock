@@ -57,6 +57,11 @@ function open(x: { screenId?: string; instrument?: AlertFire['instrument'] }) {
   closeOverlay()
   openTarget(x, sendSymbol)
 }
+/** 履歴の行を開く（未読なら既読にする。Enter とダブルクリック） */
+function openFire(f: AlertFire) {
+  if (!f.read) void markRead([f.id])
+  open(f)
+}
 const targetOf = (a: AlertView) => (a.target.kind === 'screen' ? { screenId: a.target.screenId } : { instrument: a.target.id })
 const create = () => newAlertForFocus(true)
 async function markRead(ids?: string[]) {
@@ -91,8 +96,8 @@ function key(e: KeyboardEvent) {
   else if (ctrl || e.altKey) return
   else if (e.code === 'KeyH') switchTab(tab === 'alerts' ? 'history' : 'alerts')
   else if (k === 'Enter' && (a || f)) {
-    if (f && !f.read) void markRead([f.id])
-    open(a ? targetOf(a) : f!)
+    if (a) open(targetOf(a))
+    else openFire(f!)
   } else if (tab === 'history' && e.code === 'KeyR') void markRead()
   else if (tab === 'alerts' && k === 'Insert') create()
   else if (tab === 'alerts' && e.code === 'KeyE' && a) void editAlert(a)
@@ -162,7 +167,7 @@ onMount(() => root?.focus())
         <tbody>
           {#each hist as f, i (f.id)}
             {@const c = f.conditions[0]}
-            <tr class:sel={i === sel} class:unread={!f.read} onclick={() => (sel = i)} ondblclick={() => open(f)}>
+            <tr class:sel={i === sel} class:unread={!f.read} onclick={() => (sel = i)} ondblclick={() => openFire(f)}>
               <td class="num">{atText(f.at)}</td>
               <td class="sym">{f.screenId ? targetText({ target: { kind: 'screen', screenId: f.screenId } }) : targetText({ target: { kind: 'symbol', id: f.instrument } })}</td>
               <td class="cond">

@@ -48,12 +48,13 @@ test('スクリーンのアラート: スクリーナーから作り、新しく
   await expect(p2.locator('footer')).toContainText(/待機/, { timeout: 60_000 })
   await keys(p2, 'F5')
   await expect(p2.locator('.toasts')).toContainText(/\[高配当銘柄\] に \d+ 件入りました/, { timeout: 60_000 })
-  // 履歴の Enter でスクリーナーにそのスクリーンを開く
-  await keys(p2, 'Control+Shift+Digit1', 'Control+Alt+l')
+  // 履歴の Enter でスクリーナーにそのスクリーンを開く。グリッドのタブではドロワーのスクリーナーを開いて見せる
+  await keys(p2, 'Control+Shift+Digit3', 'Control+Alt+l')
   const hist = p2.locator('.dialog.alerts tbody tr', { hasText: '[高配当銘柄]' })
   await expect(hist).toHaveClass(/unread/)
   await p2.screenshot({ path: 'test-results/alerts-5-screen-history.png' })
   await keys(p2, 'Enter')
+  await expect(p2.locator('[data-widget="screener"]')).toBeVisible()
   await expect(p2.locator('[data-widget="screener"]')).toContainText('高配当銘柄')
   await second.app.close()
 })

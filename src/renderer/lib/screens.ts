@@ -2,7 +2,7 @@
 import type { Condition, SavedScreen } from '@shared/types'
 import { app, ask3, promptDialog, saveScreens, screenName, t, toast } from '../stores/app.svelte'
 import { allPanes, type PaneNode, patchState, setPreset } from '../stores/layout.svelte'
-import { setFocus } from './commands'
+import { revealPane } from './commands'
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
 
@@ -115,6 +115,6 @@ export function openScreenAnywhere(id: string): void {
     p = allPanes().find((x) => x.widget === 'screener')
   }
   if (!p) return
-  setFocus(p.id)
+  revealPane(p) // ドロワーの中のスクリーナー（グリッド・フリーのタブ）は、ドロワーを開いて見せる
   void openScreen(p, id)
 }
