@@ -47,6 +47,9 @@ const MIGRATIONS: string[] = [
    INSERT INTO meta(key, value) VALUES('metricsStale', '1') ON CONFLICT(key) DO UPDATE SET value = '1';`,
   // v3: 決算発表の予定（銘柄情報。FR-I9）
   `ALTER TABLE quotes ADD COLUMN earnings_next TEXT; ALTER TABLE quotes ADD COLUMN earnings_last TEXT; ALTER TABLE quotes ADD COLUMN earnings_est INTEGER;`,
+  // v4: スクリーニングの条件を足した（ROE・配当の前年比・ボラティリティ・ベータなど）。表を作り直して起動時に再計算する
+  `DROP TABLE metrics; ${metricsTable()}
+   INSERT INTO meta(key, value) VALUES('metricsStale', '1') ON CONFLICT(key) DO UPDATE SET value = '1';`,
 ]
 
 /** metrics 表（FR-S10）。列は登録表の METRIC_COLUMNS から作る。列を足したら MIGRATIONS に作り直しを足す */

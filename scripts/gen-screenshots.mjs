@@ -63,7 +63,9 @@ await session('ja', [
   ['grid', async ({ k }) => k('Control+Shift+Digit3', 'w', 'Alt+Digit4', 'Space', 'ArrowRight', 'ArrowRight', 'Space')],
   ['grid-drawer', async ({ k }) => k('Control+b')],
   ['screener', async ({ k }) => k('Escape', 'Control+Shift+Digit2', 'ArrowDown', 'ArrowDown')],
-  ['income', async ({ k }) => k('Control+Shift+Digit6')],
+  // 条件を選ぶダイアログ（FR-SC17）
+  ['fields', async ({ k }) => k('Insert')],
+  ['income', async ({ k }) => k('Escape', 'Control+Shift+Digit6')],
   ['triple', async ({ k }) => k('Control+Shift+Digit5')],
   [
     'palette',

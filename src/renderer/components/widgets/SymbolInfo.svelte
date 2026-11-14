@@ -11,7 +11,7 @@ import { onMount } from 'svelte'
 import { condsText, distanceText } from '../../lib/alertText'
 import { changeSymbol } from '../../lib/chartMenu'
 import { keyOf } from '../../lib/commands'
-import { annualDividends, dividendCagr, eventYoy, nextRightsDates, yearsThatFit } from '../../lib/dividends'
+import { annualDividends, dividendCagr, eventYoy, nextRightsDates, recordDayOf, yearsThatFit } from '../../lib/dividends'
 import { cls, date, fmt, money, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
@@ -152,7 +152,8 @@ const capOf = (years: number | null | undefined) => {
 }
 const upCapped = $derived(capOf(m?.divUpYears))
 const noCutCapped = $derived(capOf(m?.divNoCutYears))
-const rights = $derived(nextRightsDates(m?.recordMonths ?? [], today))
+// 権利確定日は過去の権利落ち日から推定する（月末か、20 日などの日付）
+const rights = $derived(nextRightsDates(m?.recordMonths ?? [], today, 2, recordDayOf(divs)))
 const monthName = (x: number) => (ja ? `${x}月` : new Date(2026, x - 1, 1).toLocaleString('en', { month: 'short' }))
 
 // ---------------- 値段・52 週

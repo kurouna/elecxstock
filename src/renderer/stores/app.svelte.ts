@@ -68,6 +68,15 @@ export type Overlay =
   | { kind: 'alerts'; tab?: 'alerts' | 'history' }
   /** アラートを作る・直すダイアログ（FR-AL7） */
   | { kind: 'alertForm'; edit?: AlertView; symbol?: InstrumentId; screenId?: string; resolve: (a: AlertDraft | null) => void }
+  /** スクリーナーの条件を選ぶダイアログ（docs/mock/fields.html）。onAdd があれば Shift+Enter で開いたまま続けて足せる */
+  | {
+      kind: 'fieldPicker'
+      title: string
+      fields: string[]
+      used: string[]
+      onAdd?: (id: string) => void
+      resolve: (id: string | null) => void
+    }
 
 /** ダイアログで作った・直したアラート（id・基準日・作った日時は Core が付ける） */
 export type AlertDraft = Pick<Alert, 'target' | 'conditions' | 'repeat' | 'enabled' | 'note'> & { id: string }
@@ -340,6 +349,17 @@ export function holdingDialog(holding?: Holding): Promise<Holding | null> {
     app.overlay = { kind: 'holding', ...(holding ? { holding } : {}), resolve }
   })
 }
+/** 条件を選ぶダイアログを開く。Enter で選んだ指標の ID を返す（取り消しは null）。onAdd は Shift+Enter で続けて足すたびに呼ぶ */
+export function fieldPicker(o: { title: string; fields: string[]; used: string[]; onAdd?: (id: string) => void }): Promise<string | null> {
+  return new Promise((resolve) => {
+    app.overlay = { kind: 'fieldPicker', ...o, resolve }
+  })
+}
+/** 最近足した指標を覚える（条件を選ぶダイアログの「よく使う」。新しい順に 8 件） */
+export function rememberField(id: string): void {
+  const next = [id, ...app.settings.recentFields.filter((x) => x !== id)].slice(0, 8)
+  if (next.join() !== app.settings.recentFields.join()) saveSettings({ recentFields: next })
+}
 export function alertDialog(o: { edit?: AlertView; symbol?: InstrumentId; screenId?: string }): Promise<AlertDraft | null> {
   return new Promise((resolve) => {
     app.overlay = { kind: 'alertForm', ...o, resolve }
@@ -365,4 +385,5 @@ export function closeOverlay(): void {
   else if (o.kind === 'prompt' || o.kind === 'choice' || o.kind === 'checklist') o.resolve(null)
   else if (o.kind === 'ask3') o.resolve('cancel')
   else if (o.kind === 'alertForm') o.resolve(null)
+  else if (o.kind === 'fieldPicker') o.resolve(null)
 }

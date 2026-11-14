@@ -92,6 +92,30 @@ export interface MetricsRow {
   dcDays: number | null
   /** 直近 2 期の分配を年換算した利回り（FR-I3） */
   yield2p: number | null
+  /** ROE（EPS ÷ BPS、株式だけ） */
+  roe: number | null
+  /** 年途中を除いた最新の年の配当の前年比・5 年の年率 */
+  divYoy: number | null
+  divCagr5: number | null
+  /** 最低投資金額（終値 × 売買単位。株式 100 株・REIT 1 口、ほかは欠損） */
+  minInvest: number | null
+  fromLo52: number | null
+  /** 年初来（1〜3 月は昨年来）の高値・安値から */
+  ytdFromHi: number | null
+  ytdFromLo: number | null
+  maDev200: number | null
+  /** ボラティリティ（60 取引日・年率）・ベータ（1 年・対日経平均）・最大下落率（3 年・配当込み） */
+  vol60: number | null
+  beta1y: number | null
+  mdd3y: number | null
+  ret6m: number | null
+  retYtd: number | null
+  /** 配当込みの騰落率（チャートの「配当込み」と同じ） */
+  tr1y: number | null
+  tr3y: number | null
+  /** 次の決算発表・権利付最終日（1970-01-01 からの日数） */
+  earningsDay: number | null
+  rightsDay: number | null
   recordMonths: number[] // 権利確定月（FR-H3）
   gapSuspect: boolean // 分割イベントのない ±50% 超のギャップ（FR-D5）
   /** 高値 < 安値・終値 0 以下などの異常値（FR-D5 の残り） */
@@ -345,6 +369,8 @@ export interface Settings {
   alertNotify: boolean
   /** キーの割り当ての上書き（FR-KB6）。アクションの ID → キー（例 'Ctrl+Shift+K'）。'' は割り当てなし */
   keymap: Record<string, string>
+  /** スクリーナーの条件に最近足した指標（条件を選ぶダイアログの「よく使う」。新しい順） */
+  recentFields: string[]
   /** チャートの移動平均の期間（FR-C2）。時間軸ごとに 3 本 */
   maPeriods: { D: number[]; W: number[]; M: number[] }
 }

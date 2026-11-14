@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>elecxstock — スクリーニングの条件を選ぶダイアログ（モック）</title>
+<!-- スクリーナーの条件を選ぶダイアログの見直し案（3 回目。Claude Fable 5.2 のレビューを反映）。
+     分類を決まった段に置き、項目は名前と単位だけ。説明は下の段（2 行）と ⓘ。値はすべて架空 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0d10; --panel: #101318; --panel-2: #151920; --panel-3: #1b2029;
+  --line: #20262f; --line-soft: #161a20; --line-strong: #2d3540; --text: #dfe4ea; --text-2: #a3adb9; --text-3: #8b95a2;
+  --focus: #7aa7ff; --select: #1a2638; --select-strong: #22334b; --hover: #141921;
+  --warn: #d9a400; --ok: #2fae74; --gold: #e3b341;
+  --scrim: rgba(5, 6, 8, .55); --shadow: 0 12px 32px rgba(0, 0, 0, .45);
+  --fs-0: 10px; --fs-1: 11px; --fs-2: 12px; --fs-3: 13px;
+  --font: "Noto Sans JP", "Yu Gothic UI", sans-serif; --mono: "Noto Sans Mono", ui-monospace, monospace;
+  --radius: 3px;
+}
+/* ライトテーマ（app.css の :root[data-theme="light"] と同じ値）。#theme=light で切り替える */
+:root[data-theme="light"] {
+  --bg: #e9ecf0; --panel: #ffffff; --panel-2: #f5f7fa; --panel-3: #eceff3;
+  --line: #d6dbe1; --line-soft: #e6e9ee; --line-strong: #c3cad3; --text: #1a1f26; --text-2: #4a5562; --text-3: #5d6875;
+  --focus: #2f6fe0; --select: #e3ecfb; --select-strong: #e6eefb; --hover: #f0f3f7;
+  --warn: #9a6b00; --ok: #18804f; --gold: #8f6700;
+  --scrim: rgba(30, 36, 44, .35); --shadow: 0 12px 32px rgba(20, 30, 45, .18);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: var(--fs-2)/1.5 var(--font); }
+kbd { font-family: var(--mono); font-size: var(--fs-0); border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: var(--text-2); background: var(--panel-3); }
+.page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.page-head h1 { font-size: 15px; margin: 0 8px 0 0; }
+.note { color: var(--text-3); font-size: var(--fs-1); }
+.stage { position: relative; margin: 16px; border: 1px solid var(--line-strong); background: var(--panel); overflow: hidden; }
+.stage .bg { position: absolute; inset: 0; padding: 10px 14px; display: flex; gap: 8px; align-items: flex-start; color: var(--text-3); }
+.stage .bg span { border: 1px solid var(--line-strong); border-radius: 3px; padding: 2px 8px; background: var(--panel-2); }
+.scrim { position: absolute; inset: 0; background: var(--scrim); display: flex; justify-content: center; align-items: flex-start; padding-top: 40px; }
+
+/* ---------------- 条件を選ぶダイアログ ---------------- */
+.dlg { container: dlg / inline-size; width: min(980px, 96%); max-height: calc(100% - 56px); display: flex; flex-direction: column; background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+.dh { display: flex; align-items: center; gap: 10px; padding: 8px 12px 6px; }
+.dh h3 { margin: 0; font-size: var(--fs-3); white-space: nowrap; }
+.dh .cnt { font-size: var(--fs-1); color: var(--text-3); white-space: nowrap; }
+.search { flex: 1; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--focus); border-radius: 4px; background: var(--bg); min-width: 0; }
+.search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--text); font: inherit; outline: none; }
+.search .ic { color: var(--text-3); }
+.x { background: none; border: 0; color: var(--text-3); font-size: 14px; cursor: pointer; }
+/* よく使う（検索欄の下にチップで。段を使わない） */
+.recent { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 0 12px 8px; border-bottom: 1px solid var(--line); font-size: var(--fs-1); color: var(--text-3); }
+.chip { height: 22px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--panel-3); color: var(--text); font: inherit; font-size: var(--fs-1); cursor: pointer; white-space: nowrap; }
+.chip.sel { border-color: var(--focus); background: var(--select-strong); }
+.chip .ck { color: var(--ok); margin-right: 3px; }
+/* 分類は決まった段に置く（幅で 4 → 2 → 1 段。置き場所が動かないので、場所を覚えられる） */
+.grid { overflow: auto; padding: 8px 12px 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }
+.col { min-width: 0; }
+.col + .col { border-left: 1px solid var(--line-soft); padding-left: 16px; }
+@container dlg (max-width: 760px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .col:nth-child(3) { border-left: 0; padding-left: 0; }
+}
+@container dlg (max-width: 420px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .col + .col { border-left: 0; padding-left: 0; }
+}
+.grp { margin-bottom: 10px; }
+.grp h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 2px; padding: 2px 4px; font-size: var(--fs-2); font-weight: 700; color: var(--text); border-bottom: 1px solid var(--line); }
+.grp h4 .n { margin-left: auto; font: 400 var(--fs-0) var(--mono); color: var(--text-3); }
+/* 項目: 名前と単位だけの 1 行 */
+.it { display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 2px 0 16px; border-radius: 3px; cursor: pointer; white-space: nowrap; position: relative; }
+.it:hover { background: var(--hover); }
+.it.sel { background: var(--select-strong); box-shadow: inset 2px 0 0 var(--focus); }
+.it .nm { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.it .u { color: var(--text-3); font-size: var(--fs-1); }
+.it mark { background: none; color: var(--focus); font-weight: 700; }
+.it.weak .nm { color: var(--text-2); }
+.it .ck { position: absolute; left: 4px; color: var(--ok); font-size: var(--fs-1); }
+.it .new { font-size: var(--fs-0); color: var(--text-2); border: 1px solid var(--line-strong); border-radius: 3px; padding: 0 3px; line-height: 13px; }
+.it .info { margin-left: auto; flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 3px; color: var(--text-2); visibility: hidden; }
+.it .info svg, .ii svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.it:hover .info, .it.sel .info { visibility: visible; }
+.it .info:hover { color: var(--text); background: var(--panel-3); }
+.tip { position: absolute; z-index: 20; max-width: 300px; padding: 6px 9px; background: var(--panel-3); border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: var(--shadow); font-size: var(--fs-1); color: var(--text-2); pointer-events: none; }
+.tip b { color: var(--text); display: block; margin-bottom: 2px; }
+.empty { padding: 26px; text-align: center; color: var(--text-3); grid-column: 1 / -1; }
+.empty b { color: var(--text-2); }
+/* 下の段: 選んだ（キー・マウス）項目の説明を 2 行まで（キーだけでも全文が読める。FR-KB4） */
+.desc { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 10px; align-items: baseline; height: 50px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--panel); font-size: var(--fs-1); color: var(--text-2); }
+.desc b { color: var(--text); font-size: var(--fs-2); white-space: nowrap; }
+.desc .d { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.foot { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 5px 12px; border-top: 1px solid var(--line); font-size: var(--fs-1); color: var(--text-3); }
+.foot .r { margin-left: auto; }
+@container dlg (max-width: 600px) { .foot .r { display: none; } }
+.ii { display: inline-flex; vertical-align: -3px; color: var(--text-2); }
+.spec { margin: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; }
+.spec section { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: var(--panel); }
+.spec h4 { margin: 0 0 6px; font-size: var(--fs-3); }
+.spec table { width: 100%; border-collapse: collapse; font-size: var(--fs-1); }
+.spec td { padding: 3px 4px; border-top: 1px solid var(--line-soft); vertical-align: top; color: var(--text-2); }
+.spec td:first-child { color: var(--text); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>スクリーニングの条件を選ぶダイアログ（3 回目）</h1>
+  <span class="note">文字を打つと絞り込む · ↑ ↓ 項目 · ← → 隣の段（検索欄が空のとき）· Tab 次の分類 · Enter 足して閉じる · Shift+Enter 続けて足す · Esc 検索を消す／閉じる。値はすべて架空</span>
+</div>
+<div class="stage" style="height: 720px"><div class="bg"><span>実績利回り ≥ 3.50%</span><span>売買代金(20日平均) ≥ 10.0 億</span><span>市場区分 ∈ プライム, REIT</span></div><div class="scrim"><div class="dlg" id="d1" role="dialog" aria-label="条件を追加"></div></div></div>
+<div class="stage" style="height: 680px; width: 540px"><div class="scrim"><div class="dlg" id="d2" role="dialog" aria-label="条件を追加"></div></div></div>
+<div class="spec">
+  <section><h4>足す項目（新）と、定義で気をつけること</h4><table id="newlist"></table></section>
+  <section><h4>足さない項目（データが無い）</h4><table id="nolist"></table></section>
+</div>
+
+<script>
+// ---------------- 分類（決まった段に置く）と項目。[名前, 単位, 説明, 新, 別名]
+const COLS = [
+  ['attr', 'income'],
+  ['value', 'price', 'level'],
+  ['tech', 'risk', 'event'],
+  ['ret', 'mine'],
+]
+const G = {
+  attr: { name: '銘柄の属性', items: [
+    ['市場区分', '', 'プライム・スタンダード・グロース・REIT・ETF'],
+    ['業種(33業種)', '', '東証の 33 業種'],
+    ['種別', '', '株式・J-REIT・ETF・優先株など'],
+  ] },
+  income: { name: '配当', items: [
+    ['実績利回り', '%', '過去 12 か月の配当 ÷ 終値（ローカルの配当履歴から）', 0, '配当利回り yield'],
+    ['利回り(直近2期の年換算)', '%', '直近の決算期 2 回分を年換算 ÷ 終値（決算期を変えた J-REIT 向け）', 0, '配当利回り yield'],
+    ['配当性向', '%', '過去 12 か月の配当 ÷ EPS'],
+    ['連続増配年数', '年', '暦年の配当合計で比べた連続増配の年数（配当の記録 10 年の範囲）'],
+    ['連続非減配年数', '年', '暦年の配当合計が前年を下回らなかった年数'],
+    ['増減配率(前年比)', '%', '年途中を除いた最新の年の配当合計の前年比。直近の減配が分かる', 1, '減配 増配'],
+    ['5年の増配率', '%/年', '年途中を除いた最新の年と 5 年前の年の配当合計から求めた年率', 1, '増配'],
+    ['権利確定月', '月', '権利落ち日の翌営業日の月（過去 2 年の配当から）'],
+    ['1株配当・分配金', '円', '過去 12 か月の配当・分配金の合計（円の絶対値。主に一覧の列に）', 1],
+  ] },
+  value: { name: '割安・財務', items: [
+    ['PER', '倍', '終値 ÷ EPS（Yahoo の実績 EPS）'],
+    ['PBR', '倍', '終値 ÷ BPS。J-REIT は簿価ベース（NAV 倍率ではない）'],
+    ['ROE(実績・近似)', '%', 'EPS ÷ BPS（期末の BPS で割る近似）。EPS・BPS が 0 以下、REIT・ETF は欠損', 1],
+    ['EPS', '円', '1 株あたり利益（Yahoo の実績。円の絶対値で主に列に）', 1],
+    ['BPS', '円', '1 株あたり純資産（Yahoo の実績。円の絶対値で主に列に）', 1],
+  ] },
+  price: { name: '価格・規模', items: [
+    ['終値', '円', '最新の終値（分割調整済み）'],
+    ['前日比', '%', '前日の終値からの騰落率'],
+    ['時価総額', '億円', '終値 × 発行済株式数（Yahoo）'],
+    ['売買代金(20日平均)', '億円', '終値 × 出来高の 20 取引日の平均（近似）'],
+    ['最低投資金額', '万円', '終値 × 売買単位（株式 100 株、REIT 1 口）。ETF・ETN・その他は単位が分からないので欠損', 1],
+  ] },
+  level: { name: '価格の水準', items: [
+    ['25日移動平均', '円', '終値の 25 取引日の平均。主に相対条件の相手（終値 ≥ 25 日移動平均）'],
+    ['75日移動平均', '円', '終値の 75 取引日の平均'],
+    ['200日移動平均', '円', '終値の 200 取引日の平均'],
+    ['52週高値', '円', '直近 245 取引日の高値'],
+    ['52週安値', '円', '直近 245 取引日の安値'],
+  ] },
+  event: { name: '予定', items: [
+    ['決算発表まで', '日', '次の決算発表（Yahoo の予定・推定）までの暦日数。日付で持ち、今日から数える。過ぎた予定は欠損', 1],
+    ['権利付最終日まで', '日', '次の権利付最終日（過去の権利落ち日から推定した基準日の 2 営業日前）までの暦日数', 1],
+  ] },
+  tech: { name: 'テクニカル', items: [
+    ['52週高値から', '%', '終値 ÷ 52 週高値 − 1'],
+    ['52週安値から', '%', '終値 ÷ 52 週安値 − 1', 1],
+    ['年初来高値から', '%', '終値 ÷ 年初来の高値 − 1。1〜3 月は昨年来（前年 1 月から）', 1, '昨年来'],
+    ['年初来安値から', '%', '終値 ÷ 年初来の安値 − 1。1〜3 月は昨年来', 1, '昨年来'],
+    ['25日線乖離', '%', '終値 ÷ 25 日移動平均 − 1', 0, 'MA 移動平均'],
+    ['75日線乖離', '%', '終値 ÷ 75 日移動平均 − 1', 0, 'MA 移動平均'],
+    ['200日線乖離', '%', '終値 ÷ 200 日移動平均 − 1', 1, 'MA 移動平均'],
+    ['RSI(14)', '', '14 日の RSI（Wilder の平滑化）'],
+    ['出来高倍率(20日比)', '倍', '最新の出来高 ÷ 直近 20 日の平均'],
+    ['ゴールデンクロスから', '取引日', '25 日線が 75 日線を上に抜けてからの取引日数（直近 1 年）', 0, 'GC'],
+    ['デッドクロスから', '取引日', '25 日線が 75 日線を下に抜けてからの取引日数（直近 1 年）', 0, 'DC'],
+  ] },
+  risk: { name: 'リスク', items: [
+    ['ボラティリティ(年率)', '%', '日々の騰落率の標準偏差（60 取引日）× √245。61 本未満は欠損', 1],
+    ['ベータ(対日経平均)', '', '日経平均と日付で突き合わせた 1 年の日次の騰落率から。120 日未満は欠損。薄商いの銘柄は低く出やすい', 1],
+    ['最大下落率(3年)', '%', '3 年の中で高値からいちばん下げた割合（配当込み）', 1],
+  ] },
+  ret: { name: '騰落率', items: [
+    ['1か月騰落率', '%', '21 取引日前の終値から'],
+    ['3か月騰落率', '%', '63 取引日前の終値から'],
+    ['6か月騰落率', '%', '123 取引日前の終値から', 1],
+    ['1年騰落率', '%', '245 取引日前の終値から'],
+    ['3年騰落率', '%', '735 取引日前の終値から'],
+    ['年初来騰落率', '%', '前年最後の終値から', 1],
+    ['1年騰落率(配当込み)', '%', '配当で下がった分を戻した騰落率（チャートの「配当込み」と同じ）', 1, 'トータルリターン'],
+    ['3年騰落率(配当込み)', '%', '同じく 3 年', 1, 'トータルリターン'],
+  ] },
+  mine: { name: 'リスト・保有', items: [
+    ['お気に入り', '', '★を付けた銘柄'],
+    ['ウォッチリスト', '', '選んだウォッチリストにある銘柄'],
+    ['保有', '', '保有タブに記録した銘柄'],
+    ['損益率', '%', '最新の終値 ÷ 平均取得単価 − 1（口座区分をまたいで合計）。保有していない銘柄は欠損'],
+    ['保有割合', '%', '保有全体の評価額に占める割合。保有していない銘柄は 0%（「≤ 3%」では未保有の銘柄もすべて通る）', 1],
+    ['業種の保有割合', '%', 'その銘柄の業種が保有全体の評価額に占める割合。分散のため、手薄な業種の銘柄を探す', 1, '分散'],
+    ['取得利回り', '%', '過去 12 か月の配当 ÷ 平均取得単価。保有していない銘柄は欠損', 1],
+  ] },
+}
+for (const [id, g] of Object.entries(G)) g.items = g.items.map(([name, unit, desc, n, alias]) => ({ name, unit, desc, isNew: !!n, alias: alias ?? '', cat: id }))
+const ALL = Object.values(G).flatMap((g) => g.items)
+const RECENT = ['実績利回り', 'PER', '売買代金(20日平均)', '市場区分', '連続増配年数', '25日線乖離']
+const USED = new Set(['実績利回り', '売買代金(20日平均)', '市場区分'])
+/** データが無くて足さない項目（0 件のときに理由を出す） */
+const NO = [
+  ['売上高・営業利益・自己資本比率', '財務諸表は取っていない（Yahoo の一括気配は EPS・BPS まで）', '売上 営業利益 経常 自己資本 負債 ROA PSR EV'],
+  ['予想 PER・予想配当（コンセンサス）', '予想の値は取っていない（実績だけ）', '予想 コンセンサス PEG'],
+  ['信用残・信用倍率・貸借', 'Yahoo にも JPX の銘柄一覧にも無い', '信用 貸借 空売り'],
+  ['株主優待・優待月', '取り先が無い', '優待'],
+  ['上場日・決算月', 'JPX の銘柄一覧に無い（決算発表の予定は「予定」にある）', '上場 決算月'],
+  ['信託報酬（ETF）', '取り先が無い', '信託報酬'],
+  ['5 年の最大下落率', '全部の日足を読むので重い（銘柄情報の画面だけで出す。ここは 3 年）', ''],
+]
+const INFO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 11v6M12 7.5v.5"/></svg>'
+document.getElementById('newlist').innerHTML = ALL.filter((f) => f.isNew).map((f) => `<tr><td>${f.name}</td><td>${G[f.cat].name} · ${f.desc}</td></tr>`).join('')
+document.getElementById('nolist').innerHTML = NO.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('')
+
+const norm = (s) => s.normalize('NFKC').toLowerCase()
+function mount(el, opt = {}) {
+  let q = opt.q ?? ''
+  let sel = opt.sel ?? '実績利回り'
+  /** ← → で移るときに保つ高さ（往復で元の行に戻る） */
+  let wantY = null
+  const tip = document.createElement('div')
+  tip.className = 'tip'
+  tip.hidden = true
+  document.body.append(tip)
+  /** 検索: 名前（と別名）で当たったものを先に、説明だけで当たったものは薄く */
+  const match = (f) => {
+    if (!q) return 2
+    const t = norm(q)
+    if (norm(f.name).includes(t) || norm(f.alias).includes(t)) return 2
+    if (norm(f.desc).includes(t)) return 1
+    return 0
+  }
+  const hl = (s) => (q ? s.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), (m) => `<mark>${m}</mark>`) : s)
+  const draw = () => {
+    const cols = COLS.map((ids) => ids.map((id) => ({ id, ...G[id], items: G[id].items.filter((f) => match(f)).sort((a, b) => match(b) - match(a)) })).filter((g) => g.items.length))
+    const flat = cols.flatMap((c) => c.flatMap((g) => g.items))
+    if (!flat.some((f) => f.name === sel)) sel = flat[0]?.name ?? ''
+    const cur = flat.find((f) => f.name === sel)
+    const none = q && !flat.length ? NO.filter(([a, , k]) => norm(`${a} ${k}`).includes(norm(q))) : []
+    el.innerHTML = `
+      <div class="dh"><h3>条件を追加</h3>
+        <label class="search"><span class="ic">⌕</span><input role="combobox" aria-expanded="true" aria-controls="lb" aria-activedescendant="it-${sel}" value="${q}" placeholder="項目を探す（例: 利回り・ROE・保有・MA）" /></label>
+        <span class="cnt">${q ? `${flat.length} 件` : `${ALL.length} 項目`}</span><button class="x" aria-label="閉じる">✕</button></div>
+      ${q ? '' : `<div class="recent"><span>よく使う</span>${RECENT.map((n) => `<button class="chip ${n === sel ? 'sel' : ''}" data-n="${n}">${USED.has(n) ? '<span class="ck">✓</span>' : ''}${n}</button>`).join('')}</div>`}
+      <div class="grid" id="lb" role="listbox">${flat.length ? cols.map((c) => `<div class="col">${c.map((g) => `<div class="grp" role="group" aria-label="${g.name}"><h4>${g.name}<span class="n">${g.items.length}</span></h4>${g.items.map((f) => `<div class="it ${f.name === sel ? 'sel' : ''} ${match(f) === 1 ? 'weak' : ''}" role="option" id="it-${f.name}" aria-selected="${f.name === sel}" data-n="${f.name}">${USED.has(f.name) ? '<span class="ck">✓</span>' : ''}<span class="nm">${hl(f.name)}</span>${f.unit ? `<span class="u">(${f.unit})</span>` : ''}${f.isNew ? '<span class="new">新</span>' : ''}<span class="info" data-n="${f.name}">${INFO}</span></div>`).join('')}</div>`).join('')}</div>`).join('') : `<div class="empty">「${q}」に当たる項目はありません${none.length ? `<br><br>${none.map(([a, b]) => `<b>${a}</b>: ${b}`).join('<br>')}` : ''}</div>`}</div>
+      <div class="desc" aria-live="polite">${cur ? `<b>${cur.name}${cur.unit ? `（${cur.unit}）` : ''}</b><span class="d">${cur.desc}${USED.has(cur.name) ? '。使用中（範囲で絞るときは、もう一つ足す）' : ''}</span>` : ''}</div>
+      <div class="foot"><span>文字を打つと絞り込む</span><span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> 選ぶ</span><span><kbd>Tab</kbd> 次の分類</span><span><kbd>Enter</kbd> 足して閉じる</span><span><kbd>Shift+Enter</kbd> 続けて足す</span><span><kbd>Esc</kbd> ${q ? '検索を消す' : '閉じる'}</span><span class="r"><span style="color:var(--ok)">✓</span> 使用中 · <span class="ii">${INFO}</span> 説明</span></div>`
+    const input = el.querySelector('input')
+    input.oninput = () => { q = input.value; draw(); const v = el.querySelector('input'); v.focus(); v.setSelectionRange(v.value.length, v.value.length) }
+    input.onkeydown = (e) => {
+      if (e.isComposing) return // IME の変換中は矢印・Enter を渡さない（FR-KB5）
+      const items = [...el.querySelectorAll('.it')]
+      const i = items.findIndex((x) => x.dataset.n === sel)
+      const at = items[i]?.getBoundingClientRect()
+      let next
+      if (e.key === 'ArrowDown') { next = items[i + 1]; wantY = null }
+      else if (e.key === 'ArrowUp') { next = items[i - 1]; wantY = null }
+      else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !q) {
+        // 隣の段の、覚えておいた高さにいちばん近い項目へ（検索欄に文字があるときは、文字の移動に使う）
+        const dir = e.key === 'ArrowRight' ? 1 : -1
+        wantY ??= at.top
+        const cols = [...el.querySelectorAll('.col')]
+        const ci = cols.findIndex((c) => c.contains(items[i]))
+        const col = cols[ci + dir]
+        if (col) next = [...col.querySelectorAll('.it')].sort((a, b) => Math.abs(a.getBoundingClientRect().top - wantY) - Math.abs(b.getBoundingClientRect().top - wantY))[0]
+      } else if (e.key === 'Tab') {
+        const gs = [...el.querySelectorAll('.grp')]
+        const gi = gs.findIndex((g) => g.contains(items[i]))
+        next = gs[(gi + (e.shiftKey ? -1 : 1) + gs.length) % gs.length]?.querySelector('.it')
+        wantY = null
+      } else if (e.key === 'Home') next = items[0]
+      else if (e.key === 'End') next = items.at(-1)
+      else if (e.key === 'Escape') { if (q) { q = ''; draw(); el.querySelector('input').focus() } e.preventDefault(); return }
+      else return
+      e.preventDefault()
+      if (next) sel = next.dataset.n
+      draw()
+      el.querySelector('input').focus()
+    }
+    for (const it of el.querySelectorAll('.it, .chip')) {
+      it.onclick = () => { sel = it.dataset.n; draw() }
+      it.onmouseenter = () => {
+        // マウスを載せた項目の説明も下の段に出す（ツールチップは ⓘ だけの補助）
+        const f = ALL.find((x) => x.name === it.dataset.n)
+        el.querySelector('.desc').innerHTML = `<b>${f.name}${f.unit ? `（${f.unit}）` : ''}</b><span class="d">${f.desc}</span>`
+      }
+    }
+    for (const ic of el.querySelectorAll('.info')) {
+      ic.onmouseenter = () => {
+        const f = ALL.find((x) => x.name === ic.dataset.n)
+        tip.innerHTML = `<b>${f.name}${f.unit ? `（${f.unit}）` : ''}</b>${f.desc}`
+        const r = ic.getBoundingClientRect()
+        tip.hidden = false
+        tip.style.left = `${Math.min(r.right + 8, innerWidth - 310) + scrollX}px`
+        tip.style.top = `${r.top - 4 + scrollY}px`
+      }
+      ic.onmouseleave = () => (tip.hidden = true)
+    }
+    el.querySelector('.it.sel')?.scrollIntoView({ block: 'nearest' })
+  }
+  draw()
+  return { el, focus: () => el.querySelector('input').focus() }
+}
+const h = new URLSearchParams(location.hash.slice(1))
+if (h.get('theme') === 'light') document.documentElement.dataset.theme = 'light'
+const m1 = mount(document.getElementById('d1'), { q: h.get('q') ?? '', sel: h.get('sel') ?? '増減配率(前年比)' })
+m1.focus()
+mount(document.getElementById('d2'), { sel: '業種の保有割合' })
+</script>
+</body>
+</html>

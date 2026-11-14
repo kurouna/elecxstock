@@ -1,6 +1,8 @@
 // 一覧の列（FR-SC3, §6.3 watchlist の「列の選択」）。指標の列は登録表（FR-FD1）から作る。
 // watchlist・screener・ranking・portfolio が同じ列の定義を使い、Ctrl+Shift+C で選ぶ・並べ替える。
+import { jstNow } from '@shared/calendar'
 import { FIELDS, type FieldDef, usable } from '@shared/fields'
+import { epochDay } from '@shared/rights'
 import type { InstrumentId, MetricsRow } from '@shared/types'
 import { app, checklistDialog, inst, metric, t } from '../stores/app.svelte'
 import { cls, date, fmt, money, px, sgn } from './format'
@@ -30,14 +32,13 @@ function fieldCell(f: FieldDef, v: number | null): Cell {
   if (v == null) return { t: '—' }
   switch (f.type) {
     case 'money': {
-      if (f.source.kind === 'metrics' && ['close', 'ma25', 'ma75', 'ma200', 'hi52', 'lo52'].includes(f.source.column)) return { t: px(v) }
+      // 1 株あたりの金額（価格・EPS・BPS・1株配当）は円、それ以外（時価総額・売買代金・最低投資金額）は万・億・兆
+      if (f.source.kind === 'metrics' && f.category === 'price') return { t: px(v) }
       const m = money(v)
       return { t: m.n, u: m.u }
     }
     case 'percent':
-      return f.category === 'return' || f.id === 'price.chgPct' || f.category === 'technical'
-        ? { t: sgn(v, f.digits ?? 1, ''), u: '%', c: cls(v) }
-        : { t: fmt(v, f.digits ?? 2), u: '%' }
+      return f.signed ? { t: sgn(v, f.digits ?? 1, ''), u: '%', c: cls(v) } : { t: fmt(v, f.digits ?? 2), u: '%' }
     case 'ratio':
       return { t: fmt(v, f.digits ?? 2) }
     default:
@@ -93,6 +94,18 @@ export const COLUMNS: ListCol[] = [
       cell: (id) => fieldCell(f, mv(id, (f.source as { column: string }).column)),
     }),
   ),
+  // 予定（日付から今日までの日数。スクリーナーと同じく実行時に数える）
+  ...(['event.earningsDays', 'event.rightsDays'] as const).map((fid): ListCol => {
+    const f = FIELDS.find((x) => x.id === fid)!
+    const col = fid === 'event.earningsDays' ? 'earningsDay' : 'rightsDay'
+    const days = (id: InstrumentId) => {
+      const d = mv(id, col)
+      if (d == null) return null
+      const n = d - epochDay(jstNow().date)
+      return n >= 0 ? n : null
+    }
+    return { id: f.id, label: () => f.label[app.settings.lang], w: 64, sort: days, cell: (id) => fieldCell(f, days(id)) }
+  }),
   {
     id: 'recordMonths',
     label: () => t('col.recordMonths'),

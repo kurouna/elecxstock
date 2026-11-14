@@ -11,7 +11,18 @@ import { fmt, money } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
-import { app, bridge, choiceDialog, isFav, listName, promptDialog, screenName, t } from '../../stores/app.svelte'
+import {
+  app,
+  bridge,
+  choiceDialog,
+  fieldPicker,
+  isFav,
+  listName,
+  promptDialog,
+  rememberField,
+  screenName,
+  t,
+} from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -198,19 +209,25 @@ function sortBy(k: string) {
 /** 保有の記録が無いときは、保有の指標を出さない（FR-H6） */
 const available = (f: FieldDef) => !f.requires?.includes('holdings') || app.holdings.length > 0
 /** 条件の指標を変える（クリック・F キー）。演算子と値は新しい指標の既定に戻す */
+/** 条件にできる指標（保有の記録が無ければ保有の指標は出さない） */
+const pickable = () => FIELDS.filter((f) => usable(f) && available(f)).map((f) => f.id)
+/** 新しい条件の既定（演算子と値は指標の既定） */
+const newCond = (f: FieldDef): Condition => ({
+  field: f.id,
+  op: f.operators[0]!,
+  value: f.source.kind === 'user' && f.type === 'enum' ? [app.watchlists[0]?.id ?? 'favorites'] : (f.default ?? 0),
+})
 async function changeField(i: number) {
   const c = conds[i]
   if (!c) return
-  const used = new Set(conds.filter((_, j) => j !== i).map((x) => x.field))
-  const choice = await choiceDialog(
-    t('scr.changeField'),
-    FIELDS.filter((f) => usable(f) && !used.has(f.id) && available(f)).map((f) => ({
-      id: f.id,
-      label: f.label[app.settings.lang],
-      hint: f.description?.[app.settings.lang] ?? '',
-    })),
-  )
+  // 条件を選ぶダイアログ（docs/mock/fields.html）。使っている指標には ✓（範囲で絞るため、同じ指標も選べる）
+  const choice = await fieldPicker({
+    title: t('scr.changeField'),
+    fields: pickable(),
+    used: conds.filter((_, j) => j !== i).map((x) => x.field),
+  })
   if (!choice || choice === c.field) return
+  rememberField(choice)
   const f = FIELD_BY_ID.get(choice)!
   const value = f.source.kind === 'user' && f.type === 'enum' ? [app.watchlists[0]?.id ?? 'favorites'] : (f.default ?? 0)
   update(i, { field: f.id, op: f.operators[0]!, value, ...(c.or && i > 0 ? { or: true } : {}) })
@@ -226,20 +243,14 @@ function moveCond(i: number, d: number) {
   ci = j
 }
 async function addCond() {
-  const used = new Set(conds.map((c) => c.field))
-  const choice = await choiceDialog(
-    t('scr.addCond'),
-    FIELDS.filter((f) => usable(f) && !used.has(f.id) && available(f)).map((f) => ({
-      id: f.id,
-      label: f.label[app.settings.lang],
-      hint: f.description?.[app.settings.lang] ?? '',
-    })),
-  )
-  if (!choice) return
-  const f = FIELD_BY_ID.get(choice)!
-  const value = f.source.kind === 'user' && f.type === 'enum' ? [app.watchlists[0]?.id ?? 'favorites'] : (f.default ?? 0)
-  setConds(pane, [...conds, { field: f.id, op: f.operators[0]!, value }])
-  ci = conds.length
+  // Shift+Enter で開いたまま続けて足す（足すたびに条件の末尾に入れる）。Enter は足して閉じ、値の入力へ
+  const add = (id: string) => {
+    rememberField(id)
+    setConds(pane, [...conds, newCond(FIELD_BY_ID.get(id)!)])
+    ci = conds.length - 1
+  }
+  const choice = await fieldPicker({ title: t('scr.addCond'), fields: pickable(), used: conds.map((c) => c.field), onAdd: add })
+  if (choice) add(choice)
 }
 function showValue(c: Condition): string {
   const f = FIELD_BY_ID.get(c.field)

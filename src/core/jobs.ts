@@ -4,7 +4,7 @@ import type { InstrumentId, JobKind, JobProgress, JstDate } from '@shared/types'
 import { addDays, addYears, CLOSE_MINUTES, isTradingDay, jstNow, lastClosedSession, prevTradingDay, toJstDate } from './calendar'
 import { computeMetrics, METRIC_BARS } from './metrics'
 import { type Provider, ProviderError, type RawBar } from './providers/types'
-import { idOf, type Repo } from './repo'
+import { idOf, N225, type Repo } from './repo'
 
 const sleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((res, rej) => {
@@ -592,8 +592,16 @@ export class JobRunner {
     const repo = this.h.repo
     const bars = repo.recentDaily(id, METRIC_BARS)
     const first = bars.length === METRIC_BARS ? (repo.firstDaily(id) ?? undefined) : bars[0]?.d
-    const m = computeMetrics(id, bars, repo.dividends(id), repo.splits(id), repo.quote(id), lastClosedSession(), first)
+    const m = computeMetrics(id, bars, repo.dividends(id), repo.splits(id), repo.quote(id), lastClosedSession(), first, {
+      kind: repo.instrument(id)?.kind,
+      index: this.indexCloses ?? this.loadIndex(),
+    })
     repo.putMetrics(m)
+  }
+  /** 日経平均の終値（日付 → 終値。ベータ）。全銘柄の作り直しの間は 1 回だけ読む */
+  private indexCloses: Map<JstDate, number> | null = null
+  private loadIndex(): Map<JstDate, number> {
+    return new Map(this.h.repo.recentDaily(N225, 260).map((b) => [b.d, b.c]))
   }
   /**
    * 全銘柄の指標を作り直す。100 銘柄ごとに 1 つのトランザクションで書き、その合間に処理を譲って
@@ -602,13 +610,18 @@ export class JobRunner {
   async recomputeAll(signal?: AbortSignal): Promise<void> {
     const repo = this.h.repo
     const ids = [...repo.fetchSet().map((s) => s.id)]
-    for (let i = 0; i < ids.length; i += 100) {
-      // 閉じる・全データの削除・取り消しのときは、残りのバッチを書かずに止める（項目は待ちに戻る）
-      if (signal?.aborted || this.stopping) throw new Error('aborted')
-      repo.db.tx(() => {
-        for (const id of ids.slice(i, i + 100)) this.recompute(id)
-      })
-      await new Promise<void>((r) => setImmediate(r))
+    this.indexCloses = this.loadIndex()
+    try {
+      for (let i = 0; i < ids.length; i += 100) {
+        // 閉じる・全データの削除・取り消しのときは、残りのバッチを書かずに止める（項目は待ちに戻る）
+        if (signal?.aborted || this.stopping) throw new Error('aborted')
+        repo.db.tx(() => {
+          for (const id of ids.slice(i, i + 100)) this.recompute(id)
+        })
+        await new Promise<void>((r) => setImmediate(r))
+      }
+    } finally {
+      this.indexCloses = null
     }
     this.h.emitData(['*'])
   }

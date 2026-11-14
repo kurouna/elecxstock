@@ -100,6 +100,7 @@ export const settingsSchema = z.object({
   checkUpdates: z.boolean(),
   alertNotify: z.boolean(),
   keymap: z.record(z.string().max(40), z.string().max(40)),
+  recentFields: z.array(z.string().max(40)).max(12),
   maPeriods: z.object({ D: periods, W: periods, M: periods }),
 })
 

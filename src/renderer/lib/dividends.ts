@@ -1,5 +1,4 @@
 // 銘柄情報の配当・分配金のグラフ（FR-I1）の計算。純粋関数（テストは tests/unit/renderer/dividends.test.ts）。
-import { addDays, isTradingDay, prevTradingDay } from '@shared/calendar'
 import type { Dividend, JstDate } from '@shared/types'
 
 export interface DividendYear {
@@ -66,30 +65,5 @@ export function dividendCagr(years: DividendYear[], span = 5): number | null {
   return ((last.total / first.total) ** (1 / span) - 1) * 100
 }
 
-/**
- * 権利付最終日と権利落ち日の目安（FR-I8）: 権利確定日を月末とし、休場日なら前の営業日にする。
- * 権利付最終日はその 2 営業日前（受け渡しが 2 営業日後のため）、権利落ち日はその次の営業日。
- * 今日より後のものを、近い順に count 件
- */
-export function nextRightsDates(months: number[], today: JstDate, count = 2): { month: number; lastCum: JstDate; ex: JstDate }[] {
-  if (!months.length) return []
-  const out: { month: number; lastCum: JstDate; ex: JstDate }[] = []
-  let y = Number(today.slice(0, 4))
-  let m = Number(today.slice(5, 7))
-  for (let k = 0; k < 24 && out.length < count; k++) {
-    if (months.includes(m)) {
-      const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
-      const record = isTradingDay(end) ? end : prevTradingDay(end)
-      const lastCum = prevTradingDay(prevTradingDay(record))
-      let ex = addDays(lastCum, 1)
-      while (!isTradingDay(ex)) ex = addDays(ex, 1)
-      if (lastCum >= today) out.push({ month: m, lastCum, ex })
-    }
-    m++
-    if (m > 12) {
-      m = 1
-      y++
-    }
-  }
-  return out
-}
+// 権利付最終日の目安は Core と共有する（src/shared/rights.ts）
+export { nextRightsDates, recordDayOf } from '@shared/rights'

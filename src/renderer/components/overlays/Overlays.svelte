@@ -3,6 +3,7 @@ import { app, closeOverlay } from '../../stores/app.svelte'
 import AlertForm from './AlertForm.svelte'
 import AlertsPopup from './AlertsPopup.svelte'
 import Dialogs from './Dialogs.svelte'
+import FieldPicker from './FieldPicker.svelte'
 import FirstRun from './FirstRun.svelte'
 import Help from './Help.svelte'
 import HoldingForm from './HoldingForm.svelte'
@@ -39,6 +40,10 @@ function backdrop(e: MouseEvent) {
         <HoldingForm holding={app.overlay.holding} resolve={app.overlay.resolve} />
       {:else if app.overlay.kind === 'alerts'}
         <AlertsPopup tab={app.overlay.tab} />
+      {:else if app.overlay.kind === 'fieldPicker'}
+        {#key app.overlay}
+          <FieldPicker title={app.overlay.title} fields={app.overlay.fields} used={app.overlay.used} onAdd={app.overlay.onAdd} resolve={app.overlay.resolve} />
+        {/key}
       {:else if app.overlay.kind === 'alertForm'}
         {#key app.overlay}
           <AlertForm edit={app.overlay.edit} symbol={app.overlay.symbol} screenId={app.overlay.screenId} resolve={app.overlay.resolve} />
