@@ -1,6 +1,7 @@
 <script lang="ts">
 import { addDays, isTradingDay, jstNow } from '@shared/calendar'
 import { onMount } from 'svelte'
+import { notifyFired } from '../lib/alerts'
 import { clearBars } from '../lib/barsCache'
 import { checkUpdate, handleKey, sendSymbol, startUpdate } from '../lib/commands'
 import { loadHoldings } from '../lib/portfolio'
@@ -89,6 +90,10 @@ onMount(() => {
     }),
     bridge.on('provider.state', (s) => (app.provider = s)),
     bridge.on('user.error', (e) => (app.userError = e.message)),
+    // アラートが鳴った（1 枚目だけが知らせる。FR-AL5）
+    bridge.on('alerts.fired', (d) => {
+      if (!IS_FREE) void notifyFired(d.fires, d.unread, sendSymbol)
+    }),
   ]
   const onKey = (e: KeyboardEvent) => {
     if (handleKey(e)) {
@@ -140,6 +145,11 @@ function onBus(m: { topic: string; data: unknown }) {
 /** ほかの窓が利用者のデータを変えた（マルチモニタ）。自分の変更は無視する */
 async function onUserChanged(d: { kind: string; from: string; op?: { list: string; id: string } }) {
   if (d.from === SLOT) return
+  if (d.kind === 'alerts' || d.kind === 'all') {
+    app.alertsRev++
+    if (!IS_FREE) app.alertsUnread = await rpc('alerts.unread', {}).catch(() => app.alertsUnread)
+    if (d.kind === 'alerts') return
+  }
   if (d.kind === 'holdings') return void loadHoldings()
   if (d.kind === 'watchlists' && !IS_FREE && d.op) {
     // 1 枚目がウォッチリストの持ち主: フリー N の★・◆の切り替えだけを手元に足す（保存中の自分の変更を消さない）
@@ -199,6 +209,10 @@ async function boot() {
       for (const id of await window.elecxstock.freeReady()) sendSymbol(id)
       return
     }
+    // 起動時に再開したジョブで、窓がつながる前に鳴っていることがある（ベルの未読は Core から読む。§5）
+    void rpc('alerts.unread', {})
+      .then((n) => (app.alertsUnread = n))
+      .catch(() => {})
     if (!app.settings.disclaimerAccepted || !app.settings.firstRunDone) app.overlay = { kind: 'firstrun' }
     else {
       void loadHoldings()

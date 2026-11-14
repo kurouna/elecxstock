@@ -53,6 +53,7 @@ import {
   WIDGETS,
   type WidgetId,
 } from '../stores/layout.svelte'
+import { canUndoRemoveAlert, createAlert, toggleAlerts, undoRemoveAlert } from './alerts'
 import { toCsv } from './columns'
 import { dateTime } from './format'
 import type { Key } from './i18n'
@@ -584,6 +585,9 @@ export const ACTIONS: Action[] = [
   { id: 'fullscreen', label: () => t('act.fullscreen'), key: 'F11', when: 'global', run: () => toggleFullscreen() },
   // アプリを終了する。閉じる前の保存（beforeunload）はウィンドウを閉じるときと同じ
   { id: 'quit', label: () => t('act.quit'), key: 'Ctrl+Shift+Q', when: 'global', run: () => void window.elecxstock.quit() },
+  // ---- アラート（FR-AL7・AL8。docs/design-alerts.md）
+  { id: 'alertNew', label: () => t('act.alertNew'), key: 'Ctrl+Alt+A', when: 'global', run: () => void createAlert(focusedSymbol()) },
+  { id: 'alerts', label: () => t('act.alerts'), key: 'Ctrl+Alt+L', when: 'global', run: () => toggleAlerts() },
   // ---- マルチモニタ（docs/design-multimonitor.md）
   { id: 'newWindow', label: () => t('act.newWindow'), key: 'Ctrl+Alt+N', when: 'global', run: () => newWindowDialog() },
   { id: 'nextWindow', label: () => t('act.nextWindow'), key: 'Ctrl+F6', when: 'global', run: () => void window.elecxstock.cycleWindow(1) },
@@ -766,7 +770,12 @@ export function handleKey(e: KeyboardEvent): boolean {
   const ctrl = e.ctrlKey || e.metaKey
   const c = e.code
   if (app.overlay) {
-    if (c === 'Escape') {
+    // 欄の中の Esc は欄が受け取る（アラートのダイアログの値の欄: 条件の行に戻る）
+    if (c === 'Escape' && !(e.target as Element | null)?.closest?.('[data-esc-local]')) {
+      closeOverlay()
+      return true
+    }
+    if (matches(e, keyOf('alerts')) && app.overlay.kind === 'alerts' && !IS_FREE) {
       closeOverlay()
       return true
     }
@@ -820,6 +829,11 @@ export function handleKey(e: KeyboardEvent): boolean {
       saveLayout()
       toast(t('link.set', { n: p.link || '—' }))
     }
+    return true
+  }
+  // 直前に消したアラートを戻す（10 秒以内。§6.5）
+  if (ctrl && !e.shiftKey && !e.altKey && c === 'KeyZ' && canUndoRemoveAlert()) {
+    void undoRemoveAlert()
     return true
   }
   if (ctrl && !e.shiftKey && !e.altKey && c === 'KeyZ' && canUndoReset()) {

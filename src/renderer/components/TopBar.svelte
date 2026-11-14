@@ -42,6 +42,10 @@ onMount(() => {
     <span class="ic">›</span><span class="ph">{t('top.search')}</span><kbd>Ctrl+K</kbd>
   </button>
   <div class="right">
+    {#if !IS_FREE}
+    <!-- アラート（Ctrl+Alt+L と同じ。未読があれば数の札。FR-AL8） -->
+    <button type="button" class="ibtn bell" onclick={() => runAction('alerts')} aria-label={t('act.alerts')} title={t('al.bellTip', { key: keyOf('alerts') })}><Icon name="bell" />{#if app.alertsUnread}<span class="unread num">{app.alertsUnread > 99 ? '99+' : app.alertsUnread}</span>{/if}</button>
+    {/if}
     <!-- 2 枚目以降のモニタ用のフリーのウィンドウを開く（Ctrl+Alt+N と同じ。初期の形を選ぶ） -->
     <button type="button" class="ibtn" onclick={() => runAction('newWindow')} aria-label={t('act.newWindow')} title={`${t('act.newWindow')} (${keyOf('newWindow')})`}><Icon name="newWindow" /></button>
     <!-- 押しても変わらないとき（既定のまま・最大化中）は押せない -->
@@ -57,6 +61,22 @@ onMount(() => {
 </header>
 
 <style>
+  .bell {
+    position: relative;
+  }
+  .bell .unread {
+    position: absolute;
+    top: 0;
+    right: -2px;
+    min-width: 14px;
+    padding: 0 3px;
+    border-radius: 7px;
+    background: var(--warn);
+    color: var(--bg);
+    font-size: 10px;
+    line-height: 14px;
+    text-align: center;
+  }
   .wname {
     flex: none;
     font-weight: 700;

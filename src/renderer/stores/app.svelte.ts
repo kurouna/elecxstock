@@ -3,6 +3,8 @@
 import type { CoreError, Method, Params, Results } from '@shared/api'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import type {
+  Alert,
+  AlertView,
   AppInfo,
   Condition,
   DataStatus,
@@ -62,6 +64,13 @@ export type Overlay =
     }
   | { kind: 'layouts' }
   | { kind: 'holding'; holding?: Holding; resolve: (h: Holding | null) => void }
+  /** アラートのポップアップ（FR-AL8）。tab が無ければ、未読があれば履歴 */
+  | { kind: 'alerts'; tab?: 'alerts' | 'history' }
+  /** アラートを作る・直すダイアログ（FR-AL7） */
+  | { kind: 'alertForm'; edit?: AlertView; symbol?: InstrumentId; resolve: (a: AlertDraft | null) => void }
+
+/** ダイアログで作った・直したアラート（id・基準日・作った日時は Core が付ける） */
+export type AlertDraft = Pick<Alert, 'target' | 'conditions' | 'repeat' | 'enabled' | 'note'> & { id: string }
 
 export interface CheckItem {
   id: string
@@ -109,6 +118,10 @@ class AppState {
   portfolioMeta = $state<PortfolioMeta | null>(null)
   /** 新しい版（NFR-Q9） */
   update = $state<{ version: string; url: string } | null>(null)
+  /** 鳴ったアラートの未読の数（トップバーのベル。FR-AL5） */
+  alertsUnread = $state(0)
+  /** アラートか履歴が変わるたびに増やす（開いているポップアップが読み直す） */
+  alertsRev = $state(0)
 }
 export const app = new AppState()
 
@@ -325,6 +338,11 @@ export function holdingDialog(holding?: Holding): Promise<Holding | null> {
     app.overlay = { kind: 'holding', ...(holding ? { holding } : {}), resolve }
   })
 }
+export function alertDialog(o: { edit?: AlertView; symbol?: InstrumentId }): Promise<AlertDraft | null> {
+  return new Promise((resolve) => {
+    app.overlay = { kind: 'alertForm', ...o, resolve }
+  })
+}
 export function ask3(title: string, body: string): Promise<'save' | 'discard' | 'cancel'> {
   return new Promise((resolve) => {
     app.overlay = { kind: 'ask3', title, body, resolve }
@@ -344,4 +362,5 @@ export function closeOverlay(): void {
   if (o.kind === 'confirm') o.resolve({ ok: false, checked: false })
   else if (o.kind === 'prompt' || o.kind === 'choice' || o.kind === 'checklist') o.resolve(null)
   else if (o.kind === 'ask3') o.resolve('cancel')
+  else if (o.kind === 'alertForm') o.resolve(null)
 }

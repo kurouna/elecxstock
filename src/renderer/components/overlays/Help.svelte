@@ -30,6 +30,8 @@ const G = $derived([
       [ja ? 'お気に入り' : 'Favorite', K('fav')],
       [ja ? 'ウォッチリストに追加' : 'Add to watchlist', K('addTo')],
       [ja ? 'データ更新 / 選んだ銘柄の取り直し' : 'Update / refetch selection', K('update', 'refetch')],
+      [ja ? 'フォーカス中の銘柄でアラートを作る' : 'Create an alert for the focused symbol', K('alertNew')],
+      [ja ? 'アラートの一覧と履歴 / 消したアラートを戻す' : 'Alerts and history / undo removal', `${K('alerts')} / Ctrl+Z`],
       [ja ? '設定（キーの割り当ても）' : 'Settings (incl. key bindings)', K('settings')],
       [ja ? '全画面' : 'Full screen', K('fullscreen')],
       [ja ? '新しいフリーのウィンドウ（2 枚目のモニタに）' : 'New Free window (for a second monitor)', K('newWindow')],
