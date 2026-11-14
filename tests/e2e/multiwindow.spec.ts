@@ -35,6 +35,10 @@ test('フリー 2: キーで開き、銘柄ジャンプで足し、タブ・設�
   const free = await openFree(app, page, 'チャートグリッド')
   await expect(free.locator('.wname')).toHaveText('フリー 2')
   await expect(free.locator('.presets')).toHaveCount(0)
+  // 狭い窓でも窓の名前は切れない（検索欄の側が縮む）
+  await free.setViewportSize({ width: 600, height: 700 })
+  expect(await free.locator('.wname').evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+  await free.setViewportSize({ width: 1400, height: 900 })
   const grid = free.locator('[data-widget="grid"]')
   await expect(grid).toBeVisible()
   // 銘柄ジャンプで足す（フリー 2 の中で完結）

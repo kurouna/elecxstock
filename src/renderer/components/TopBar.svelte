@@ -58,6 +58,7 @@ onMount(() => {
 
 <style>
   .wname {
+    flex: none;
     font-weight: 700;
     font-size: var(--fs-3);
     padding: 0 var(--s-3);
@@ -144,7 +145,7 @@ onMount(() => {
   }
   .cmd {
     flex: 1;
-    min-width: 160px;
+    min-width: 28px; /* 狭い窓では「›」だけ残して縮む（窓の名前・ボタンを押し出さない） */
     max-width: 520px;
     margin: 0 auto;
     height: 24px;
@@ -203,5 +204,17 @@ onMount(() => {
   .gear:hover {
     background: var(--hover);
     color: var(--text);
+  }
+  /* 狭い窓（2 枚目のモニタの片隅など）: 窓の名前とボタンを残し、ロゴの文字・時計・キーの表示から省く */
+  @media (max-width: 899px) {
+    .cmd kbd {
+      display: none;
+    }
+  }
+  @media (max-width: 759px) {
+    .name,
+    .clock {
+      display: none;
+    }
   }
 </style>
