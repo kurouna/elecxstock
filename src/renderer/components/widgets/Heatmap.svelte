@@ -158,7 +158,7 @@ onMount(() => {
 })
 </script>
 
-<PaneHeader {pane}>
+<PaneHeader {pane} collapse={600}>
   <button type="button" class="chip" disabled={!sector} onclick={back}>{sector ? `← ${secName(sector)}` : t('heat.sectors')}</button>
   <span class="lbl">{t('heat.retLabel')}</span>
   <span class="seg" role="group" aria-label={t('heat.retPeriod')}>
@@ -201,6 +201,12 @@ onMount(() => {
   .lbl {
     font-size: var(--fs-1);
     color: var(--text-3);
+  }
+  /* 狭いときは見出しの「騰落率」の言葉を省く（期間の切り替えは残す） */
+  @container (max-width: 519px) {
+    .lbl {
+      display: none;
+    }
   }
   .map {
     position: relative;

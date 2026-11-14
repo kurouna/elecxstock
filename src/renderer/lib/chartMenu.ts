@@ -1,10 +1,12 @@
 // チャートの表示の操作（§6.5.4）: C 銘柄を変える・L 対数軸・A 価格の調整・T 種類・I 指標メニュー（指標・移動平均の期間・比較・表示期間をそろえる）。
 // chart と mtf-chart が同じものを使う。表示はペインの状態に保存する（FR-L4）。
 import type { Adjustment, InstrumentId } from '@shared/types'
+import type { MoreItem } from '../components/PaneHeader.svelte'
 import type { ChartType, Indicator } from '../components/widgets/ChartView.svelte'
 import { app, checklistDialog, choiceDialog, nameOf, promptDialog, saveSettings, t, toast } from '../stores/app.svelte'
 import { type PaneNode, paneSymbol, patchState } from '../stores/layout.svelte'
 import type { Key } from './i18n'
+import { PERIODS } from './periods'
 
 const IND: Indicator[] = ['ma', 'vol', 'volma', 'bb', 'ichimoku', 'rsi', 'macd', 'stoch', 'divs']
 const TYPES: ChartType[] = ['candle', 'bar', 'line']
@@ -91,6 +93,26 @@ export async function chartMenu(pane: PaneNode): Promise<void> {
     patchState(pane, { syncRange: !pane.state.syncRange })
     toast(`${t('chart.menuSync')}: ${pane.state.syncRange ? 'ON' : 'OFF'}`)
   }
+}
+
+/** 表示期間を選ぶ（見出しの「⋯」から。狭いペインでは期間の選択が見出しから隠れる） */
+export async function pickPeriod(pane: PaneNode): Promise<void> {
+  const c = await choiceDialog(t('period.label'), [
+    { id: '-1', label: t('period.default') },
+    ...PERIODS.map((p, i) => ({ id: String(i), label: t(p.key), hint: `Alt+${i + 1}` })),
+  ])
+  if (c == null) return
+  const v = Number(c)
+  patchState(pane, { period: v < 0 ? undefined : v })
+}
+/** チャートの見出しの「⋯」に足す項目（狭いと隠れる表示期間・指標） */
+export function chartMore(pane: PaneNode): MoreItem[] {
+  const pi = pane.state.period as number | undefined
+  const p = pi == null ? undefined : PERIODS[pi]
+  return [
+    { id: 'period', label: t('period.label'), hint: p ? t(p.key) : t('period.default'), run: () => void pickPeriod(pane) },
+    { id: 'ind', label: t('chart.indTip'), hint: 'I', run: () => void chartMenu(pane) },
+  ]
 }
 
 /**

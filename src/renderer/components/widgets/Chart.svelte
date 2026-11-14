@@ -2,7 +2,7 @@
 // チャート（§7）。1 銘柄・1 時間軸。本体は ChartView、表示の操作は lib/chartMenu.ts。
 import type { Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
-import { cancelCompare, changeSymbol, chartKey, chartMenu, takeCompare } from '../../lib/chartMenu'
+import { cancelCompare, changeSymbol, chartKey, chartMenu, chartMore, takeCompare } from '../../lib/chartMenu'
 import { keyOf } from '../../lib/commands'
 import { cls, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
@@ -18,6 +18,8 @@ const tf = $derived(((pane.state.tf as Timeframe) ?? 'D') as Timeframe)
 const id = $derived(paneSymbol(pane) ?? 'JP:7203')
 const m = $derived(metric(id))
 let view: ChartViewApi | null = null
+/** 見出しの時間軸のチップ（狭いとき）を押したときの次 */
+const NEXT_TF: Record<Timeframe, Timeframe> = { D: 'W', W: 'M', M: 'D' }
 $effect(() => ensureMetrics([id]))
 $effect(() => {
   if (!app.overlay) cancelCompare()
@@ -38,17 +40,19 @@ onMount(() =>
 )
 </script>
 
-<PaneHeader {pane}>
+<!-- 狭いときは優先度の低い順に隠す: 表示期間 → 指標 → D/W/M（1 つのチップに） → 前日比 → 終値。銘柄は最後まで残す -->
+<PaneHeader {pane} collapse={820} more={() => chartMore(pane)}>
   <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (${keyOf('fav')})`} onclick={() => toggleFav(id)}>★</button>
-  <button type="button" class="sym" title={`${t('chart.change')} (C)`} onclick={() => changeSymbol(pane)}><span class="code">{codeOf(id)}</span>{nameOf(id)}</button>
-  <span class="num">{px(m?.close)}</span>
-  <span class={`num ${cls(m?.chgPct)}`}>{sgn(m?.chgPct, 2, '%')}</span>
+  <button type="button" class="sym" title={`${codeOf(id)} ${nameOf(id)} — ${t('chart.change')} (C)`} onclick={() => changeSymbol(pane)}><span class="code">{codeOf(id)}</span>{nameOf(id)}</button>
+  <span class="num px">{px(m?.close)}</span>
+  <span class={`num chg ${cls(m?.chgPct)}`}>{sgn(m?.chgPct, 2, '%')}</span>
+  <button type="button" class="chip tfc" title={`${t(`tf.${tf}` as Key)} → ${t(`tf.${NEXT_TF[tf]}` as Key)} (D / W / M)`} onclick={() => patchState(pane, { tf: NEXT_TF[tf] })}>{tf}</button>
   <span class="seg">
     {#each ['D', 'W', 'M'] as x (x)}
       <button type="button" aria-pressed={tf === x} title={`${t(`tf.${x}` as Key)} (${x})`} onclick={() => patchState(pane, { tf: x })}>{x}</button>
     {/each}
   </span>
-  <PeriodPicker allowDefault value={pane.state.period as number | undefined} onchange={(v) => patchState(pane, { period: v })} />
+  <span class="per"><PeriodPicker allowDefault value={pane.state.period as number | undefined} onchange={(v) => patchState(pane, { period: v })} /></span>
   <button type="button" class="chip ind" title={`${t('chart.indTip')} (I)`} onclick={() => chartMenu(pane)}>{t('chart.indShort')}</button>
 </PaneHeader>
 {#key id}
@@ -57,6 +61,7 @@ onMount(() =>
 
 <style>
   .sym {
+    flex: 0 1 auto;
     background: none;
     border: 0;
     padding: 0;
@@ -75,8 +80,42 @@ onMount(() =>
     margin-right: 6px;
     font-weight: 500;
   }
-  @container (max-width: 420px) {
+  .star,
+  .num,
+  .seg,
+  .per,
+  .chip {
+    flex: none;
+  }
+  .tfc {
+    display: none;
+    font-family: var(--mono);
+  }
+  @container (max-width: 699px) {
+    .per {
+      display: none;
+    }
+  }
+  @container (max-width: 599px) {
     .ind {
+      display: none;
+    }
+  }
+  @container (max-width: 479px) {
+    .seg {
+      display: none;
+    }
+    .tfc {
+      display: block;
+    }
+  }
+  @container (max-width: 359px) {
+    .chg {
+      display: none;
+    }
+  }
+  @container (max-width: 279px) {
+    .px {
       display: none;
     }
   }

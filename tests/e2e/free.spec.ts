@@ -35,9 +35,10 @@ test('フリー: チャートごとに別の銘柄・ジャンプはそのチャ
   // 左のドロワーにウォッチリスト・スクリーナーがある
   await expect(page.locator('[data-dock-rail="left"]')).toContainText('スクリーナー')
 
-  // 見出しの ⊟ で下に分割すると 5 枚になり、新しいチャートは元の銘柄を引き継ぐ
+  // 見出しから下に分割すると 5 枚になり、新しいチャートは元の銘柄を引き継ぐ（この幅では操作ボタンは「⋯」にまとまっている）
   await panes.nth(0).hover()
-  await panes.nth(0).getByRole('button', { name: '下に分割' }).click()
+  await panes.nth(0).getByRole('button', { name: 'その他の操作' }).click()
+  await page.locator('.dialog').getByText('下に分割', { exact: true }).click()
   await expect(panes).toHaveCount(5)
   await expect(panes.nth(1).locator('.ph')).toContainText('7203')
 
