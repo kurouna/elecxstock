@@ -554,7 +554,9 @@ export class JobRunner {
     const split = afterSplit || (full && newSplit && repo.fetchState(id).lastFull != null)
     repo.db.tx(() => {
       repo.replaceDaily(id, start, r.bars)
-      repo.replaceActions(id, full ? '0000-00-00' : start, r.dividends, r.splits)
+      // 日足の保存期間より前の配当（月次の系列の取得で入る 10 年分）は、新しい分割で基準が変わるときだけ消す
+      // （そのときは続けて月次の系列を取り直し、新しい基準で入れ直す）。それ以外の全期間の取り直しでは残す
+      repo.replaceActions(id, split ? '0000-00-00' : start, r.dividends, r.splits)
       repo.markFetched(id, full ? 'full' : 'daily', nowIso())
       if (split) repo.needMonthly(id)
       this.recompute(id)
@@ -578,6 +580,8 @@ export class JobRunner {
       // 日足の保存期間より前の配当・分配金も、月次系列の取得で 10 年分まで持つ（銘柄情報の配当の推移、FR-I1）
       repo.replaceOldDividends(id, this.retentionStart(), addYears(jstNow().date, -10), r.dividends)
       repo.markFetched(id, 'monthly', nowIso())
+      // 古い配当が入ったので、連続増配の年数などの指標を作り直す（初回の取得では指標の再計算 X のあとに動くため）
+      this.recompute(id)
     })
     this.dataChanged(id)
     return undefined
