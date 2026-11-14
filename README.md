@@ -1,5 +1,15 @@
 # elecxstock
 
+<p align="center">
+  <a href="https://github.com/kurouna/elecxstock/releases/latest"><img src="https://img.shields.io/github/v/release/kurouna/elecxstock?include_prereleases&label=release" alt="Release"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/built%20with-Electron%2045-47848F?logo=electron" alt="Electron"></a>
+  <a href="https://svelte.dev/"><img src="https://img.shields.io/badge/UI-Svelte%205-FF3E00?logo=svelte" alt="Svelte"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D6?logo=windows" alt="Windows">
+  <a href="https://x.com/elecxzy"><img src="https://img.shields.io/badge/X-elecxzy-black" alt="X"></a>
+  <a href="https://claude.com/claude-code"><img src="https://img.shields.io/badge/Created%20with-Claude%20Code-D97757?logo=claude" alt="Created with Claude Code"></a>
+</p>
+
 [日本語](#日本語) | [English](#english)
 
 ![MTF layout](docs/screenshots/mtf.png)
