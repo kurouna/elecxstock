@@ -154,6 +154,8 @@ interface Alert {
 
 ## 8. 別ウィンドウ（FR-L7）
 
+詳しい仕様・設計は [design-multimonitor.md](design-multimonitor.md)（こちらを優先する）。
+
 ### 8.1 形
 
 - `LayoutDoc` を版 2 にし、`windows: { id: string; entry: LayoutEntry; bounds: Rect; display?: string }[]` を足す。メインのウィンドウは今の `entries`。
