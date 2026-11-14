@@ -287,6 +287,10 @@ export class Repo {
   }
 
   // ---------------------------------------------------------------- quotes
+  /** 気配を取った時刻（銘柄ごと）。日々の更新の最後の取りこぼしの確認で使う */
+  quoteFetched(): Map<InstrumentId, string> {
+    return new Map(this.db.all<{ id: string; fetched: string }>('SELECT id, fetched FROM quotes').map((r) => [r.id, r.fetched]))
+  }
   putQuote(id: InstrumentId, q: ProviderQuote, fetched: string): void {
     this.db.run(
       `INSERT OR REPLACE INTO quotes(id, t, price, open, high, low, volume, prev_close, per, pbr, market_cap, shares, bps, eps, fetched)

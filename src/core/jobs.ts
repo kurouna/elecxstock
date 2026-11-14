@@ -40,9 +40,13 @@ interface JobRow {
   items: string
   pos: number
   failed: number
+  created: string
 }
 
-/** 項目: 'U' ユニバース / 'Q:<n>' 一括気配のバッチ / 'H:<id>:<from>' 日足 / 'F:<id>' 全期間取り直し / 'M:<id>' 月次系列 / 'X' 指標の再計算 */
+/**
+ * 項目: 'U' ユニバース / 'Q:<n>' 一括気配のバッチ / 'R:<id>,<id>…' 銘柄を指定した気配 / 'H:<id>:<from>' 日足 /
+ * 'F:<id>' 全期間取り直し / 'M:<id>' 月次系列 / 'X' 指標の再計算 / 'C' 取りこぼしの確認（初回・日々の更新の最後に 1 回）
+ */
 export class JobRunner {
   private running = false
   /** 閉じる途中（新しいジョブ・項目を始めない） */
@@ -52,6 +56,8 @@ export class JobRunner {
   private currentId: number | null = null
   private lastCall = 0
   private priority = new Set<InstrumentId>()
+  /** 実行中のジョブを作った時刻（取りこぼしの確認で、このジョブで取った気配かを見分ける） */
+  private jobSince = ''
   private consecutiveProviderErrors = 0
   private startedAt = 0
   private doneThisRun = 0
@@ -182,7 +188,15 @@ export class JobRunner {
       let itemsDirty = false
       let lastEmit = 0
       let failMsg: string | null = null
-      while (j.pos < items.length) {
+      this.jobSince = j.created
+      for (;;) {
+        if (j.pos >= items.length) {
+          // 初回・日々の更新は、最後に 1 回だけ取りこぼしを確かめる（その確認から出た項目のあとには、もう確かめない）
+          if ((j.kind === 'daily' || j.kind === 'initial') && !items.includes('C')) {
+            items.push('C')
+            itemsDirty = true
+          } else break
+        }
         const st = db.get<{ status: string }>('SELECT status FROM jobs WHERE id = ?', j.id)?.status
         if (st === 'cancelled' || st === 'paused' || this.stopping) break
         // 表示中の銘柄を先に（FR-F8）。日足（H・F）と月次系列（M）のどちらも
@@ -247,7 +261,7 @@ export class JobRunner {
           // 銘柄単位の失敗は記録して次へ（NFR-R2）。停止の判定には数えない
           j.failed++
           const id = item.split(':').slice(1, 3).join(':')
-          if (id.includes(':')) this.h.repo.markFailed(id, pe.message, nowIso())
+          if (/^[HFM]:/.test(item)) this.h.repo.markFailed(id, pe.message, nowIso())
           this.h.log(`fetch failed ${item}: ${pe.message}`)
         }
         j.pos++
@@ -320,7 +334,20 @@ export class JobRunner {
   private async runItem(kind: JobKind, item: string, signal: AbortSignal): Promise<string[] | undefined> {
     const [t, ...rest] = item.split(':')
     if (t === 'U') return this.universe(kind, signal)
-    if (t === 'Q') return this.quotes(kind, Number(rest[0]), signal)
+    if (t === 'Q') {
+      const size = this.h.provider.quoteBatchSize
+      const b = Number(rest[0])
+      return this.quotes(kind, this.fetchOrder().slice(b * size, b * size + size), signal)
+    }
+    if (t === 'R') {
+      const want = new Set(item.slice(2).split(','))
+      return this.quotes(
+        kind,
+        this.h.repo.fetchSet().filter((s) => want.has(s.id)),
+        signal,
+      )
+    }
+    if (t === 'C') return this.check()
     if (t === 'H') return this.history(`${rest[0]}:${rest[1]}`, rest[2] ?? this.retentionStart(), signal)
     if (t === 'F') return this.history(`${rest[0]}:${rest[1]}`, this.retentionStart(), signal, true)
     if (t === 'M') return this.monthly(`${rest[0]}:${rest[1]}`, signal)
@@ -373,11 +400,36 @@ export class JobRunner {
     return [...this.h.repo.fetchSet()].sort((a, b) => rank(a) - rank(b))
   }
 
-  /** 一括気配（FR-F5）。日々の更新では、当日の仮の足を作り、取り直しが要る銘柄を足す（FR-D8, F9） */
-  private async quotes(kind: JobKind, batch: number, signal: AbortSignal): Promise<string[]> {
+  /**
+   * 取りこぼしの確認（FR-F9）: このジョブで気配を取れなかった銘柄（バッチの失敗・応答に無い）は気配を、
+   * 日足が欠けたままの銘柄（取り直しの失敗）は日足を、もう 1 回だけ取る。何か取り直したら指標も計算し直す
+   */
+  private check(): string[] {
+    const repo = this.h.repo
+    const fetched = repo.quoteFetched()
     const set = this.fetchOrder()
+    const since = this.jobSince
+    const noQuote = set.filter((s) => !s.yahoo.startsWith('^') && !((fetched.get(s.id) ?? '') >= since)).map((s) => s.id)
     const size = this.h.provider.quoteBatchSize
-    const part = set.slice(batch * size, batch * size + size)
+    const out: string[] = []
+    for (let i = 0; i < noQuote.length; i += size) out.push(`R:${noQuote.slice(i, i + size).join(',')}`)
+    const skip = new Set(noQuote) // 気配を取り直す銘柄は、その結果で日足の取り直しが決まる
+    const lim = prevTradingDay(lastClosedSession())
+    for (const s of set) {
+      if (skip.has(s.id) || s.yahoo.startsWith('^')) continue
+      const last = repo.lastDaily(s.id, false)
+      if (!last) out.push(`F:${s.id}`)
+      else if (last.d < lim) out.push(`H:${s.id}:${addDays(last.d, -10)}`)
+    }
+    if (out.length) {
+      this.h.log(`check: requote ${noQuote.length}, refetch ${out.length - Math.ceil(noQuote.length / size)}`)
+      out.push('X')
+    }
+    return out
+  }
+
+  /** 一括気配（FR-F5）。日々の更新では、当日の仮の足を作り、取り直しが要る銘柄を足す（FR-D8, F9） */
+  private async quotes(kind: JobKind, part: { id: string; yahoo: string }[], signal: AbortSignal): Promise<string[]> {
     if (!part.length) return []
     await this.throttle(signal)
     const qs = await this.h.provider.fetchQuotes(
