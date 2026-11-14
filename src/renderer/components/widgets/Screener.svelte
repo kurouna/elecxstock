@@ -6,7 +6,7 @@ import type { Condition, InstrumentId, ScreenResult } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, resolveColumns, sortIds } from '../../lib/columns'
-import { openInGrid } from '../../lib/commands'
+import { keyOf, openInGrid } from '../../lib/commands'
 import { fmt, money } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
@@ -415,11 +415,11 @@ $effect(() => {
 </script>
 
 <PaneHeader {pane}>
-  <button type="button" class="chip scr" title={`${t('act.screens')} (Ctrl+O)`} onclick={() => (app.overlay = { kind: 'screens' })}>▾ {scr ? screenName(scr) : t('scr.untitled')}</button>
+  <button type="button" class="chip scr" title={`${t('act.screens')} (${keyOf('screens')})`} onclick={() => (app.overlay = { kind: 'screens' })}>▾ {scr ? screenName(scr) : t('scr.untitled')}</button>
   {#if dirty}<span class="dirty">● {t('scr.modified')}</span>{/if}
   <button type="button" class="ibtn" aria-label={t('scr.save')} title={`${t('scr.save')} (Ctrl+S)`} disabled={!dirty} onclick={() => saveScreen(pane)}><Icon name="save" /></button>
   <button type="button" class="ibtn" aria-label={t('scr.saveAsLabel')} title={`${t('scr.saveAsLabel')} (Ctrl+Shift+S)`} onclick={() => saveScreenAs(pane)}><Icon name="saveAs" /></button>
-  <button type="button" class="ibtn" aria-label={t('scr.openGrid')} title={`${t('scr.openGridTip')} (Ctrl+Shift+G)`} onclick={openInGrid}><Icon name="grid" /></button>
+  <button type="button" class="ibtn" aria-label={t('scr.openGrid')} title={`${t('scr.openGridTip')} (${keyOf('openGrid')})`} onclick={openInGrid}><Icon name="grid" /></button>
 </PaneHeader>
 <div class="conds">
   {#each conds as c, i (i)}
@@ -447,6 +447,7 @@ $effect(() => {
   </div>
 </div>
 <div class="scroll body" bind:this={scroller} onscroll={() => (scrollTop = scroller!.scrollTop)}>
+  {#if result && !rows.length}<div class="state">{t('scr.noHits')}</div>{/if}
   <table class="grid">
     <colgroup>{#each cols as c (c.id)}<col style:width={c.w ? `${c.w}px` : undefined} />{/each}</colgroup>
     <thead>

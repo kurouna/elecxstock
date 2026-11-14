@@ -67,7 +67,7 @@ onMount(() =>
       <h5><span>{label(i + 1)}</span><span class="num muted">{list.length}</span></h5>
       {#each list.slice(0, 8) as id, r (id)}
         <button type="button" class="row" class:sel={i === mi && r === ri} onclick={() => { mi = i; ri = r; send(id) }}>
-          <span class="nm">{#if isFav(id)}<span class="star on">★</span> {/if}{nameOf(id)}</span><span class="num">{fmt(metric(id)?.yieldTrailing)}%</span>
+          <span class="nm">{#if isFav(id)}<span class="star on">★</span> {/if}{nameOf(id)}</span><span class="num">{metric(id)?.yieldTrailing != null ? `${fmt(metric(id)?.yieldTrailing)}%` : '—'}</span>
         </button>
       {/each}
     </div>

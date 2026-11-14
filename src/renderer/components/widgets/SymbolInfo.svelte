@@ -1,4 +1,6 @@
 <script lang="ts">
+import { changeSymbol } from '../../lib/chartMenu'
+import { keyOf } from '../../lib/commands'
 // 銘柄情報（FR-I1, H3, V12）: 指標と配当・分配金の推移。利回りには「実績」と基準日・出所を必ず添える。
 // 幅が広いときは左に指標（幅を抑えてラベルと値を離さない）、右に配当のグラフ。狭いときは上下に重ねる。
 // グラフは既定で暦年ごとの合計（中間・期末のぎざぎざを消して傾向を見る）。Y で回ごとに切り替え、← → で棒を選ぶ。
@@ -164,15 +166,15 @@ const months = $derived(
 </script>
 
 <PaneHeader {pane}>
-  <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (Ctrl+D)`} onclick={() => toggleFav(id)}>★</button>
-  <span class="sym"><span class="code">{codeOf(id)}</span>{nameOf(id)}</span>
+  <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (${keyOf('fav')})`} onclick={() => toggleFav(id)}>★</button>
+  <button type="button" class="sym" title={`${t('chart.change')} (C)`} onclick={() => changeSymbol(pane)}><span class="code">{codeOf(id)}</span>{nameOf(id)}</button>
   <span class="num">{px(m?.close)}</span>
   <span class={`num ${cls(m?.chgPct)}`}>{sgn(m?.chg, (m?.close ?? 0) < 1000 ? 1 : 0)} ({sgn(m?.chgPct, 2, '%')})</span>
   <button
     type="button"
     class="ibtn"
     aria-label={t('info.refetch')}
-    title={`${t('info.refetchHint')} (Shift+F5)`}
+    title={`${t('info.refetchHint')} (${keyOf('refetch')})`}
     onclick={() => rpc('jobs.refetch', { ids: [id] }).then(() => toast(t('refetch.started', { n: 1 })))}><Icon name="refresh" /></button>
   <button type="button" class="ibtn" aria-label={t('common.about')} title={`${t('info.trailingNote', { date: date(m?.asOf) })}\n${t('info.calcNote')}`}><Icon name="info" /></button>
 </PaneHeader>
@@ -290,6 +292,11 @@ const months = $derived(
 
 <style>
   .sym {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    cursor: pointer;
     font-weight: 700;
     font-size: var(--fs-3);
     min-width: 0;

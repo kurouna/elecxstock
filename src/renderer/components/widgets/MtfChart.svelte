@@ -4,7 +4,9 @@
 import type { Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
 import { cancelCompare, changeSymbol, chartKey, chartMenu, takeCompare } from '../../lib/chartMenu'
+import { keyOf } from '../../lib/commands'
 import { cls, px, sgn } from '../../lib/format'
+import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { app, codeOf, ensureMetrics, isFav, metric, nameOf, t, toggleFav } from '../../stores/app.svelte'
 import { type PaneNode, paneSymbol, patchState } from '../../stores/layout.svelte'
@@ -54,13 +56,13 @@ onMount(() =>
 </script>
 
 <PaneHeader {pane}>
-  <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (Ctrl+D)`} onclick={() => toggleFav(id)}>★</button>
+  <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (${keyOf('fav')})`} onclick={() => toggleFav(id)}>★</button>
   <button type="button" class="sym" title={`${t('chart.change')} (C)`} onclick={() => changeSymbol(pane)}><span class="code">{codeOf(id)}</span>{nameOf(id)}</button>
   <span class="num">{px(m?.close)}</span>
   <span class={`num ${cls(m?.chgPct)}`}>{sgn(m?.chgPct, 2, '%')}</span>
   <span class="seg">
     {#each ['D', 'W', 'M'] as x (x)}
-      <button type="button" aria-pressed={tfs[active] === x} title={`${x}（${t('mtf.activeRow')}）`} onclick={() => setTf(active, x as Timeframe)}>{x}</button>
+      <button type="button" aria-pressed={tfs[active] === x} title={`${t(`tf.${x}` as Key)}（${t('mtf.activeRow')}） (${x})`} onclick={() => setTf(active, x as Timeframe)}>{x}</button>
     {/each}
   </span>
   <button type="button" class="chip" title={`${t('mtf.arrange')} (V)`} aria-label={t('mtf.arrange')} onclick={() => patchState(pane, { arr: arr === 'cols' ? 'one2' : 'cols' })}>{arr === 'cols' ? '▥' : '◫'}</button>

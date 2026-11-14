@@ -254,7 +254,7 @@ onMount(() =>
     text-overflow: ellipsis;
   }
   .v {
-    font-size: 20px;
+    font-size: var(--fs-5);
     line-height: 1.3;
     white-space: nowrap;
   }

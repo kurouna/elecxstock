@@ -109,7 +109,7 @@ const mkLabel = (i: number) => (MARKETS[i] ?? []).map((m) => t(`mkt.${m}` as Key
     {#each KEYS as k (k)}<option value={k}>{COLUMN_BY_ID.get(k)?.label()}</option>{/each}
   </select>
   <button type="button" class="chip" title={`${t('rank.dir')} (Shift+S)`} onclick={() => patchState(pane, { dir: -dir })}>{dir < 0 ? `▼ ${t('rank.top')}` : `▲ ${t('rank.bottom')}`}</button>
-  <button type="button" class="chip" title={`${t('rank.market')} (G)`} onclick={() => patchState(pane, { mk: (mk + 1) % MARKETS.length })}>{mkLabel(mk)}</button>
+  <button type="button" class="chip" title={`${t('rank.market')} (G / Shift+G)`} onclick={() => patchState(pane, { mk: (mk + 1) % MARKETS.length })}>{mkLabel(mk)}</button>
   <span class="grow"></span>
   <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>★</button>
 </div>

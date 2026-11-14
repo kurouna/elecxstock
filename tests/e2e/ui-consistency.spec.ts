@@ -38,3 +38,26 @@ test('ツールチップ・★だけ表示・騰落率の期間の表示をペ�
   await tip(grid.locator('select.srcsel'), /対象 \(G \/ Shift\+G\)/)
   await app.close()
 })
+
+test('時間軸のツールチップ・銘柄情報の銘柄名・スクリーナーの 0 件', async () => {
+  const { app, page } = await launch()
+  await expect(page.getByRole('dialog', { name: /elecxstock/ })).toBeVisible()
+  await keys(page, 'Enter', 'Enter')
+  await expect(page.locator('footer')).toContainText(/待機/, { timeout: 60_000 })
+  await keys(page, 'Control+Shift+Digit2')
+  const chart = page.locator('[data-widget="chart"]').first()
+  await tip(chart.getByRole('button', { name: 'D', exact: true }), /日足 \(D\)/)
+  // 銘柄情報の銘柄名もチャートと同じく押して変えられる（C）
+  const info = page.locator('[data-widget="info"]')
+  await info.locator('button.sym').click()
+  await expect(page.locator('.dialog.palette')).toContainText('の代わりに表示する銘柄')
+  await keys(page, 'Escape')
+  // 条件に合う銘柄が無いときは、そう表示する
+  const scr = page.locator('[data-widget="screener"]')
+  await scr.locator('.cond').first().locator('.v').click()
+  await page.keyboard.press('Control+a')
+  await page.keyboard.type('99')
+  await keys(page, 'Enter')
+  await expect(scr.locator('.state')).toContainText('条件に合う銘柄はありません')
+  await app.close()
+})

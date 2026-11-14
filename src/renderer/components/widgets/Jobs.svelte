@@ -3,7 +3,7 @@
 
 import type { FetchFailure } from '@shared/types'
 import { onMount } from 'svelte'
-import { startUpdate } from '../../lib/commands'
+import { keyOf, startUpdate } from '../../lib/commands'
 import { dateTime } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
@@ -37,7 +37,7 @@ const running = (s: string) => s === 'running' || s === 'queued' || s === 'waiti
 </script>
 
 <PaneHeader {pane}>
-  <button type="button" class="ibtn" aria-label={t('jobs.update')} title={`${t('jobs.update')} (F5)`} onclick={() => startUpdate()}><Icon name="refresh" /></button>
+  <button type="button" class="ibtn" aria-label={t('jobs.update')} title={`${t('jobs.update')} (${keyOf('update')})`} onclick={() => startUpdate()}><Icon name="refresh" /></button>
 </PaneHeader>
 <div class="scroll">
   <table class="grid">

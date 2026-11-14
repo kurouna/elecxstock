@@ -4,7 +4,7 @@ import { addDays, jstNow } from '@shared/calendar'
 
 import type { Bars, Condition, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
-import { addToListDialog, setFocus } from '../../lib/commands'
+import { addToListDialog, keyOf, setFocus } from '../../lib/commands'
 import { cls, fmt, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
@@ -450,7 +450,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
     {#each SRC_OPTIONS as s (s)}<option value={s}>{srcLabel(s)}</option>{/each}
   </select>
   <span class="sep"></span>
-  <span class="seg">{#each ['D', 'W', 'M'] as x (x)}<button type="button" aria-pressed={tf === x} onclick={() => set({ tf: x })} title={x}>{x}</button>{/each}</span>
+  <span class="seg">{#each ['D', 'W', 'M'] as x (x)}<button type="button" aria-pressed={tf === x} onclick={() => set({ tf: x })} title={`${t(`tf.${x}` as Key)} (${x})`}>{x}</button>{/each}</span>
   <span class="sep"></span>
   <PeriodPicker value={period} onchange={(v) => set({ period: v ?? 2 })} />
   <span class="sep"></span>
@@ -467,7 +467,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   <span class="grow"></span>
   <button type="button" class="toggle" class:on={favOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => set({ favOnly: !favOnly, page: 0 })}><span class="box"></span>★</button>
   <button type="button" class="toggle" class:on={candOnly} aria-label={t('grid.candOnlyLabel')} title={`${t('grid.candOnlyLabel')} (Shift+Space)`} onclick={() => set({ candOnly: !candOnly, page: 0 })}><span class="box"></span>◆ <span class="num">{candidates()?.items.length ?? 0}</span></button>
-  <button type="button" class="ibtn" aria-label={t('grid.toListLabel')} title={`${t('grid.toListLabel')} (Ctrl+Shift+A)`} onclick={candToList}><Icon name="listAdd" /></button>
+  <button type="button" class="ibtn" aria-label={t('grid.toListLabel')} title={`${t('grid.toListLabel')} (${keyOf('addTo')})`} onclick={candToList}><Icon name="listAdd" /></button>
   <button type="button" class="ibtn" aria-label={t('grid.pin')} title={`${t('grid.pinTip')} (P)`} onclick={pinCurrent}><Icon name="pin" /></button>
   <span class="sep"></span>
   <button type="button" class="chip" title={`${t('grid.finer')} (+)`} aria-label={t('grid.finer')} onclick={() => set({ size: Math.max(0, size - 1), page: 0 })}>−</button>

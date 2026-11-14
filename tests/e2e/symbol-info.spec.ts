@@ -10,7 +10,7 @@ test('銘柄情報: 広いペインでは指標とグラフを左右に並べ、
   await expect(page.locator('footer')).toContainText(/待機/, { timeout: 60_000 })
   await keys(page, 'Control+Shift+Digit5') // トリプル: 下に横長の銘柄情報
   const info = page.locator('[data-widget="info"]')
-  await info.click({ position: { x: 200, y: 8 } })
+  await info.locator('.head').click() // 見出しの銘柄名は押すと銘柄を変える画面が開くので、本文を押す
   await keys(page, 'Control+Shift+Enter') // 最大化して横に広げる
   const box = (await info.boundingBox())!
   expect(box.width).toBeGreaterThan(1100)
