@@ -1,4 +1,4 @@
-// 銘柄情報（FR-I1〜I8）: 枠の幅で並びを変える（広いときは 1 段目に値段と主な数字、2 段目に配当と値動き）。
+// 銘柄情報（FR-I1〜I4・I6〜I9）: 枠の幅で並びを変える（広いときは 1 段目に値段と主な数字、2 段目に配当と値動き）。
 // 配当のグラフはキーで棒を選び、年と回を切り替えられる（FR-KB4）。値はスタブ（架空）
 import { expect, type Page, test } from '@playwright/test'
 import { keys, launch } from './helpers'
@@ -101,6 +101,18 @@ test('銘柄情報: 保有は値段の欄の帯とカードに出し、縦長の
   await page.setViewportSize({ width: 1000, height: 960 })
   await expect.poll(async () => (await box(info.locator('.si'))).width).toBeLessThan(700)
   expect(await check()).toBeLessThan(wide)
+  // 業種の中央値と比べる（スタブの卸売業は 5 銘柄）。銘柄ジャンプで 8058 にする
+  await info.locator('.meta').click()
+  await keys(page, 'Digit8', 'Digit0', 'Digit5', 'Digit8', 'Enter')
+  await expect(info.locator('.sym')).toContainText('8058')
+  await expect(info.locator('.tiles')).toContainText(/業種 [\d.]+%（[+−±]\d+%）/)
+  // ↓ と PageDown で本文を縦にスクロールする（マウスを使わずに下のカードまで見る。FR-KB4）
+  const scroller = info.locator('.scroll')
+  expect(await scroller.evaluate((e) => e.scrollTop)).toBe(0)
+  await keys(page, 'PageDown')
+  await expect.poll(() => scroller.evaluate((e) => e.scrollTop)).toBeGreaterThan(100)
+  await keys(page, 'PageUp', 'PageUp')
+  await expect.poll(() => scroller.evaluate((e) => e.scrollTop)).toBe(0)
   // 注釈は (i) のボタンに入れる
   await expect(info.getByRole('button', { name: '説明', exact: true })).toHaveAttribute('title', /過去12か月/)
   await expect(info.getByRole('button', { name: '説明', exact: true })).toHaveAttribute('title', /業種/)

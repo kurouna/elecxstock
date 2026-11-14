@@ -119,7 +119,7 @@ export interface Quote {
   earningsEst?: boolean | null
 }
 
-/** 銘柄情報の追加の値（FR-I5〜I8。表示中の銘柄だけ Core がその場で計算する） */
+/** 銘柄情報の追加の値（FR-I6〜I9。表示中の銘柄だけ Core がその場で計算する） */
 export interface InfoExtra {
   id: InstrumentId
   /** 最新の足の始値・高値・安値・出来高と前日終値 */

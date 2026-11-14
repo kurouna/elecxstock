@@ -1,4 +1,4 @@
-// 銘柄情報の追加の値（FR-I5〜I8）: 配当込みの騰落率・最大下落率・利回りの範囲・業種の中央値・決算発表・権利付最終日・増配率。値はすべて架空
+// 銘柄情報の追加の値（FR-I6〜I9）: 配当込みの騰落率・最大下落率・利回りの範囲・業種の中央値・決算発表・権利付最終日・増配率。値はすべて架空
 import { addDays, isTradingDay } from '@shared/calendar'
 import { describe, expect, it } from 'vitest'
 import { computeInfoExtra, earningsOf, sectorStats } from '../../src/core/infoExtra'
@@ -81,6 +81,30 @@ describe('配当込みの騰落率と最大下落率（1 回の走査）', () =>
   })
 })
 
+describe('既定の保存期間（5 年）の日足でも 5 年の値を出す', () => {
+  // 5 暦年分の日足は約 1,222 本で、245 本 × 5 = 1,225 本に少し足りない
+  const bs = bars('2021-11-15', 1222, (i) => (i < 200 ? 800 : 1000) + i * 0.1)
+  // 配当の記録は月次の系列で 10 年分ある（日足より前から）
+  const divs = Array.from({ length: 20 }, (_, i) => ({ date: `${2016 + (i >> 1)}-${i % 2 ? '09' : '03'}-27`, amount: 20 }))
+  const x = computeInfoExtra('JP:9999', bs, divs)
+  it('5 年の騰落率（値段・配当込み）は最初の足から', () => {
+    expect(bs.length).toBeLessThan(1226)
+    expect(x.ret5y).toBeCloseTo((bs.at(-1)!.c / bs[0]!.c - 1) * 100, 6)
+    expect(x.tr.y5).not.toBeNull()
+    expect(x.tr.y5!).toBeGreaterThan(x.ret5y!)
+    expect(x.mdd!.years).toBe(5)
+  })
+  it('利回りの範囲は、日足より前の配当の記録を使って最初の年から数える', () => {
+    // 最初の 200 本は終値が低く（800）、利回りが高い（40 ÷ 800 = 5%）
+    expect(x.yieldRange!.hi).toBeCloseTo(5, 1)
+    expect(x.yieldRange!.years).toBe(5)
+  })
+  it('目標の日より 10 日以上あとに始まる足は使わない（上場したばかりなど）', () => {
+    const short = computeInfoExtra('JP:9999', bs.slice(30), divs)
+    expect(short.ret5y).toBeNull()
+  })
+})
+
 describe('業種の中央値・決算発表', () => {
   it('中央値（PER は正のものだけ）。5 銘柄未満は出さない', () => {
     const rows = [3, 4, 5, 6, 7].map((y, i) => ({ sector: '卸売業', m: { yieldTrailing: y, per: i === 0 ? -5 : 10 + i, pbr: 1 + i / 10 } }))
@@ -102,7 +126,7 @@ describe('業種の中央値・決算発表', () => {
   })
 })
 
-describe('権利付最終日の目安と 5 年の増配率（FR-I7）', () => {
+describe('権利付最終日の目安と 5 年の増配率（FR-I8）', () => {
   it('月末の 2 営業日前。月末が休場日なら前の営業日から数える', () => {
     // 2027-03-31（水）→ 3/29（月）、落ち日 3/30。2026-12-31 は休場 → 12/30 から 2 営業日前の 12/28
     expect(nextRightsDates([3, 9], '2026-11-14')).toEqual([

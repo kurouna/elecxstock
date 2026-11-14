@@ -1,8 +1,8 @@
-// 銘柄情報の追加の値（FR-I5〜I8。表示中の銘柄だけその場で計算する）。純粋関数。
+// 銘柄情報の追加の値（FR-I6〜I9。表示中の銘柄だけその場で計算する）。純粋関数。
 // 配当込みの騰落率・最大下落率・利回りの範囲は、古い日から新しい日へ 1 回なめるだけで同時に求める（O(本数 + 配当の回数)）。
 // 配当込みの考え方はチャートの「配当込み」（series.ts の adjust）と同じ: 権利落ち日に (1 − 配当 ÷ 前日終値) の割合で値が落ちたとみなす
 import type { Dividend, InfoExtra, InstrumentId, JstDate, MetricsRow } from '@shared/types'
-import { addYears } from './calendar'
+import { addDays, addYears } from './calendar'
 import type { DayBar } from './series'
 
 /** 期間の本数（指標の計算 NEED と同じ数え方: 1 年 = 245 営業日） */
@@ -36,6 +36,8 @@ export function computeInfoExtra(
   let mdd = 0
   let mddFrom = start
   let mddTo = start
+  // 12 か月分の配当がそろう日: 日足の最初の日か、それより前からある配当の記録の古いほうから 1 年
+  const known = divs[0] && divs[0].date < barsAsc[0]!.d ? divs[0].date : barsAsc[0]!.d
   // 過去 12 か月の配当: [lo, hi) の配当の合計
   let lo = 0
   let hi = 0
@@ -64,16 +66,20 @@ export function computeInfoExtra(
     while (hi < divs.length && divs[hi]!.date <= b.d) ttm += divs[hi++]!.amount
     const from = addYears(b.d, -1)
     while (lo < hi && divs[lo]!.date <= from) ttm -= divs[lo++]!.amount
-    // 窓の始まりより 1 年以上前から足があるときだけ（12 か月分の配当がそろう）
-    if (b.c > 0 && barsAsc[0]!.d <= from) {
+    // 記録の始まりより 1 年以上あとの日だけ（12 か月分の配当がそろう）
+    if (b.c > 0 && known <= from) {
       const y = (ttm / b.c) * 100
       if (y < yLo) yLo = y
       if (y > yHi) yHi = y
     }
   }
-  /** k 本前からの騰落率（配当込みは V、値段は終値で） */
-  const back = (k: number, at: (i: number) => number) => {
-    const i = n - 1 - k
+  /**
+   * y 年前からの騰落率（配当込みは V、値段は終値で）。245 本 × y 本前の足。足りなくても、最初の足が y 年前の日から
+   * 10 日以内なら最初の足を使う（保存期間 5 年の日足は約 1,222 本で、1,225 本に少し足りないため）
+   */
+  const back = (y: number, at: (i: number) => number) => {
+    let i = n - 1 - Y * y
+    if (i < start && start === 0 && barsAsc[0]!.d <= addDays(addYears(last.d, -y), 10)) i = 0
     return i >= start && at(i) > 0 ? (at(n - 1) / at(i) - 1) * 100 : null
   }
   const tv = (i: number) => v[i]!
@@ -88,14 +94,15 @@ export function computeInfoExtra(
       if (l52 < 0 || barsAsc[i]!.l < barsAsc[l52]!.l) l52 = i
     }
   }
-  const span = (n - 1 - start) / Y
+  // 窓の長さ（年）。5 年の保存期間の約 1,222 本も 5 年と数える
+  const span = (Date.parse(last.d) - Date.parse(barsAsc[start]!.d)) / (365.25 * 86400000)
   return {
     id,
     day: { o: last.o, h: last.h, l: last.l, v: last.v, prev: prev?.c ?? null },
     hi52d: h52 >= 0 ? barsAsc[h52]!.d : null,
     lo52d: l52 >= 0 ? barsAsc[l52]!.d : null,
-    ret5y: back(Y * 5, tc),
-    tr: { y1: back(Y, tv), y3: back(Y * 3, tv), y5: back(Y * 5, tv) },
+    ret5y: back(5, tc),
+    tr: { y1: back(1, tv), y3: back(3, tv), y5: back(5, tv) },
     mdd: n - start > 20 ? { pct: mdd * 100, from: barsAsc[mddFrom]!.d, to: barsAsc[mddTo]!.d, years: Math.max(1, Math.round(span)) } : null,
     yieldRange: Number.isFinite(yLo) && yHi > 0 ? { lo: yLo, hi: yHi, years: Math.max(1, Math.round(span)) } : null,
   }

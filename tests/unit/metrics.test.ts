@@ -82,7 +82,22 @@ describe('P2 の指標（増配年数・クロス・2 期の年換算・異常�
     const r = divYears(div, '2026-11-13', '2021-01-04')
     expect(r.divUpYears).toBe(2) // 2025>2024>2023、2023=2022 で止まる
     expect(r.divNoCutYears).toBe(4)
-    expect(divYears(div, '2026-11-13', '2025-06-02').divUpYears).toBeNull() // 期間不足
+    // 日足が短くても（保存期間 5 年など）、それより前の配当の記録（月次の系列で 10 年分）があれば、その年から数える
+    // 記録の最初の年（3 月から）は年の途中かもしれないので、その次の年から数える
+    expect(divYears(div, '2026-11-13', '2025-06-02').divNoCutYears).toBe(3)
+    // 上場したばかりで配当の記録も短ければ期間不足
+    expect(
+      divYears(
+        div.filter((d) => d.date >= '2025-01-01'),
+        '2026-11-13',
+        '2025-06-02',
+      ).divUpYears,
+    ).toBeNull()
+  })
+  it('既定の保存期間（5 年）でも、10 年分の配当の記録で増配の年数を数える（銘柄情報の棒グラフと食い違わない）', () => {
+    const div = Array.from({ length: 10 }, (_, i) => ({ date: `${2016 + i}-03-28`, amount: 100 + i * 5 }))
+    // 2016 年（記録の最初の年）は年の途中かもしれないので除き、2017〜2025 年の 8 回の増配を数える
+    expect(divYears(div, '2026-11-13', '2021-11-15')).toEqual({ divUpYears: 8, divNoCutYears: 8 })
   })
   it('25 日線が 75 日線を上に抜けてからの日数', () => {
     const bars = days('2025-01-06', '2025-12-30', (i) => (i < 150 ? 1000 - i : 850 + (i - 150) * 5))

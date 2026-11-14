@@ -30,6 +30,8 @@ const U: Seed[] = [
   ['8001', '伊藤忠商事', 'ITOCHU Corporation', 'P', 'stock', '卸売業', 'Wholesale Trade', 3895, 4.0, [5, 11]],
   ['8031', '三井物産', 'MITSUI & CO.,LTD.', 'P', 'stock', '卸売業', 'Wholesale Trade', 14268, 4.1, [6, 12]],
   ['8053', '住友商事', 'SUMITOMO CORPORATION', 'P', 'stock', '卸売業', 'Wholesale Trade', 7125, 3.9, [3, 9]],
+  // 卸売業を 5 銘柄にして、銘柄情報の業種の中央値（5 銘柄から）をスタブでも出す。値は架空
+  ['8002', '丸紅', 'Marubeni Corporation', 'P', 'stock', '卸売業', 'Wholesale Trade', 2650, 3.6, [3, 9]],
   ['4502', '武田薬品工業', 'Takeda Pharmaceutical Company Limited', 'P', 'stock', '医薬品', 'Pharmaceutical', 18279, 2.5, [2, 8]],
   ['8766', '東京海上ホールディングス', 'Tokio Marine Holdings,Inc.', 'P', 'stock', '保険業', 'Insurance', 7755, 1.3, [3, 9]],
   ['5401', '日本製鉄', 'NIPPON STEEL CORPORATION', 'P', 'stock', '鉄鋼', 'Iron & Steel', 8416, 2.9, [3, 9]],

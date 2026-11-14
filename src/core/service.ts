@@ -348,7 +348,8 @@ export class CoreService {
           })
         return {
           ...computeInfoExtra(id, r.recentDaily(id, EXTRA_BARS), r.dividends(id)),
-          sector: ins && ins.kind !== 'etf' ? sectorStats(rows, group(ins)) : null,
+          // 業種の無い銘柄（指数・ETF・業種名の無い利用者の銘柄）は比べない
+          sector: ins && ins.kind !== 'etf' && group(ins) ? sectorStats(rows, group(ins)) : null,
           earnings: earningsOf(r.quote(id), jstNow().date),
           split: r.splits(id).at(-1) ?? null,
         } as Results[M]

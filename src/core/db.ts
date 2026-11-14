@@ -45,7 +45,7 @@ const MIGRATIONS: string[] = [
   // v2: 指標の列を足した（P2）。metrics は日足から作り直せるので、表を作り直して起動時に再計算する
   `DROP TABLE metrics; ${metricsTable()}
    INSERT INTO meta(key, value) VALUES('metricsStale', '1') ON CONFLICT(key) DO UPDATE SET value = '1';`,
-  // v3: 決算発表の予定（銘柄情報。FR-I8）
+  // v3: 決算発表の予定（銘柄情報。FR-I9）
   `ALTER TABLE quotes ADD COLUMN earnings_next TEXT; ALTER TABLE quotes ADD COLUMN earnings_last TEXT; ALTER TABLE quotes ADD COLUMN earnings_est INTEGER;`,
 ]
 

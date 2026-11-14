@@ -185,7 +185,11 @@ export function divYears(
     total.set(y, (total.get(y) ?? 0) + d.amount)
   }
   const last = Number(asOf.slice(0, 4)) - 1 // 終わった年まで
-  const first = Number(firstBar.slice(0, 4)) + (firstBar.slice(5) <= '01-10' ? 0 : 1) // 1 年分そろっている最初の年
+  // 記録の始まり: 日足の最初の日か、それより前からある配当の記録（月次の系列で 10 年分入る）の古いほう。
+  // 日足だけで数えると、保存期間（既定 5 年）で頭打ちになり、銘柄情報の配当の棒グラフと食い違う
+  let start = firstBar
+  for (const d of dividends) if (d.date < start) start = d.date
+  const first = Number(start.slice(0, 4)) + (start.slice(5) <= '01-10' ? 0 : 1) // 1 年分そろっている最初の年
   if (last - first < 1) return { divUpYears: null, divNoCutYears: null }
   const count = (ok: (a: number, b: number) => boolean) => {
     let n = 0

@@ -1,5 +1,5 @@
 <script lang="ts">
-// 銘柄情報（FR-I1〜I8, H3, V12）。docs/mock/info.html の見直し案。
+// 銘柄情報（FR-I1〜I4・I6〜I9, H3, V12）。docs/mock/info.html の見直し案。
 // 上から: 見出し（市場・業種・リスト・分割・基準日）→ 値段の欄（値段・前日比・52 週の位置・当日の値・保有）→ 主な数字
 // （実績利回り・PER・PBR・時価総額。業種の中央値と比べる）→ 予定（次の決算発表・権利付最終日）→ 配当 → 値動き・保有・アラート。
 // 枠の幅で並びを変える（container queries）: 〜699px は 1 列、700〜1039px は左に値段・予定・数字・右に配当、1040px〜は
@@ -47,12 +47,16 @@ let plotW = $state(0)
 let sel = $state(-1)
 /** 値段の欄が見えなくなるまでスクロールしたら、見出しに値段を出す */
 let scrolled = $state(false)
+let scroller = $state<HTMLDivElement>()
 let token = 0
 
 // 銘柄が変わったら、選んでいた棒をはずす（別の銘柄の同じ位置の棒を指さないように）
 $effect(() => {
   void id
   sel = -1
+  // 前の銘柄でスクロールしていたら先頭に戻す（短い内容でスクロールが起きず、見出しの値段が残らないように）
+  scrolled = false
+  if (scroller) scroller.scrollTop = 0
 })
 $effect(() => {
   void app.dataVersion
@@ -80,6 +84,8 @@ const yen = (v: number | null | undefined) => {
   const x = money(v)
   return { n: x.n, u: ja && x.n !== '—' ? `${x.u}円` : x.u }
 }
+/** 予定まで: 今日なら「今日」、それ以外は「あと N 日」 */
+const leftText = (d: string) => (daysTo(d) === 0 ? t('si.today') : t('si.daysLeft', { n: daysTo(d) }))
 const daysTo = (d: string) => Math.round((Date.parse(`${d}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000)
 
 // ---------------- 配当のグラフ
@@ -133,11 +139,19 @@ const summary = $derived.by(() => {
   return t('info.divSummary', { from: a[0]!.year, to: last.year, v: px(last.total), yoy: last.yoy != null ? sgn(last.yoy, 1, '%') : '—' })
 })
 const cagr = $derived(dividendCagr(allYears))
-/** 連続増配の年数が配当の記録の長さで頭打ちか（記録の最初の年から数えていれば「以上」） */
-const capped = $derived.by(() => {
-  const full = allYears.filter((y) => !y.partial)
-  return m?.divNoCutYears != null && full.length > 0 && m.divNoCutYears >= full.length - 1
-})
+/**
+ * 連続増配・非減配の年数が、配当の記録の長さで頭打ちか（「以上」と書く）。記録（月次の系列で約 10 年）の最初の年まで
+ * 続いているときだけ。記録の最初の年は年の途中かもしれないので、指標（metrics.divYears）と同じくその次の年から数える
+ */
+const capOf = (years: number | null | undefined) => {
+  const first = divs[0]?.date
+  if (years == null || !first || first > `${Number(asOf.slice(0, 4)) - 9}-12-31`) return false
+  const from = Number(first.slice(0, 4)) + (first.slice(5) <= '01-10' ? 0 : 1)
+  const max = Number(asOf.slice(0, 4)) - 1 - from
+  return max > 0 && years >= max
+}
+const upCapped = $derived(capOf(m?.divUpYears))
+const noCutCapped = $derived(capOf(m?.divNoCutYears))
 const rights = $derived(nextRightsDates(m?.recordMonths ?? [], today))
 const monthName = (x: number) => (ja ? `${x}月` : new Date(2026, x - 1, 1).toLocaleString('en', { month: 'short' }))
 
@@ -203,6 +217,13 @@ onMount(() =>
     current: () => id,
     key(e) {
       if (e.ctrlKey || e.altKey || e.metaKey) return false
+      // ↑ ↓ PageUp PageDown で本文を縦にスクロールする（マウスを使わずに下のカードまで見る。FR-KB4）
+      if (scroller && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'PageDown' || e.key === 'PageUp')) {
+        const page = Math.max(40, scroller.clientHeight - 40)
+        const d = e.key === 'ArrowDown' ? 40 : e.key === 'ArrowUp' ? -40 : e.key === 'PageDown' ? page : -page
+        scroller.scrollBy({ top: d, behavior: app.settings.reduceMotion ? 'auto' : 'smooth' })
+        return true
+      }
       const n = bars.length
       if (!n) return false
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
@@ -239,7 +260,7 @@ onMount(() =>
     onclick={() => rpc('jobs.refetch', { ids: [id] }).then(() => toast(t('refetch.started', { n: 1 })))}><Icon name="refresh" /></button>
   <button type="button" class="ibtn" aria-label={t('common.about')} title={note}><Icon name="info" /></button>
 </PaneHeader>
-<div class="scroll" onscroll={(e) => (scrolled = e.currentTarget.scrollTop > 90)}>
+<div class="scroll" bind:this={scroller} onscroll={(e) => (scrolled = e.currentTarget.scrollTop > 90)}>
   <div class="si">
     <div class="meta">
       <span>{ins ? t(`mkt.${ins.market}` as Key) : ''}{ins?.sectorJa ? ` · ${!ja && ins.sectorEn ? ins.sectorEn : ins.sectorJa}` : ''}</span>
@@ -337,10 +358,10 @@ onMount(() =>
     {#if extra?.earnings?.next || rights[0]}
       <div class="ev">
         {#if extra?.earnings?.next}
-          <span class="e">{t('si.earnings')} <b class="num">{date(extra.earnings.next)}</b> {extra.earnings.estimate ? t('si.estimated') : t('si.planned')} <span class="left">{t('si.daysLeft', { n: daysTo(extra.earnings.next) })}</span></span>
+          <span class="e">{t('si.earnings')} <b class="num">{date(extra.earnings.next)}</b> {extra.earnings.estimate ? t('si.estimated') : t('si.planned')} <span class="left" class:now={daysTo(extra.earnings.next) === 0}>{leftText(extra.earnings.next)}</span></span>
         {/if}
         {#if rights[0]}
-          <span class="e">{t('si.lastCum')} <b class="num">{date(rights[0].lastCum)}</b> {t('si.approx')} <span class="left">{t('si.daysLeft', { n: daysTo(rights[0].lastCum) })}</span></span>
+          <span class="e">{t('si.lastCum')} <b class="num">{date(rights[0].lastCum)}</b> {t('si.approx')} <span class="left" class:now={daysTo(rights[0].lastCum) === 0}>{leftText(rights[0].lastCum)}</span></span>
         {/if}
       </div>
     {/if}
@@ -353,7 +374,7 @@ onMount(() =>
         {#if cagr != null}<div class="stat" title={t('si.cagrNote')}><div class="k">{t('si.cagr')}</div><div class="v num">{sgn(cagr, 1, '%')}<span class="u">{t('si.perYear')}</span></div></div>{/if}
         <div class="stat" title={t('info.streakNote')}>
           <div class="k">{t('info.streak')}</div>
-          <div class="v num">{#if m?.divUpYears != null}{m.divUpYears}<span class="u">{capped ? t('si.yearsMore') : t('si.yearsUnit')}</span> / {m.divNoCutYears ?? 0}<span class="u">{capped ? t('si.yearsMore') : t('si.yearsUnit')}</span>{:else}—{/if}</div>
+          <div class="v num">{#if m?.divUpYears != null}{m.divUpYears}<span class="u">{upCapped ? t('si.yearsMore') : t('si.yearsUnit')}</span> / {m.divNoCutYears ?? 0}<span class="u">{noCutCapped ? t('si.yearsMore') : t('si.yearsUnit')}</span>{:else}—{/if}</div>
         </div>
         {#if m?.payout != null}
           <div class="stat">
@@ -449,8 +470,8 @@ onMount(() =>
             <div class="pnl"><span class={`v num ${cls(held.pnl)}`}>{sgn(held.pnl, 0)}<span class="u">{ja ? '円' : ''}</span></span><span class={`num ${cls(held.pnl)}`}>{sgn(held.pnlPct, 1, '%')}</span></div>
             <div class="kv"><span>{t('hold.qty')}</span><span>{fmt(held.qty, 0)}<span class="u">{unitWord}</span></span></div>
             <div class="kv"><span>{t('hold.avgShort')}</span><span>{px(held.avg)}<span class="u">{ja ? '円' : ''}</span></span></div>
-            <div class="kv"><span>{t('hold.value')}</span><span>{yen(held.value).n}<span class="u">{yen(held.value).u}</span></span></div>
-            {#if held.annual != null}<div class="kv"><span>{reit ? t('si.annualDivReit') : t('si.annualDiv')}</span><span>{yen(held.annual).n}<span class="u">{yen(held.annual).u}</span></span></div>{/if}
+            <div class="kv"><span>{t('hold.value')}</span><span>{fmt(held.value, 0)}<span class="u">{ja ? '円' : ''}</span></span></div>
+            {#if held.annual != null}<div class="kv"><span>{reit ? t('si.annualDivReit') : t('si.annualDiv')}</span><span>{fmt(held.annual, 0)}<span class="u">{ja ? '円' : ''}</span></span></div>{/if}
           </section>
         {/if}
         <section class="card c-al">
@@ -473,7 +494,10 @@ onMount(() =>
 </div>
 
 <style>
+  /* 狭い見出しでも銘柄のコードは見せる（FR-V5）。値段（スクロールしたとき）のほうを先に縮める */
   .sym {
+    flex-shrink: 1;
+    min-width: 4.5em;
     background: none;
     border: 0;
     padding: 0;
@@ -481,7 +505,6 @@ onMount(() =>
     cursor: pointer;
     font-weight: 700;
     font-size: var(--fs-3);
-    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -495,16 +518,24 @@ onMount(() =>
   .hp {
     font-weight: 600;
     white-space: nowrap;
+    overflow: hidden;
+    min-width: 0;
+    flex-shrink: 2;
   }
   .scroll {
     container: si / inline-size;
   }
+  /* 行の間は gap でなく各要素の下の余白で空ける（無い要素の空の行に gap が二重に入らないように） */
   .si {
-    padding: var(--s-2) var(--s-3) var(--s-3);
+    padding: var(--s-2) var(--s-3) var(--s-1);
     display: grid;
-    gap: var(--s-2);
+    row-gap: 0;
+    column-gap: var(--s-2);
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: 'meta' 'notes' 'hero' 'tiles' 'ev' 'div' 'cards';
+  }
+  .si > * {
+    margin-bottom: var(--s-2);
   }
   .meta {
     grid-area: meta;
@@ -803,6 +834,10 @@ onMount(() =>
   }
   .e .left {
     color: var(--text-2);
+  }
+  .e .left.now {
+    color: var(--warn);
+    font-weight: 700;
   }
   /* カード */
   .card {
@@ -1132,6 +1167,7 @@ onMount(() =>
   @container cards (min-width: 560px) {
     .cards {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: auto 1fr;
       grid-template-areas: 'tech held' 'tech al';
     }
     .cards.noheld {

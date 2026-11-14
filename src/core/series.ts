@@ -99,7 +99,8 @@ export function adjust(days: DayBar[], adj: Adjustment, splits: Split[], dividen
     const i = lo
     if (i <= 0 || i >= days.length) continue
     const prev = days[i - 1]!.c
-    if (!(prev > 0)) continue
+    // 前日終値以上の配当（記録の誤りなど）は掛けない（倍率が 0 以下になるため）
+    if (!(prev > 0) || !(dv.amount > 0) || dv.amount >= prev) continue
     at[i]! *= 1 - dv.amount / prev
   }
   const out = new Array<DayBar>(days.length)
