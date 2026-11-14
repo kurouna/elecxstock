@@ -151,7 +151,7 @@ function resize(e: MouseEvent) {
     margin-bottom: 8px;
     writing-mode: vertical-rl;
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: var(--fs-0);
     color: var(--text-3);
   }
   /* スライドイン（FR-DR5: 150ms 以下）。display は切り替えず transform と visibility で出し入れする */

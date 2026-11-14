@@ -30,6 +30,7 @@ import {
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
+import PeriodPicker from '../PeriodPicker.svelte'
 import { drawTile } from './gridDraw'
 
 let { pane }: { pane: PaneNode } = $props()
@@ -330,6 +331,12 @@ onMount(() => {
         set({ period: Number(c.slice(5)) - 1 })
         return true
       }
+      // ★だけ表示: ほかのペインと同じ Ctrl+Shift+F（Shift+F も使える）
+      if (ctrl && e.shiftKey && !e.altKey && c === 'KeyF') {
+        set({ favOnly: !favOnly, page: 0 })
+        sel = 0
+        return true
+      }
       if (ctrl || e.altKey) return false
       if (!zoom && (k === 'ArrowRight' || k === 'ArrowLeft' || k === 'ArrowDown' || k === 'ArrowUp')) {
         moveSel(k)
@@ -439,34 +446,33 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
 </PaneHeader>
 <div class="bar">
   <span class="lbl">{t('grid.src')}</span>
-  <select class="srcsel" title="G / Shift+G" value={src} onchange={(e) => set({ src: (e.currentTarget as HTMLSelectElement).value, page: 0 })}>
+  <select class="srcsel" title={`${t('grid.src')} (G / Shift+G)`} value={src} onchange={(e) => set({ src: (e.currentTarget as HTMLSelectElement).value, page: 0 })}>
     {#each SRC_OPTIONS as s (s)}<option value={s}>{srcLabel(s)}</option>{/each}
   </select>
   <span class="sep"></span>
   <span class="seg">{#each ['D', 'W', 'M'] as x (x)}<button type="button" aria-pressed={tf === x} onclick={() => set({ tf: x })} title={x}>{x}</button>{/each}</span>
   <span class="sep"></span>
-  <span class="lbl">{t('grid.period')}</span>
-  <span class="seg">{#each PERIODS as p, i (p.key)}<button type="button" aria-pressed={period === i} title={`Alt+${i + 1}`} onclick={() => set({ period: i })}>{t(p.key)}</button>{/each}</span>
+  <PeriodPicker value={period} onchange={(v) => set({ period: v ?? 2 })} />
   <span class="sep"></span>
   <span class="lbl">{t('grid.scale')}</span>
   <span class="seg">
     <button type="button" aria-pressed={scale === 0} onclick={() => set({ scale: 0 })}>{t('grid.linear')}</button>
-    <button type="button" aria-pressed={scale === 1} title="L" onclick={() => set({ scale: 1 })}>{t('grid.log')}</button>
-    <button type="button" aria-pressed={scale === 2} title="N" onclick={() => set({ scale: 2 })}>{t('grid.norm')}</button>
+    <button type="button" aria-pressed={scale === 1} title={`${t('grid.log')} (L)`} onclick={() => set({ scale: 1 })}>{t('grid.log')}</button>
+    <button type="button" aria-pressed={scale === 2} title={`${t('grid.norm')} (N)`} onclick={() => set({ scale: 2 })}>{t('grid.norm')}</button>
   </span>
-  <button type="button" class="toggle" class:on={ma} title="I" onclick={() => set({ ma: !ma })}><span class="box"></span>{t('grid.ma')}</button>
+  <button type="button" class="toggle" class:on={ma} title={`${t('grid.ma')} (I)`} onclick={() => set({ ma: !ma })}><span class="box"></span>{t('grid.ma')}</button>
   <span class="sep"></span>
   <span class="lbl">{t('grid.sort')}</span>
-  <button type="button" class="chip" title="S" onclick={cycleSort}>{sortLabel}</button>
+  <button type="button" class="chip" title={`${t('grid.sort')} (S)`} onclick={cycleSort}>{sortLabel}</button>
   <span class="grow"></span>
-  <button type="button" class="toggle" class:on={favOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Shift+F)`} onclick={() => set({ favOnly: !favOnly, page: 0 })}><span class="box"></span>★</button>
+  <button type="button" class="toggle" class:on={favOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => set({ favOnly: !favOnly, page: 0 })}><span class="box"></span>★</button>
   <button type="button" class="toggle" class:on={candOnly} aria-label={t('grid.candOnlyLabel')} title={`${t('grid.candOnlyLabel')} (Shift+Space)`} onclick={() => set({ candOnly: !candOnly, page: 0 })}><span class="box"></span>◆ <span class="num">{candidates()?.items.length ?? 0}</span></button>
   <button type="button" class="ibtn" aria-label={t('grid.toListLabel')} title={`${t('grid.toListLabel')} (Ctrl+Shift+A)`} onclick={candToList}><Icon name="listAdd" /></button>
   <button type="button" class="ibtn" aria-label={t('grid.pin')} title={`${t('grid.pinTip')} (P)`} onclick={pinCurrent}><Icon name="pin" /></button>
   <span class="sep"></span>
-  <button type="button" class="chip" title="−" onclick={() => set({ size: Math.max(0, size - 1), page: 0 })}>−</button>
+  <button type="button" class="chip" title={`${t('grid.finer')} (+)`} aria-label={t('grid.finer')} onclick={() => set({ size: Math.max(0, size - 1), page: 0 })}>−</button>
   <span class="num">{dims[0]}×{dims[1]}</span>
-  <button type="button" class="chip" title="+" onclick={() => set({ size: Math.min(GRIDS.length - 1, size + 1), page: 0 })}>＋</button>
+  <button type="button" class="chip" title={`${t('grid.coarser')} (−)`} aria-label={t('grid.coarser')} onclick={() => set({ size: Math.min(GRIDS.length - 1, size + 1), page: 0 })}>＋</button>
   <span class="pager">
     <button type="button" class="chip" title={`${t('grid.prevPage')} (PageUp)`} aria-label={t('grid.prevPage')} disabled={Math.min(page, pages - 1) <= 0} onclick={() => goPage(-1, 0)}>‹</button>
     <span class="num muted">{t('grid.page', { p: Math.min(page, pages - 1) + 1, n: pages })}</span>
@@ -503,8 +509,8 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
         {#if zoom}<button type="button" class="back" title={`${t('grid.unzoom')} (Esc)`} onclick={(e) => { e.stopPropagation(); zoom = null }}>⤡ {t('grid.unzoom')}</button>{/if}
       </div>
       <div class="s">
-        <button type="button" class="star" class:on={isFav(id)} title="F" onclick={(e) => { e.stopPropagation(); sel = i; toggleFav(id) }}>★</button>
-        <button type="button" class="dia" class:on={isCand(id)} title="Space" onclick={(e) => { e.stopPropagation(); sel = i; toggleCand(id) }}>◆</button>
+        <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (F)`} onclick={(e) => { e.stopPropagation(); sel = i; toggleFav(id) }}>★</button>
+        <button type="button" class="dia" class:on={isCand(id)} title={`${t('grid.candToggle')} (Space)`} onclick={(e) => { e.stopPropagation(); sel = i; toggleCand(id) }}>◆</button>
         <span class="y num">{m?.yieldTrailing != null ? `${fmt(m.yieldTrailing)}%` : ''}</span>
         <button type="button" class="edit" title={`${t('grid.replace')} (C)`} onclick={(e) => { e.stopPropagation(); startReplace(i) }}>✎</button>
         {#if src === 'own'}<button type="button" class="edit" title={`${t('grid.remove')} (Delete)`} onclick={(e) => { e.stopPropagation(); sel = i; set({ own: own.filter((x) => x !== id) }) }}>✕</button>{/if}

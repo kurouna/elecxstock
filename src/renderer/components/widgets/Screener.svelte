@@ -415,7 +415,7 @@ $effect(() => {
 </script>
 
 <PaneHeader {pane}>
-  <button type="button" class="chip scr" title="Ctrl+O" onclick={() => (app.overlay = { kind: 'screens' })}>▾ {scr ? screenName(scr) : t('scr.untitled')}</button>
+  <button type="button" class="chip scr" title={`${t('act.screens')} (Ctrl+O)`} onclick={() => (app.overlay = { kind: 'screens' })}>▾ {scr ? screenName(scr) : t('scr.untitled')}</button>
   {#if dirty}<span class="dirty">● {t('scr.modified')}</span>{/if}
   <button type="button" class="ibtn" aria-label={t('scr.save')} title={`${t('scr.save')} (Ctrl+S)`} disabled={!dirty} onclick={() => saveScreen(pane)}><Icon name="save" /></button>
   <button type="button" class="ibtn" aria-label={t('scr.saveAsLabel')} title={`${t('scr.saveAsLabel')} (Ctrl+Shift+S)`} onclick={() => saveScreenAs(pane)}><Icon name="saveAs" /></button>
@@ -425,7 +425,7 @@ $effect(() => {
   {#each conds as c, i (i)}
     {@const f = FIELD_BY_ID.get(c.field)}
     <div class="cond" class:focus={i === ci && app.focus === pane.id} class:invalid={result?.invalid.includes(i)} title={result?.invalid.includes(i) ? t('scr.invalid') : (f?.description?.[app.settings.lang] ?? '')}>
-      <button type="button" class="and" class:or={c.or && i > 0} title="A" onclick={() => toggleOr(i)}>{i ? (c.or ? t('scr.or') : t('scr.and')) : ''}</button>
+      <button type="button" class="and" class:or={c.or && i > 0} title={`${t('scr.andOrTip')} (A)`} onclick={() => toggleOr(i)}>{i ? (c.or ? t('scr.or') : t('scr.and')) : ''}</button>
       <button type="button" class="f" title={`${t('scr.changeField')} (F)`} onclick={() => { ci = i; void changeField(i) }}>{f ? f.label[app.settings.lang] : c.field}</button>
       <button type="button" class="op" onclick={() => flipOp(i)}>{opLabel(c.op)}</button>
       <button type="button" class="v" onclick={() => { ci = i; void typeValue(i) }}>{showValue(c)}</button>
@@ -434,13 +434,13 @@ $effect(() => {
       {:else}<span></span>{/if}
       <button type="button" class="mv" aria-label={t('scr.moveUp')} title={`${t('scr.moveUp')} (Alt+↑)`} disabled={i === 0} onclick={() => moveCond(i, -1)}>↑</button>
       <button type="button" class="mv" aria-label={t('scr.moveDown')} title={`${t('scr.moveDown')} (Alt+↓)`} disabled={i === conds.length - 1} onclick={() => moveCond(i, 1)}>↓</button>
-      <button type="button" class="x" title="Delete" onclick={() => update(i, null)}>✕</button>
+      <button type="button" class="x" aria-label={t('scr.removeCond')} title={`${t('scr.removeCond')} (Delete)`} onclick={() => update(i, null)}>✕</button>
     </div>
   {/each}
   <div class="meta">
     <span><button type="button" class="chip" onclick={addCond}>＋ {t('scr.addCond')}</button> <span class="muted">{t('scr.hint')}</span></span>
     <span class="num">
-      {#if limit}<button type="button" class="chip" title="T" onclick={setLimit}>{t('scr.top', { n: limit })}</button>{/if}
+      {#if limit}<button type="button" class="chip" title={`${t('scr.topTip')} (T)`} onclick={setLimit}>{t('scr.top', { n: limit })}</button>{/if}
       {t('scr.hits', { n: sorted.length, total: (app.status?.instruments ?? total).toLocaleString(), ms: result?.ms ?? '—' })}
       <button type="button" class="ibtn" aria-label={t('cols.choose')} title={`${t('cols.choose')} (Ctrl+Shift+C)`} onclick={pickColumns}><Icon name="columns" /></button>
     </span>

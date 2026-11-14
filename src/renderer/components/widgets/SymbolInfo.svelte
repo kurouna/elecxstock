@@ -164,7 +164,7 @@ const months = $derived(
 </script>
 
 <PaneHeader {pane}>
-  <button type="button" class="star" class:on={isFav(id)} title="Ctrl+D" onclick={() => toggleFav(id)}>★</button>
+  <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (Ctrl+D)`} onclick={() => toggleFav(id)}>★</button>
   <span class="sym"><span class="code">{codeOf(id)}</span>{nameOf(id)}</span>
   <span class="num">{px(m?.close)}</span>
   <span class={`num ${cls(m?.chgPct)}`}>{sgn(m?.chg, (m?.close ?? 0) < 1000 ? 1 : 0)} ({sgn(m?.chgPct, 2, '%')})</span>
@@ -455,7 +455,7 @@ const months = $derived(
     position: absolute;
     left: 0;
     top: -12px;
-    font-size: 10px;
+    font-size: var(--fs-0);
     color: var(--text-3);
   }
   /* 棒は 28px まで、間は 6px。右（最新）に寄せる */
@@ -506,7 +506,7 @@ const months = $derived(
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 10px;
+    font-size: var(--fs-0);
     color: var(--text-2);
     white-space: nowrap;
     line-height: 14px;
@@ -517,7 +517,7 @@ const months = $derived(
   }
   .y {
     height: 14px;
-    font-size: 10px;
+    font-size: var(--fs-0);
     color: var(--text-3);
     line-height: 14px;
     text-align: center;

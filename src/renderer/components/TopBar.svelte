@@ -120,7 +120,7 @@ onMount(() => {
     border-radius: 3px;
     background: var(--panel-3);
     color: var(--text-3);
-    font-size: 10px;
+    font-size: var(--fs-0);
     line-height: 1;
   }
   .presets button[aria-current='true'] kbd.keycap {

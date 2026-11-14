@@ -62,7 +62,7 @@ test('チャートの期間・F5 の知らせ・保有の候補・ライトテ�
   // MTF のチャート: 見出しの期間を選ぶ・Alt+1〜6
   await keys(page, 'Control+Shift+Digit4')
   const chart = page.locator('[data-widget="chart"]').first()
-  const per = chart.locator('select.per')
+  const per = chart.locator('select.period')
   await expect(per).toBeVisible()
   await chart.click({ position: { x: 300, y: 200 } })
   await keys(page, 'Alt+Digit1')
@@ -88,5 +88,21 @@ test('チャートの期間・F5 の知らせ・保有の候補・ライトテ�
     return [s.getPropertyValue('--star-off').trim(), s.getPropertyValue('--star-on').trim()]
   })
   expect(colors[0]).not.toBe(colors[1])
+  await app.close()
+})
+
+test('表示期間はグリッドとチャートで同じ形（選択・Alt+1〜6）', async () => {
+  const { app, page } = await launch()
+  await ready(page)
+  await keys(page, 'Control+Shift+Digit3')
+  const grid = page.locator('[data-widget="grid"]')
+  const gp = grid.locator('select.period')
+  await expect(gp).toHaveAttribute('title', /表示期間.*Alt\+1/)
+  await expect(grid.getByRole('button', { name: '3か月' })).toHaveCount(0)
+  await keys(page, 'Alt+Digit5')
+  await expect(gp).toHaveValue('4')
+  await keys(page, 'Control+Shift+Digit4')
+  const cp = page.locator('[data-widget="chart"]').first().locator('select.period')
+  await expect(cp).toHaveAttribute('title', /表示期間.*Alt\+1/)
   await app.close()
 })

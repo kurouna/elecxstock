@@ -96,7 +96,7 @@ const G = $derived([
       [ja ? '銘柄を足す / 外す / 並べ替え' : 'Add / remove / reorder', '1–9 / Delete / Alt+← →'],
       [ja ? '今の並びを固定' : 'Pin the current set', 'P'],
       [ja ? '売買候補の印 / 印だけ表示' : 'Mark candidate / only marked', 'Space / Shift+Space'],
-      [ja ? 'お気に入り / ★だけ表示' : 'Favorite / ★ only', 'F / Shift+F'],
+      [ja ? 'お気に入り / ★だけ表示' : 'Favorite / ★ only', 'F / Ctrl+Shift+F'],
       [ja ? '印の銘柄をリストに追加' : 'Add marked to a list', K('addTo')],
       [ja ? '1 枚を最大化 / 日付同期' : 'Maximize tile / date sync', 'Enter / X'],
     ],

@@ -160,10 +160,11 @@ onMount(() => {
 
 <PaneHeader {pane}>
   <button type="button" class="chip" disabled={!sector} onclick={back}>{sector ? `← ${secName(sector)}` : t('heat.sectors')}</button>
-  <span class="seg">
-    {#each PERIODS as p, i (p.col)}<button type="button" aria-pressed={pi === i} title="P" onclick={() => patchState(pane, { period: i })}>{t(p.key as Key)}</button>{/each}
+  <span class="lbl">{t('heat.retLabel')}</span>
+  <span class="seg" role="group" aria-label={t('heat.retPeriod')}>
+    {#each PERIODS as p, i (p.col)}<button type="button" aria-pressed={pi === i} title={`${t('heat.retPeriod')} (P)`} onclick={() => patchState(pane, { period: i })}>{t(p.key as Key)}</button>{/each}
   </span>
-  <button type="button" class="toggle" class:on={starOnly} title="Ctrl+Shift+F" onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>★</button>
+  <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>★</button>
 </PaneHeader>
 <div class="map" bind:this={host}>
   {#if !placed.length}<div class="state">{t('heat.empty')}</div>{/if}
@@ -197,6 +198,10 @@ onMount(() => {
 </div>
 
 <style>
+  .lbl {
+    font-size: var(--fs-1);
+    color: var(--text-3);
+  }
   .map {
     position: relative;
     flex: 1;
@@ -234,7 +239,7 @@ onMount(() => {
     font-size: var(--fs-2);
   }
   .c {
-    font-size: 10px;
+    font-size: var(--fs-0);
     color: var(--text-2);
   }
   .legend {

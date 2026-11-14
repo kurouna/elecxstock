@@ -105,13 +105,13 @@ const mkLabel = (i: number) => (MARKETS[i] ?? []).map((m) => t(`mkt.${m}` as Key
   <span class="dim">{COLUMN_BY_ID.get(key)?.label()} · {dir < 0 ? t('rank.top') : t('rank.bottom')}</span>
 </PaneHeader>
 <div class="bar">
-  <select title="S" value={key} onchange={(e) => patchState(pane, { key: (e.currentTarget as HTMLSelectElement).value })}>
+  <select title={`${t('rank.metric')} (S)`} aria-label={t('rank.metric')} value={key} onchange={(e) => patchState(pane, { key: (e.currentTarget as HTMLSelectElement).value })}>
     {#each KEYS as k (k)}<option value={k}>{COLUMN_BY_ID.get(k)?.label()}</option>{/each}
   </select>
-  <button type="button" class="chip" title="Shift+S" onclick={() => patchState(pane, { dir: -dir })}>{dir < 0 ? `▼ ${t('rank.top')}` : `▲ ${t('rank.bottom')}`}</button>
-  <button type="button" class="chip" title="G" onclick={() => patchState(pane, { mk: (mk + 1) % MARKETS.length })}>{mkLabel(mk)}</button>
+  <button type="button" class="chip" title={`${t('rank.dir')} (Shift+S)`} onclick={() => patchState(pane, { dir: -dir })}>{dir < 0 ? `▼ ${t('rank.top')}` : `▲ ${t('rank.bottom')}`}</button>
+  <button type="button" class="chip" title={`${t('rank.market')} (G)`} onclick={() => patchState(pane, { mk: (mk + 1) % MARKETS.length })}>{mkLabel(mk)}</button>
   <span class="grow"></span>
-  <button type="button" class="toggle" class:on={starOnly} title="Ctrl+Shift+F" onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>★</button>
+  <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>★</button>
 </div>
 <div class="scroll body" bind:this={scroller}>
   {#if !rows.length}
