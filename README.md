@@ -22,18 +22,19 @@
 
 ### できること
 
-- **ユニバース**: 東証プライムと J-REIT を自動で取得します。スタンダード・グロース・ETF などは、コマンドバーやウォッチリストから追加できます。
+- **ユニバース**: 東証プライムと J-REIT を自動で取得します。スタンダード・グロース・ETF などは、コマンドバーやウォッチリストから追加でき、ウォッチリストや保有に入れた銘柄も取得します。5 桁の優先株・種類株（例: 94345）にも対応しています。
 - **チャート**: 日足・週足・月足、ローソク足／バー／ライン、移動平均（期間を変えられる）、出来高、ボリンジャーバンド・一目均衡表・RSI・MACD・ストキャスティクス、配当落ち日・分割の印、他銘柄との比較（%）、対数軸、分割調整／未調整／配当込み、キーボードの十字線。日・週・月を 1 ペインに並べるマルチ時間軸も。
 - **チャートグリッド**: 2×2 から 6×5 まで、多数のチャートを並べて、時間軸・期間・並べ替え・比較（期間の始点を 100%）を一度に切り替えます。売買候補に印を付けて、まとめてウォッチリストに入れられます。タイルの銘柄は C で差し替え、1〜9 で足し、Delete で外せます。
 - **スクリーナー**: 利回り・配当性向・連続増配年数・権利確定月・PER・PBR・時価総額・売買代金・騰落率・移動平均乖離・ゴールデンクロスからの日数・RSI・52 週高値からの下落率・市場区分・33 業種・種別・お気に入り・ウォッチリストで絞り込みます。「かつ／または」、相対条件（終値 ≥ 75 日移動平均）、上位 N 件、列の選択、CSV 書き出し。名前を付けて保存できます（例:「高配当銘柄」）。
 - **ウォッチリスト**: 複数のリスト、お気に入り（★）、並べ替え・複製、複数選択、列の選択、CSV の書き出しとコードの一覧の取り込み、JSON での書き出し・取り込み。
 - **保有（ポートフォリオ）**: 保有タブ（Ctrl+Shift+7）で銘柄・口座区分（NISA 成長投資枠・つみたて投資枠・旧 NISA・特定・一般）・数量・平均取得単価を足す・直す・外すか、楽天証券の保有商品の CSV を取り込みます（取り込むと CSV の内容に置き換わります。国内株式）。評価額・評価損益・前日比・年間配当の見込み・取得利回りを口座区分ごと・合計で見られます。JSON で書き出し・取り込み（[形式](docs/holdings-format.md)）。
 - **マーケット**: 33 業種のヒートマップ（面積 = 時価総額、色 = 騰落率）、ランキング、指数・指数連動 ETF の小さなチャート。
-- **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、7 つのプリセット（MTF・Grid・Screener・Income・Triple・Market・Free）、名前を付けて保存したレイアウト、サイズのリセット。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。
+- **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、8 つのプリセット（マーケット・スクリーナー・グリッド・MTF・トリプル・インカム・保有・フリー）、名前を付けて保存したレイアウト、サイズのリセット。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。
 - **マルチモニタ**: Ctrl+Alt+N（またはタイトルバーのボタン）でタブなしの「フリー」のウィンドウを最大 3 枚開き（チャートグリッド・4 分割・MTF + 銘柄情報）、2 枚目のモニタにチャートを並べられます。銘柄は 1 枚目の一覧からのドラッグか Ctrl+Alt+Enter で送ります。リンク色を付けたチャートは 1 枚目で選んだ銘柄を追います。並び・位置・文字の大きさは窓ごとに覚え、次の起動で開き直します。
 - **配当カレンダー**、銘柄情報、取得ジョブの進捗と一時停止。
 - **日本語／英語**の表示、ダーク／ライトのテーマ、陽線・陰線の色（日本式／欧米式）、キーの割り当ての変更。
-- 大引け後の自動更新、新しい版の通知、市場データの DB のバックアップ、日足の CSV 書き出し。
+- **日々の更新**: 大引け後に自動で更新します。銘柄ごとに取らず一括気配でまとめて取り、日足の取得は分割の疑い・取りこぼし・定期の照合に絞ります。ウォッチリストと保有の銘柄を先に更新し、最後に取りこぼしを 1 回だけ確かめます。
+- 新しい版の通知、市場データの DB のバックアップ、日足の CSV 書き出し。
 
 |                                             |                                              |
 | ------------------------------------------- | -------------------------------------------- |
@@ -95,6 +96,7 @@ npm run dev        # 開発サーバー + アプリ
 npm run verify     # lint・型検査・単体テスト
 npm run build && npx playwright test   # E2E（スタブのデータ・キーボードだけで操作）
 npm run package    # Windows のインストーラ（release/）
+npm run demo       # 紹介動画用のデモ（架空のデータ・キー操作で自動で進む）
 ```
 
 ネットワークを使わずに動かすときは `ELECXSTOCK_PROVIDER=stub` を付けます。
@@ -124,18 +126,19 @@ Everything can be done with the keyboard alone.
 
 ### Features
 
-- **Universe**: TSE Prime and J-REITs are fetched automatically. Standard, Growth, ETFs and others can be added from the command bar or a watchlist.
+- **Universe**: TSE Prime and J-REITs are fetched automatically. Standard, Growth, ETFs and others can be added from the command bar or a watchlist, and symbols in your watchlists and holdings are fetched too. Five-character codes for preferred and class shares (e.g. 94345) are supported.
 - **Charts**: daily / weekly / monthly, candles / bars / line, configurable moving averages, volume, Bollinger Bands, Ichimoku, RSI, MACD, stochastics, dividend and split markers, comparison (%), log scale, split-adjusted / unadjusted / total-return prices, keyboard crosshair, and a multi-timeframe pane.
 - **Chart grid**: 2×2 up to 6×5 tiles; switch timeframe, period, sort order and compare mode (rebased to 100%) for all tiles at once. Mark candidates and send them to a watchlist. Replace a tile's symbol with C.
 - **Screener**: yield, payout, dividend streaks, record month, P/E, P/B, market cap, turnover, returns, MA deviation, days since a golden cross, RSI, distance from the 52-week high, market, TSE 33 sectors, type, favorites and watchlists; and/or groups, relative conditions, top N, column chooser, CSV. Save screens by name.
 - **Watchlists**: multiple lists, favorites (★), sorting, duplicate, multi-select, columns, CSV export and code-list import, JSON export/import.
-- **Portfolio**: holdings per symbol and account type (NISA, specified, general) entered as trades or quantity/average cost, with value and P/L by account; JSON export/import ([format](docs/holdings-format.md)).
+- **Portfolio**: add, edit or remove holdings by symbol, account type (NISA growth / tsumitate / old NISA, specified, general), quantity and average cost, or import the Rakuten Securities holdings CSV (domestic stocks; the import replaces the holdings). See value, P/L, day change, expected annual dividends and yield on cost by account and in total; JSON export/import ([format](docs/holdings-format.md)).
 - **Market**: sector heatmap, rankings and index mini-charts.
-- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, seven presets (including Free, where each unlinked chart keeps its own symbol), named layouts, size reset. Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
+- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, eight presets (Market, Screener, Grid, MTF, Triple, Income, Holdings and Free, where each unlinked chart keeps its own symbol), named layouts, size reset. Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
 - **Multiple monitors**: open up to three tabless Free windows with Ctrl+Alt+N or the title-bar button (chart grid, four charts, or MTF + symbol info) to line up charts on a second monitor. Drag symbols from the main window's lists or send them with Ctrl+Alt+Enter; linked charts follow the symbol picked in the main window. Layout, position and text size are remembered per window and reopened at the next start.
 - **Dividend calendar**, symbol info, fetch jobs with progress and pause.
 - **Japanese / English** UI, dark / light themes, candle colors (Japanese or Western) and remappable keys.
-- Automatic update after the close, new-version notice, database backup, daily-bar CSV export.
+- **Daily update** after the close: quotes are fetched in bulk instead of per symbol, and daily bars are fetched only for suspected splits, missed days and a rotating check. Symbols in your watchlists and holdings are updated first, and one final pass re-fetches anything missed.
+- New-version notice, database backup, daily-bar CSV export.
 
 ![Grid (English)](docs/screenshots/grid-en.png)
 
