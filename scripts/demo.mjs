@@ -112,7 +112,7 @@ async function overlay(p) {
     // 値は架空（左下に出し続ける）
     const note = document.createElement('div')
     note.id = 'demo-note'
-    note.textContent = '※ 画面の株価・利回りなどの値はすべて架空のデモデータです'
+    note.textContent = '※ 画面は開発中のものです。株価・利回りなどの値はすべて架空のデモデータです'
     Object.assign(note.style, {
       position: 'absolute',
       left: '14px',
@@ -246,7 +246,7 @@ await card(page, [
   'elecxstock',
   '日本株・J-REIT のデータを手元に取り込み、チャートを並べて見比べ、条件で絞り込むデスクトップアプリ',
   'キーボードで操作でき、データは手元の SQLite に保存します。無料・オープンソース（MIT）です',
-  '※ 画面の株価・利回りなどの値はすべて架空のデモデータです',
+  '※ 画面は開発中のものです。株価・利回りなどの値はすべて架空のデモデータです',
 ])
 console.log(`${WAIT} 秒後に始めます。いまのうちに録画を始めてください`)
 await sleep(WAIT * 1000 * SPEED)
@@ -406,7 +406,7 @@ await card(page, [
   'elecxstock',
   '日本株・J-REIT のローカル分析デスクトップアプリ',
   '無料・オープンソース（MIT） ・ Windows ・ github.com/kurouna/elecxstock',
-  '※ 動画の株価・利回りなどの値はすべて架空のデモデータです',
+  '※ 画面は開発中のものです。動画の株価・利回りなどの値はすべて架空のデモデータです',
 ])
 await shot(page, 'end')
 console.log('デモが終わりました。窓を閉じると終わります')
