@@ -127,20 +127,7 @@ interface Formula {
 
 ## 6. 価格アラート（FR-C10）
 
-```ts
-interface Alert {
-  id: string
-  instrument: InstrumentId
-  kind: 'above' | 'below' | 'crossMa' | 'yieldAbove' // 終値が上・下、75 日線を上下に抜ける、利回りが上
-  value: number
-  once: boolean // 一度鳴ったら止める
-  lastFired?: string
-}
-```
-
-- 保存先 `alerts.json`。判定は **Core**: 日々の更新・一括気配の取得のあと（`JobRunner.emitData`）に、変わった銘柄のアラートだけを評価する。「データの更新時に判定」なので、場中の監視はしない（Yahoo の遅延と、取得の負荷のため）。
-- 鳴ったら Core のイベント `alerts.fired` を出し、renderer がトーストと **OS の通知**（main の `Notification`。設定で切れる）を出す。履歴は jobs ペインに残す。
-- 描画ツールの水平線から「この価格でアラート」を作れるようにする。
+詳しい仕様・設計は [design-alerts.md](design-alerts.md)（requirements.md §6.14）。ここにあった固定の種類の案（`above` / `below` など）は、スクリーナーの条件をそのまま使う形に置き換えた。
 
 ---
 

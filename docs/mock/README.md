@@ -6,6 +6,21 @@
 - フォントはモックだけ Google Fonts から読む（アプリでは同梱する）。
 - `lightweight-charts.standalone.production.js` は TradingView Lightweight Charts 5.3.0（Apache-2.0。ライセンス全文は `lightweight-charts.LICENSE`）。
 
+## アラートのモック（P3）
+
+`alerts.html` はアラート（[../requirements.md](../requirements.md) §6.14・[../design-alerts.md](../design-alerts.md)）の画面のモック。チャートのライブラリを読むので、`py -m http.server` などで手元のサーバーから開く（`file://` では動かない）。
+
+| 操作 | キー |
+|---|---|
+| アラートのポップアップを開く・閉じる（未読があれば履歴） | Ctrl+Alt+L・トップバーのベル / Esc |
+| アラートを作る / 直す | Ctrl+Alt+A・Insert / E（ダイアログ: 条件の行で ← → が値・O が ≥ と ≤、Tab で鳴り方の行へ移り Space で切り替え、Ctrl+Enter で作る） |
+| 有効と停止 / 消す / 元に戻す（10 秒以内） | Space / Delete / Ctrl+Z |
+| 銘柄を開く（ポップアップを閉じてチャートに出す。銘柄ジャンプと同じ規則） | Enter |
+| アラートと履歴の切り替え / 履歴を既読に / 成立中だけ | H / R / Ctrl+Shift+F |
+| 更新して判定する（擬似。2 件が鳴る） | F5 |
+
+`alerts.html#popup`・`#history`・`#dialog`・`#fired` で状態を指定できる（スクリーンショット用）。
+
 ## 試せる操作
 
 | 操作 | キー |

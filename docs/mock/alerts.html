@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>elecxstock — アラートのモック（P3）</title>
+<!-- アラート（requirements.md §6.14・design-alerts.md）の画面のモック。値はすべて架空 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0d10; --panel: #101318; --panel-2: #151920; --panel-3: #1b2029;
+  --line: #20262f; --line-strong: #2d3540; --text: #dfe4ea; --text-2: #a3adb9; --text-3: #8b95a2;
+  --focus: #7aa7ff; --select: #1a2638; --select-strong: #22334b; --hover: #141921;
+  --up: #ff6b70; --down: #5aa2ee; --warn: #d9a400; --ok: #2fae74; --danger: #ff8a8d;
+  --star-on: #f2c04a; --l1: #e66767; --accent-bg: #1d4f9e; --scrim: rgba(5, 6, 8, .55); --shadow: 0 12px 32px rgba(0, 0, 0, .45);
+  --fs-0: 10px; --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 16px;
+  --font: "Noto Sans JP", "Yu Gothic UI", sans-serif; --mono: "Noto Sans Mono", ui-monospace, monospace;
+  --radius: 3px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: var(--fs-2)/1.5 var(--font); overflow: hidden; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--text-3); }
+kbd { font-family: var(--mono); font-size: var(--fs-0); border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: var(--text-2); background: var(--panel-3); }
+/* トップバー */
+.top { height: 36px; display: flex; align-items: center; gap: 12px; padding: 0 8px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.logo { width: 20px; height: 20px; border-radius: 50%; background: #10a5e8; color: #fff; font-weight: 700; display: grid; place-items: center; box-shadow: 0 0 0 2px #fff inset; font-size: 12px; }
+.name { font-weight: 700; font-size: var(--fs-3); }
+.tabs { display: flex; height: 100%; }
+.tabs span { padding: 0 10px; display: flex; align-items: center; gap: 6px; color: var(--text-2); border-bottom: 2px solid transparent; }
+.tabs span.on { color: var(--text); background: var(--panel-2); border-bottom-color: var(--focus); }
+.spacer { flex: 1; }
+.bell { position: relative; width: 26px; height: 24px; display: grid; place-items: center; border: 0; background: none; color: var(--text-3); border-radius: var(--radius); cursor: pointer; }
+.bell:hover { background: var(--hover); color: var(--text); }
+.bell .cnt { position: absolute; top: 0; right: -2px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: var(--warn); color: #111; font: 700 10px/15px var(--mono); }
+.pill { padding: 0 8px; line-height: 18px; border-radius: var(--radius); background: var(--panel-3); color: var(--text-2); font-size: var(--fs-1); }
+/* 本体 */
+.main { display: grid; grid-template-columns: 1fr; height: calc(100% - 36px - 24px); gap: 1px; background: var(--line); }
+/* アラートのポップアップ（画面の上に重ねる。レイアウトは変えない） */
+.popwrap { position: fixed; inset: 0; background: var(--scrim); display: none; align-items: flex-start; justify-content: center; padding-top: 72px; z-index: 8; }
+.popwrap.open { display: flex; }
+.pop { width: min(1000px, 94vw); max-height: 74vh; display: flex; flex-direction: column; background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: 6px; box-shadow: var(--shadow); overflow: hidden; }
+.pop .ph { background: var(--panel-2); border-top: 0; height: 36px; }
+.pop .title { font-size: var(--fs-3); }
+.pop th { background: var(--panel-2); }
+.pop tr.sel td { background: var(--select-strong); }
+.x { background: none; border: 0; color: var(--text-3); cursor: pointer; font-size: 14px; }
+.pane { background: var(--panel); display: flex; flex-direction: column; min-width: 0; min-height: 0; outline: none; }
+.ph { height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-top: 2px solid transparent; border-bottom: 1px solid var(--line); flex: none; }
+.pane.focused .ph { border-top-color: var(--focus); background: var(--panel-2); }
+.link { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 2px; background: var(--l1); color: #fff; font: 700 10px var(--mono); }
+.title { font-weight: 600; color: var(--text); font-size: var(--fs-2); }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
+.seg button { background: none; border: 0; padding: 0 8px; height: 20px; font-size: var(--fs-1); color: var(--text-3); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button.on { background: var(--select-strong); color: var(--text); }
+.seg .n { font-family: var(--mono); margin-left: 4px; color: var(--text-3); }
+.seg .unread { color: var(--warn); font-weight: 700; }
+.chip { background: var(--panel-3); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--text-2); height: 20px; padding: 0 8px; font-size: var(--fs-1); cursor: pointer; }
+table { width: 100%; border-collapse: collapse; }
+th { position: sticky; top: 0; background: var(--panel); text-align: left; font-weight: 500; color: var(--text-3); font-size: var(--fs-1); padding: 0 8px; height: 24px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 0 8px; height: 26px; white-space: nowrap; border-bottom: 1px solid #161a20; }
+td.r, th.r { text-align: right; }
+tr.sel td { background: var(--select); }
+.pane.focused tr.sel td { background: var(--select-strong); }
+tr.off td { color: var(--text-3); }
+tr.unread td { font-weight: 700; }
+.st { display: inline-flex; align-items: center; gap: 5px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot.on { background: var(--ok); }
+.dot.met { background: var(--warn); box-shadow: 0 0 0 2px rgba(217, 164, 0, .25); }
+.dot.off { border: 1px solid var(--text-3); }
+.dot.bad { background: var(--danger); }
+.code { font-family: var(--mono); color: var(--text-2); margin-right: 6px; }
+.scr { color: var(--focus); }
+.cond { color: var(--text); }
+.dist.near { color: var(--warn); }
+.prov { font-size: var(--fs-0); color: var(--warn); border: 1px solid var(--warn); border-radius: 2px; padding: 0 3px; margin-left: 4px; }
+.body { flex: 1; overflow: auto; }
+.foot { height: 24px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 8px; border-top: 1px solid var(--line); color: var(--text-3); font-size: var(--fs-1); overflow: hidden; white-space: nowrap; }
+.note { color: var(--text-3); font-size: var(--fs-1); }
+.status { height: 24px; display: flex; align-items: center; gap: 12px; padding: 0 8px; border-top: 1px solid var(--line); background: var(--panel); color: var(--text-3); font-size: var(--fs-1); }
+.status .ok { color: var(--ok); }
+#chart { flex: 1; min-height: 0; }
+.legend { position: absolute; left: 10px; top: 34px; font: var(--fs-1) var(--mono); color: var(--text-2); pointer-events: none; }
+/* ダイアログ */
+.scrim { position: fixed; inset: 0; background: var(--scrim); display: none; align-items: flex-start; justify-content: center; padding-top: 12vh; z-index: 10; }
+.scrim.open { display: flex; }
+.dialog { width: 600px; background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: 6px; box-shadow: var(--shadow); padding: 16px; }
+.dialog h3 { margin: 0 0 12px; font-size: var(--fs-4); }
+.frow { display: grid; grid-template-columns: 72px 1fr; gap: 8px; align-items: center; margin-bottom: 10px; }
+.frow > span { color: var(--text-2); }
+.box { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.field { height: 24px; padding: 0 8px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+.field.focus { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.radio { display: inline-flex; align-items: center; gap: 5px; margin-right: 12px; color: var(--text-2); }
+.radio i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--text-3); display: inline-block; }
+.radio.on { color: var(--text); }
+.radio.on i { background: var(--focus); border-color: var(--focus); box-shadow: inset 0 0 0 2px var(--panel-2); }
+.now { margin: 6px 0 12px; padding: 8px 10px; border-radius: var(--radius); background: var(--panel-3); color: var(--text-2); }
+.now b { color: var(--text); }
+.actions { display: flex; justify-content: flex-end; gap: 8px; }
+.btn { height: 26px; padding: 0 14px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: var(--panel-3); color: var(--text); cursor: pointer; }
+.btn.primary { background: var(--accent-bg); border-color: var(--accent-bg); }
+.keys { margin-top: 10px; color: var(--text-3); font-size: var(--fs-1); }
+/* トーストと Windows の通知 */
+.toasts { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 20; }
+.toast { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius); background: var(--panel-3); border: 1px solid var(--line-strong); box-shadow: var(--shadow); }
+.toast .b { color: var(--warn); }
+.toast .act { color: var(--focus); }
+.win { position: fixed; right: 14px; bottom: 14px; width: 360px; background: #1f1f1f; color: #fff; border-radius: 8px; box-shadow: 0 8px 30px rgba(0, 0, 0, .6); padding: 12px 14px; font: 13px "Segoe UI", var(--font); transform: translateX(420px); transition: transform .25s; z-index: 30; }
+.win.show { transform: none; }
+.win .app { display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 12px; margin-bottom: 6px; }
+.win .app .logo { width: 16px; height: 16px; font-size: 9px; }
+.win b { display: block; margin-bottom: 2px; }
+.cap { position: fixed; left: 8px; top: 44px; z-index: 5; padding: 4px 8px; border-radius: 3px; background: rgba(217, 164, 0, .12); color: var(--warn); font-size: var(--fs-1); display: none; }
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="logo">E</span><span class="name">elecxstock</span>
+  <nav class="tabs">
+    <span>マーケット <kbd>1</kbd></span><span>スクリーナー <kbd>2</kbd></span><span>グリッド <kbd>3</kbd></span><span class="on">MTF <kbd>4</kbd></span>
+    <span>トリプル <kbd>5</kbd></span><span>インカム <kbd>6</kbd></span><span>保有 <kbd>7</kbd></span><span>フリー <kbd>8</kbd></span>
+  </nav>
+  <span class="spacer"></span>
+  <button class="bell" id="bell" title="アラート (Ctrl+Alt+L)。未読があれば履歴を開く" aria-label="アラート">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/></svg>
+    <span class="cnt" id="bellCnt"></span>
+  </button>
+  <span class="pill">休場日</span><span class="num muted">17:05:12 JST</span>
+</header>
+
+<div class="main">
+  <section class="pane focused" id="chartPane" style="position:relative">
+    <div class="ph">
+      <span class="link">1</span><span class="title" id="chartTitle"></span><span class="num" id="chartPx"></span>
+      <span class="spacer"></span><span class="muted">日足</span>
+    </div>
+    <div id="chart"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+</div>
+<div class="popwrap" id="popwrap"><section class="pop" role="dialog" aria-label="アラート">
+  <div class="ph">
+    <span class="title">アラート</span>
+    <span class="seg"><button id="segA" class="on">アラート<span class="n" id="nA"></span></button><button id="segH">履歴<span class="n" id="nH"></span></button></span>
+    <span class="muted" style="display:flex;align-items:center;gap:4px"><span class="dot off" id="onlyBox"></span>成立中だけ</span>
+    <span class="spacer"></span>
+    <button class="chip" id="add" title="アラートを作る (Insert)">＋ 作る</button>
+    <button class="x" id="close" title="閉じる (Esc)" aria-label="閉じる">✕</button>
+  </div>
+  <div class="body"><table id="tbl"></table></div>
+  <div class="foot" id="foot"></div>
+</section></div>
+<footer class="status"><span class="ok">●</span><span>最終更新 2026/11/14 17:00</span><span id="job">待機中</span><span class="spacer"></span><span>F5: 更新して判定（モック）</span><span>ショートカット F1</span></footer>
+
+<div class="scrim" id="scrim"><div class="dialog" role="dialog" aria-label="アラートを作る">
+  <h3 id="dlgTitle">アラートを作る</h3>
+  <div class="frow"><span>対象</span><div class="box"><span class="radio on" id="tSym"><i></i>銘柄</span><span class="field focus" id="fSym"></span><span class="radio" id="tScr"><i></i>スクリーン</span></div></div>
+  <div class="frow"><span>条件</span><div class="box"><span class="field" id="fField">終値 ▾</span><span class="field" id="fOp">≤</span><span class="field num" id="fVal"></span><span class="muted" id="fNow"></span></div></div>
+  <div class="frow"><span>かつ</span><div class="box"><span class="chip">＋ 条件を足す</span></div></div>
+  <div class="frow"><span>鳴り方</span><div class="box"><span class="radio on" id="rRep"><i></i>成り立つたびに</span><span class="radio" id="rOnce"><i></i>1 回だけ</span></div></div>
+  <div class="frow"><span>メモ</span><div class="box"><span class="field" style="width:100%" id="fNote">押し目の買い増しを検討</span></div></div>
+  <div class="now" id="dlgNow"></div>
+  <div class="actions"><button class="btn" id="cancel">取り消し</button><button class="btn primary" id="ok">作る</button></div>
+  <div class="keys">Tab 項目を移る · 条件の行で F 指標 / O ≥ と ≤ / R 相対条件 / ← → 値 · 鳴り方の行で Space か ← → · Ctrl+Enter 作る · Esc 取り消し</div>
+</div></div>
+
+<div class="toasts" id="toasts"></div>
+<div class="win" id="win"><div class="app"><span class="logo">E</span>elecxstock</div><b id="winT"></b><span id="winB"></span></div>
+
+<script src="lightweight-charts.standalone.production.js"></script>
+<script>
+'use strict'
+// 架空のデータ（スタブと同じく、値は実際とは無関係）
+const SYM = {
+  'JP:7203': { code: '7203', name: 'トヨタ自動車', px: 18600, yld: 2.72 },
+  'JP:8951': { code: '8951', name: '日本ビルファンド投資法人', px: 105000, yld: 5.66 },
+  'JP:9434': { code: '9434', name: 'ソフトバンク', px: 2221, yld: 4.16, ma75: 2130 },
+  'JP:3462': { code: '3462', name: '野村不動産マスターファンド投資法人', px: 109000, yld: 4.07, hi: -8.1 },
+  'JP:94345': { code: '94345', name: 'ソフトバンク第1回社債型種類株式', px: 4442, yld: 2.82 },
+  'JP:2914': { code: '2914', name: '日本たばこ産業', px: 3520, yld: 2.0 },
+  'JP:8306': { code: '8306', name: '三菱UFJフィナンシャル・グループ', px: 19700, yld: 2.2 },
+}
+const yen = (v) => v.toLocaleString('ja-JP')
+let alerts = [
+  { id: 'a1', sym: 'JP:7203', cond: '終値 ≤ 17,500', price: 17500, now: '18,600', dist: '−5.9%', state: 'on', last: '—' },
+  { id: 'a2', sym: 'JP:8951', cond: '実績利回り ≥ 5.5%', now: '5.66%', dist: '成立中', state: 'met', last: '11/13' },
+  { id: 'a3', sym: 'JP:9434', cond: '終値 ≤ 75日移動平均 +0%', now: '2,221', dist: '−4.1%', state: 'on', last: '—', near: true },
+  { id: 'a7', sym: 'JP:2914', cond: '終値 ≤ 3,400', split: '作ったときは 17,000（1:5 の分割で換算）', price: 3400, now: '3,520', dist: '−3.4%', state: 'on', last: '—', near: true },
+  { id: 'a8', sym: 'JP:8306', cond: '終値 ≤ 18,000', price: 18000, now: '—', dist: '—', state: 'bad', why: '分割の疑い', whyLong: '分割の疑いがあるため、値を確かめ直すまで判定しません', last: '—' },
+  { id: 'a4', sym: 'JP:3462', cond: '52週高値から ≤ −20%', now: '−8.1%', dist: '11.9pt', state: 'off', last: '—' },
+  { id: 'a5', screen: '高配当銘柄', cond: 'スクリーンに新しく入った銘柄', now: '14 件', dist: '—', state: 'on', last: '11/12' },
+  { id: 'a6', sym: 'JP:94345', cond: '終値 ≥ 4,600', price: 4600, now: '4,442', dist: '+3.6%', state: 'on', last: '—', near: true },
+]
+let history = [
+  { at: '11/13 15:41', sym: 'JP:8951', cond: '実績利回り ≥ 5.5%', val: '5.66%', read: false, prov: false },
+  { at: '11/12 15:38', screen: '高配当銘柄', sym: 'JP:3283', cond: 'スクリーンに入った: 3283 日本プロロジスリート投資法人', val: '4.21%', read: false, prov: false },
+  { at: '11/12 15:42', sym: 'JP:9434', cond: '終値 ≤ 75日移動平均 +0%', val: '2,118', read: true, prov: true },
+]
+let view = 'alerts', sel = 0, chartSym = 'JP:7203', undo = null, onlyMet = false, popOpen = false
+/** ポップアップを開く（未読があれば履歴）・閉じる */
+function openPop() { view = history.some((x) => !x.read) ? 'history' : 'alerts'; sel = 0; popOpen = true; $('popwrap').classList.add('open'); render() }
+function closePop() { popOpen = false; $('popwrap').classList.remove('open') }
+const shownAlerts = () => (onlyMet ? alerts.filter((a) => a.state === 'met') : alerts)
+const $ = (id) => document.getElementById(id)
+
+function symCell(a) {
+  if (a.screen) return `<span class="scr">［${a.screen}］</span>`
+  const s = SYM[a.sym] ?? { code: a.sym.slice(3), name: '' }
+  return `<span class="code">${s.code}</span>${s.name}`
+}
+function stCell(st) {
+  const m = { on: ['on', '有効'], met: ['met', '成立中'], off: ['off', '停止'], bad: ['bad', '判定できない'] }[st]
+  return `<span class="st"><span class="dot ${m[0]}"></span>${m[1]}</span>`
+}
+function render() {
+  const unread = history.filter((h) => !h.read).length
+  $('nA').textContent = alerts.length
+  $('nH').textContent = unread ? `${unread}` : ''
+  $('nH').className = unread ? 'n unread' : 'n'
+  $('segA').className = view === 'alerts' ? 'on' : ''
+  $('segH').className = view === 'history' ? 'on' : ''
+  $('onlyBox').className = onlyMet ? 'dot met' : 'dot off'
+  $('bellCnt').textContent = unread || ''
+  $('bellCnt').style.display = unread ? '' : 'none'
+  const shown = shownAlerts()
+  const rows = view === 'alerts' ? shown : history
+  sel = Math.max(0, Math.min(sel, rows.length - 1))
+  if (view === 'alerts') {
+    $('tbl').innerHTML =
+      '<tr><th>状態</th><th>銘柄</th><th>条件</th><th class="r">現在</th><th class="r">条件まで</th><th class="r">最後に鳴った</th></tr>' +
+      shown.map((a, i) => `<tr class="${i === sel ? 'sel' : ''} ${a.state === 'off' ? 'off' : ''}"><td>${stCell(a.state)}</td><td>${symCell(a)}</td><td class="cond">${a.cond}${a.split ? `<span class="prov" title="${a.split}">分割で換算</span>` : ''}${a.why ? `<span class="muted" title="${a.whyLong}"> … ${a.why}</span>` : ''}</td><td class="r num">${a.now}</td><td class="r num dist ${a.near ? 'near' : ''}">${a.dist}</td><td class="r num">${a.last}</td></tr>`).join('')
+    $('foot').innerHTML = '<span><kbd>Insert</kbd> 作る</span><span><kbd>E</kbd> 直す</span><span><kbd>Space</kbd> 有効 / 停止</span><span><kbd>Delete</kbd> 消す</span><span><kbd>Enter</kbd> 銘柄を開く</span><span><kbd>H</kbd> 履歴</span><span><kbd>Ctrl+Shift+F</kbd> 成立中だけ</span><span><kbd>Esc</kbd> 閉じる</span>'
+  } else {
+    $('tbl').innerHTML =
+      '<tr><th>日時</th><th>銘柄</th><th>条件</th><th class="r">そのときの値</th></tr>' +
+      history.map((h, i) => `<tr class="${i === sel ? 'sel' : ''} ${h.read ? '' : 'unread'}"><td class="num">${h.at}</td><td>${h.screen ? `<span class="scr">［${h.screen}］</span>` : symCell(h)}</td><td class="cond">${h.cond}</td><td class="r num">${h.val}${h.prov ? '<span class="prov" title="大引け前の気配による仮の値で判定">仮</span>' : ''}</td></tr>`).join('')
+    $('foot').innerHTML = '<span><kbd>Enter</kbd> 銘柄を開く</span><span><kbd>R</kbd> すべて既読</span><span><kbd>H</kbd> アラートに戻る</span><span><kbd>Esc</kbd> 閉じる</span><span class="note">最大 500 件</span>'
+  }
+}
+// チャート（架空の値の日足。価格のアラートを点線で出す）
+const chart = LightweightCharts.createChart($('chart'), {
+  autoSize: true, layout: { background: { color: '#101318' }, textColor: '#8b95a2', fontFamily: 'Noto Sans Mono', attributionLogo: false },
+  grid: { vertLines: { color: '#161a20' }, horzLines: { color: '#161a20' } }, rightPriceScale: { borderColor: '#20262f' }, timeScale: { borderColor: '#20262f' },
+})
+const series = chart.addSeries(LightweightCharts.CandlestickSeries, { upColor: '#ff6b70', downColor: '#5aa2ee', borderVisible: false, wickUpColor: '#ff6b70', wickDownColor: '#5aa2ee' })
+let lines = []
+function bars(px, seed) {
+  let a = seed, c = 100
+  const r = () => ((a = (a * 1103515245 + 12345) % 2147483648) / 2147483648)
+  const raw = []
+  const d = new Date(Date.UTC(2026, 4, 1))
+  for (let i = 0; i < 140; i++) {
+    d.setUTCDate(d.getUTCDate() + (d.getUTCDay() === 5 ? 3 : 1))
+    const o = c
+    c = c * (1 + (r() - 0.48) * 0.03)
+    raw.push({ time: d.toISOString().slice(0, 10), o, c, h: Math.max(o, c) * (1 + r() * 0.01), l: Math.min(o, c) * (1 - r() * 0.01) })
+  }
+  // 最後の終値が今の値になるように全体を伸び縮みさせる（値は架空）
+  const k = px / c
+  return raw.map((b) => ({ time: b.time, open: b.o * k, high: b.h * k, low: b.l * k, close: b.c * k }))
+}
+function showChart() {
+  const s = SYM[chartSym]
+  series.applyOptions({ priceFormat: { type: 'price', precision: s.px >= 1000 ? 0 : 1, minMove: s.px >= 1000 ? 1 : 0.1 } })
+  series.setData(bars(s.px, Number(s.code.replace(/\D/g, '')) || 7))
+  chart.timeScale().fitContent()
+  $('chartTitle').innerHTML = `<span class="code">${s.code}</span>${s.name}`
+  $('chartPx').textContent = yen(s.px)
+  for (const l of lines) series.removePriceLine(l)
+  lines = alerts.filter((a) => a.sym === chartSym && a.price).map((a) =>
+    series.createPriceLine({ price: a.price, color: a.state === 'off' ? '#6b5a20' : '#d9a400', lineStyle: 2, lineWidth: 1, axisLabelVisible: true, title: '🔔 ' + a.cond }))
+  $('legend').textContent = lines.length ? `アラートの点線: ${lines.length} 本` : ''
+}
+// トースト・Windows の通知
+function toast(html, ms = 3500) {
+  const t = document.createElement('div')
+  t.className = 'toast'
+  t.innerHTML = html
+  $('toasts').append(t)
+  setTimeout(() => t.remove(), ms)
+}
+function winNotify(title, body) {
+  $('winT').textContent = title
+  $('winB').textContent = body
+  $('win').classList.add('show')
+  setTimeout(() => $('win').classList.remove('show'), 4200)
+}
+// F5: 更新して判定（モック）。ソフトバンクの終値が 75 日線を割り、優先株が 4,600 を超えた、とする
+let fired = false
+function update() {
+  $('job').textContent = '日々の更新 … 指標を計算し直しています'
+  setTimeout(() => {
+    $('job').textContent = '待機中'
+    if (fired) return toast('鳴ったアラートはありません')
+    fired = true
+    const a3 = alerts.find((a) => a.id === 'a3'), a6 = alerts.find((a) => a.id === 'a6')
+    Object.assign(a3, { state: 'met', now: '2,118', dist: '成立中', last: '11/14', near: false })
+    Object.assign(a6, { state: 'met', now: '4,612', dist: '成立中', last: '11/14', near: false })
+    history.unshift(
+      { at: '11/14 17:06', sym: 'JP:94345', cond: '終値 ≥ 4,600', val: '4,612', read: false, prov: false },
+      { at: '11/14 17:06', sym: 'JP:9434', cond: '終値 ≤ 75日移動平均 +0%', val: '2,118', read: false, prov: false },
+    )
+    SYM['JP:9434'].px = 2118
+    SYM['JP:94345'].px = 4612
+    render()
+    showChart()
+    toast('<span class="b">●</span> アラートが 2 件鳴りました: 9434 ソフトバンク・94345 ソフトバンク第1回… <span class="act">アラートを開く (Ctrl+Alt+L)</span>', 6000)
+    winNotify('アラートが 2 件鳴りました', '9434 ソフトバンク 終値 ≤ 75日移動平均 +0% ／ 94345 ソフトバンク第1回社債型種類株式 終値 ≥ 4,600')
+  }, 900)
+}
+// ダイアログ
+let dlgOpen = false, dlgVal = 0, dlgRep = true, dlgEdit = null, dlgRow = 'cond', dlgOp = '≤'
+function openDialog(edit) {
+  const a = edit ?? null
+  const s = SYM[a?.sym ?? chartSym] ?? SYM['JP:7203']
+  dlgEdit = a
+  dlgVal = a?.price ?? Math.round(s.px * 0.95)
+  dlgRep = true
+  dlgRow = 'cond'
+  dlgOp = '≤'
+  $('dlgTitle').textContent = a ? 'アラートを直す' : 'アラートを作る'
+  $('fSym').innerHTML = `<span class="code">${s.code}</span>${s.name}`
+  $('ok').textContent = a ? '保存' : '作る'
+  dlgOpen = true
+  $('scrim').classList.add('open')
+  dlgRender(s)
+}
+function dlgRender(s = SYM[dlgEdit?.sym ?? chartSym]) {
+  $('fVal').textContent = yen(dlgVal)
+  $('fOp').textContent = dlgOp
+  for (const id of ['fField', 'fOp', 'fVal']) $(id).classList.toggle('focus', dlgRow === 'cond')
+  $('fSym').classList.remove('focus')
+  $('rRep').parentElement.style.outline = dlgRow === 'rep' ? '1px solid var(--focus)' : ''
+  $('fNow').textContent = `いま ${yen(s.px)}`
+  const met = dlgOp === '≤' ? s.px <= dlgVal : s.px >= dlgVal
+  $('dlgNow').innerHTML = met ? 'いま: <b>成り立っています</b>。作った直後は鳴らさず、一覧に「成立中」と出します。' : `いま: 成り立っていない（あと <b class="num">${(((dlgVal / s.px) - 1) * 100).toFixed(1)}%</b>）`
+  $('rRep').className = 'radio' + (dlgRep ? ' on' : '')
+  $('rOnce').className = 'radio' + (dlgRep ? '' : ' on')
+}
+function closeDialog() { dlgOpen = false; $('scrim').classList.remove('open') }
+function commit() {
+  const s = SYM[dlgEdit?.sym ?? chartSym]
+  const cond = `終値 ${dlgOp} ${yen(dlgVal)}`
+  const dist = `${(((dlgVal / s.px) - 1) * 100).toFixed(1)}%`.replace('-', '−')
+  if (dlgEdit) Object.assign(dlgEdit, { cond, price: dlgVal, dist, state: 'on' })
+  else alerts.unshift({ id: 'n' + Date.now(), sym: dlgEdit?.sym ?? chartSym, cond, price: dlgVal, now: yen(s.px), dist, state: (dlgOp === '≤' ? s.px <= dlgVal : s.px >= dlgVal) ? 'met' : 'on', last: '—' })
+  closeDialog()
+  view = 'alerts'
+  sel = dlgEdit ? sel : 0
+  toast(dlgEdit ? 'アラートを直しました' : `アラートを作りました: ${s.code} ${s.name} ${cond}`)
+  render()
+  showChart()
+}
+// キー（アプリと同じ割り当て）
+window.addEventListener('keydown', (e) => {
+  if (e.isComposing) return
+  const k = e.key
+  if (dlgOpen) {
+    if (k === 'Escape') closeDialog()
+    else if (k === 'Enter' && e.ctrlKey) commit()
+    else if (k === 'Tab') { dlgRow = dlgRow === 'cond' ? 'rep' : 'cond'; dlgRender() }
+    else if (dlgRow === 'cond' && (k === 'ArrowRight' || k === 'ArrowLeft')) { const s = SYM[dlgEdit?.sym ?? chartSym]; const step = s.px >= 10000 ? 500 : s.px >= 1000 ? 50 : 5; dlgVal += k === 'ArrowRight' ? step : -step; dlgRender() }
+    else if (dlgRow === 'cond' && (k === 'o' || k === 'O')) { dlgOp = dlgOp === '≤' ? '≥' : '≤'; dlgRender() }
+    else if (dlgRow === 'cond' && (k === 'r' || k === 'R')) toast('（モック）相対条件: 「終値 ≤ 75日移動平均 +0%」のような条件にする')
+    else if (dlgRow === 'cond' && (k === 'f' || k === 'F')) toast('（モック）指標を選ぶ: 終値・実績利回り・PER・PBR・52週高値から・保有の損益率 など')
+    else if (dlgRow === 'rep' && (k === ' ' || k === 'ArrowRight' || k === 'ArrowLeft')) { dlgRep = !dlgRep; dlgRender() }
+    else return
+    e.preventDefault()
+    return
+  }
+  if (e.ctrlKey && e.altKey && e.code === 'KeyA') openDialog()
+  else if (e.ctrlKey && e.altKey && e.code === 'KeyL') { popOpen ? closePop() : openPop() }
+  else if (e.key === 'F5') update()
+  else if (e.ctrlKey && e.code === 'KeyZ' && undo && Date.now() - undo.at < 10000) { alerts.splice(undo.i, 0, undo.a); undo = null; toast('元に戻しました'); showChart() }
+  else if (!popOpen) return
+  else if (k === 'Escape') closePop()
+  else if (e.ctrlKey && e.shiftKey && e.code === 'KeyF') { onlyMet = !onlyMet; view = 'alerts'; sel = 0 }
+  else if (k === 'Insert') openDialog()
+  else if (k === 'ArrowDown') sel++
+  else if (k === 'ArrowUp') sel = Math.max(0, sel - 1)
+  else if (k === 'h' || k === 'H') { view = view === 'alerts' ? 'history' : 'alerts'; sel = 0 }
+  else if (view === 'history' && (k === 'r' || k === 'R')) { history.forEach((h) => (h.read = true)); toast('履歴をすべて既読にしました') }
+  else if (view === 'alerts' && (k === 'e' || k === 'E')) { const a = shownAlerts()[sel]; if (a && a.price) openDialog(a); else toast('モックでは価格の条件だけ直せます') }
+  else if (view === 'alerts' && k === ' ') { const a = shownAlerts()[sel]; if (a) { a.state = a.state === 'off' ? 'on' : 'off'; toast(a.state === 'off' ? 'アラートを止めました' : 'アラートを有効にしました'); showChart() } }
+  else if (view === 'alerts' && k === 'Delete') { const a = shownAlerts()[sel]; if (a) { const i = alerts.indexOf(a); undo = { a, i, at: Date.now() }; alerts.splice(i, 1); toast('アラートを消しました <span class="act">元に戻す (Ctrl+Z、10 秒以内)</span>', 10000); showChart() } }
+  else if (k === 'Enter') { const r = (view === 'alerts' ? shownAlerts() : history)[sel]; if (view === 'history' && r) r.read = true; if (r?.sym && SYM[r.sym]) { closePop(); chartSym = r.sym; showChart(); toast(`${SYM[r.sym].code} ${SYM[r.sym].name} を表示しました（銘柄ジャンプと同じ。リンク色のチャートが無いタブでは MTF に移る）`) } else if (r) toast('スクリーンのアラートは、スクリーナーでそのスクリーンを開きます') }
+  else return
+  e.preventDefault()
+  render()
+})
+$('add').onclick = () => openDialog()
+$('bell').onclick = () => (popOpen ? closePop() : openPop())
+$('close').onclick = closePop
+$('segA').onclick = () => { view = 'alerts'; render() }
+$('segH').onclick = () => { view = 'history'; render() }
+$('cancel').onclick = closeDialog
+$('ok').onclick = commit
+render()
+showChart()
+// #popup / #history / #dialog / #fired で状態を指定できる（スクリーンショット用）
+const h = location.hash
+if (h.includes('popup') || h.includes('history') || h.includes('dialog')) openPop()
+if (h.includes('history')) { view = 'history'; render() }
+if (h.includes('popup')) { view = 'alerts'; render() }
+if (h.includes('dialog')) openDialog()
+if (h.includes('fired')) update()
+</script>
+</body>
+</html>
