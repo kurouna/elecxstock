@@ -25,7 +25,7 @@ export interface JobsHost {
   provider: Provider
   retentionYears: () => number
   userCodes: () => string[]
-  /** ウォッチリストにある銘柄（取得の順位を上げる。FR-F8） */
+  /** ウォッチリストと保有の銘柄（取得の順位を上げる。FR-F8） */
   listed: () => Set<InstrumentId>
   emitProgress: (p: JobProgress) => void
   emitData: (ids: InstrumentId[]) => void
@@ -198,7 +198,11 @@ export class JobRunner {
         try {
           const extra = await this.runItem(j.kind, item, this.abort.signal)
           if (extra?.length) {
-            items.push(...extra)
+            // ウォッチリスト・保有の銘柄の取り直しは、この項目のすぐあとに（次の気配のバッチより先。FR-F8）。ほかは最後に
+            const first = this.h.listed()
+            const idOfItem = (it: string) => it.split(':').slice(1, 3).join(':')
+            items.splice(j.pos + 1, 0, ...extra.filter((it) => first.has(idOfItem(it))))
+            items.push(...extra.filter((it) => !first.has(idOfItem(it))))
             itemsDirty = true
           }
           this.consecutiveProviderErrors = 0
@@ -342,9 +346,7 @@ export class JobRunner {
 
   /** 初回・全データの取り直し（FR-S6）・日々の更新（FR-F9）の項目を作る */
   planFor(kind: JobKind): string[] {
-    const listed = this.h.listed()
-    // ウォッチリストの銘柄を先に取る（FR-F8）
-    const set = [...this.h.repo.fetchSet()].sort((a, b) => Number(listed.has(b.id)) - Number(listed.has(a.id)))
+    const set = this.fetchOrder()
     const batches = Math.ceil(set.length / this.h.provider.quoteBatchSize)
     const q = Array.from({ length: batches }, (_, i) => `Q:${i}`)
     if (kind === 'daily') {
@@ -360,9 +362,20 @@ export class JobRunner {
     return [...q, ...set.map((s) => `F:${s.id}`), 'X', ...set.map((s) => `M:${s.id}`)]
   }
 
+  /**
+   * 取得の順番（FR-F8）: 指数 → ウォッチリストと保有の銘柄 → そのほか（それぞれコード順）。
+   * 一括気配のバッチ（Q:n）はこの順に切るので、日々の更新でも利用者が見ている銘柄から新しくなる。
+   * 計画と実行で同じ順を使う（途中でリストを変えると、その回だけ取り漏れる銘柄が出うるが、翌日の取りこぼしの照合で拾う）
+   */
+  private fetchOrder(): { id: string; yahoo: string }[] {
+    const first = this.h.listed()
+    const rank = (s: { id: string; yahoo: string }) => (s.yahoo.startsWith('^') ? 0 : first.has(s.id) ? 1 : 2)
+    return [...this.h.repo.fetchSet()].sort((a, b) => rank(a) - rank(b))
+  }
+
   /** 一括気配（FR-F5）。日々の更新では、当日の仮の足を作り、取り直しが要る銘柄を足す（FR-D8, F9） */
   private async quotes(kind: JobKind, batch: number, signal: AbortSignal): Promise<string[]> {
-    const set = this.h.repo.fetchSet()
+    const set = this.fetchOrder()
     const size = this.h.provider.quoteBatchSize
     const part = set.slice(batch * size, batch * size + size)
     if (!part.length) return []

@@ -62,7 +62,9 @@ export class CoreService {
       provider,
       retentionYears: () => this.user.load('settings').retentionYears,
       userCodes: () => this.trackedCodes(),
-      listed: () => new Set(this.user.load('watchlists').flatMap((w) => w.items)),
+      // 先に取る銘柄: ウォッチリストと保有（FR-F8）
+      listed: () =>
+        new Set([...this.user.load('watchlists').flatMap((w) => w.items), ...this.user.load('holdings').map((h) => idOf(h.code))]),
       emitProgress: (p) => emit('jobs.progress', p),
       emitData: (ids) => {
         this.metricsCache = null
