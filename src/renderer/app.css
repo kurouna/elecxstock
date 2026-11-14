@@ -21,6 +21,9 @@
   --danger: #ff8a8d;
   --ok: #2fae74;
   --gold: #e3b341;
+  /* お気に入りの★: 入っていないときは控えめに、入っているときははっきり */
+  --star-off: #5b6572;
+  --star-on: #f2c04a;
   --ma1: #c98500;
   --ma2: #9085e9;
   --ma3: #199e70;
@@ -92,6 +95,8 @@
   --danger: #c4282f;
   --ok: #18804f;
   --gold: #8f6700;
+  --star-off: #c3cad3;
+  --star-on: #e0a100;
   --ma1: #b57400;
   --ma2: #6c5fd3;
   --ma3: #11805a;
@@ -400,7 +405,7 @@ kbd {
   animation: none;
 }
 .star {
-  color: var(--text-3);
+  color: var(--star-off);
   cursor: pointer;
   font-size: var(--fs-3);
   line-height: 1;
@@ -409,7 +414,7 @@ kbd {
   padding: 0;
 }
 .star.on {
-  color: var(--gold);
+  color: var(--star-on);
 }
 .state {
   position: absolute;

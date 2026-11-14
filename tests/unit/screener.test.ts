@@ -103,7 +103,7 @@ describe('runScreen', () => {
     const r = runScreen({
       conditions: [
         { field: 'user.favorite', op: '=', value: true },
-        { field: 'holding.pnlPct', op: '>=', value: 0 },
+        { field: 'no.such', op: '>=', value: 0 },
       ],
       instruments,
       metrics,
@@ -112,5 +112,45 @@ describe('runScreen', () => {
     })
     expect(r.ids).toEqual(['JP:7203'])
     expect(r.invalid).toEqual([1])
+  })
+  it('保有: 持っている銘柄と、評価損益率（口座区分をまたいで合計）で絞り込む', () => {
+    const close = metrics.get('JP:7203')!.close!
+    const holdings = new Map([['JP:7203', { qty: 100, cost: close * 100 * 0.8 }]]) // 取得価額は今の 8 割 → +25%
+    const held = runScreen({
+      conditions: [{ field: 'user.held', op: '=', value: true }],
+      instruments,
+      metrics,
+      favorites: new Set(),
+      watchlists: {},
+      holdings,
+    })
+    expect(held.ids).toEqual(['JP:7203'])
+    const notHeld = runScreen({
+      conditions: [{ field: 'user.held', op: '=', value: false }],
+      instruments,
+      metrics,
+      favorites: new Set(),
+      watchlists: {},
+      holdings,
+    })
+    expect(notHeld.ids).not.toContain('JP:7203')
+    const gain = runScreen({
+      conditions: [{ field: 'holding.pnlPct', op: '>=', value: 20 }],
+      instruments,
+      metrics,
+      favorites: new Set(),
+      watchlists: {},
+      holdings,
+    })
+    expect(gain.ids).toEqual(['JP:7203'])
+    const loss = runScreen({
+      conditions: [{ field: 'holding.pnlPct', op: '<=', value: 0 }],
+      instruments,
+      metrics,
+      favorites: new Set(),
+      watchlists: {},
+      holdings,
+    })
+    expect(loss.ids).toEqual([])
   })
 })

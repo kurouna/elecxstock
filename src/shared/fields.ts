@@ -16,7 +16,7 @@ export interface FieldDef {
   source:
     | { kind: 'metrics'; column: string }
     | { kind: 'attr'; key: 'market' | 'kind' | 'sectorJa' }
-    | { kind: 'user'; key: 'favorite' | 'watchlist' }
+    | { kind: 'user'; key: 'favorite' | 'watchlist' | 'held' }
     /** 保有に基づく指標（P3、FR-H2・H4）。実行時に保有の記録から計算する。今は予約のみ */
     | { kind: 'compute'; key: string }
   operators: CondOp[]
@@ -290,6 +290,19 @@ export const FIELDS: FieldDef[] = [
     default: [],
     availableFrom: 'P1',
   },
+  {
+    id: 'user.held',
+    version: 1,
+    label: L('保有', 'Held'),
+    description: L('保有タブに記録した銘柄（どの口座区分でも）', 'Symbols recorded in the Holdings tab (any account)'),
+    category: 'user',
+    type: 'bool',
+    source: { kind: 'user', key: 'held' },
+    operators: ['='],
+    default: true,
+    requires: ['holdings'],
+    availableFrom: 'P2',
+  },
 ]
 
 // 保有に基づく指標（P3、FR-H4）。登録表に足すだけで条件エディタ・列に出せるよう、形だけ予約しておく（FR-H2）
@@ -303,7 +316,11 @@ FIELDS.push({
   operators: ['<=', '>='],
   default: -10,
   requires: ['holdings'],
-  availableFrom: 'P3',
+  description: L(
+    '保有の評価損益率（最新の終値 ÷ 平均取得単価 − 1。口座区分をまたいで合計）',
+    'Holding P/L % (latest close ÷ average cost − 1, across accounts)',
+  ),
+  availableFrom: 'P2',
 })
 
 export const FIELD_BY_ID = new Map(FIELDS.map((f) => [f.id, f]))

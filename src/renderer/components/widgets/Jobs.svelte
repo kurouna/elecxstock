@@ -37,7 +37,7 @@ const running = (s: string) => s === 'running' || s === 'queued' || s === 'waiti
 </script>
 
 <PaneHeader {pane}>
-  <button type="button" class="ibtn" aria-label={t('jobs.update')} title={`${t('jobs.update')} (F5)`} onclick={startUpdate}><Icon name="refresh" /></button>
+  <button type="button" class="ibtn" aria-label={t('jobs.update')} title={`${t('jobs.update')} (F5)`} onclick={() => startUpdate()}><Icon name="refresh" /></button>
 </PaneHeader>
 <div class="scroll">
   <table class="grid">

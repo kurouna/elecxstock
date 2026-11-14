@@ -1,7 +1,7 @@
 <script lang="ts">
 // スクリーナー（§5.2, §5.3）。条件エディタは指標の登録表から作る（FR-FD1）。結果は仮想スクロール（FR-SC3）。
 
-import { FIELD_BY_ID, FIELDS, MARKET_CHOICES, refFields, usable } from '@shared/fields'
+import { FIELD_BY_ID, FIELDS, type FieldDef, MARKET_CHOICES, refFields, usable } from '@shared/fields'
 import type { Condition, InstrumentId, ScreenResult } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
@@ -190,11 +190,41 @@ function sortBy(k: string) {
   patchState(pane, { sort: { k, dir: sort.k === k ? (-sort.dir as 1 | -1) : -1 } })
   sel = 0
 }
+/** 保有の記録が無いときは、保有の指標を出さない（FR-H6） */
+const available = (f: FieldDef) => !f.requires?.includes('holdings') || app.holdings.length > 0
+/** 条件の指標を変える（クリック・F キー）。演算子と値は新しい指標の既定に戻す */
+async function changeField(i: number) {
+  const c = conds[i]
+  if (!c) return
+  const used = new Set(conds.filter((_, j) => j !== i).map((x) => x.field))
+  const choice = await choiceDialog(
+    t('scr.changeField'),
+    FIELDS.filter((f) => usable(f) && !used.has(f.id) && available(f)).map((f) => ({
+      id: f.id,
+      label: f.label[app.settings.lang],
+      hint: f.description?.[app.settings.lang] ?? '',
+    })),
+  )
+  if (!choice || choice === c.field) return
+  const f = FIELD_BY_ID.get(choice)!
+  const value = f.source.kind === 'user' && f.type === 'enum' ? [app.watchlists[0]?.id ?? 'favorites'] : (f.default ?? 0)
+  update(i, { field: f.id, op: f.operators[0]!, value, ...(c.or && i > 0 ? { or: true } : {}) })
+  ci = i
+}
+/** 条件を上下に動かす（↑↓ のボタン・Alt+↑↓）。結果は変わらないが、読みやすい順に並べられる */
+function moveCond(i: number, d: number) {
+  const j = i + d
+  if (j < 0 || j >= conds.length) return
+  const next = [...conds]
+  ;[next[i], next[j]] = [next[j]!, next[i]!]
+  setConds(pane, next)
+  ci = j
+}
 async function addCond() {
   const used = new Set(conds.map((c) => c.field))
   const choice = await choiceDialog(
     t('scr.addCond'),
-    FIELDS.filter((f) => usable(f) && !used.has(f.id)).map((f) => ({
+    FIELDS.filter((f) => usable(f) && !used.has(f.id) && available(f)).map((f) => ({
       id: f.id,
       label: f.label[app.settings.lang],
       hint: f.description?.[app.settings.lang] ?? '',
@@ -266,7 +296,15 @@ onMount(() => {
         ci = ci >= 0 ? -1 : 0
         return true
       }
+      if (ci >= 0 && e.altKey && !ctrl && (k === 'ArrowUp' || k === 'ArrowDown')) {
+        moveCond(ci, k === 'ArrowUp' ? -1 : 1)
+        return true
+      }
       if (ci >= 0 && !ctrl && !e.altKey) {
+        if (e.code === 'KeyF' && !e.shiftKey) {
+          void changeField(ci)
+          return true
+        }
         if (k === 'ArrowUp' || k === 'ArrowDown') {
           ci = Math.max(0, Math.min(conds.length - 1, ci + (k === 'ArrowUp' ? -1 : 1)))
           return true
@@ -388,12 +426,14 @@ $effect(() => {
     {@const f = FIELD_BY_ID.get(c.field)}
     <div class="cond" class:focus={i === ci && app.focus === pane.id} class:invalid={result?.invalid.includes(i)} title={result?.invalid.includes(i) ? t('scr.invalid') : (f?.description?.[app.settings.lang] ?? '')}>
       <button type="button" class="and" class:or={c.or && i > 0} title="A" onclick={() => toggleOr(i)}>{i ? (c.or ? t('scr.or') : t('scr.and')) : ''}</button>
-      <button type="button" class="f" onclick={() => (ci = i)}>{f ? f.label[app.settings.lang] : c.field}</button>
+      <button type="button" class="f" title={`${t('scr.changeField')} (F)`} onclick={() => { ci = i; void changeField(i) }}>{f ? f.label[app.settings.lang] : c.field}</button>
       <button type="button" class="op" onclick={() => flipOp(i)}>{opLabel(c.op)}</button>
       <button type="button" class="v" onclick={() => { ci = i; void typeValue(i) }}>{showValue(c)}</button>
       {#if f?.source.kind === 'metrics'}
         <button type="button" class="toggle miss" class:on={c.includeMissing} title={t('scr.missing')} onclick={() => update(i, { ...c, includeMissing: !c.includeMissing })}><span class="box"></span></button>
       {:else}<span></span>{/if}
+      <button type="button" class="mv" aria-label={t('scr.moveUp')} title={`${t('scr.moveUp')} (Alt+↑)`} disabled={i === 0} onclick={() => moveCond(i, -1)}>↑</button>
+      <button type="button" class="mv" aria-label={t('scr.moveDown')} title={`${t('scr.moveDown')} (Alt+↓)`} disabled={i === conds.length - 1} onclick={() => moveCond(i, 1)}>↓</button>
       <button type="button" class="x" title="Delete" onclick={() => update(i, null)}>✕</button>
     </div>
   {/each}
@@ -454,7 +494,7 @@ $effect(() => {
   }
   .cond {
     display: grid;
-    grid-template-columns: 32px 1fr 36px 140px 18px 18px;
+    grid-template-columns: 32px 1fr 36px 140px 18px 16px 16px 18px;
     gap: 6px;
     align-items: center;
     height: 24px;
@@ -479,6 +519,26 @@ $effect(() => {
   .cond .v {
     font-family: var(--mono);
     justify-content: flex-end;
+  }
+  /* 比較の記号（≧ ≦ ＝ など）は真ん中に */
+  .cond .op {
+    justify-content: center;
+    padding: 0;
+  }
+  .cond .mv {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--text-3);
+    cursor: pointer;
+    font-size: var(--fs-1);
+  }
+  .cond .mv:hover:not(:disabled) {
+    color: var(--text);
+  }
+  .cond .mv:disabled {
+    opacity: 0.25;
+    cursor: default;
   }
   .cond.focus .f,
   .cond.focus .op,

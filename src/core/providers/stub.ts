@@ -151,7 +151,7 @@ export function createStubProvider(): Provider {
       if (code === 'N225') return idx(from, interval)
       const s = series(code)
       const bars = s.bars.filter((b) => b.d >= from)
-      if (interval === '1mo') return { bars: monthly(bars), dividends: [], splits: [] }
+      if (interval === '1mo') return { bars: monthly(bars), dividends: s.dividends.filter((d) => d.date >= from), splits: [] }
       return { bars, dividends: s.dividends.filter((d) => d.date >= from), splits: s.splits.filter((x) => x.date >= from) }
     },
     async fetchQuotes(symbols): Promise<ProviderQuote[]> {

@@ -276,6 +276,16 @@ export class Repo {
     for (const s of splits) if (s.date >= from) st.run(id, s.date, 'split', s.ratio)
   }
 
+  /**
+   * 日足の保存期間（before）より前の配当を置き換える（from 以降だけ）。保存期間の中は日足の取得が受け持つので触らない。
+   * 月次系列の取得に成功してから呼ぶ（FR-S11）
+   */
+  replaceOldDividends(id: InstrumentId, before: JstDate, from: JstDate, dividends: Dividend[]): void {
+    this.db.run(`DELETE FROM actions WHERE id = ? AND type = 'div' AND d < ? AND d >= ?`, id, before, from)
+    const st = this.db.prepare('INSERT OR REPLACE INTO actions(id, d, type, value) VALUES(?, ?, ?, ?)')
+    for (const d of dividends) if (d.date < before && d.date >= from) st.run(id, d.date, 'div', d.amount)
+  }
+
   // ---------------------------------------------------------------- quotes
   putQuote(id: InstrumentId, q: ProviderQuote, fetched: string): void {
     this.db.run(

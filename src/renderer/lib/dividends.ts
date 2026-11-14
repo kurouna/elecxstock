@@ -48,7 +48,7 @@ export function eventYoy(divs: Dividend[], i: number): number | null {
   return prev?.amount ? (d.amount / prev.amount - 1) * 100 : null
 }
 
-/** グラフの幅に収まる本数（1 本 44px、5〜15 本） */
+/** グラフの幅に収まる本数（1 本 44px、5〜10 本。配当は 10 年分まで持つ） */
 export function yearsThatFit(width: number): number {
-  return Math.max(5, Math.min(15, Math.floor(width / 44)))
+  return Math.max(5, Math.min(10, Math.floor(width / 44)))
 }

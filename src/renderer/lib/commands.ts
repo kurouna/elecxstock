@@ -1,7 +1,7 @@
 // アクションの登録表（FR-KB1）とキー操作（§6.5）。メニュー・ボタン・ショートカット・コマンドバーは同じアクションを呼ぶ。
 // キーは物理キー（KeyboardEvent.code）で判定し、日本語 IME の変換中は無視する（FR-KB5）。
 // 登録表のキーは設定で変えられる（FR-KB6。settings.keymap が上書き）。ペインの中の単キーは各ペインが持つ。
-import { addDays, jstNow } from '@shared/calendar'
+import { addDays, jstNow, lastClosedSession } from '@shared/calendar'
 import type { InstrumentId, Watchlist } from '@shared/types'
 import {
   app,
@@ -51,6 +51,7 @@ import {
   type WidgetId,
 } from '../stores/layout.svelte'
 import { toCsv } from './columns'
+import { dateTime } from './format'
 import type { Key } from './i18n'
 import { matches, normalizeKey } from './keys'
 import { paneApi } from './panes'
@@ -133,6 +134,32 @@ export function sendSymbol(id: InstrumentId): void {
   }
   const group = pane?.link || 1
   setLinkSymbol(group, id)
+  // 今のタブに同じリンク色のチャート・銘柄情報が無ければ、選んでも何も見えない。MTF タブに移って表示する（FR-K1）
+  if (!shownInTab(group)) showInMtf(id)
+}
+/** 今のタブ（本体と、ピン留め・開いているドロワー）に、このリンク色の銘柄を出すペインがあるか */
+function shownInTab(group: number): boolean {
+  const e = layout.entry
+  const panes = [
+    ...allPanes(e, false),
+    ...(['left', 'right'] as const).flatMap((s) => {
+      const d = e.docks[s]
+      return d && (d.pinned || layout.dockOpen === s) ? d.panes : []
+    }),
+  ]
+  return panes.some((p) => p.link === group && OWN_SYMBOL.has(p.widget))
+}
+/** MTF タブに移り、その日足のチャートに表示する（リンク色があればそのグループ、無ければそのチャートの銘柄） */
+function showInMtf(id: InstrumentId): void {
+  layout.dockOpen = null
+  setPreset('mtf')
+  const chart = allPanes(layout.entry, false).find((p) => p.widget === 'chart' || p.widget === 'mtf')
+  if (chart) {
+    if (chart.link) setLinkSymbol(chart.link, id)
+    else setPaneSymbol(chart, id)
+    setFocus(chart.id)
+  }
+  toast(t('jump.shownInMtf', { name: nameOf(id) }))
 }
 
 /** ドロワーを開く前にフォーカスしていたペイン（閉じたらそこへ戻す。§6.9） */
@@ -190,8 +217,24 @@ export async function doResetLayout(): Promise<void> {
   toast(t('layout.resetDone', { tab }))
 }
 
-export async function startUpdate(): Promise<void> {
+export async function startUpdate(force = false): Promise<void> {
+  // 押しても何も起きないように見えないよう、更新中・更新済みのときは知らせる
+  if (app.jobs.some((j) => j.status === 'running' || j.status === 'queued')) {
+    toast(t('update.running'))
+    return
+  }
+  const last = app.status?.lastUpdate
+  if (!force && app.status?.withBars && last && upToDate(last)) {
+    toast(t('update.upToDate', { at: dateTime(last) }), { label: t('update.anyway'), run: () => void startUpdate(true) })
+    return
+  }
   await rpc('jobs.start', { kind: app.status?.withBars ? 'daily' : 'initial' })
+  toast(t('update.started'))
+}
+/** 最後の更新が、いちばん新しい取引日の大引け（15:30）より後なら最新 */
+function upToDate(lastIso: string): boolean {
+  const session = lastClosedSession()
+  return Date.parse(lastIso) >= Date.parse(`${session}T15:30:00+09:00`)
 }
 /** 銘柄を指定した取り直し（FR-S7）: 選んだ銘柄（複数選択を含む） */
 export async function refetchSelected(): Promise<void> {

@@ -39,7 +39,8 @@ describe('指標の版と移行（FR-FD5）', () => {
     expect(ok.failed).toEqual([])
     expect(ok.conditions[0]).toMatchObject({ value: 2, v: 3 })
   })
-  it('保有の指標（P3）は予約だけで、今の版では使えない', () => {
-    expect(usable(FIELDS.find((f) => f.id === 'holding.pnlPct'))).toBe(false)
+  it('保有の条件（保有している・損益率）は今の版で使える', () => {
+    expect(usable(FIELDS.find((f) => f.id === 'holding.pnlPct'))).toBe(true)
+    expect(usable(FIELDS.find((f) => f.id === 'user.held'))).toBe(true)
   })
 })

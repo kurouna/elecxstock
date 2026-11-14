@@ -8,6 +8,7 @@ import { addToListDialog, setFocus } from '../../lib/commands'
 import { cls, fmt, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
+import { PERIODS } from '../../lib/periods'
 import { symbolDrop } from '../../lib/symbolDrag'
 import {
   app,
@@ -39,14 +40,6 @@ const GRIDS: [number, number][] = [
   [4, 3],
   [5, 4],
   [6, 5],
-]
-const PERIODS: { key: Key; days: number }[] = [
-  { key: 'p.3m', days: 92 },
-  { key: 'p.6m', days: 183 },
-  { key: 'p.1y', days: 365 },
-  { key: 'p.2y', days: 730 },
-  { key: 'p.5y', days: 1826 },
-  { key: 'p.all', days: 100000 },
 ]
 const SORTS = ['ret', 'yieldTrailing', 'maDev75', 'fromHi52', 'turnover20'] as const
 type SortKey = (typeof SORTS)[number] | 'none'

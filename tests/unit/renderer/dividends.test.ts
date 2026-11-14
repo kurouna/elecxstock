@@ -56,9 +56,9 @@ describe('eventYoy', () => {
 })
 
 describe('yearsThatFit', () => {
-  it('棒 1 本に 44px を取り、5〜15 本に収める', () => {
+  it('棒 1 本に 44px を取り、5〜10 本（10 年）に収める', () => {
     expect(yearsThatFit(100)).toBe(5)
-    expect(yearsThatFit(440)).toBe(10)
-    expect(yearsThatFit(2000)).toBe(15)
+    expect(yearsThatFit(352)).toBe(8)
+    expect(yearsThatFit(2000)).toBe(10)
   })
 })

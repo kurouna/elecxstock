@@ -38,6 +38,15 @@ describe('Core（スタブのプロバイダで端から端まで）', () => {
     expect(all.find((i) => i.code === '94345')?.kind).toBe('pref')
   }, 120_000)
 
+  it('配当は日足の保存期間より前も、月次系列から 10 年分まで持つ（FR-I1）', async () => {
+    const divs = await svc.call('dividends.get', { id: 'JP:7203' })
+    const st = await svc.call('data.status', {})
+    const start = `${Number(new Date().toISOString().slice(0, 4)) - st.retentionYears}`
+    const tenYears = `${Number(new Date().toISOString().slice(0, 4)) - 10}`
+    expect(divs.some((d) => d.date < start)).toBe(true)
+    expect(divs.every((d) => d.date.slice(0, 4) >= tenYears)).toBe(true)
+  })
+
   it('週足・月足（月次系列で長期を補う）と価格の調整', async () => {
     const w = await svc.call('bars.get', { id: 'JP:7203', tf: 'W' })
     expect(w.time.length).toBeGreaterThan(200)

@@ -9,12 +9,14 @@ export interface ScreenInput {
   metrics: Map<InstrumentId, MetricsRow>
   favorites: Set<InstrumentId>
   watchlists: Record<string, InstrumentId[]>
+  /** 保有（銘柄ごとの数量と取得価額の合計。口座区分をまたぐ）。保有の条件に使う（FR-H4, H6） */
+  holdings?: Map<InstrumentId, { qty: number; cost: number }>
 }
 
 /** 条件が評価できるか（FR-SC11: 今の版に無い・使えない指標は無効として残す） */
 export function conditionValid(c: Condition): boolean {
   const f = FIELD_BY_ID.get(c.field)
-  if (!usable(f) || f.source.kind === 'compute') return false
+  if (!usable(f) || (f.source.kind === 'compute' && f.source.key !== 'pnlPct')) return false
   if (!f.operators.includes(c.op)) return false
   if (c.ref) {
     const g = FIELD_BY_ID.get(c.ref)
@@ -54,6 +56,15 @@ function test(c: Condition, ins: Instrument, m: MetricsRow, inp: ScreenInput, wl
     return c.op === 'in' ? hit : c.op === 'notin' ? !hit : x === String(c.value)
   }
   if (src.kind === 'user' && src.key === 'favorite') return inp.favorites.has(ins.id) === Boolean(c.value)
+  if (src.kind === 'user' && src.key === 'held') return (inp.holdings?.has(ins.id) ?? false) === Boolean(c.value)
+  if (src.kind === 'compute' && src.key === 'pnlPct') {
+    // 保有の評価損益率: 持っていない銘柄・終値の無い銘柄は欠損（FR-SC8）
+    const h = inp.holdings?.get(ins.id)
+    if (!h || !(h.cost > 0) || m.close == null) return null
+    const x = ((m.close * h.qty) / h.cost - 1) * 100
+    const v = Number(c.value)
+    return c.op === '>=' ? x >= v : c.op === '<=' ? x <= v : false
+  }
   const lists = Array.isArray(c.value) ? c.value : [String(c.value)]
   const hit = lists.some((l) => wl.get(l)?.has(ins.id))
   return c.op === 'in' ? hit : !hit

@@ -31,7 +31,12 @@ export function newerVersion(latest: string, current: string): boolean {
 
 export type Emit = <E extends keyof Events>(event: E, data: Events[E]) => void
 
+/** 月次系列の取得で 10 年分の配当を持つようにした版の日付（これより前に取った銘柄は取り直す） */
+const DIV10_SINCE = '2026-11-14'
+
 export class CoreService {
+  /** この起動で配当の取り直しを頼んだ銘柄 */
+  private divAsked = new Set<InstrumentId>()
   readonly db: Db
   readonly repo: Repo
   readonly user: UserStore
@@ -125,6 +130,19 @@ export class CoreService {
     return ids
   }
 
+  /** 銘柄ごとの保有（口座区分をまたいで数量と取得価額を合計）。スクリーナーの保有の条件に使う */
+  private heldMap(): Map<InstrumentId, { qty: number; cost: number }> {
+    const out = new Map<InstrumentId, { qty: number; cost: number }>()
+    for (const h of this.holdings()) {
+      if (!(h.quantity > 0)) continue
+      const id = idOf(h.code)
+      const v = out.get(id) ?? { qty: 0, cost: 0 }
+      v.qty += h.quantity
+      v.cost += h.quantity * h.avgCost
+      out.set(id, v)
+    }
+    return out
+  }
   private holdings() {
     return this.user.load('holdings').map((h) => normalize(h, this.repo.splits(`JP:${h.code}`)))
   }
@@ -250,8 +268,16 @@ export class CoreService {
         }
         return out as Results[M]
       }
-      case 'dividends.get':
-        return r.dividends(String(P.id)) as Results[M]
+      case 'dividends.get': {
+        const id = String(P.id)
+        // 10 年分の配当は月次系列の取得で入る。この版より前に月次系列を取った銘柄は、見たときに一度だけ取り直す
+        const lm = r.fetchState(id).lastMonthly
+        if (lm && lm < DIV10_SINCE && !this.divAsked.has(id) && r.fetchSet().some((x) => x.id === id)) {
+          this.divAsked.add(id)
+          this.jobs.enqueue('refetch', [`M:${id}`])
+        }
+        return r.dividends(id) as Results[M]
+      }
       case 'metrics.get': {
         const map = this.metricsMap()
         return (P.ids as string[]).flatMap((id) => {
@@ -271,6 +297,7 @@ export class CoreService {
           metrics: this.metricsMap(),
           favorites: new Set(P.favorites as string[]),
           watchlists: P.watchlists as Record<string, string[]>,
+          holdings: this.heldMap(),
         }) as Results[M]
       case 'user.load':
         return {

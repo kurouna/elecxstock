@@ -105,13 +105,9 @@ export function presetEntry(id: PresetId): LayoutEntry {
       // グリッドはスクリーナーの結果を並べることが多いので、ドロワーはスクリーナーを前に出す
       return { root: P('grid', 1, { src: 'live' }), docks: { left: selectDock(1, 1) } }
     case 'screener':
-      // スクリーナーが主役なので、左の列を広げ、スクリーナーに高さを多く割く
+      // スクリーナーが主役なので、左の列はスクリーナーだけ（ウォッチリストは置かない）
       return {
-        root: R(
-          [42, 58],
-          selectCol(1, P('screener', 1), [30, 70]),
-          C([58, 42], R([62, 38], P('chart', 1, { tf: 'D' }), P('chart', 1, { tf: 'W' })), P('info', 1)),
-        ),
+        root: R([42, 58], P('screener', 1), C([58, 42], R([62, 38], P('chart', 1, { tf: 'D' }), P('chart', 1, { tf: 'W' })), P('info', 1))),
         docks: {},
       }
     case 'income':

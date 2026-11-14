@@ -23,6 +23,7 @@ import { onMount, untrack } from 'svelte'
 import { getBars } from '../../lib/barsCache'
 import { cls, px, sgn } from '../../lib/format'
 import { bollinger, ichimoku, macd, rsiSeries, type Series, sma, stochastic } from '../../lib/indicators'
+import { barsForPeriod } from '../../lib/periods'
 import { app, nameOf, t, touched } from '../../stores/app.svelte'
 import type { PaneNode } from '../../stores/layout.svelte'
 import { type ChartHandle, charts } from './chartSync'
@@ -307,7 +308,7 @@ function build() {
       markers.setMarkers(ms)
     }
     const n = b.time.length
-    const show = tf === 'D' ? 140 : tf === 'W' ? 110 : 160
+    const show = showCount(n)
     requestAnimationFrame(() => chart?.timeScale().setVisibleLogicalRange(keep ?? { from: Math.max(0, n - show), to: n + 3 }))
   }
   lines = ls
@@ -341,12 +342,22 @@ function moveKb(d: number) {
   chart.setCrosshairPosition(bars.close[kbIndex]!, bars.time[kbIndex] as Time, main)
   legendIdx = kbIndex
 }
+/** 表示する足の本数: 期間（Alt+1〜6・見出しの選択）があればそれ、無ければ時間軸ごとの既定 */
+function showCount(n: number): number {
+  const p = pane.state.period as number | undefined
+  if (p != null) return barsForPeriod(p, tf, n)
+  return tf === 'D' ? 140 : tf === 'W' ? 110 : 160
+}
 function resetView() {
   if (!bars || !chart) return
   const n = bars.time.length
-  const show = tf === 'D' ? 140 : tf === 'W' ? 110 : 160
-  chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - show), to: n + 3 })
+  chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - showCount(n)), to: n + 3 })
 }
+// 期間を変えたら、その期間が収まるように表示し直す
+$effect(() => {
+  void pane.state.period
+  untrack(() => resetView())
+})
 
 const handle: ChartHandle = {
   get pane() {

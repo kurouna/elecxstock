@@ -27,7 +27,7 @@ test('フリー: チャートごとに別の銘柄・ジャンプはそのチャ
   const pal = page.locator('.dialog.palette')
   await expect(pal).toContainText('の代わりに表示する銘柄')
   await page.keyboard.type('2914')
-  await expect(pal).toContainText('日本たばこ')
+  await expect(pal.locator('.it.sel')).toContainText('2914') // 選んでいる行が 2914 になってから決める
   await keys(page, 'Enter')
   await expect(panes.nth(2).locator('.ph')).toContainText('2914')
   await expect(panes.nth(1).locator('.ph')).toContainText('8001')

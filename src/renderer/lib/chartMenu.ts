@@ -104,6 +104,11 @@ export function changeSymbol(pane: PaneNode): void {
 }
 /** chart・mtf-chart の共通のキー。扱えたら true */
 export function chartKey(pane: PaneNode, e: KeyboardEvent): boolean {
+  // 表示期間（Alt+1〜6、グリッドと同じ）
+  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && /^Digit[1-6]$/.test(e.code)) {
+    patchState(pane, { period: Number(e.code.slice(5)) - 1 })
+    return true
+  }
   if (e.ctrlKey || e.altKey || e.metaKey) return false
   const c = e.code
   if (c === 'KeyC' && !e.shiftKey) {

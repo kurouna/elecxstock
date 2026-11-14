@@ -195,6 +195,7 @@ async function importJpx() {
     {:else}
       <div class="field"><span>{t('set.version')}</span><span class="num">{app.info?.version ?? __APP_VERSION__}</span></div>
       <div class="field"><span>{t('set.licenseLabel')}</span><span>{t('set.license')}</span></div>
+      <div class="field"><span>{t('set.dataLabel')}</span><span>{app.info?.provider === 'stub' ? t('set.dataSourceStub') : t('set.dataSource')}</span></div>
       <div class="field">
         <span>{t('set.chartsLabel')}</span>
         <button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal('https://www.tradingview.com/')}>{t('set.attribution')}</button>

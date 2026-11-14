@@ -503,6 +503,8 @@ export class JobRunner {
     const month = jstNow().date.slice(0, 7)
     repo.db.tx(() => {
       repo.replaceMonthly(id, r.bars as RawBar[], month)
+      // 日足の保存期間より前の配当・分配金も、月次系列の取得で 10 年分まで持つ（銘柄情報の配当の推移、FR-I1）
+      repo.replaceOldDividends(id, this.retentionStart(), addYears(jstNow().date, -10), r.dividends)
       repo.markFetched(id, 'monthly', nowIso())
     })
     this.dataChanged(id)

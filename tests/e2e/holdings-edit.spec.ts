@@ -69,7 +69,8 @@ test('C キー: MTF のウォッチリストや銘柄情報からも、表示す
   const pal = page.locator('.dialog.palette')
   await expect(pal).toContainText('の代わりに表示する銘柄')
   await page.keyboard.type('8058')
-  await expect(pal).toContainText('三菱商事')
+  // 候補は打つたびに引き直すので、選んでいる行が 8058 になってから決める
+  await expect(pal.locator('.it.sel')).toContainText('8058')
   await keys(page, 'Enter')
   await expect(page.locator('[data-widget="chart"]').first()).toContainText('8058')
   await app.close()

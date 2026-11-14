@@ -4,6 +4,7 @@
 import { ACCOUNT_TYPES } from '@shared/api'
 import type { AccountType, Holding, Instrument } from '@shared/types'
 import { onMount } from 'svelte'
+import type { Key } from '../../lib/i18n'
 import { accountName } from '../../lib/portfolio'
 import { app, closeOverlay, nameOf, rpc, t } from '../../stores/app.svelte'
 
@@ -17,11 +18,49 @@ let qty = $state(holding ? String(holding.quantity) : '')
 // svelte-ignore state_referenced_locally
 let avg = $state(holding ? String(holding.avgCost) : '')
 let found = $state<Instrument | null>(null)
+/** 銘柄の候補（銘柄ジャンプと同じく、コードか名前の一部で探す）。↑↓ で選び、Enter・Tab で決める */
+let cands = $state<Instrument[]>([])
+let ci = $state(0)
+let codeFocused = $state(false)
+let candToken = 0
 let codeEl = $state<HTMLInputElement>()
 let qtyEl = $state<HTMLInputElement>()
 let token = 0
 
 const C = $derived(code.normalize('NFKC').trim().toUpperCase())
+$effect(() => {
+  const q = code.normalize('NFKC').trim()
+  const my = ++candToken
+  if (!q || holding) {
+    cands = []
+    return
+  }
+  void rpc('instruments.search', { q, limit: 8 }).then((r) => {
+    if (my !== candToken) return
+    cands = r
+    ci = 0
+  })
+})
+const showCands = $derived(codeFocused && cands.length > 0 && !(cands.length === 1 && cands[0]!.code === C))
+function pick(x: Instrument | undefined) {
+  if (!x) return
+  code = x.code
+  cands = []
+}
+function codeKey(e: KeyboardEvent) {
+  if (!showCands || e.isComposing) return
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault()
+    ci = Math.max(0, Math.min(cands.length - 1, ci + (e.key === 'ArrowDown' ? 1 : -1)))
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    // 候補を選んでから次の項目へ（Enter はここでは保存しない）
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    pick(cands[ci])
+  }
+}
 $effect(() => {
   const q = C
   const my = ++token
@@ -81,9 +120,29 @@ onMount(() => (holding ? qtyEl : codeEl)?.focus())
   <div class="body">
     <label class="f">
       <span>{t('hold.code')}</span>
-      <input bind:this={codeEl} name="code" class="num" bind:value={code} placeholder="7203" autocomplete="off" disabled={!!holding} />
+      <input
+        bind:this={codeEl}
+        name="code"
+        class="num code"
+        bind:value={code}
+        placeholder="7203"
+        autocomplete="off"
+        disabled={!!holding}
+        onkeydown={codeKey}
+        onfocus={() => (codeFocused = true)}
+        onblur={() => setTimeout(() => (codeFocused = false), 150)} />
       <span class="nm" class:muted={!name}>{name || t('hold.codeHint')}</span>
     </label>
+    {#if showCands}
+      <ul class="cands" role="listbox" aria-label={t('hold.code')}>
+        {#each cands as x, i (x.id)}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <li role="option" aria-selected={i === ci} class:sel={i === ci} onmousedown={(e) => { e.preventDefault(); pick(x) }} onmousemove={() => (ci = i)}>
+            <span class="c num">{x.code}</span><span class="n">{app.settings.lang === 'en' && x.nameEn ? x.nameEn : x.nameJa}</span><span class="m muted">{t(`mkt.${x.market}` as Key)}</span>
+          </li>
+        {/each}
+      </ul>
+    {/if}
     <div class="f">
       <span>{t('hold.account')}</span>
       <!-- svelte-ignore a11y_interactive_supports_focus -->
@@ -95,11 +154,11 @@ onMount(() => (holding ? qtyEl : codeEl)?.focus())
     </div>
     <label class="f">
       <span>{t('hold.qty')}</span>
-      <input bind:this={qtyEl} name="qty" class="num" bind:value={qty} inputmode="decimal" autocomplete="off" />
+      <input bind:this={qtyEl} name="qty" class="num r" bind:value={qty} inputmode="decimal" autocomplete="off" />
     </label>
     <label class="f">
       <span>{t('hold.avg')}</span>
-      <input name="avg" class="num" bind:value={avg} inputmode="decimal" autocomplete="off" />
+      <input name="avg" class="num r" bind:value={avg} inputmode="decimal" autocomplete="off" />
     </label>
     <div class="err">{error ?? ''}</div>
   </div>
@@ -141,6 +200,42 @@ onMount(() => (holding ? qtyEl : codeEl)?.focus())
     border: 1px solid var(--line-strong);
     border-radius: var(--radius);
     color: var(--text);
+  }
+  /* 数は右寄せ、コードは真ん中 */
+  input.r {
+    text-align: right;
+  }
+  input.code {
+    text-align: center;
+  }
+  .cands {
+    list-style: none;
+    margin: -4px 0 0 118px;
+    padding: 2px 0;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--panel-3);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .cands li {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: var(--s-2);
+    padding: 2px 8px;
+    font-size: var(--fs-2);
+    cursor: pointer;
+  }
+  .cands li.sel {
+    background: var(--select-strong);
+  }
+  .cands .n {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cands .m {
+    font-size: var(--fs-1);
   }
   input:focus,
   .seg:focus-visible {

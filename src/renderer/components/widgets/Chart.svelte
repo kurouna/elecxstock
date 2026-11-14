@@ -5,6 +5,7 @@ import { onMount } from 'svelte'
 import { cancelCompare, changeSymbol, chartKey, chartMenu, takeCompare } from '../../lib/chartMenu'
 import { cls, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
+import { PERIODS } from '../../lib/periods'
 import { app, codeOf, ensureMetrics, isFav, metric, nameOf, t, toggleFav } from '../../stores/app.svelte'
 import { type PaneNode, paneSymbol, patchState } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -45,6 +46,10 @@ onMount(() =>
       <button type="button" aria-pressed={tf === x} title={x} onclick={() => patchState(pane, { tf: x })}>{x}</button>
     {/each}
   </span>
+  <select class="per" aria-label={t('grid.period')} title={`${t('grid.period')} (Alt+1〜6)`} value={(pane.state.period as number | undefined) ?? -1} onchange={(e) => patchState(pane, { period: Number((e.currentTarget as HTMLSelectElement).value) })}>
+    {#if pane.state.period == null}<option value={-1}>{t('chart.periodAuto')}</option>{/if}
+    {#each PERIODS as p, i (p.key)}<option value={i}>{t(p.key)}</option>{/each}
+  </select>
   <button type="button" class="chip ind" title="I" onclick={() => chartMenu(pane)}>{t('chart.indShort')}</button>
 </PaneHeader>
 {#key id}
@@ -52,6 +57,15 @@ onMount(() =>
 {/key}
 
 <style>
+  .per {
+    height: 18px;
+    background: var(--panel-3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    color: var(--text-2);
+    font-size: var(--fs-1);
+    padding: 0 2px;
+  }
   .sym {
     background: none;
     border: 0;

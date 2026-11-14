@@ -39,9 +39,7 @@ const offline = $derived(app.provider.offline || app.provider.paused)
   {#if app.provider.offline}<span class="warn">{t('status.offline')}</span>{/if}
   {#if app.provider.paused}<span class="warn">{t('status.providerPaused')}</span>{/if}
   {#if app.readOnly}<span class="warn">{t('status.readOnly')}</span>{/if}
-  <span class="src">{app.info?.provider === 'stub' ? t('status.sourceStub') : t('status.source')}</span>
   <span class="grow"></span>
-  <span>{t('status.notAdvice')}</span>
   <button type="button" class="seg" onclick={() => runAction('help')}>{t('status.help')} <kbd>{keyOf('help')}</kbd></button>
 </footer>
 
@@ -84,11 +82,6 @@ const offline = $derived(app.provider.offline || app.provider.paused)
     border-right: 0;
   }
   /* 狭いときはデータ源の表記から省く */
-  .src {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .dot {
     width: 6px;
     height: 6px;
