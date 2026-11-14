@@ -69,8 +69,9 @@ async function handle(slot: string, port: PortLike, msg: { id: number; method: s
       prioritizeAll()
       return send({ id, result: null })
     }
-    // アラートの変更は 1 枚目だけ（AL1。フリー N からの作成は AL2 で足す）
-    if (slot !== 'main' && /^alerts\.(save|remove|restore|setEnabled|markRead)$/.test(method))
+    // アラートの変更は 1 枚目だけ。フリー N は新しく作ることだけできる（AL2。★・◆の切り替えと同じ例外）
+    const newAlert = method === 'alerts.save' && !(msg.params as { alert?: { id?: unknown } } | null)?.alert?.id
+    if (slot !== 'main' && /^alerts\.(save|remove|restore|setEnabled|markRead)$/.test(method) && !newAlert)
       throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
     // フリー N は自分の配置だけを書ける
     if (method === 'user.saveWindowLayout' && (msg.params as { slot?: unknown } | null)?.slot !== slot)

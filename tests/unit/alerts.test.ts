@@ -1,5 +1,6 @@
 // アラートの判定（FR-AL1・AL3・AL4・AL8・NFR-AL1。design-alerts.md §3）。値はすべて架空
-import { adjustedConditions, alertConditionOk, decide, distanceOf, type EvalInput, evaluateAlert, splitFactorAfter } from '@core/alerts'
+import { decide, decideScreen, type EvalInput, evaluateAlert } from '@core/alerts'
+import { adjustedConditions, alertConditionOk, distanceOf, splitFactorAfter } from '@shared/alerts'
 import type { Alert, Instrument, MetricsRow } from '@shared/types'
 import { describe, expect, it } from 'vitest'
 
@@ -172,5 +173,32 @@ describe('速さ（NFR-AL1）', () => {
     for (const a of list) prev = decide(undefined, evaluateAlert(a, input()), NOW)
     expect(prev).toBeTruthy()
     expect(performance.now() - t0).toBeLessThan(100)
+  })
+})
+
+describe('スクリーンのアラート（FR-AL2）', () => {
+  const ev = (ids: string[], asOf = '2026-11-13', suspect: string[] = []) => ({ ids, suspect: new Set(suspect), asOf })
+  it('基準が無ければ結果を覚えるだけ。次の基準日に新しく入った銘柄を知らせ、外れた銘柄は知らせない', () => {
+    const s0 = decideScreen(undefined, ev(['JP:1', 'JP:2']), NOW)
+    expect(s0.news).toEqual([])
+    expect(s0.state.members).toEqual(['JP:1', 'JP:2'])
+    const s1 = decideScreen(s0.state, ev(['JP:2', 'JP:3'], '2026-11-16'), NOW)
+    expect(s1.news).toEqual(['JP:3'])
+    expect(s1.state).toMatchObject({ members: ['JP:2', 'JP:3'], lastFired: NOW })
+  })
+  it('同じ基準日では判定し直さない。分割の疑いの銘柄は知らせず、覚えもしない', () => {
+    const s0 = decideScreen(undefined, ev(['JP:1']), NOW).state
+    expect(decideScreen(s0, ev(['JP:1', 'JP:9']), NOW).news).toEqual([])
+    const s1 = decideScreen(s0, ev(['JP:1', 'JP:9'], '2026-11-16', ['JP:9']), NOW)
+    expect(s1.news).toEqual([])
+    expect(s1.state.members).toEqual(['JP:1'])
+    // 値が直ってから入っていれば知らせる
+    expect(decideScreen(s1.state, ev(['JP:1', 'JP:9'], '2026-11-17'), NOW).news).toEqual(['JP:9'])
+  })
+  it('判定できないときは前の結果を残す', () => {
+    const s0 = decideScreen(undefined, ev(['JP:1']), NOW).state
+    const r = decideScreen(s0, { ids: [], suspect: new Set(), invalid: 'noScreen' }, NOW)
+    expect(r.state).toMatchObject({ members: ['JP:1'], invalid: 'noScreen' })
+    expect(r.news).toEqual([])
   })
 })

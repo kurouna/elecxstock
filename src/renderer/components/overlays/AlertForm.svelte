@@ -1,35 +1,41 @@
 <script lang="ts">
-// アラートを作る・直す（FR-AL7。design-alerts.md §6.2）。キーだけで入れられる:
+// アラートを作る・直す（FR-AL7。design-alerts.md §6.2）。対象は銘柄かスクリーン（FR-AL2。← → で切り替え）。キーだけで入れられる:
 // 条件の行で F 指標・O ≥ と ≤・R 相対条件・← → 値・Enter 値を入力・Delete 条件を外す・Insert 条件を足す。
 // Tab で項目を移り、Ctrl+Enter で保存、Esc で取り消し（メモ欄の文字と単キーがぶつからないよう、単キーは条件の行だけ）
-import { alertConditionOk, conditionMet, distanceOf, fieldValue, type Held } from '@shared/alerts'
+import { alertConditionOk, conditionMet, distanceOf, fieldValue, heldFrom, SCREEN_ALERT_LIMIT } from '@shared/alerts'
 import { FIELD_BY_ID, FIELDS, type FieldDef, refFields, usable } from '@shared/fields'
 import type { AlertView, Condition, InstrumentId } from '@shared/types'
 import { onMount, tick, untrack } from 'svelte'
 import { condText, distanceText, fieldValueText } from '../../lib/alertText'
-import { type AlertDraft, app, closeOverlay, codeOf, ensureMetrics, metric, nameOf, t } from '../../stores/app.svelte'
+import { type AlertDraft, app, closeOverlay, codeOf, ensureMetrics, metric, nameOf, screenName, t } from '../../stores/app.svelte'
 
-let { edit, symbol, resolve }: { edit?: AlertView; symbol?: InstrumentId; resolve: (a: AlertDraft | null) => void } = $props()
+let {
+  edit,
+  symbol,
+  screenId,
+  resolve,
+}: { edit?: AlertView; symbol?: InstrumentId; screenId?: string; resolve: (a: AlertDraft | null) => void } = $props()
 
 const MAX = 3
+const NONE = 'JP:0000' as InstrumentId
 // svelte-ignore state_referenced_locally
-const id: InstrumentId = edit?.target.id ?? symbol ?? 'JP:0000'
+const id: InstrumentId = (edit?.target.kind === 'symbol' ? edit.target.id : symbol) ?? NONE
+// 直すときは対象の種類を変えない。作るときは銘柄とスクリーンを切り替えられる（スクリーンが 1 つも無ければ銘柄だけ）
+// svelte-ignore state_referenced_locally
+const canSymbol = edit ? edit.target.kind === 'symbol' : id !== NONE
+// svelte-ignore state_referenced_locally
+const canScreen = edit ? edit.target.kind === 'screen' : app.screens.length > 0
+// svelte-ignore state_referenced_locally
+let kind = $state<'symbol' | 'screen'>(edit ? edit.target.kind : screenId || !canSymbol ? 'screen' : 'symbol')
+// svelte-ignore state_referenced_locally
+let scr = $state((edit?.target.kind === 'screen' ? edit.target.screenId : screenId) ?? app.screens[0]?.id ?? '')
+let kindEl = $state<HTMLElement>()
+let scrEl = $state<HTMLSelectElement>()
 const lang = $derived(app.settings.lang)
 const m = $derived(metric(id))
 
 /** 保有（損益率の条件の「いま」に使う。Core と同じく数量と取得額を足し合わせる） */
-const held = $derived.by<Held>(() => {
-  const out: Held = new Map()
-  for (const h of app.holdings) {
-    if (!(h.quantity > 0)) continue
-    const k = `JP:${h.code}` as InstrumentId
-    const v = out.get(k) ?? { qty: 0, cost: 0 }
-    v.qty += h.quantity
-    v.cost += h.quantity * h.avgCost
-    out.set(k, v)
-  }
-  return out
-})
+const held = $derived(heldFrom(app.holdings))
 
 /** アラートに使える指標（数値の市場の指標と保有の損益率。保有が無ければ損益率は出さない） */
 const fields = FIELDS.filter(
@@ -77,9 +83,20 @@ let refEls = $state<HTMLSelectElement[]>([])
 let valEls = $state<HTMLInputElement[]>([])
 
 const error = $derived(
-  conds.length === 0 || !conds.every(alertConditionOk) ? t('al.invalidCond') : id === 'JP:0000' ? t('al.noSymbol') : null,
+  kind === 'screen'
+    ? !app.screens.some((x) => x.id === scr)
+      ? t('al.inv.noScreen')
+      : !edit && app.alerts.filter((a) => a.target.kind === 'screen').length >= SCREEN_ALERT_LIMIT
+        ? t('al.screenLimit')
+        : null
+    : conds.length === 0 || !conds.every(alertConditionOk)
+      ? t('al.invalidCond')
+      : id === NONE
+        ? t('al.noSymbol')
+        : null,
 )
 const nowLine = $derived.by(() => {
+  if (kind === 'screen') return t('al.screenHint')
   if (!m) return t('al.nowUnknown')
   const r = conds.map((c) => conditionMet(c, m, held, id))
   if (r.some((x) => x == null)) return t('al.nowUnknown')
@@ -87,11 +104,14 @@ const nowLine = $derived.by(() => {
   return t('al.nowNot', { d: distanceText(distanceOf(conds, m, held, id)) })
 })
 
-/** 指標がまだ手元に無ければ取ってきて、触る前なら既定の値（今の終値の 5% 下）を入れ直す */
+/** 指標がまだ手元に無ければ取ってきて、届いたら一度だけ、触る前なら既定の値（今の終値の 5% 下）を入れ直す */
 let touched = false
+let defaulted = false
 $effect(() => {
-  if (!m) ensureMetrics([id])
-  else if (!edit && !touched) conds = [defaultCond(untrack(() => conds[0]?.field) ?? 'price.close')]
+  if (id === NONE || defaulted) return
+  if (!m) return ensureMetrics([id])
+  defaulted = true
+  if (!edit && !touched) conds = [defaultCond(untrack(() => conds[0]?.field) ?? 'price.close')]
 })
 function update(i: number, c: Condition | null) {
   touched = true
@@ -178,8 +198,8 @@ function save() {
   const n = note.trim()
   resolve({
     id: edit?.id ?? '',
-    target: { kind: 'symbol', id },
-    conditions: $state.snapshot(conds) as Condition[],
+    target: kind === 'screen' ? { kind: 'screen', screenId: scr } : { kind: 'symbol', id },
+    conditions: kind === 'screen' ? [] : ($state.snapshot(conds) as Condition[]),
     repeat,
     enabled: edit?.enabled ?? true,
     ...(n ? { note: n.slice(0, 200) } : {}),
@@ -200,10 +220,15 @@ function key(e: KeyboardEvent) {
     e.preventDefault()
     e.stopPropagation()
     save()
-  } else if (e.key === 'Insert' && !(e.target instanceof HTMLInputElement)) {
+  } else if (e.key === 'Insert' && kind === 'symbol' && !(e.target instanceof HTMLInputElement)) {
     e.preventDefault()
     void addCond()
   }
+}
+function kindKey(e: KeyboardEvent) {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== ' ') return
+  e.preventDefault()
+  kind = kind === 'symbol' ? 'screen' : 'symbol'
 }
 function repKey(e: KeyboardEvent) {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== ' ') return
@@ -216,7 +241,7 @@ const valueShown = (i: number, c: Condition) =>
 /** 換算したしきい値を直すときは、元の値も出す（§6.2） */
 const adjustedNote = $derived(edit?.adjusted ? edit.conditions.map(condText).join(lang === 'ja' ? ' かつ ' : ' and ') : '')
 
-onMount(() => rows[0]?.focus())
+onMount(() => (kind === 'screen' ? (canSymbol ? kindEl : scrEl) : rows[0])?.focus())
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -225,8 +250,29 @@ onMount(() => rows[0]?.focus())
   <div class="body">
     <div class="f">
       <span class="lb">{t('al.target')}</span>
-      <span class="tg"><span class="num c">{codeOf(id)}</span> {nameOf(id)}</span>
+      <span class="tgrow">
+        {#if canSymbol && canScreen}
+          <!-- svelte-ignore a11y_interactive_supports_focus -->
+          <span class="seg" role="radiogroup" tabindex="0" aria-label={t('al.target')} bind:this={kindEl} onkeydown={kindKey}>
+            <button type="button" tabindex="-1" role="radio" aria-checked={kind === 'symbol'} onclick={() => (kind = 'symbol')}><span class="num">{codeOf(id)}</span> {nameOf(id)}</button>
+            <button type="button" tabindex="-1" role="radio" aria-checked={kind === 'screen'} onclick={() => (kind = 'screen')}>{t('al.targetScreen')}</button>
+          </span>
+        {:else if canSymbol}
+          <span class="tg"><span class="num c">{codeOf(id)}</span> {nameOf(id)}</span>
+        {/if}
+        {#if kind === 'screen'}
+          <select name="screen" aria-label={t('al.targetScreen')} bind:this={scrEl} bind:value={scr}>
+            {#each app.screens as x (x.id)}<option value={x.id}>{screenName(x)}</option>{/each}
+          </select>
+        {/if}
+      </span>
     </div>
+    {#if kind === 'screen'}
+      <div class="f">
+        <span class="lb">{t('al.cond')}</span>
+        <span>{t('al.screenCond')}</span>
+      </div>
+    {:else}
     {#each conds as c, i (i)}
       {@const f = FIELD_BY_ID.get(c.field)}
       <div class="f">
@@ -273,6 +319,7 @@ onMount(() => rows[0]?.focus())
         <button type="button" class="btn add" onclick={addCond}>＋ {t('al.addCond')}</button>
       </div>
     {/if}
+    {/if}
     <div class="f">
       <span class="lb">{t('al.repeat')}</span>
       <!-- svelte-ignore a11y_interactive_supports_focus -->
@@ -317,6 +364,12 @@ onMount(() => rows[0]?.focus())
   .lb {
     color: var(--text-2);
     font-size: var(--fs-2);
+  }
+  .tgrow {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    min-width: 0;
   }
   .tg .c {
     color: var(--text-2);

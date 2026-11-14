@@ -1,19 +1,28 @@
 <script lang="ts">
 // アラートのポップアップ（FR-AL8。design-alerts.md §6.1）: アラートの一覧と鳴った履歴。画面の上寄りに重ねて開き、
-// レイアウトは変えない。Insert 作る・E 直す・Space 有効と停止・Delete 消す・Enter 銘柄を開く・H 切り替え・R 既読・
-// Ctrl+Shift+F 成立中だけ・Esc 閉じる
+// レイアウトは変えない。Insert 作る・E 直す・Space 有効と停止・Delete 消す・Enter 銘柄（スクリーンはスクリーナー）を開く・
+// H 切り替え・R 既読・Ctrl+Shift+F 成立中だけ・Esc 閉じる。一覧は app.alerts（チャートの点線と同じもの）
 import type { AlertFire, AlertView } from '@shared/types'
 import { onMount, tick } from 'svelte'
-import { createAlert, editAlert, removeAlert, setAlertEnabled } from '../../lib/alerts'
+import {
+  canUndoRemoveAlert,
+  editAlert,
+  fireText,
+  openTarget,
+  removeAlert,
+  setAlertEnabled,
+  targetText,
+  undoRemoveAlert,
+} from '../../lib/alerts'
 import { condsText, distanceText, fieldValueText } from '../../lib/alertText'
-import { focusedSymbol, sendSymbol } from '../../lib/commands'
+import { newAlertForFocus, sendSymbol } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
-import { app, closeOverlay, codeOf, nameOf, rpc, t } from '../../stores/app.svelte'
+import { app, closeOverlay, rpc, t, toast } from '../../stores/app.svelte'
 
 let { tab: initial }: { tab?: 'alerts' | 'history' } = $props()
 // svelte-ignore state_referenced_locally
 let tab = $state<'alerts' | 'history'>(initial ?? (app.alertsUnread > 0 ? 'history' : 'alerts'))
-let list = $state<AlertView[]>([])
+const list = $derived(app.alerts)
 let hist = $state<AlertFire[]>([])
 let onlyMet = $state(false)
 let sel = $state(0)
@@ -25,9 +34,7 @@ const shown = $derived(onlyMet ? list.filter((a) => a.enabled && a.state.met ===
 const rows = $derived(tab === 'alerts' ? shown.length : hist.length)
 
 async function load() {
-  const [a, h] = await Promise.all([rpc('alerts.list', {}).catch(() => []), rpc('alerts.history', {}).catch(() => [])])
-  list = a
-  hist = h
+  hist = await rpc('alerts.history', {}).catch(() => [])
   sel = Math.max(0, Math.min(sel, (tab === 'alerts' ? shown.length : hist.length) - 1))
   loaded = true
 }
@@ -37,7 +44,8 @@ $effect(() => {
 })
 
 type St = 'on' | 'off' | 'met' | 'bad'
-const stOf = (a: AlertView): St => (!a.enabled ? 'off' : a.state.invalid ? 'bad' : a.state.met ? 'met' : 'on')
+// スクリーンのアラートは「成立中」を持たない（結果に銘柄があるのはふつうのこと）
+const stOf = (a: AlertView): St => (!a.enabled ? 'off' : a.state.invalid ? 'bad' : a.state.met && a.target.kind === 'symbol' ? 'met' : 'on')
 const MARK: Record<St, string> = { on: '●', off: '○', met: '◎', bad: '!' }
 const atText = (iso: string) => {
   const d = new Date(iso)
@@ -45,13 +53,16 @@ const atText = (iso: string) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-function open(id: AlertView['target']['id']) {
+function open(x: { screenId?: string; instrument?: AlertFire['instrument'] }) {
   closeOverlay()
-  sendSymbol(id)
+  openTarget(x, sendSymbol)
 }
+const targetOf = (a: AlertView) => (a.target.kind === 'screen' ? { screenId: a.target.screenId } : { instrument: a.target.id })
+const create = () => newAlertForFocus(true)
 async function markRead(ids?: string[]) {
   app.alertsUnread = await rpc('alerts.markRead', ids ? { ids } : {}).catch(() => app.alertsUnread)
   hist = hist.map((f) => (!ids || ids.includes(f.id) ? { ...f, read: true } : f))
+  if (!ids) toast(t('al.readAll'))
 }
 function switchTab(to: 'alerts' | 'history') {
   tab = to
@@ -68,21 +79,22 @@ function key(e: KeyboardEvent) {
   const ctrl = e.ctrlKey || e.metaKey
   const a = tab === 'alerts' ? shown[sel] : undefined
   const f = tab === 'history' ? hist[sel] : undefined
-  if (k === 'Escape') closeOverlay()
-  else if (k === 'ArrowDown' || k === 'ArrowUp') sel = Math.max(0, Math.min(rows - 1, sel + (k === 'ArrowDown' ? 1 : -1)))
+  // Esc は handleKey（capture）が閉じる
+  if (k === 'ArrowDown' || k === 'ArrowUp') sel = Math.max(0, Math.min(rows - 1, sel + (k === 'ArrowDown' ? 1 : -1)))
   else if (k === 'PageDown' || k === 'PageUp') sel = Math.max(0, Math.min(rows - 1, sel + (k === 'PageDown' ? 10 : -10)))
   else if (k === 'Home') sel = 0
   else if (k === 'End') sel = Math.max(0, rows - 1)
   else if (ctrl && e.shiftKey && e.code === 'KeyF') {
     onlyMet = !onlyMet
     sel = 0
-  } else if (ctrl || e.altKey) return
+  } else if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyZ' && canUndoRemoveAlert()) void undoRemoveAlert()
+  else if (ctrl || e.altKey) return
   else if (e.code === 'KeyH') switchTab(tab === 'alerts' ? 'history' : 'alerts')
   else if (k === 'Enter' && (a || f)) {
     if (f && !f.read) void markRead([f.id])
-    open(a ? a.target.id : f!.instrument)
+    open(a ? targetOf(a) : f!)
   } else if (tab === 'history' && e.code === 'KeyR') void markRead()
-  else if (tab === 'alerts' && k === 'Insert') void createAlert(focusedSymbol(), true)
+  else if (tab === 'alerts' && k === 'Insert') create()
   else if (tab === 'alerts' && e.code === 'KeyE' && a) void editAlert(a)
   else if (tab === 'alerts' && k === ' ' && a) void setAlertEnabled(a.id, !a.enabled)
   else if (tab === 'alerts' && k === 'Delete' && a) void removeAlert(a.id)
@@ -107,13 +119,13 @@ onMount(() => root?.focus())
     </div>
     {#if tab === 'alerts'}
       <label class="only"><input type="checkbox" tabindex="-1" bind:checked={onlyMet} /> {t('al.onlyMet')}</label>
-      <button type="button" tabindex="-1" class="btn add" onclick={() => createAlert(focusedSymbol(), true)}>＋ {t('al.add')}</button>
+      <button type="button" tabindex="-1" class="btn add" onclick={create}>＋ {t('al.add')}</button>
     {/if}
     <button type="button" tabindex="-1" class="close" aria-label={t('cmd.hint.close')} onclick={closeOverlay}>✕</button>
   </div>
   <div class="body" bind:this={body}>
     {#if tab === 'alerts'}
-      {#if loaded && !shown.length}
+      {#if !shown.length}
         <div class="empty muted">{t('al.empty')}</div>
       {:else}
         <table>
@@ -123,16 +135,16 @@ onMount(() => root?.focus())
           <tbody>
             {#each shown as a, i (a.id)}
               {@const st = stOf(a)}
-              <tr class:sel={i === sel} class:off={!a.enabled} onclick={() => (sel = i)} ondblclick={() => open(a.target.id)}>
+              <tr class:sel={i === sel} class:off={!a.enabled} onclick={() => (sel = i)} ondblclick={() => open(targetOf(a))}>
                 <td class="st {st}">{MARK[st]} {t(`al.st.${st}` as Key)}</td>
-                <td class="sym"><span class="num c">{codeOf(a.target.id)}</span> {nameOf(a.target.id)}</td>
+                <td class="sym">{targetText(a)}</td>
                 <td class="cond">
-                  {condsText(a.adjusted ?? a.conditions)}
+                  {a.target.kind === 'screen' ? t('al.screenCond') : condsText(a.adjusted ?? a.conditions)}
                   {#if a.adjusted}<span class="tag" title={t('al.splitTip', { v: condsText(a.conditions) })}>{t('al.split')}</span>{/if}
                   {#if a.state.invalid}<span class="tag warn">{t(`al.inv.${a.state.invalid}` as Key)}</span>{/if}
                   {#if a.note}<span class="note muted">{a.note}</span>{/if}
                 </td>
-                <td class="num r">{a.conditions[0] ? fieldValueText(a.conditions[0].field, a.now) : '—'}</td>
+                <td class="num r">{a.target.kind === 'screen' ? (a.now == null ? '—' : t('al.members', { n: a.now })) : a.conditions[0] ? fieldValueText(a.conditions[0].field, a.now) : '—'}</td>
                 <td class="num r">{st === 'met' ? t('al.st.met') : distanceText(a.distance)}</td>
                 <td class="num muted">{a.state.lastFired ? atText(a.state.lastFired) : '—'}</td>
               </tr>
@@ -150,11 +162,11 @@ onMount(() => root?.focus())
         <tbody>
           {#each hist as f, i (f.id)}
             {@const c = f.conditions[0]}
-            <tr class:sel={i === sel} class:unread={!f.read} onclick={() => (sel = i)} ondblclick={() => open(f.instrument)}>
+            <tr class:sel={i === sel} class:unread={!f.read} onclick={() => (sel = i)} ondblclick={() => open(f)}>
               <td class="num">{atText(f.at)}</td>
-              <td class="sym"><span class="num c">{codeOf(f.instrument)}</span> {nameOf(f.instrument)}</td>
+              <td class="sym">{f.screenId ? targetText({ target: { kind: 'screen', screenId: f.screenId } }) : targetText({ target: { kind: 'symbol', id: f.instrument } })}</td>
               <td class="cond">
-                {condsText(f.conditions)}
+                {f.screenId ? fireText(f) : condsText(f.conditions)}
                 {#if f.splitAdjusted}<span class="tag">{t('al.split')}</span>{/if}
                 {#if f.provisional}<span class="tag" title={t('al.provTip')}>{t('al.prov')}</span>{/if}
               </td>
@@ -289,9 +301,6 @@ onMount(() => root?.focus())
     max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .sym .c {
-    color: var(--text-2);
   }
   .cond {
     max-width: 360px;

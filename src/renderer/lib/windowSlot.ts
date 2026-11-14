@@ -20,7 +20,6 @@ export function blockedInFree(id: string): boolean {
     [
       'layouts',
       'alerts',
-      'alertNew',
       'settings',
       'data',
       'keys',

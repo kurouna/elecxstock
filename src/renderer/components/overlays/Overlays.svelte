@@ -41,7 +41,7 @@ function backdrop(e: MouseEvent) {
         <AlertsPopup tab={app.overlay.tab} />
       {:else if app.overlay.kind === 'alertForm'}
         {#key app.overlay}
-          <AlertForm edit={app.overlay.edit} symbol={app.overlay.symbol} resolve={app.overlay.resolve} />
+          <AlertForm edit={app.overlay.edit} symbol={app.overlay.symbol} screenId={app.overlay.screenId} resolve={app.overlay.resolve} />
         {/key}
       {:else}
         <!-- ダイアログが続けて開いても、選択の位置などを前のものから持ち越さない -->

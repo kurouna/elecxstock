@@ -94,6 +94,12 @@ const api: ElecxstockBridge = {
     ipcRenderer.on('bus', f)
     return () => void ipcRenderer.off('bus', f)
   },
+  notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', title, body) as Promise<boolean>,
+  onAlertsOpen: (cb: () => void) => {
+    const f = () => cb()
+    ipcRenderer.on('alerts:open', f)
+    return () => void ipcRenderer.off('alerts:open', f)
+  },
   platform: process.platform,
 }
 contextBridge.exposeInMainWorld('elecxstock', api)

@@ -1,9 +1,34 @@
 // Core の API の実装（§8.2）。入力は zod で検証済みのものを受け取る。Electron を import しない（NFR-A1）。
 import { mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import {
+  ALERT_LIMIT,
+  adjustedConditions,
+  alertConditionOk,
+  distanceOf,
+  heldFrom,
+  nowValueOf,
+  SCREEN_ALERT_LIMIT,
+  SCREEN_FIRE_MAX,
+  symbolOf,
+  usesHoldings,
+} from '@shared/alerts'
 import type { CoreError, Events, Method, Params, Results } from '@shared/api'
-import type { Adjustment, Alert, AlertFire, AlertState, AlertView, Holding, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
-import { ALERT_LIMIT, AlertBook, adjustedConditions, alertConditionOk, decide, distanceOf, evaluateAlert, nowValueOf } from './alerts'
+import { FIELD_BY_ID } from '@shared/fields'
+import type {
+  Adjustment,
+  Alert,
+  AlertFire,
+  AlertState,
+  AlertView,
+  Condition,
+  Holding,
+  InstrumentId,
+  JstDate,
+  MetricsRow,
+  Timeframe,
+} from '@shared/types'
+import { AlertBook, decide, decideScreen, evaluateAlert, type ScreenEval } from './alerts'
 import { addYears, jstNow, lastClosedSession } from './calendar'
 import { Db } from './db'
 import { applyImport, exportHoldings, normalize, previewBrokerCsv, previewImport } from './holdings'
@@ -15,6 +40,22 @@ import { runScreen } from './screener'
 import { adjust, adjustMonthly, aggregate, mergeMonthly, toBars } from './series'
 import { defaultScreens, UserStore } from './userstore'
 
+/**
+ * スクリーンのアラートの基準を取り直すメソッド（screens: 条件の変わったスクリーンだけ / user: ★・ウォッチリスト・保有の条件を
+ * 使うスクリーンだけ / all: すべて（対象の銘柄が変わる））
+ */
+type Rebase = 'screens' | 'user' | 'all'
+const SCREEN_REBASE: Partial<Record<string, Rebase>> = {
+  'user.saveScreens': 'screens',
+  'instruments.addUser': 'all',
+  'instruments.removeUser': 'all',
+  'user.saveWatchlists': 'user',
+  'watchlists.toggleItem': 'user',
+  'portfolio.save': 'user',
+  'portfolio.applyImport': 'user',
+  'portfolio.applyCsv': 'user',
+  'portfolio.undoImport': 'user',
+}
 const RELEASES = 'https://api.github.com/repos/kurouna/elecxstock/releases/latest'
 /** 'v0.1.2' と '0.1.10' を数で比べる */
 export function newerVersion(latest: string, current: string): boolean {
@@ -57,7 +98,7 @@ export class CoreService {
     this.db = new Db(join(dataDir, 'market.db'))
     this.repo = new Repo(this.db)
     this.user = new UserStore(join(dataDir, 'user'))
-    this.alertBook = new AlertBook(join(dataDir, 'user'))
+    this.alertBook = new AlertBook(join(dataDir, 'user'), () => this.user.readOnly)
     if (this.user.readOnly || this.user.load('settings') == null) {
       /* settings を最初に読んで読み取り専用かを決める */
     }
@@ -71,7 +112,7 @@ export class CoreService {
         new Set([
           ...this.user.load('watchlists').flatMap((w) => w.items),
           ...this.user.load('holdings').map((h) => idOf(h.code)),
-          ...this.user.load('alerts').map((a) => a.target.id),
+          ...this.user.load('alerts').flatMap((a) => symbolOf(a) ?? []),
         ]),
       emitProgress: (p) => emit('jobs.progress', p),
       emitData: (ids) => {
@@ -145,16 +186,7 @@ export class CoreService {
 
   /** 銘柄ごとの保有（口座区分をまたいで数量と取得価額を合計）。スクリーナーの保有の条件に使う */
   private heldMap(): Map<InstrumentId, { qty: number; cost: number }> {
-    const out = new Map<InstrumentId, { qty: number; cost: number }>()
-    for (const h of this.holdings()) {
-      if (!(h.quantity > 0)) continue
-      const id = idOf(h.code)
-      const v = out.get(id) ?? { qty: 0, cost: 0 }
-      v.qty += h.quantity
-      v.cost += h.quantity * h.avgCost
-      out.set(id, v)
-    }
-    return out
+    return heldFrom(this.holdings())
   }
   private holdings() {
     return this.user.load('holdings').map((h) => normalize(h, this.repo.splits(`JP:${h.code}`)))
@@ -188,6 +220,14 @@ export class CoreService {
 
   /** メソッドの実行。エラーは CoreError（コード + 引数）で返す（FR-N5） */
   async call<M extends Method>(method: M, p: Params<M>): Promise<Results[M]> {
+    // スクリーン・ウォッチリスト・保有を変えたら、スクリーンのアラートは鳴らさずに基準を取り直す（FR-AL2。自分の操作で鳴らない）
+    const kind = SCREEN_REBASE[method]
+    const before = kind === 'screens' ? this.screenConditions() : undefined
+    const res = await this.dispatch(method, p)
+    if (kind) this.rebaseScreenAlerts(kind, before)
+    return res
+  }
+  private async dispatch<M extends Method>(method: M, p: Params<M>): Promise<Results[M]> {
     const r = this.repo
     const P = p as Record<string, unknown>
     switch (method) {
@@ -434,10 +474,20 @@ export class CoreService {
         return this.alertViews() as Results[M]
       case 'alerts.save': {
         const a = P.alert as Alert
-        if (!a.conditions.every(alertConditionOk)) throw { code: 'invalid-params', args: { field: 'conditions' } } satisfies CoreError
         const list = [...this.user.load('alerts')]
         const at = a.id ? list.findIndex((x) => x.id === a.id) : -1
         if (at < 0 && list.length >= ALERT_LIMIT) throw { code: 'invalid-params', args: { limit: ALERT_LIMIT } } satisfies CoreError
+        if (a.target.kind === 'symbol') {
+          if (!a.conditions.length || !a.conditions.every(alertConditionOk))
+            throw { code: 'invalid-params', args: { field: 'conditions' } } satisfies CoreError
+        } else {
+          // スクリーンのアラート（FR-AL2）: 条件はスクリーンのもの。保存したスクリーンだけ、20 件まで
+          const screenId = a.target.screenId
+          if (a.conditions.length || !this.user.load('screens').some((x) => x.id === screenId))
+            throw { code: 'invalid-params', args: { field: 'target' } } satisfies CoreError
+          if (list.filter((x) => x.target.kind === 'screen' && x.id !== a.id).length >= SCREEN_ALERT_LIMIT)
+            throw { code: 'invalid-params', args: { limit: SCREEN_ALERT_LIMIT } } satisfies CoreError
+        }
         // 作った日・直した日を価格のしきい値の基準日にする（§3.3）
         const next: Alert = {
           ...a,
@@ -449,7 +499,7 @@ export class CoreService {
         else list.push(next)
         this.user.save('alerts', list)
         this.syncTracked() // アラートの銘柄を取得の対象にする（FR-AL10）
-        this.evaluateAlerts(new Set([next.id])) // 基準を取り直す（鳴らさない）
+        this.evaluateAlerts(new Set([next.id]), true) // 基準を取り直す（鳴らさない）
         return this.alertViews().find((v) => v.id === next.id) as Results[M]
       }
       case 'alerts.remove': {
@@ -470,6 +520,10 @@ export class CoreService {
       case 'alerts.restore': {
         const a = P.alert as Alert
         const list = this.user.load('alerts').filter((x) => x.id !== a.id)
+        // 消してから作った分で上限を超えるなら戻さない
+        if (list.length >= ALERT_LIMIT) throw { code: 'invalid-params', args: { limit: ALERT_LIMIT } } satisfies CoreError
+        if (a.target.kind === 'screen' && list.filter((x) => x.target.kind === 'screen').length >= SCREEN_ALERT_LIMIT)
+          throw { code: 'invalid-params', args: { limit: SCREEN_ALERT_LIMIT } } satisfies CoreError
         this.user.save('alerts', [...list, a])
         this.alertBook.setStates({ ...this.alertBook.states(), [a.id]: P.state as AlertState })
         this.syncTracked()
@@ -483,7 +537,7 @@ export class CoreService {
           'alerts',
           list.map((x) => (x.id === a.id ? { ...x, enabled: Boolean(P.enabled) } : x)),
         )
-        if (P.enabled) this.evaluateAlerts(new Set([a.id])) // 再開したら基準を取り直す（鳴らさない）
+        if (P.enabled) this.evaluateAlerts(new Set([a.id]), true) // 再開したら基準を取り直す（鳴らさない）
         return this.alertViews().find((v) => v.id === a.id) as Results[M]
       }
       case 'alerts.history':
@@ -602,7 +656,7 @@ export class CoreService {
     const held = this.user.load('holdings').map((h) => h.code)
     const alerted = this.user
       .load('alerts')
-      .map((a) => a.target.id)
+      .flatMap((a) => symbolOf(a) ?? [])
       .filter((id) => id.startsWith('JP:'))
       .map((id) => id.slice(3))
     return [...new Set([...this.user.load('settings').userInstruments, ...fromLists, ...held, ...alerted])]
@@ -614,28 +668,32 @@ export class CoreService {
     const held = this.heldMap()
     const states = this.alertBook.states()
     return this.user.load('alerts').map((a) => {
-      const m = metrics.get(a.target.id)
-      const adj = adjustedConditions(a, this.repo.splits(a.target.id))
+      const state = states[a.id] ?? { met: null }
+      // スクリーンのアラート: 「現在」は結果の件数
+      if (a.target.kind === 'screen') return { ...a, state, now: state.members?.length ?? null, distance: null }
+      const id = a.target.id
+      const m = metrics.get(id)
+      const adj = adjustedConditions(a, this.repo.splits(id))
       return {
         ...a,
-        state: states[a.id] ?? { met: null },
+        state,
         now: nowValueOf(a, m, held),
-        distance: distanceOf(adj ?? a.conditions, m, held, a.target.id),
+        distance: distanceOf(adj ?? a.conditions, m, held, id),
         ...(adj ? { adjusted: adj } : {}),
       }
     })
   }
 
   /**
-   * アラートを判定する（FR-AL3・AL4）。取得のジョブの終わり・指標の再計算のあと・保有を変えたあとに呼ぶ。
-   * rebase の id は基準を取り直すだけで鳴らさない（作った・直した・再開した直後、保有を変えた直後の保有の条件）。
-   * 例外は投げない（判定でジョブや保存を失敗させない）
+   * アラートを判定する（FR-AL3・AL4）。取得のジョブの終わり・指標の再計算のあとに呼ぶ。
+   * rebase の id は基準を取り直すだけで鳴らさない（作った・直した・再開した直後、保有・スクリーン・ウォッチリストを変えた直後）。
+   * only なら rebase の id だけを見る（ジョブの終わり以外）。例外は投げない（判定でジョブや保存を失敗させない）
    */
-  evaluateAlerts(rebase?: Set<string>): AlertFire[] {
+  evaluateAlerts(rebase?: Set<string>, only = false): AlertFire[] {
     try {
       const defs = this.user.load('alerts')
       if (!defs.length) return []
-      this.metricsCache = null // 取得の直後の値で判定する
+      if (!only) this.metricsCache = null // 取得の直後の値で判定する
       const metrics = this.metricsMap()
       const held = this.heldMap()
       const loading = !!this.db.get(
@@ -644,34 +702,68 @@ export class CoreService {
       const lastSession = lastClosedSession()
       const now = new Date().toISOString()
       const states = { ...this.alertBook.states() }
+      const screens = new Map(this.user.load('screens').map((x) => [x.id, x]))
+      // スクリーンの基準日: 指標の中でいちばん新しい基準日
+      let latest: JstDate | undefined
+      for (const m of metrics.values()) if (m.asOf && (!latest || m.asOf > latest)) latest = m.asOf
       const fires: AlertFire[] = []
       const stopped = new Set<string>()
       for (const a of defs) {
-        if (!a.enabled) continue
-        const id = a.target.id
-        const r = evaluateAlert(a, {
-          instrument: this.repo.instrument(id) ?? undefined,
-          metrics: metrics.get(id),
-          holdings: held,
-          splits: this.repo.splits(id),
-          loading,
-          lastSession,
-        })
-        const d = decide(rebase?.has(a.id) ? { met: null } : states[a.id], r, now)
-        states[a.id] = d.state
-        if (!d.fire) continue
-        fires.push({
-          id: `af-${Date.now().toString(36)}-${fires.length}`,
-          alertId: a.id,
-          at: now,
-          instrument: id,
-          conditions: r.conditions,
-          values: r.values,
-          splitAdjusted: r.splitAdjusted,
-          asOf: r.asOf ?? lastSession,
-          provisional: r.provisional,
-          read: false,
-        })
+        if (!a.enabled || (only && !rebase?.has(a.id))) continue
+        const last = states[a.id]?.lastFired
+        const prev = rebase?.has(a.id) ? { met: null, ...(last ? { lastFired: last } : {}) } : states[a.id]
+        const base = { id: `af-${Date.now().toString(36)}-${fires.length}`, alertId: a.id, at: now, read: false }
+        if (a.target.kind === 'screen') {
+          const sc = screens.get(a.target.screenId)
+          let ev: ScreenEval = { ids: [], suspect: new Set() }
+          if (!sc) ev.invalid = 'noScreen'
+          else if (loading) ev.invalid = 'loading'
+          else {
+            const res = this.runSavedScreen(sc.conditions)
+            if (res.invalid.length) ev.invalid = 'condition'
+            else {
+              const suspect = new Set(res.ids.filter((id) => metrics.get(id)?.gapSuspect || metrics.get(id)?.anomaly))
+              ev = { ids: res.ids, suspect, ...(latest ? { asOf: latest } : {}) }
+            }
+          }
+          const d = decideScreen(prev, ev, now)
+          states[a.id] = d.state
+          if (!d.news.length) continue
+          fires.push({
+            ...base,
+            instrument: d.news[0]!,
+            screenId: a.target.screenId,
+            members: d.news.slice(0, SCREEN_FIRE_MAX),
+            more: Math.max(0, d.news.length - SCREEN_FIRE_MAX),
+            conditions: [],
+            values: {},
+            splitAdjusted: false,
+            asOf: ev.asOf ?? lastSession,
+            provisional: d.news.some((id) => !!metrics.get(id)?.provisional),
+          })
+        } else {
+          const id = a.target.id
+          const r = evaluateAlert(a, {
+            instrument: this.repo.instrument(id) ?? undefined,
+            metrics: metrics.get(id),
+            holdings: held,
+            splits: this.repo.splits(id),
+            loading,
+            lastSession,
+          })
+          const d = decide(prev, r, now)
+          states[a.id] = d.state
+          if (!d.fire) continue
+          fires.push({
+            ...base,
+            instrument: id,
+            conditions: r.conditions,
+            values: r.values,
+            splitAdjusted: r.splitAdjusted,
+            asOf: r.asOf ?? lastSession,
+            provisional: r.provisional,
+          })
+        }
         if (!a.repeat) stopped.add(a.id) // 1 回だけのアラートは鳴ったら止める
       }
       this.alertBook.setStates(states)
@@ -695,6 +787,43 @@ export class CoreService {
       return []
     }
   }
+  /** 保存したスクリーンを、Core が持つ★・ウォッチリスト・保有で走らせる（スクリーンのアラート。上位 N 件は使わない） */
+  private runSavedScreen(conditions: Condition[]) {
+    const lists = this.user.load('watchlists')
+    return runScreen({
+      conditions,
+      instruments: this.repo.universe(),
+      metrics: this.metricsMap(),
+      favorites: new Set(lists.find((w) => w.builtin === 'favorites')?.items ?? []),
+      watchlists: Object.fromEntries(lists.map((w) => [w.id, w.items])),
+      holdings: this.heldMap(),
+    })
+  }
+  /** 保存したスクリーンの条件（変わったかを比べるため） */
+  private screenConditions(): Map<string, string> {
+    return new Map(this.user.load('screens').map((x) => [x.id, JSON.stringify(x.conditions)]))
+  }
+  /** スクリーンのアラートの基準を取り直す（screens は条件の変わったスクリーン、user は★・ウォッチリスト・保有の条件を使うスクリーンだけ） */
+  private rebaseScreenAlerts(kind: Rebase, before?: Map<string, string>): void {
+    const after = kind === 'screens' ? this.screenConditions() : undefined
+    const screens = new Map(this.user.load('screens').map((x) => [x.id, x]))
+    const usesUser = (cs: Condition[]) =>
+      cs.some((c) => {
+        const f = FIELD_BY_ID.get(c.field)
+        return f?.source.kind === 'user' || !!f?.requires?.includes('holdings')
+      })
+    const ids = this.user
+      .load('alerts')
+      .filter((a) => a.enabled && a.target.kind === 'screen')
+      .filter((a) => {
+        if (a.target.kind !== 'screen' || kind === 'all') return true
+        const sid = a.target.screenId
+        if (kind === 'screens') return before?.get(sid) !== after?.get(sid)
+        return usesUser(screens.get(sid)?.conditions ?? [])
+      })
+      .map((a) => a.id)
+    if (ids.length) this.evaluateAlerts(new Set(ids), true)
+  }
   /**
    * 保有を変えたあと: 保有の銘柄は市場によらず取得の対象にする（スタンダード・グロース・ETF も）。
    * 一覧に無いコード（別の PC で足した銘柄など）は利用者の銘柄として足す。まだ取っていない銘柄は取りにいく（1 回のジョブで）
@@ -709,9 +838,9 @@ export class CoreService {
   private trackHoldings(): void {
     const pnl = this.user
       .load('alerts')
-      .filter((a) => a.conditions.some((c) => c.field.startsWith('holding.')))
+      .filter((a) => a.conditions.some(usesHoldings))
       .map((a) => a.id)
-    if (pnl.length) this.evaluateAlerts(new Set(pnl))
+    if (pnl.length) this.evaluateAlerts(new Set(pnl), true)
     const r = this.repo
     const hs = this.user.load('holdings')
     const unknown = [

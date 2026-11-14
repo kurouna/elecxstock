@@ -37,5 +37,8 @@ export interface ElecxstockBridge {
   busPublish(topic: string, data: unknown): void
   busLast(): Promise<{ topic: string; data: unknown; seq: number }[]>
   onBus(cb: (m: { topic: string; data: unknown; seq: number }) => void): () => void
+  /** Windows の通知を出す（アラート。FR-AL5。1 枚目だけ）。押されたら 1 枚目を前に出して onAlertsOpen を呼ぶ */
+  notify(title: string, body: string): Promise<boolean>
+  onAlertsOpen(cb: () => void): () => void
   platform: string
 }

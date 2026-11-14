@@ -10,9 +10,11 @@ import {
   createSeriesMarkers,
   HistogramSeries,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
   LineSeries,
+  LineStyle,
   type LineWidth,
   PriceScaleMode,
   type SeriesMarker,
@@ -63,6 +65,8 @@ let kbIndex: number | null = null
 let chart: IChartApi | null = null
 let main: ISeriesApi<SeriesType> | null = null
 let markers: ISeriesMarkersPluginApi<Time> | null = null
+/** アラートの点線（FR-AL9） */
+let alertLines: IPriceLine[] = []
 /** 凡例に出す値（指標の名前・色・値の配列） */
 let lines = $state<{ label: string; color: string; values: Series }[]>([])
 let token = 0
@@ -115,6 +119,38 @@ $effect(() => {
   })
 })
 
+/**
+ * アラートの点線（FR-AL9）: この銘柄の、終値の条件（相対条件の無いもの）のしきい値に水平の点線を引く。分割で換算した値で、
+ * 停止中は薄く。比較の表示（% 目盛り）では引かない
+ */
+function drawAlertLines() {
+  if (!main) return
+  for (const l of alertLines) main.removePriceLine(l)
+  alertLines = []
+  if (cmp.length) return
+  for (const a of app.alerts) {
+    if (a.target.kind !== 'symbol' || a.target.id !== id) continue
+    for (const c of a.adjusted ?? a.conditions) {
+      if (c.field !== 'price.close' || c.ref) continue
+      alertLines.push(
+        main.createPriceLine({
+          price: Number(c.value),
+          color: a.enabled ? css('--warn') : css('--text-3'),
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: '🔔',
+        }),
+      )
+    }
+  }
+}
+$effect(() => {
+  void app.alerts
+  void id
+  untrack(drawAlertLines)
+})
+
 const ld = (time: string[], v: Series) => v.flatMap((x, i) => (x == null || time[i] == null ? [] : [{ time: time[i] as Time, value: x }]))
 
 /** 一目の先行スパンは 26 本先まで描くので、足の間隔で先の日付を作る */
@@ -134,6 +170,7 @@ function build() {
   if (!host) return
   const keep = chart?.timeScale().getVisibleLogicalRange()
   chart?.remove()
+  alertLines = []
   const up = css('--up')
   const down = css('--down')
   chart = createChart(host, {
@@ -181,6 +218,7 @@ function build() {
   if (b) {
     const base = b.close.at(-1) ?? 1000
     main.applyOptions({ priceFormat: { type: 'price', precision: base < 1000 ? 1 : 0, minMove: base < 1000 ? 0.1 : 1 } })
+    drawAlertLines()
     const tm = b.time as Time[]
     if (ctype === 'line') (main as ISeriesApi<'Line'>).setData(tm.map((time, i) => ({ time, value: b.close[i]! })))
     else

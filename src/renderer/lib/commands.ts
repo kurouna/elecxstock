@@ -169,6 +169,16 @@ function showInMtf(id: InstrumentId): void {
   toast(t('jump.shownInMtf', { name: nameOf(id) }))
 }
 
+/**
+ * フォーカス中の銘柄でアラートを作る（Ctrl+Alt+A・ポップアップの Insert。FR-AL7）。スクリーナーにフォーカスがあれば、
+ * 開いているスクリーンを初めの対象にする（ダイアログで銘柄に切り替えられる。FR-AL2）。フリー N からも作れる（AL2）
+ */
+export function newAlertForFocus(back = false): void {
+  const p = findPane(app.focus)
+  const sid = p?.widget === 'screener' ? (p.state.screenId as string | undefined) : undefined
+  void createAlert(focusedSymbol(), back, sid)
+}
+
 /** ドロワーを開く前にフォーカスしていたペイン（閉じたらそこへ戻す。§6.9） */
 let beforeDock: string | null = null
 export function toggleDock(side: DockSide = 'left'): void {
@@ -586,7 +596,7 @@ export const ACTIONS: Action[] = [
   // アプリを終了する。閉じる前の保存（beforeunload）はウィンドウを閉じるときと同じ
   { id: 'quit', label: () => t('act.quit'), key: 'Ctrl+Shift+Q', when: 'global', run: () => void window.elecxstock.quit() },
   // ---- アラート（FR-AL7・AL8。docs/design-alerts.md）
-  { id: 'alertNew', label: () => t('act.alertNew'), key: 'Ctrl+Alt+A', when: 'global', run: () => void createAlert(focusedSymbol()) },
+  { id: 'alertNew', label: () => t('act.alertNew'), key: 'Ctrl+Alt+A', when: 'global', run: () => newAlertForFocus() },
   { id: 'alerts', label: () => t('act.alerts'), key: 'Ctrl+Alt+L', when: 'global', run: () => toggleAlerts() },
   // ---- マルチモニタ（docs/design-multimonitor.md）
   { id: 'newWindow', label: () => t('act.newWindow'), key: 'Ctrl+Alt+N', when: 'global', run: () => newWindowDialog() },

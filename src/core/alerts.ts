@@ -3,18 +3,19 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { adjustedConditions, alertConditionOk, fieldValue, type Held, HISTORY_LIMIT, usesHoldings } from '@shared/alerts'
-import type { Alert, AlertFire, AlertInvalid, AlertState, Condition, Instrument, JstDate, MetricsRow, Split } from '@shared/types'
+import type {
+  Alert,
+  AlertFire,
+  AlertInvalid,
+  AlertState,
+  Condition,
+  Instrument,
+  InstrumentId,
+  JstDate,
+  MetricsRow,
+  Split,
+} from '@shared/types'
 import { evaluateConditions } from './screener'
-
-export {
-  ALERT_LIMIT,
-  adjustedConditions,
-  alertConditionOk,
-  distanceOf,
-  nowValueOf,
-  splitFactorAfter,
-  splitSensitive,
-} from '@shared/alerts'
 
 export interface EvalInput {
   instrument: Instrument | undefined
@@ -43,7 +44,7 @@ export function evaluateAlert(a: Alert, inp: EvalInput): EvalResult {
   const conditions = adj ?? a.conditions
   const base = { conditions, splitAdjusted: !!adj, values: {}, provisional: false }
   const bad = (invalid: AlertInvalid): EvalResult => ({ ...base, met: null, invalid })
-  if (!a.conditions.every(alertConditionOk)) return bad('condition')
+  if (a.target.kind !== 'symbol' || !a.conditions.length || !a.conditions.every(alertConditionOk)) return bad('condition')
   if (inp.loading) return bad('loading')
   const ins = inp.instrument
   if (!ins) return bad('missing')
@@ -87,14 +88,58 @@ export function decide(prev: AlertState | undefined, r: EvalResult, now: string)
   return { state: { met: r.met, ...(r.asOf ? { asOf: r.asOf } : {}), ...(fire ? { lastFired: now } : keep) }, fire }
 }
 
+/** スクリーンのアラートの判定の材料（Core がスクリーンを走らせた結果） */
+export interface ScreenEval {
+  /** 結果の銘柄（上位 N 件は使わず、条件に合うすべて） */
+  ids: InstrumentId[]
+  /** 分割の疑い・値の異常のある銘柄（新しく入っても知らせない） */
+  suspect: Set<InstrumentId>
+  /** 結果の銘柄の中でいちばん新しい基準日 */
+  asOf?: JstDate
+  invalid?: AlertInvalid
+}
+/**
+ * スクリーンのアラート（FR-AL2）: 前の結果に無く、今の結果にある銘柄を知らせる。外れた銘柄は知らせない。
+ * 基準が無い（作った・直した・再開した直後、スクリーン・ウォッチリスト・保有を変えた直後）なら結果を覚えるだけ。
+ * 同じ基準日では判定し直さない。分割の疑いのある銘柄は知らせず、覚えもしない（値が直ってから入れば知らせる）
+ */
+export function decideScreen(prev: AlertState | undefined, r: ScreenEval, now: string): { state: AlertState; news: InstrumentId[] } {
+  const keep = prev?.lastFired ? { lastFired: prev.lastFired } : {}
+  if (r.invalid) {
+    return {
+      state: {
+        met: prev?.met ?? null,
+        ...(prev?.asOf ? { asOf: prev.asOf } : {}),
+        ...(prev?.members ? { members: prev.members } : {}),
+        ...keep,
+        invalid: r.invalid,
+      },
+      news: [],
+    }
+  }
+  const asOf = r.asOf ? { asOf: r.asOf } : {}
+  if (!prev || prev.met === null || !prev.members) {
+    const members = r.ids.filter((id) => !r.suspect.has(id))
+    return { state: { met: members.length > 0, ...asOf, members, ...keep }, news: [] }
+  }
+  if (prev.asOf && prev.asOf === r.asOf && !prev.invalid) return { state: prev, news: [] }
+  const old = new Set(prev.members)
+  const news = r.ids.filter((id) => !old.has(id) && !r.suspect.has(id))
+  const members = r.ids.filter((id) => old.has(id) || !r.suspect.has(id))
+  return { state: { met: members.length > 0, ...asOf, members, ...(news.length ? { lastFired: now } : keep) }, news }
+}
+
 /**
  * 判定の状態と履歴（alertState.json・alertHistory.json）。判定のたびに書くので世代を作らず、書き出しの対象にもしない（§2）。
- * 書けなくても判定は止めない（メモリにだけ持つ）
+ * 書けなくても判定は止めない（メモリにだけ持つ）。利用者のデータが読み取り専用のときは書かない（FR-S12）
  */
 export class AlertBook {
   private state: Record<string, AlertState> | null = null
   private history: AlertFire[] | null = null
-  constructor(private dir: string) {}
+  constructor(
+    private dir: string,
+    private readOnly: () => boolean = () => false,
+  ) {}
   private read<T>(name: string, def: T): T {
     const p = join(this.dir, name)
     if (!existsSync(p)) return def
@@ -106,6 +151,7 @@ export class AlertBook {
     }
   }
   private write(name: string, data: unknown): void {
+    if (this.readOnly()) return
     try {
       const p = join(this.dir, name)
       writeFileSync(`${p}.tmp`, JSON.stringify({ version: 1, data }))

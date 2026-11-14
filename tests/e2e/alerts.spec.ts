@@ -55,6 +55,11 @@ test('アラート: キーだけで作る・直す・止める・消す・戻す
   await expect(row).toContainText('停止')
   await keys(page, 'Space')
   await expect(row).toContainText('有効')
+  // Delete で消す → ポップアップの中でも Ctrl+Z で戻せる
+  await keys(page, 'Delete')
+  await expect(pop.locator('tbody tr', { hasText: '7203' })).toHaveCount(0)
+  await keys(page, 'Control+z')
+  await expect(row).toContainText('有効')
   // Delete で消す → Esc → Ctrl+Z で戻す
   await keys(page, 'Delete')
   await expect(pop.locator('tbody tr', { hasText: '7203' })).toHaveCount(0)

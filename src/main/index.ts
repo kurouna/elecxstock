@@ -13,6 +13,7 @@ import {
   ipcMain,
   Menu,
   MessageChannelMain,
+  Notification,
   net,
   protocol,
   screen,
@@ -407,6 +408,28 @@ ipcMain.handle('app:openLogs', (e) => {
   if (!fromApp(e)) return false
   mkdirSync(logDir(), { recursive: true })
   void shell.openPath(logDir())
+  return true
+})
+
+// アラートの通知（FR-AL5。design-alerts.md §5）: 1 枚目の renderer が文言を作って頼む。押されたら 1 枚目を前に出し、履歴を開く
+/** 出した通知（参照を持たないと GC で消え、押しても click が届かない） */
+const notes = new Set<Notification>()
+ipcMain.handle('app:notify', (e, title: unknown, body: unknown) => {
+  if (!fromApp(e) || slotOf(e.sender) !== 'main' || typeof title !== 'string' || typeof body !== 'string') return false
+  if (!Notification.isSupported()) return false
+  const n = new Notification({ title: title.slice(0, 120), body: body.slice(0, 400) })
+  notes.add(n)
+  n.on('close', () => notes.delete(n))
+  n.on('click', () => {
+    notes.delete(n)
+    const w = wins.get('main')?.win
+    if (!w || w.isDestroyed()) return
+    if (w.isMinimized()) w.restore()
+    w.show()
+    w.focus()
+    w.webContents.send('alerts:open')
+  })
+  n.show()
   return true
 })
 

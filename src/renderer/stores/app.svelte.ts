@@ -67,7 +67,7 @@ export type Overlay =
   /** アラートのポップアップ（FR-AL8）。tab が無ければ、未読があれば履歴 */
   | { kind: 'alerts'; tab?: 'alerts' | 'history' }
   /** アラートを作る・直すダイアログ（FR-AL7） */
-  | { kind: 'alertForm'; edit?: AlertView; symbol?: InstrumentId; resolve: (a: AlertDraft | null) => void }
+  | { kind: 'alertForm'; edit?: AlertView; symbol?: InstrumentId; screenId?: string; resolve: (a: AlertDraft | null) => void }
 
 /** ダイアログで作った・直したアラート（id・基準日・作った日時は Core が付ける） */
 export type AlertDraft = Pick<Alert, 'target' | 'conditions' | 'repeat' | 'enabled' | 'note'> & { id: string }
@@ -122,6 +122,8 @@ class AppState {
   alertsUnread = $state(0)
   /** アラートか履歴が変わるたびに増やす（開いているポップアップが読み直す） */
   alertsRev = $state(0)
+  /** アラートの一覧（ポップアップ・チャートの点線。FR-AL8・AL9） */
+  alerts = $state<AlertView[]>([])
 }
 export const app = new AppState()
 
@@ -338,7 +340,7 @@ export function holdingDialog(holding?: Holding): Promise<Holding | null> {
     app.overlay = { kind: 'holding', ...(holding ? { holding } : {}), resolve }
   })
 }
-export function alertDialog(o: { edit?: AlertView; symbol?: InstrumentId }): Promise<AlertDraft | null> {
+export function alertDialog(o: { edit?: AlertView; symbol?: InstrumentId; screenId?: string }): Promise<AlertDraft | null> {
   return new Promise((resolve) => {
     app.overlay = { kind: 'alertForm', ...o, resolve }
   })

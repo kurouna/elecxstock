@@ -121,6 +121,10 @@ async function importJpx() {
         <span class="row"><button type="button" class="toggle" class:on={app.settings.autoUpdate} aria-label={t('set.autoUpdate')} onclick={() => saveSettings({ autoUpdate: !app.settings.autoUpdate })}><span class="box"></span></button><span class="muted small">{t('set.autoUpdateHint')}</span></span>
       </div>
       <div class="field">
+        <span>{t('set.alertNotify')}</span>
+        <span class="row"><button type="button" class="toggle" class:on={app.settings.alertNotify} aria-label={t('set.alertNotify')} onclick={() => saveSettings({ alertNotify: !app.settings.alertNotify })}><span class="box"></span></button></span>
+      </div>
+      <div class="field">
         <span>{t('set.checkUpdates')}</span>
         <span class="row">
           <button type="button" class="toggle" class:on={app.settings.checkUpdates} aria-label={t('set.checkUpdates')} onclick={() => saveSettings({ checkUpdates: !app.settings.checkUpdates })}><span class="box"></span></button>

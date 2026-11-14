@@ -1,7 +1,7 @@
 <script lang="ts">
 import { addDays, isTradingDay, jstNow } from '@shared/calendar'
 import { onMount } from 'svelte'
-import { notifyFired } from '../lib/alerts'
+import { loadAlerts, notifyFired, toggleAlerts } from '../lib/alerts'
 import { clearBars } from '../lib/barsCache'
 import { checkUpdate, handleKey, sendSymbol, startUpdate } from '../lib/commands'
 import { loadHoldings } from '../lib/portfolio'
@@ -65,6 +65,18 @@ function flushData() {
   app.dataVersion++
 }
 
+// アラートの一覧（ポップアップ・チャートの点線）: 変わるたびに読み直す（どの窓でも。FR-AL9）
+// ジョブの終わりと鳴った知らせが続けて来るので、まとめて 1 回にする
+let alertsTimer: ReturnType<typeof setTimeout> | null = null
+$effect(() => {
+  void app.alertsRev
+  if (!app.ready || alertsTimer) return
+  alertsTimer = setTimeout(() => {
+    alertsTimer = null
+    void loadAlerts()
+  }, 50)
+})
+
 onMount(() => {
   const offs = [
     bridge.on('jobs.progress', (p) => {
@@ -72,6 +84,7 @@ onMount(() => {
       app.jobs = [p, ...rest].sort((a, b) => b.id - a.id).slice(0, 20)
       if (p.status === 'done' || p.status === 'cancelled' || p.status === 'failed') {
         void refreshStatus()
+        app.alertsRev++ // 判定の状態（成立中・判定できない）が変わる
         void loadInstruments()
         // JPX の一覧が取れなかった（FR-FR3）: 手で落とした data_j.xlsx を取り込めるように案内する
         if (
@@ -92,7 +105,7 @@ onMount(() => {
     bridge.on('user.error', (e) => (app.userError = e.message)),
     // アラートが鳴った（1 枚目だけが知らせる。FR-AL5）
     bridge.on('alerts.fired', (d) => {
-      if (!IS_FREE) void notifyFired(d.fires, d.unread, sendSymbol)
+      void notifyFired(d.fires, d.unread, sendSymbol)
     }),
   ]
   const onKey = (e: KeyboardEvent) => {
@@ -113,6 +126,8 @@ onMount(() => {
   offs.push(
     bridge.on('user.changed', (d) => void onUserChanged(d)),
     window.elecxstock.onBus((m) => onBus(m)),
+    // Windows の通知を押した（1 枚目を前に出して、アラートの履歴を開く。FR-AL5）
+    window.elecxstock.onAlertsOpen(() => toggleAlerts('history')),
     window.elecxstock.onReceive((ids) => {
       if (!app.ready) return
       for (const id of ids) sendSymbol(id)

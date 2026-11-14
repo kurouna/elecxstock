@@ -47,8 +47,12 @@ const alertDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 /** アラート（FR-AL1）。条件の中身（使える指標・比べ方）は Core が登録表と照らして確かめる */
 export const alertSchema = z.object({
   id: z.string().min(1).max(40),
-  target: z.object({ kind: z.literal('symbol'), id }),
-  conditions: z.array(cond).min(1).max(3),
+  target: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('symbol'), id }),
+    z.object({ kind: z.literal('screen'), screenId: z.string().min(1).max(40) }),
+  ]),
+  /** 銘柄は 1〜3 個、スクリーンは 0 個（Core が確かめる） */
+  conditions: z.array(cond).max(3),
   basis: alertDay,
   repeat: z.boolean(),
   enabled: z.boolean(),
@@ -59,7 +63,8 @@ const alertState = z.object({
   met: z.boolean().nullable(),
   asOf: alertDay.optional(),
   lastFired: z.string().max(40).optional(),
-  invalid: z.enum(['missing', 'stale', 'suspect', 'delisted', 'noHoldings', 'loading', 'condition']).optional(),
+  invalid: z.enum(['missing', 'stale', 'suspect', 'delisted', 'noHoldings', 'loading', 'condition', 'noScreen']).optional(),
+  members: z.array(id).max(5000).optional(),
 })
 const periods = z.array(z.number().int().min(2).max(400)).length(3)
 export const watchlistSchema = z.object({
@@ -92,6 +97,7 @@ export const settingsSchema = z.object({
   theme: z.enum(['dark', 'light']),
   autoUpdate: z.boolean(),
   checkUpdates: z.boolean(),
+  alertNotify: z.boolean(),
   keymap: z.record(z.string().max(40), z.string().max(40)),
   maPeriods: z.object({ D: periods, W: periods, M: periods }),
 })

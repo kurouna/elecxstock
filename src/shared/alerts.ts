@@ -4,9 +4,26 @@ import { FIELD_BY_ID, usable } from './fields'
 import type { Alert, AlertView, Condition, InstrumentId, JstDate, MetricsRow, Split } from './types'
 
 export const ALERT_LIMIT = 500
+/** スクリーンのアラートの上限（スクリーンを判定のたびに走らせるため。§3.4） */
+export const SCREEN_ALERT_LIMIT = 20
+/** スクリーンのアラートが 1 回の判定で知らせる銘柄の数（残りは「ほか N 件」。FR-AL2） */
+export const SCREEN_FIRE_MAX = 20
 export const HISTORY_LIMIT = 500
 
 export type Held = Map<InstrumentId, { qty: number; cost: number }>
+/** 保有を銘柄ごとの数量と取得額の合計にまとめる（口座区分をまたぐ。Core の判定とダイアログの「いま」が使う） */
+export function heldFrom(holdings: { code: string; quantity: number; avgCost: number }[]): Held {
+  const out: Held = new Map()
+  for (const h of holdings) {
+    if (!(h.quantity > 0)) continue
+    const id = `JP:${h.code}` as InstrumentId
+    const v = out.get(id) ?? { qty: 0, cost: 0 }
+    v.qty += h.quantity
+    v.cost += h.quantity * h.avgCost
+    out.set(id, v)
+  }
+  return out
+}
 const NUMERIC = new Set(['number', 'percent', 'money', 'ratio'])
 
 /** アラートの条件として使えるか（FR-AL1）: 数値の市場の指標か保有の損益率、比べ方は >= <=、相対条件は市場の指標どうし */
@@ -103,5 +120,8 @@ export function distanceOf(
 /** 1 つめの条件の指標の今の値（一覧の「現在」） */
 export function nowValueOf(a: Alert, m: MetricsRow | undefined, held: Held | undefined): number | null {
   const c = a.conditions[0]
-  return c && m ? fieldValue(c.field, m, held, a.target.id) : null
+  return c && m && a.target.kind === 'symbol' ? fieldValue(c.field, m, held, a.target.id) : null
 }
+
+/** アラートの銘柄（スクリーンのアラートは null） */
+export const symbolOf = (a: Pick<Alert, 'target'>): InstrumentId | null => (a.target.kind === 'symbol' ? a.target.id : null)

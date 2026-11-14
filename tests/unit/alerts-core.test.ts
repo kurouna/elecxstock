@@ -113,3 +113,57 @@ describe('アラートを Core に通して', () => {
     expect(svc.alertBook.states()[v.id]?.met).toBe(true)
   })
 })
+
+describe('スクリーンのアラートを Core に通して（FR-AL2）', () => {
+  const screenDraft = (screenId: string) => ({
+    id: '',
+    target: { kind: 'screen' as const, screenId },
+    conditions: [],
+    repeat: true,
+    enabled: true,
+  })
+  it('作った直後は結果を覚えるだけ。新しく入った銘柄を 1 つの記録で知らせる', async () => {
+    const { screens } = await svc.call('user.load', {})
+    const s = screens[0]!
+    const v = await svc.call('alerts.save', { alert: screenDraft(s.id) })
+    const members = svc.alertBook.states()[v.id]?.members ?? []
+    expect(members.length).toBeGreaterThan(1)
+    expect(v.now).toBe(members.length)
+    // 前の結果から 2 銘柄を外しておく → 次の判定でその 2 銘柄が「新しく入った」
+    svc.alertBook.setStates({ ...svc.alertBook.states(), [v.id]: { met: true, asOf: '2000-01-04', members: members.slice(2) } })
+    const fires = svc.evaluateAlerts().filter((f) => f.alertId === v.id)
+    expect(fires).toHaveLength(1)
+    expect(fires[0]).toMatchObject({ screenId: s.id, members: members.slice(0, 2), more: 0, instrument: members[0] })
+  })
+  it('スクリーンの条件を変えたら鳴らさずに基準を取り直す。名前だけの変更では取り直さない', async () => {
+    const { screens } = await svc.call('user.load', {})
+    const v = (await svc.call('alerts.list', {})).find((a) => a.target.kind === 'screen')!
+    const sid = v.target.kind === 'screen' ? v.target.screenId : ''
+    const stale = { met: true, asOf: '2000-01-04', members: [] }
+    svc.alertBook.setStates({ ...svc.alertBook.states(), [v.id]: stale })
+    await svc.call('user.saveScreens', { screens: screens.map((x) => (x.id === sid ? { ...x, name: { ja: '改名', en: 'Renamed' } } : x)) })
+    expect(svc.alertBook.states()[v.id]).toEqual(stale)
+    const changed = screens.map((x) => (x.id === sid ? { ...x, conditions: [...x.conditions] } : x))
+    const target = changed.find((x) => x.id === sid)!
+    target.conditions = target.conditions.map((c, i) => (i === 0 && typeof c.value === 'number' ? { ...c, value: c.value - 0.5 } : c))
+    await svc.call('user.saveScreens', { screens: changed })
+    expect(svc.alertBook.states()[v.id]?.members?.length).toBeGreaterThan(1)
+    expect(svc.evaluateAlerts().some((f) => f.alertId === v.id)).toBe(false)
+    await svc.call('user.saveScreens', { screens })
+  })
+  it('スクリーンが無ければ判定できない。条件付き・存在しないスクリーンは保存できない', async () => {
+    const { screens } = await svc.call('user.load', {})
+    await expect(svc.call('alerts.save', { alert: screenDraft('no-such-screen') })).rejects.toBeTruthy()
+    await expect(
+      svc.call('alerts.save', { alert: { ...screenDraft(screens[0]!.id), conditions: [{ field: 'price.close', op: '<=', value: 1 }] } }),
+    ).rejects.toBeTruthy()
+    const v = (await svc.call('alerts.list', {})).find((a) => a.target.kind === 'screen')!
+    await svc.call('user.saveScreens', { screens: screens.filter((x) => v.target.kind === 'screen' && x.id !== v.target.screenId) })
+    svc.evaluateAlerts()
+    expect(svc.alertBook.states()[v.id]?.invalid).toBe('noScreen')
+    await svc.call('user.saveScreens', { screens })
+  })
+  it('銘柄のアラートは条件が無いと保存できない', async () => {
+    await expect(svc.call('alerts.save', { alert: { ...draft(), conditions: [] } })).rejects.toBeTruthy()
+  })
+})
