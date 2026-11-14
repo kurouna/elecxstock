@@ -152,19 +152,29 @@ async function overlay(p) {
     })
     root.append(cap, note, keys, card)
     document.body.append(root)
+    // キーの表示はキーの位置（code）から作る（Shift で別の文字になるキーも、押したキーのとおりに出す）
     const name = (e) => {
-      const k = e.key
-      if (k === ' ') return 'Space'
-      if (k.length === 1) return k.toUpperCase()
-      return { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Escape: 'Esc' }[k] ?? k
+      const c = e.code
+      if (c.startsWith('Key')) return c.slice(3)
+      if (c.startsWith('Digit')) return c.slice(5)
+      const named = {
+        Space: 'Space',
+        NumpadAdd: '+',
+        NumpadSubtract: '−',
+        Comma: ',',
+        ArrowUp: '↑',
+        ArrowDown: '↓',
+        ArrowLeft: '←',
+        ArrowRight: '→',
+        Escape: 'Esc',
+      }
+      return named[c] ?? (e.key.length === 1 ? e.key.toUpperCase() : e.key)
     }
     window.addEventListener(
       'keydown',
       (e) => {
         if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return
-        const label = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && e.key.length > 1 && 'Shift', name(e)]
-          .filter(Boolean)
-          .join(' + ')
+        const label = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift', name(e)].filter(Boolean).join(' + ')
         const chip = document.createElement('div')
         chip.textContent = label
         Object.assign(chip.style, {
@@ -286,7 +296,7 @@ await sleep(1200)
 for (let i = 0; i < 3; i++) await press(page, 'ArrowDown'), await sleep(500)
 await press(page, 'Tab')
 await sleep(500)
-await press(page, 'ArrowRight') // 利回りの下限を 1 段上げる
+await press(page, 'ArrowLeft') // 利回りの下限を 1 段下げる（グリッドの 1 ページが埋まる数にする）
 await sleep(1500)
 await press(page, 'Escape')
 await sleep(1200)
@@ -303,8 +313,63 @@ await press(page, 'w')
 await sleep(1500)
 await press(page, 'd')
 await sleep(800)
-
 await shot(page, 'grid')
+// 並べる枚数を増やす・減らす（＋ / − キー）
+await caption(page, '＋ と − キーで、並べるチャートの枚数を増やしたり減らしたりできます')
+await press(page, 'NumpadSubtract')
+await sleep(1300)
+await press(page, 'NumpadSubtract')
+await sleep(1300)
+await press(page, 'NumpadAdd')
+await sleep(1100)
+await press(page, 'NumpadAdd')
+await sleep(1300)
+// ドロワー: 普段は畳んでおき、要るときだけ引き出す。ピン留めすると開いたまま
+await caption(page, 'Ctrl+B で、左のドロワーからウォッチリストやスクリーナーを引き出せます')
+await press(page, 'Control+b')
+await sleep(1200)
+await press(page, 'ArrowDown', 'ArrowDown')
+await sleep(800)
+await caption(page, 'Ctrl+Alt+B でピン留めすると、ドロワーを開いたままにできます')
+await press(page, 'Control+Alt+b')
+await sleep(1800)
+await shot(page, 'drawer-pinned')
+await caption(page, 'ピン留めを外すと、ドロワーは端に格納され、チャートを広く使えます')
+await press(page, 'Control+Alt+b')
+await sleep(600)
+await press(page, 'Escape')
+await sleep(1800)
+await shot(page, 'drawer-closed')
+
+// 4b. フリーのタブ: ペインを足す・種類を変える・入れ替える・閉じる
+await press(page, 'Control+Shift+Digit8')
+await caption(page, 'フリーのタブでは、ペインを自由に追加・移動・削除できます')
+await sleep(1800)
+await caption(page, 'Ctrl+Shift+E で右に、Ctrl+Shift+O で下に分割して、ペインを追加します')
+await press(page, 'Control+Shift+KeyE')
+await sleep(1200)
+await press(page, 'Control+Shift+KeyO')
+await sleep(1200)
+await caption(page, 'Ctrl+Shift+N で、ペインの種類を変えられます')
+await press(page, 'Control+Shift+KeyN')
+await sleep(900)
+for (let i = 0; i < 4; i++) await press(page, 'ArrowDown') // 銘柄情報
+await sleep(500)
+await press(page, 'Enter')
+await sleep(1500)
+await shot(page, 'free-added')
+await caption(page, 'Ctrl+Alt+Shift+矢印キーで、ペインを入れ替えます（タイトルのドラッグでも動かせます）')
+await press(page, 'Control+Alt+Shift+ArrowLeft')
+await sleep(1500)
+await press(page, 'Control+Alt+Shift+ArrowRight')
+await sleep(1300)
+await caption(page, 'Ctrl+Shift+W で、ペインを閉じます')
+await press(page, 'Control+Shift+KeyW')
+await sleep(1100)
+await press(page, 'Control+Shift+KeyW')
+await sleep(1500)
+await shot(page, 'free-closed')
+
 // 5. インカム: 配当カレンダー・分配金の履歴
 await press(page, 'Control+Shift+Digit6')
 await caption(page, 'J-REIT の分配金・権利確定月・利回りを確認できます。5 桁の優先株にも対応しています')
@@ -383,13 +448,16 @@ await caption(page, 'ウォッチリストと保有の銘柄は、優先して�
 await sleep(3500)
 
 await shot(page, 'update')
-// 9. コマンドバー・テーマ・ショートカット一覧
+// 9. コマンドバー・テーマ・ショートカット一覧・設定
 await caption(page, 'すべての操作をキーボードで行えます。Ctrl+K のコマンドバーから呼び出せます')
 await press(page, 'Control+k')
 await page.keyboard.type('テーマ', { delay: 120 / SPEED })
 await sleep(700)
 await press(page, 'Enter')
-await sleep(1600)
+await sleep(600)
+await caption(page, 'ダークとライトのテーマを切り替えられます')
+await sleep(2200)
+await shot(page, 'light')
 await caption(page, 'F1 キーで、ショートカットの一覧を表示します')
 await press(page, 'F1')
 await sleep(2600)
@@ -398,6 +466,16 @@ await press(page, 'Control+k')
 await page.keyboard.type('テーマ', { delay: 120 / SPEED })
 await press(page, 'Enter')
 await sleep(800)
+await caption(page, '設定画面では、表示・データ・キーの割り当てなどを変更できます（Ctrl+,）')
+await press(page, 'Control+Comma')
+await sleep(1500)
+for (let i = 0; i < 3; i++) await press(page, 'ArrowDown'), await sleep(1100)
+await caption(page, 'チャートには TradingView の Lightweight Charts™ を使っています')
+await press(page, 'ArrowDown')
+await sleep(2500)
+await shot(page, 'settings')
+await press(page, 'Escape')
+await sleep(600)
 await caption(page, '')
 
 await shot(page, 'help')
@@ -406,6 +484,7 @@ await card(page, [
   'elecxstock',
   '日本株・J-REIT のローカル分析デスクトップアプリ',
   '無料・オープンソース（MIT） ・ Windows ・ github.com/kurouna/elecxstock',
+  'チャート: TradingView Lightweight Charts™（Apache-2.0）',
   '※ 画面は開発中のものです。動画の株価・利回りなどの値はすべて架空のデモデータです',
 ])
 await shot(page, 'end')
