@@ -1,4 +1,4 @@
-// チャートの表示期間（FR-C13）: 期間と時間軸から、表示する足の本数を決める
+// チャートの表示期間（§6.5.4・FR-G3）: 期間と時間軸から、表示する足の本数を決める
 import { describe, expect, it } from 'vitest'
 import { barsForPeriod, PERIODS } from '../../../src/renderer/lib/periods'
 

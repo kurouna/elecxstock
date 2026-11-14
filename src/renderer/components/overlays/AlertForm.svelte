@@ -3,7 +3,8 @@
 // 条件の行で F 指標・O ≥ と ≤・R 相対条件・← → 値・Enter 値を入力・Delete 条件を外す・Insert 条件を足す。
 // Tab で項目を移り、Ctrl+Enter で保存、Esc で取り消し（メモ欄の文字と単キーがぶつからないよう、単キーは条件の行だけ）
 import { alertConditionOk, conditionMet, distanceOf, fieldValue, heldFrom, SCREEN_ALERT_LIMIT } from '@shared/alerts'
-import { FIELD_BY_ID, FIELDS, type FieldDef, moneyScale, parseTyped, perShare, refFields, usable } from '@shared/fields'
+import { editText, parseConditionValue, valueUnit } from '@shared/conditionInput'
+import { FIELD_BY_ID, FIELDS, type FieldDef, perShare, refFields, usable } from '@shared/fields'
 import type { AlertView, Condition, InstrumentId } from '@shared/types'
 import { onMount, tick, untrack } from 'svelte'
 import { condText, distanceText, fieldValueText } from '../../lib/alertText'
@@ -156,19 +157,10 @@ async function removeCond(i: number) {
   await tick()
   rows[Math.min(i, conds.length - 1)]?.focus()
 }
-/** 値を打つ単位（スクリーナーと同じ。金額は表示の単位: 1 株あたりは円、最低投資金額は万円、時価総額・売買代金は億円） */
-function scaleOf(c: Condition): number {
-  const f = FIELD_BY_ID.get(c.field)
-  return !c.ref && f?.type === 'money' ? moneyScale(f) : 1
-}
-const unitOf = (c: Condition) => {
-  const f = FIELD_BY_ID.get(c.field)
-  return !c.ref && f?.type === 'money' && f.unit ? f.unit[lang] : ''
-}
 function commitTyping() {
   if (!typing) return
   const c = conds[typing.i]
-  const v = c ? parseTyped(typing.s, scaleOf(c)) : null
+  const v = c ? parseConditionValue(c, typing.s) : null
   if (c && v != null) update(typing.i, { ...c, value: v })
   typing = null
 }
@@ -301,12 +293,12 @@ onMount(() => (kind === 'screen' ? (canSymbol ? kindEl : scrEl) : rows[0])?.focu
           <input
             tabindex="-1"
             class="num val"
-            aria-label={unitOf(c) ? `${t('al.value')} (${unitOf(c)})` : t('al.value')}
-            title={unitOf(c) || undefined}
+            aria-label={valueUnit(c, lang) ? `${t('al.value')} (${valueUnit(c, lang)})` : t('al.value')}
+            title={valueUnit(c, lang) || undefined}
             autocomplete="off"
             bind:this={valEls[i]}
             value={valueShown(i, c)}
-            onfocus={() => (typing = { i, s: String(Math.round((Number(c.value) / scaleOf(c)) * 1e4) / 1e4) })}
+            onfocus={() => (typing = { i, s: editText(c) })}
             oninput={(e) => (typing = { i, s: e.currentTarget.value })}
             onblur={commitTyping}
             data-esc-local onkeydown={(e) => backToRow(e, i)} />

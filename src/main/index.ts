@@ -1,6 +1,8 @@
 // main プロセス（薄い）: ウィンドウ・単一インスタンス・Core（utilityProcess）の起動と MessagePort の受け渡し・安全策（§8.1, NFR-S3）。
 // マルチモニタ（docs/design-multimonitor.md）: 主ウィンドウ（main）と、タブなしのフリー N（free2〜free4）。
 // 窓ごとに Core へのポートを渡し、位置はディスプレイの組み合わせごとに覚える（placement.ts）。
+// テストの時刻（スタブのときだけ）を最初にそろえる。Core は環境変数で、renderer は preload への引数で同じずれにする
+import './clock-init'
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, extname, join, normalize, sep } from 'node:path'
@@ -23,6 +25,7 @@ import {
   utilityProcess,
   type WebContents,
 } from 'electron'
+import { clockOffset } from './clock-init'
 import { type DisplayLike, type Placement, parseState, place, remember, type WindowStateV2 } from './placement'
 
 declare const __APP_VERSION__: string
@@ -136,6 +139,7 @@ function startCore(): void {
       ...process.env,
       ELECXSTOCK_DATA_DIR: dataDir,
       ELECXSTOCK_VERSION: __APP_VERSION__,
+      ...(clockOffset != null ? { ELECXSTOCK_CLOCK_OFFSET: String(clockOffset) } : {}),
       NODE_USE_ENV_PROXY: '1', // プロキシは環境変数 HTTPS_PROXY で指定できる（NFR-S1）
     },
   })
@@ -227,6 +231,7 @@ async function createWindow(slot: Slot, shape?: string): Promise<void> {
       spellcheck: false,
       devTools,
       backgroundThrottling: false,
+      ...(clockOffset != null ? { additionalArguments: [`--elecxstock-clock-offset=${clockOffset}`] } : {}),
     },
   })
   const w: Win = { win, loaded: false, ready: false }
@@ -263,7 +268,10 @@ async function createWindow(slot: Slot, shape?: string): Promise<void> {
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (e) => e.preventDefault())
-  win.webContents.on('did-start-loading', () => {
+  // 読み込み直したときだけ「読み込み中」に戻す。同じ文書の中の移動（フリー N が初期の形を URL から外す history.replaceState など）では
+  // 戻さない（戻すと、終了の前の保存の確定（flushWindows）からその窓が外れ、遅らせている配置の保存を失う）
+  win.webContents.on('did-start-navigation', (d) => {
+    if (!d.isMainFrame || d.isSameDocument) return
     w.loaded = false
     w.ready = false
   })

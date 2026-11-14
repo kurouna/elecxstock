@@ -70,6 +70,8 @@ function flushData() {
 let alertsTimer: ReturnType<typeof setTimeout> | null = null
 $effect(() => {
   void app.alertsRev
+  // 保有の損益率の条件は、今の保有で「いま」の値と距離を数え直す（Core の alerts.list は今の保有で数える）
+  void app.holdings
   if (!app.ready || alertsTimer) return
   alertsTimer = setTimeout(() => {
     alertsTimer = null

@@ -1,0 +1,63 @@
+// renderer からの要求の処理（§8.1, FR-W, NFR-A1）: 窓ごとの制限・zod の検証・利用者のデータの変更の通知。worker と同じ dispatch を通す
+import { dispatch } from '@core/dispatch'
+import { afterAll, describe, expect, it } from 'vitest'
+import { makeCore } from '../../support/core'
+
+const core = makeCore()
+afterAll(() => core.dispose())
+let seq = 0
+const shown: Record<string, string[]> = {}
+const call = (slot: string, method: string, params: unknown) =>
+  dispatch(core.svc, { prioritize: (s, ids) => (shown[s] = ids) }, slot, { id: ++seq, method, params })
+
+describe('要求の検証（NFR-A3, FR-N5）', () => {
+  it('知らないメソッド・形の違う引数はエラーで返し、Core を呼ばない', async () => {
+    expect((await call('main', 'nope.nope', {})).reply).toMatchObject({ error: { code: 'unknown-method' } })
+    expect((await call('main', 'metrics.get', { ids: 'JP:7203' })).reply).toMatchObject({ error: { code: 'invalid-params' } })
+    expect((await call('main', 'metrics.get', { ids: ['JP:7203'] })).reply).toMatchObject({ result: [{ id: 'JP:7203' }] })
+  })
+  it('表示中の銘柄は窓ごとに受け、長すぎる ID と 200 件を超える分は捨てる（FR-F8）', async () => {
+    await call('free2', 'jobs.prioritize', ['JP:7203', 'x'.repeat(30), ...Array.from({ length: 300 }, (_, i) => `JP:${i}`)])
+    expect(shown.free2?.[0]).toBe('JP:7203')
+    expect(shown.free2?.length).toBe(200)
+  })
+})
+
+describe('フリー N は読むだけ（FR-W）', () => {
+  it('アラートは新しく作ることだけでき、直す・消す・止めるは 1 枚目だけ', async () => {
+    const alert = {
+      id: '',
+      target: { kind: 'symbol', id: 'JP:7203' },
+      conditions: [{ field: 'price.close', op: '<=', value: 1 }],
+      repeat: true,
+      enabled: true,
+    }
+    const made = await call('free2', 'alerts.save', { alert })
+    expect(made.reply).toHaveProperty('result')
+    const id = (made.reply as { result: { id: string } }).result.id
+    for (const [m, p] of [
+      ['alerts.save', { alert: { ...alert, id } }],
+      ['alerts.remove', { id }],
+      ['alerts.setEnabled', { id, enabled: false }],
+    ] as const)
+      expect((await call('free2', m, p)).reply, m).toMatchObject({ error: { code: 'invalid-params', message: 'main window only' } })
+    expect((await call('main', 'alerts.remove', { id })).reply).toHaveProperty('result')
+  })
+  it('窓の配置は自分の分だけ書ける', async () => {
+    const layout = { root: { kind: 'pane', id: 'p1', widget: 'chart', state: {} } }
+    expect((await call('free2', 'user.saveWindowLayout', { slot: 'free3', layout })).reply).toMatchObject({ error: { message: 'slot' } })
+  })
+})
+
+describe('利用者のデータの変更をほかの窓に知らせる（FR-W）', () => {
+  it('★の切り替えは、どの窓から何を変えたかを添えて知らせる。読むだけのメソッドは知らせない', async () => {
+    const u = await core.svc.call('user.load', {})
+    const fav = u.watchlists.find((w) => w.builtin === 'favorites')!
+    const r = await call('free2', 'watchlists.toggleItem', { list: fav.id, id: 'JP:8058' })
+    expect(r.notice).toEqual({ event: 'user.changed', data: { kind: 'watchlists', from: 'free2', op: { list: fav.id, id: 'JP:8058' } } })
+    expect((await call('main', 'user.load', {})).notice).toBeUndefined()
+  })
+  it('失敗した書き込みは知らせない', async () => {
+    expect((await call('main', 'user.saveScreens', { screens: 'x' })).notice).toBeUndefined()
+  })
+})

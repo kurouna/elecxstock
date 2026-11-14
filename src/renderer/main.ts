@@ -1,3 +1,4 @@
+import './clock' // ほかのモジュールより先に時刻をそろえる（テストのときだけ）
 import '@fontsource-variable/noto-sans-jp/wght.css'
 import '@fontsource/noto-sans-mono/latin-400.css'
 import '@fontsource/noto-sans-mono/latin-500.css'

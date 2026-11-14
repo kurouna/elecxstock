@@ -1,0 +1,59 @@
+id | group | type | source | unit | perShare | scale | missing | refs | alert | column
+price.close | price | money | metrics | 円 | o | 1 | o | price.ma25 price.ma75 price.ma200 price.hi52 price.lo52 | o | o
+price.chgPct | price | percent | metrics |  | - | 1 | o |  | o | o
+liq.turnover20 | price | money | metrics | 億円 | - | 100000000 | o |  | o | o
+value.marketCap | price | money | metrics | 億円 | - | 100000000 | o |  | o | o
+income.yield | income | percent | metrics |  | - | 1 | o | income.yield2p | o | o
+value.per | value | ratio | metrics | 倍 | - | 1 | o |  | o | o
+value.pbr | value | ratio | metrics | 倍 | - | 1 | o |  | o | o
+tech.fromHi52 | tech | percent | metrics |  | - | 1 | o |  | o | o
+tech.maDev25 | tech | percent | metrics |  | - | 1 | o | tech.maDev75 tech.maDev200 | o | o
+tech.maDev75 | tech | percent | metrics |  | - | 1 | o | tech.maDev25 tech.maDev200 | o | o
+tech.rsi14 | tech | number | metrics |  | - | 1 | o |  | o | o
+tech.volRatio | tech | ratio | metrics | 倍 | - | 1 | o |  | o | o
+ret.1m | ret | percent | metrics |  | - | 1 | o | ret.3m ret.1y ret.3y ret.6m ret.ytd ret.tr1y ret.tr3y | o | o
+ret.3m | ret | percent | metrics |  | - | 1 | o | ret.1m ret.1y ret.3y ret.6m ret.ytd ret.tr1y ret.tr3y | o | o
+ret.1y | ret | percent | metrics |  | - | 1 | o | ret.1m ret.3m ret.3y ret.6m ret.ytd ret.tr1y ret.tr3y | o | o
+ret.3y | ret | percent | metrics |  | - | 1 | o | ret.1m ret.3m ret.1y ret.6m ret.ytd ret.tr1y ret.tr3y | o | o
+price.ma25 | level | money | metrics | 円 | o | 1 | o | price.close price.ma75 price.ma200 price.hi52 price.lo52 | o | o
+price.ma75 | level | money | metrics | 円 | o | 1 | o | price.close price.ma25 price.ma200 price.hi52 price.lo52 | o | o
+price.ma200 | level | money | metrics | 円 | o | 1 | o | price.close price.ma25 price.ma75 price.hi52 price.lo52 | o | o
+price.hi52 | level | money | metrics | 円 | o | 1 | o | price.close price.ma25 price.ma75 price.ma200 price.lo52 | o | o
+price.lo52 | level | money | metrics | 円 | o | 1 | o | price.close price.ma25 price.ma75 price.ma200 price.hi52 | o | o
+income.yield2p | income | percent | metrics |  | - | 1 | o | income.yield | o | o
+income.payout | income | percent | metrics |  | - | 1 | o |  | o | o
+income.divUpYears | income | number | metrics | 年 | - | 1 | o |  | o | o
+income.divNoCutYears | income | number | metrics | 年 | - | 1 | o |  | o | o
+income.recordMonth | income | enum | metrics | 月 | - |  | - |  | - | -
+tech.gcDays | tech | number | metrics | 取引日 | - | 1 | o |  | o | o
+tech.dcDays | tech | number | metrics | 取引日 | - | 1 | o |  | o | o
+value.roe | value | percent | metrics |  | - | 1 | o |  | o | o
+value.eps | value | money | metrics | 円 | o | 1 | o |  | o | o
+value.bps | value | money | metrics | 円 | o | 1 | o |  | o | o
+income.div12 | income | money | metrics | 円 | o | 1 | o |  | o | o
+income.divYoy | income | percent | metrics |  | - | 1 | o |  | o | o
+income.divCagr5 | income | percent | metrics | %/年 | - | 1 | o |  | o | o
+price.minInvest | price | money | metrics | 万円 | - | 10000 | o |  | o | o
+tech.fromLo52 | tech | percent | metrics |  | - | 1 | o |  | o | o
+tech.ytdFromHi | tech | percent | metrics |  | - | 1 | o |  | o | o
+tech.ytdFromLo | tech | percent | metrics |  | - | 1 | o |  | o | o
+tech.maDev200 | tech | percent | metrics |  | - | 1 | o | tech.maDev25 tech.maDev75 | o | o
+risk.vol60 | risk | percent | metrics |  | - | 1 | o |  | o | o
+risk.beta | risk | ratio | metrics |  | - | 1 | o |  | o | o
+risk.mdd3y | risk | percent | metrics |  | - | 1 | o |  | o | o
+ret.6m | ret | percent | metrics |  | - | 1 | o | ret.1m ret.3m ret.1y ret.3y ret.ytd ret.tr1y ret.tr3y | o | o
+ret.ytd | ret | percent | metrics |  | - | 1 | o | ret.1m ret.3m ret.1y ret.3y ret.6m ret.tr1y ret.tr3y | o | o
+ret.tr1y | ret | percent | metrics |  | - | 1 | o | ret.1m ret.3m ret.1y ret.3y ret.6m ret.ytd ret.tr3y | o | o
+ret.tr3y | ret | percent | metrics |  | - | 1 | o | ret.1m ret.3m ret.1y ret.3y ret.6m ret.ytd ret.tr1y | o | o
+attr.market | attr | enum | attr |  | - |  | - |  | - | -
+attr.sector | attr | enum | attr |  | - |  | - |  | - | -
+attr.kind | attr | enum | attr |  | - |  | - |  | - | -
+user.favorite | mine | bool | user |  | - |  | - |  | - | -
+user.watchlist | mine | enum | user |  | - |  | - |  | - | -
+user.held | mine | bool | user |  | - |  | - |  | - | -
+holding.pnlPct | mine | percent | compute |  | - | 1 | o |  | o | o
+event.earningsDays | event | number | compute | 日 | - | 1 | o |  | - | o
+event.rightsDays | event | number | compute | 日 | - | 1 | o |  | - | o
+holding.weight | mine | percent | compute |  | - | 1 | o |  | - | o
+holding.sectorWeight | mine | percent | compute |  | - | 1 | o |  | - | o
+holding.yoc | mine | percent | compute |  | - | 1 | o |  | - | o

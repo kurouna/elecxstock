@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { en, ja } from '../../../src/renderer/lib/i18n'
 
-describe('文言のカタログ（FR-N6）', () => {
+describe('文言のカタログ（FR-N1, N6, NFR-Q6）', () => {
   it('日本語と英語のキーが一致し、空の文言が無い', () => {
     expect(Object.keys(en).sort()).toEqual(Object.keys(ja).sort())
     for (const [k, v] of Object.entries({ ...ja, ...en })) expect(v.length, k).toBeGreaterThan(0)

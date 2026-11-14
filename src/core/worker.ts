@@ -1,10 +1,11 @@
 // Core の入口（Electron の utilityProcess として fork される。§8.1）。
 // renderer とは main が渡す MessagePort で直結する。入力はすべて zod で検証する。
+import './clock-init' // テストの時刻（スタブのときだけ）を最初にそろえる
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { type CoreError, type Events, type Method, PARAMS } from '@shared/api'
+import type { Events } from '@shared/api'
 import { jstNow } from '@shared/calendar'
-import { CHANGES } from './changes'
+import { dispatch } from './dispatch'
 import { createStubProvider } from './providers/stub'
 import { createYahooProvider } from './providers/yahoo'
 import { CoreService } from './service'
@@ -57,45 +58,17 @@ const service = new CoreService(
 )
 log(`core start provider=${provider.id}`)
 
+const dispatchCtx = {
+  prioritize: (slot: string, ids: string[]) => {
+    shown.set(slot, ids)
+    prioritizeAll()
+  },
+  log,
+}
 async function handle(slot: string, port: PortLike, msg: { id: number; method: string; params: unknown }): Promise<void> {
-  const { id, method } = msg
-  const send = (m: unknown) => port.postMessage(m)
-  try {
-    if (method === 'jobs.prioritize') {
-      const ids = Array.isArray(msg.params)
-        ? msg.params.filter((x): x is string => typeof x === 'string' && x.length <= 24).slice(0, 200)
-        : []
-      shown.set(slot, ids)
-      prioritizeAll()
-      return send({ id, result: null })
-    }
-    // アラートの変更は 1 枚目だけ。フリー N は新しく作ることだけできる（AL2。★・◆の切り替えと同じ例外）
-    const newAlert = method === 'alerts.save' && !(msg.params as { alert?: { id?: unknown } } | null)?.alert?.id
-    if (slot !== 'main' && /^alerts\.(save|remove|restore|setEnabled|markRead)$/.test(method) && !newAlert)
-      throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
-    // フリー N は自分の配置だけを書ける
-    if (method === 'user.saveWindowLayout' && (msg.params as { slot?: unknown } | null)?.slot !== slot)
-      throw { code: 'invalid-params', message: 'slot' } satisfies CoreError
-    const schema = PARAMS[method as Method]
-    if (!schema) throw { code: 'unknown-method', args: { method } } satisfies CoreError
-    const parsed = schema.safeParse(msg.params ?? {})
-    if (!parsed.success) throw { code: 'invalid-params', message: parsed.error.issues[0]?.message } satisfies CoreError
-    const result = await service.call(method as Method, parsed.data as never)
-    send({ id, result })
-    const kind = CHANGES[method]
-    if (kind) {
-      const p = parsed.data as { list?: string; id?: string }
-      broadcast({
-        event: 'user.changed',
-        data: { kind, from: slot, ...(method === 'watchlists.toggleItem' ? { op: { list: p.list, id: p.id } } : {}) },
-      })
-    }
-  } catch (e) {
-    const err = e as Partial<CoreError> & { message?: string; code?: string }
-    const code = (err.code === 'read-only' ? 'read-only' : (err.code as CoreError['code'])) ?? 'internal'
-    if (code === 'internal') log(`error ${method}: ${String(err.message ?? e)}`)
-    send({ id, error: { code, message: String(err.message ?? ''), ...(err.args ? { args: err.args } : {}) } })
-  }
+  const { reply, notice } = await dispatch(service, dispatchCtx, slot, msg)
+  port.postMessage(reply)
+  if (notice) broadcast(notice)
 }
 
 // Electron の utilityProcess が用意する親とのポート（型は Electron に依存しないようここで書く）

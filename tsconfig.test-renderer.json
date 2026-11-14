@@ -1,0 +1,19 @@
+{
+  // 画面のモジュールを読み込むテスト（L2 の登録表・L4 の結合・画面の純粋なロジック）の型検査。画面の型（window.elecxstock）と Node の型を両方使う
+  "extends": "./tsconfig.web.json",
+  "compilerOptions": {
+    "types": ["vite/client", "svelte", "node"],
+    "paths": {
+      "@shared/*": ["./src/shared/*"],
+      "@core/*": ["./src/core/*"],
+      "@renderer/*": ["./src/renderer/*"]
+    }
+  },
+  "include": [
+    "src/renderer/env.d.ts",
+    "tests/unit/renderer/**/*.ts",
+    "tests/unit/renderer-int/**/*.ts",
+    "tests/unit/registry/**/*.ts",
+    "tests/support/**/*.ts"
+  ]
+}

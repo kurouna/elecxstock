@@ -46,7 +46,7 @@ import { defaultScreens, UserStore } from './userstore'
  * 使うスクリーンだけ / all: すべて（対象の銘柄が変わる））
  */
 type Rebase = 'screens' | 'user' | 'all'
-const SCREEN_REBASE: Partial<Record<string, Rebase>> = {
+export const SCREEN_REBASE: Partial<Record<string, Rebase>> = {
   'user.saveScreens': 'screens',
   'instruments.addUser': 'all',
   'instruments.removeUser': 'all',

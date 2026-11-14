@@ -78,6 +78,14 @@ const U: Seed[] = [
   ],
 ]
 const BY = new Map(U.map((s) => [s[0], s]))
+/**
+ * 境界を試すための架空の設定（テスト計画 §3.1。実際とは無関係）:
+ * 8002 は 2024 年を最後に無配に転じた、1605 は 2026-03-02 に上場した（日足が 1 年に満たない）ことにする
+ */
+const EDGE: Record<string, { divUntil?: number; listed?: string }> = {
+  '8002': { divUntil: 2024 },
+  '1605': { listed: '2026-03-02' },
+}
 
 function rng(seed: string) {
   let a = 0
@@ -92,8 +100,10 @@ function rng(seed: string) {
 }
 
 const cache = new Map<string, { bars: RawBar[]; dividends: Dividend[]; splits: Split[] }>()
+/** 系列は末日（直近の取引日）ごとに作る（テストで時刻を進めると、その日までの系列になる） */
 function series(code: string) {
-  const hit = cache.get(code)
+  const key = `${code}@${lastClosedSession()}`
+  const hit = cache.get(key)
   if (hit) return hit
   const s = BY.get(code)
   if (!s) throw new Error('no data')
@@ -101,7 +111,8 @@ function series(code: string) {
   const r = rng(code)
   const end = lastClosedSession()
   const days: string[] = []
-  for (let d = '2000-01-04'; d <= end; d = addDays(d, 1)) if (isTradingDay(d)) days.push(d)
+  const edge = EDGE[code] ?? {}
+  for (let d = edge.listed ?? '2000-01-04'; d <= end; d = addDays(d, 1)) if (isTradingDay(d)) days.push(d)
   const vol = kind === 'reit' ? 0.009 : kind === 'etf' || kind === 'pref' ? 0.006 : 0.016
   const drift = (r() - 0.42) * 0.0005
   const closes: number[] = new Array(days.length)
@@ -128,7 +139,7 @@ function series(code: string) {
       for (const m of months) {
         let d = `${y}-${String(m).padStart(2, '0')}-27`
         while (!isTradingDay(d)) d = addDays(d, 1)
-        if (d > end) continue
+        if (d > end || d < days[0]! || (edge.divUntil != null && y > edge.divUntil)) continue
         const g = (kind === 'reit' ? 1.02 : 1.06) ** (y - Number(end.slice(0, 4)))
         const per = ((base * yld) / 100 / months.length) * g * (0.97 + r() * 0.06)
         dividends.push({ date: d, amount: base >= 10000 ? Math.round(per) : Math.round(per * 10) / 10 })
@@ -138,7 +149,7 @@ function series(code: string) {
   // 分割の検知・調整を試すための架空の分割（日付・比率は実際とは無関係）
   const splits: Split[] = code === '7203' ? [{ date: '2023-04-26', ratio: 3 }] : code === '9434' ? [{ date: '2024-06-26', ratio: 4 }] : []
   const out = { bars, dividends, splits }
-  cache.set(code, out)
+  cache.set(key, out)
   return out
 }
 

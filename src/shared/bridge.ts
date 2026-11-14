@@ -5,6 +5,8 @@ export interface ElecxstockBridge {
   call<M extends Method>(method: M, params: Params<M>): Promise<Results[M]>
   on<E extends EventName | 'core.ready'>(event: E, cb: (d: E extends EventName ? Events[E] : null) => void): () => void
   prioritize(ids: string[]): void
+  /** テストの時刻のずれ（ms。ELECXSTOCK_NOW のスタブのときだけ）。renderer の入口で Date をずらす */
+  clockOffset?: number
   openExternal(url: string): Promise<boolean>
   saveText(name: string, text: string): Promise<boolean>
   openFile(kind: 'json' | 'xlsx' | 'text' | 'csv'): Promise<string | Uint8Array | null>

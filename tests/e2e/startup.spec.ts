@@ -1,0 +1,55 @@
+// 起動（§6.13 初回起動・FR-F1 中断と再開）。空の userData から始めるのはこのファイルだけ
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { expect, keys, rpc, test } from './support'
+
+test.describe('初回起動（FR-F1, FR-S1）', () => {
+  test('空の userData: 同意 → 取得を始める → 初回取得が終わる', async ({ launch }) => {
+    const { page } = await launch({ fresh: true })
+    const dlg = page.getByRole('dialog', { name: /elecxstock/ })
+    await expect(dlg).toBeVisible()
+    await keys(page, 'Enter') // 同意
+    await expect(dlg).toContainText('TradingView')
+    await keys(page, 'Enter') // 取得を始める
+    await expect(page.locator('footer')).toContainText(/待機/, { timeout: 20_000 })
+    const st = await rpc<{ instruments: number; withBars: number }>(page, 'data.status')
+    expect(st.instruments).toBeGreaterThan(0)
+    expect(st.withBars).toBe(st.instruments)
+  })
+
+  test('初回の取得中に Ctrl+Shift+Q で閉じても、次の起動で続きから終わる', async ({ launch }) => {
+    const first = await launch({ fresh: true })
+    await expect(first.page.getByRole('dialog', { name: /elecxstock/ })).toBeVisible()
+    await keys(first.page, 'Enter')
+    await expect(first.page.getByRole('dialog').first()).toContainText('TradingView')
+    await keys(first.page, 'Enter') // 同意 → 取得を始める
+    await expect.poll(async () => (await rpc<{ kind: string }[]>(first.page, 'jobs.list')).length).toBeGreaterThan(0)
+    const exited = new Promise<void>((r) => first.app.process().once('exit', () => r()))
+    await first.page.keyboard.press('Control+Shift+q').catch(() => {}) // 押した直後に窓が閉じる
+    await exited
+
+    // Core は止めてから終わった（強制終了ではない）
+    const logs = join(first.userData, 'data', 'logs')
+    const core = readdirSync(logs).filter((f) => f.startsWith('core-'))
+    expect(core.map((f) => readFileSync(join(logs, f), 'utf8')).join('\n')).toContain('core shutdown')
+
+    const { page } = await launch({ userData: first.userData })
+    // 同意は済んでいるので初回のダイアログは出ず、取得の続きが終わる
+    await expect(page.locator('footer')).toContainText(/待機/, { timeout: 20_000 })
+    await expect(page.getByRole('dialog', { name: /elecxstock/ })).toHaveCount(0)
+    await expect
+      .poll(async () => (await rpc<{ kind: string; status: string }[]>(page, 'jobs.list')).filter((j) => j.kind === 'initial'))
+      .toEqual([expect.objectContaining({ status: 'done' })])
+    const st = await rpc<{ instruments: number; withBars: number }>(page, 'data.status')
+    expect(st.withBars).toBe(st.instruments)
+  })
+})
+
+test.describe('種からの起動（§3.1）', () => {
+  test('基準日時で起動し、初回のダイアログは出ない', async ({ start }) => {
+    const { page } = await start()
+    await expect(page.getByRole('dialog', { name: /elecxstock/ })).toHaveCount(0)
+    expect(await page.evaluate(() => new Date().toISOString().slice(0, 10))).toBe('2026-11-13')
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('MTF')
+  })
+})

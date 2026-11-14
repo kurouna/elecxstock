@@ -1,7 +1,8 @@
 <script lang="ts">
 // スクリーナー（§5.2, §5.3）。条件エディタは指標の登録表から作る（FR-FD1）。結果は仮想スクロール（FR-SC3）。
 
-import { FIELD_BY_ID, FIELDS, type FieldDef, MARKET_CHOICES, moneyScale, parseTyped, refFields, usable } from '@shared/fields'
+import { canIncludeMissing, editText, parseConditionValue, typesNumber, valueUnit } from '@shared/conditionInput'
+import { FIELD_BY_ID, FIELDS, type FieldDef, MARKET_CHOICES, refFields, usable } from '@shared/fields'
 import type { Condition, InstrumentId, ScreenResult } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { fieldValueText } from '../../lib/alertText'
@@ -21,6 +22,7 @@ import {
   listName,
   promptDialog,
   rememberField,
+  screenInputs,
   screenName,
   t,
 } from '../../stores/app.svelte'
@@ -64,16 +66,14 @@ async function run() {
 }
 $effect(() => {
   void conds
-  void app.dataVersion
-  void app.watchlists
-  void app.holdings // 保有の条件（保有の追加・直し・取り込み・元に戻す。別の窓での変更も）
+  void screenInputs() // 指標・ウォッチリスト・保有（追加・直し・取り込み・元に戻す。別の窓での変更も）
   if (timer) clearTimeout(timer)
   timer = setTimeout(run, 120)
 })
 const sorted = $derived.by(() => {
   if (!result) return [] as InstrumentId[]
   void app.metrics.size
-  void app.holdings // 保有の列で並べ替えているとき
+  void screenInputs() // 保有の列などで並べ替えているとき
   return sortIds(result.ids, cols.find((c) => c.id === sort.k) ?? COLUMN_BY_ID.get(sort.k), sort.dir)
 })
 /** ★のみ表示（Ctrl+Shift+F。ほかの一覧と同じ。§6.5.3） */
@@ -151,23 +151,13 @@ async function typeValue(i: number) {
     if (vals.size) update(i, { ...c, value: [...vals] })
     return
   }
-  if (!c || !f || (f.type !== 'number' && f.type !== 'percent' && f.type !== 'ratio' && f.type !== 'money')) return step(i, 1)
-  if (c.ref) {
-    const s = await promptDialog(t('scr.refOffset'), String(c.value))
-    const v = s == null ? null : parseTyped(s)
-    if (v != null) update(i, { ...c, value: v })
-    return
-  }
-  // 金額は表示の単位（円・万円・億円）で打つ
-  const unit = f.type === 'money' ? moneyScale(f) : 1
+  if (!c || !typesNumber(f)) return step(i, 1)
+  // 金額は表示の単位（円・万円・億円）で打つ。「30万」「1.5億」のように単位を付けてもよい（アラートのダイアログと同じ関数）
   const lang = app.settings.lang
-  const s = await promptDialog(
-    `${f.label[lang]}${f.type === 'money' && f.unit ? (lang === 'ja' ? `（${f.unit.ja}）` : ` (${f.unit.en})`) : ''}`,
-    String(Math.round((Number(c.value) / unit) * 1e4) / 1e4),
-  )
-  if (s == null) return
-  // 「30万」「1.5億」のように単位を付けて打ってもよい
-  const v = parseTyped(s, unit)
+  const unit = valueUnit(c, lang)
+  const title = c.ref ? t('scr.refOffset') : `${f!.label[lang]}${unit ? (lang === 'ja' ? `（${unit}）` : ` (${unit})`) : ''}`
+  const s = await promptDialog(title, editText(c))
+  const v = s == null ? null : parseConditionValue(c, s)
   if (v != null) update(i, { ...c, value: v })
 }
 function flipOp(i: number) {
@@ -456,7 +446,7 @@ $effect(() => {
       <button type="button" class="f" title={`${t('scr.changeField')} (F)`} onclick={() => { ci = i; void changeField(i) }}>{f ? f.label[app.settings.lang] : c.field}</button>
       <button type="button" class="op" onclick={() => flipOp(i)}>{opLabel(c.op)}</button>
       <button type="button" class="v" onclick={() => { ci = i; void typeValue(i) }}>{showValue(c)}</button>
-      {#if (f?.source.kind === 'metrics' && f.type !== 'enum') || f?.source.kind === 'compute'}
+      {#if canIncludeMissing(f)}
         <button type="button" class="toggle miss" class:on={c.includeMissing} title={t('scr.missing')} onclick={() => update(i, { ...c, includeMissing: !c.includeMissing })}><span class="box"></span></button>
       {:else}<span></span>{/if}
       <button type="button" class="mv" aria-label={t('scr.moveUp')} title={`${t('scr.moveUp')} (Alt+↑)`} disabled={i === 0} onclick={() => moveCond(i, -1)}>↑</button>

@@ -18,6 +18,7 @@ import {
   nameOf,
   promptDialog,
   saveWatchlists,
+  screenInputs,
   t,
   toast,
   toggleFav,
@@ -69,8 +70,7 @@ const allCols = $derived(resolveColumns(pane.state.cols as string[] | undefined,
 const cols = $derived(width < 470 ? allCols.filter((c) => c.id !== 'liq.turnover20') : allCols)
 
 const rows = $derived.by(() => {
-  void app.dataVersion
-  void app.holdings // 保有の列で並べ替えているとき
+  void screenInputs() // 指標・保有の列で並べ替えているとき
   let items = list?.items ?? []
   if (starOnly) items = items.filter((id) => isFav(id))
   if (sort) items = sortIds(items, COLUMN_BY_ID.get(sort.k), sort.dir)

@@ -136,6 +136,17 @@ class AppState {
 }
 export const app = new AppState()
 
+/**
+ * スクリーンの結果と一覧の列の値を変えうる状態（docs/test-plan.md §8.1）。スクリーナー・グリッドのスクリーン・一覧の並べ替えは
+ * screenInputs() を読んで、そのすべてに依存する（どれかを読み忘れて、変えても走り直さない不具合を防ぐ）。
+ * 指標の値は dataVersion、ウォッチリストと★は watchlists、保有の条件と列は holdings。
+ * ★・ウォッチリストの入れ外しは items を書き換えるだけ（配列は同じ）なので、中身まで読む（読まないと走り直さない）
+ */
+export const SCREEN_INPUTS = ['dataVersion', 'watchlists', 'holdings'] as const
+export function screenInputs(): unknown[] {
+  return SCREEN_INPUTS.map((k) => (k === 'watchlists' ? app.watchlists.map((w) => `${w.id}:${w.items.join(',')}`).join('|') : app[k]))
+}
+
 export function t(key: Key, args?: Record<string, string | number>): string {
   return format(DICTS[app.settings.lang][key] ?? key, args)
 }
