@@ -14,7 +14,7 @@ describe('fromLots（移動平均法、FR-H5）', () => {
     expect(r.avgCost).toBeCloseTo((100_000 + 100 + 120_000) / 200, 4)
   })
   it('取引の後の分割は、数量 × 係数・単価 ÷ 係数で今の基準にそろえる', () => {
-    const r = fromLots([{ date: '2024-03-01', side: 'buy', quantity: 10, price: 3000 }], [{ date: '2024-09-27', ratio: 10 }])
+    const r = fromLots([{ date: '2024-03-01', side: 'buy', quantity: 10, price: 3000 }], [{ date: '2024-09-20', ratio: 10 }])
     expect(r.quantity).toBe(100)
     expect(r.avgCost).toBe(300)
   })

@@ -82,6 +82,10 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 
 ## テスト
 
+- **テスト・デモ・スクリーンショットのデータはすべて架空**（実際の市場データは権利関係があるため使わない・コミットしない）。
+  スタブ（`src/core/providers/stub.ts`）とモック（`docs/mock/mock-data.js`）は、銘柄名とコードだけ実在で、株価・利回り・配当・権利月・分割は
+  乱数や実際と無関係な値にする。契約テスト（`LIVE=1`）で取った値も保存しない。
+
 - 新しい計算・判定には単体テストを書く（評価日を固定したフィクスチャで。例: `tests/unit/metrics.test.ts`）。
 - 見た目の回帰（`tests/e2e/visual.spec.ts`）はダイアログの要素を基準画像と比べる。意図して見た目を変えたら
   `npx playwright test visual --update-snapshots` で基準画像を作り直し、差分を目で確かめてからコミットする。

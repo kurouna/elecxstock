@@ -1,5 +1,6 @@
 // テスト・スクリーンショット用のスタブ（ELECXSTOCK_PROVIDER=stub）。外部に一切接続しない（§11）。
-// 銘柄名は実在だが、価格・配当はすべて乱数の架空の値。
+// 銘柄名・コードは実在だが、値はすべて架空（実際のデータは使わない。権利関係のため）: 株価・出来高・配当は乱数で作り、
+// 基準の株価・利回り・権利月・分割の日付と比率も乱数で決めた、実際とは無関係な値。
 import type { Dividend, InstrumentKind, Market, Split } from '@shared/types'
 import { addDays, isTradingDay, jstNow, lastClosedSession } from '../calendar'
 import type { HistoryResult, Provider, ProviderQuote, RawBar, UniverseRow } from './types'
@@ -17,28 +18,28 @@ type Seed = [
   months: number[],
 ]
 const U: Seed[] = [
-  ['7203', 'トヨタ自動車', 'TOYOTA MOTOR CORPORATION', 'P', 'stock', '輸送用機器', 'Transportation Equipment', 3400, 2.9, [3, 9]],
-  ['8058', '三菱商事', 'MITSUBISHI CORPORATION', 'P', 'stock', '卸売業', 'Wholesale Trade', 5300, 2.3, [3, 9]],
-  ['8306', '三菱UFJフィナンシャル・グループ', 'Mitsubishi UFJ Financial Group,Inc.', 'P', 'stock', '銀行業', 'Banks', 3500, 2.7, [3, 9]],
-  ['8316', '三井住友フィナンシャルグループ', 'Sumitomo Mitsui Financial Group,Inc.', 'P', 'stock', '銀行業', 'Banks', 4300, 3.1, [3, 9]],
-  ['8411', 'みずほフィナンシャルグループ', 'Mizuho Financial Group,Inc.', 'P', 'stock', '銀行業', 'Banks', 5200, 2.9, [3, 9]],
-  ['9432', '日本電信電話', 'NTT,Inc.', 'P', 'stock', '情報・通信業', 'Information & Communication', 158, 3.4, [3, 9]],
-  ['9433', 'KDDI', 'KDDI CORPORATION', 'P', 'stock', '情報・通信業', 'Information & Communication', 2600, 3.0, [3, 9]],
-  ['9434', 'ソフトバンク', 'SoftBank Corp.', 'P', 'stock', '情報・通信業', 'Information & Communication', 237, 3.7, [3, 9]],
-  ['2914', '日本たばこ産業', 'JAPAN TOBACCO INC.', 'P', 'stock', '食料品', 'Foods', 4700, 4.6, [6, 12]],
-  ['8001', '伊藤忠商事', 'ITOCHU Corporation', 'P', 'stock', '卸売業', 'Wholesale Trade', 8900, 2.2, [3, 9]],
-  ['8031', '三井物産', 'MITSUI & CO.,LTD.', 'P', 'stock', '卸売業', 'Wholesale Trade', 3600, 3.0, [3, 9]],
-  ['8053', '住友商事', 'SUMITOMO CORPORATION', 'P', 'stock', '卸売業', 'Wholesale Trade', 4100, 3.3, [3, 9]],
-  ['4502', '武田薬品工業', 'Takeda Pharmaceutical Company Limited', 'P', 'stock', '医薬品', 'Pharmaceutical', 4300, 4.6, [3, 9]],
-  ['8766', '東京海上ホールディングス', 'Tokio Marine Holdings,Inc.', 'P', 'stock', '保険業', 'Insurance', 5900, 2.6, [3, 9]],
-  ['5401', '日本製鉄', 'NIPPON STEEL CORPORATION', 'P', 'stock', '鉄鋼', 'Iron & Steel', 3300, 4.2, [3, 9]],
-  ['1605', 'INPEX', 'INPEX CORPORATION', 'P', 'stock', '鉱業', 'Mining', 2400, 4.0, [6, 12]],
-  ['6501', '日立製作所', 'Hitachi,Ltd.', 'P', 'stock', '電気機器', 'Electric Appliances', 4500, 1.0, [3, 9]],
-  ['6758', 'ソニーグループ', 'Sony Group Corporation', 'P', 'stock', '電気機器', 'Electric Appliances', 3900, 0.6, [3, 9]],
-  ['7974', '任天堂', 'Nintendo Co.,Ltd.', 'P', 'stock', 'その他製品', 'Other Products', 12500, 1.2, [3, 9]],
-  ['4063', '信越化学工業', 'Shin-Etsu Chemical Co.,Ltd.', 'P', 'stock', '化学', 'Chemicals', 5200, 2.0, [3, 9]],
-  ['8591', 'オリックス', 'ORIX CORPORATION', 'P', 'stock', 'その他金融業', 'Other Financing Business', 3800, 3.8, [3, 9]],
-  ['5020', 'ENEOSホールディングス', 'ENEOS Holdings,Inc.', 'P', 'stock', '石油・石炭製品', 'Oil & Coal Products', 1050, 2.1, [3, 9]],
+  ['7203', 'トヨタ自動車', 'TOYOTA MOTOR CORPORATION', 'P', 'stock', '輸送用機器', 'Transportation Equipment', 18616, 2.7, [3, 9]],
+  ['8058', '三菱商事', 'MITSUBISHI CORPORATION', 'P', 'stock', '卸売業', 'Wholesale Trade', 12872, 4.9, [3, 9]],
+  ['8306', '三菱UFJフィナンシャル・グループ', 'Mitsubishi UFJ Financial Group,Inc.', 'P', 'stock', '銀行業', 'Banks', 19707, 2.2, [3, 9]],
+  ['8316', '三井住友フィナンシャルグループ', 'Sumitomo Mitsui Financial Group,Inc.', 'P', 'stock', '銀行業', 'Banks', 4728, 4.5, [2, 8]],
+  ['8411', 'みずほフィナンシャルグループ', 'Mizuho Financial Group,Inc.', 'P', 'stock', '銀行業', 'Banks', 704, 3.3, [4, 10]],
+  ['9432', '日本電信電話', 'NTT,Inc.', 'P', 'stock', '情報・通信業', 'Information & Communication', 4746, 3.2, [2, 8]],
+  ['9433', 'KDDI', 'KDDI CORPORATION', 'P', 'stock', '情報・通信業', 'Information & Communication', 5312, 3.5, [5, 11]],
+  ['9434', 'ソフトバンク', 'SoftBank Corp.', 'P', 'stock', '情報・通信業', 'Information & Communication', 2221, 4.2, [3, 9]],
+  ['2914', '日本たばこ産業', 'JAPAN TOBACCO INC.', 'P', 'stock', '食料品', 'Foods', 16821, 2.0, [2, 8]],
+  ['8001', '伊藤忠商事', 'ITOCHU Corporation', 'P', 'stock', '卸売業', 'Wholesale Trade', 3895, 4.0, [5, 11]],
+  ['8031', '三井物産', 'MITSUI & CO.,LTD.', 'P', 'stock', '卸売業', 'Wholesale Trade', 14268, 4.1, [6, 12]],
+  ['8053', '住友商事', 'SUMITOMO CORPORATION', 'P', 'stock', '卸売業', 'Wholesale Trade', 7125, 3.9, [3, 9]],
+  ['4502', '武田薬品工業', 'Takeda Pharmaceutical Company Limited', 'P', 'stock', '医薬品', 'Pharmaceutical', 18279, 2.5, [2, 8]],
+  ['8766', '東京海上ホールディングス', 'Tokio Marine Holdings,Inc.', 'P', 'stock', '保険業', 'Insurance', 7755, 1.3, [3, 9]],
+  ['5401', '日本製鉄', 'NIPPON STEEL CORPORATION', 'P', 'stock', '鉄鋼', 'Iron & Steel', 8416, 2.9, [3, 9]],
+  ['1605', 'INPEX', 'INPEX CORPORATION', 'P', 'stock', '鉱業', 'Mining', 476, 2.3, [5, 11]],
+  ['6501', '日立製作所', 'Hitachi,Ltd.', 'P', 'stock', '電気機器', 'Electric Appliances', 12860, 4.4, [3, 9]],
+  ['6758', 'ソニーグループ', 'Sony Group Corporation', 'P', 'stock', '電気機器', 'Electric Appliances', 6028, 2.5, [1, 7]],
+  ['7974', '任天堂', 'Nintendo Co.,Ltd.', 'P', 'stock', 'その他製品', 'Other Products', 10754, 1.9, [3, 9]],
+  ['4063', '信越化学工業', 'Shin-Etsu Chemical Co.,Ltd.', 'P', 'stock', '化学', 'Chemicals', 973, 4.1, [3, 9]],
+  ['8591', 'オリックス', 'ORIX CORPORATION', 'P', 'stock', 'その他金融業', 'Other Financing Business', 14009, 3.7, [1, 7]],
+  ['5020', 'ENEOSホールディングス', 'ENEOS Holdings,Inc.', 'P', 'stock', '石油・石炭製品', 'Oil & Coal Products', 3984, 3.6, [6, 12]],
   [
     '94345',
     'ソフトバンク第1回社債型種類株式',
@@ -47,20 +48,20 @@ const U: Seed[] = [
     'pref',
     '情報・通信業',
     'Information & Communication',
-    3790,
-    2.6,
-    [3, 9],
+    4442,
+    2.8,
+    [2, 8],
   ],
-  ['130A', 'Veritas In Silico', 'Veritas In Silico Inc.', 'G', 'stock', '医薬品', 'Pharmaceutical', 255, 0, []],
-  ['8951', '日本ビルファンド投資法人', 'Nippon Building Fund Inc.', 'R', 'reit', '', '', 119000, 4.2, [6, 12]],
-  ['8952', 'ジャパンリアルエステイト投資法人', 'Japan Real Estate Investment Corporation', 'R', 'reit', '', '', 123000, 4.1, [3, 9]],
-  ['3462', '野村不動産マスターファンド投資法人', 'Nomura Real Estate Master Fund,Inc.', 'R', 'reit', '', '', 124000, 5.9, [2, 8]],
-  ['3283', '日本プロロジスリート投資法人', 'Nippon Prologis REIT,Inc.', 'R', 'reit', '', '', 86000, 4.5, [5, 11]],
-  ['8953', '日本都市ファンド投資法人', 'Japan Metropolitan Fund Investment Corporation', 'R', 'reit', '', '', 102000, 5.9, [2, 8]],
-  ['3269', 'アドバンス・レジデンス投資法人', 'Advance Residence Investment Corporation', 'R', 'reit', '', '', 155000, 4.2, [1, 7]],
-  ['8963', 'インヴィンシブル投資法人', 'Invincible Investment Corporation', 'R', 'reit', '', '', 66000, 6.2, [6, 12]],
-  ['3281', 'GLP投資法人', 'GLP J-REIT', 'R', 'reit', '', '', 136000, 5.2, [2, 8]],
-  ['1306', 'NEXT FUNDS TOPIX連動型上場投信', 'NEXT FUNDS TOPIX Exchange Traded Fund', 'E', 'etf', '', '', 414, 1.9, [7]],
+  ['130A', 'Veritas In Silico', 'Veritas In Silico Inc.', 'G', 'stock', '医薬品', 'Pharmaceutical', 927, 0, []],
+  ['8951', '日本ビルファンド投資法人', 'Nippon Building Fund Inc.', 'R', 'reit', '', '', 105000, 5.7, [4, 10]],
+  ['8952', 'ジャパンリアルエステイト投資法人', 'Japan Real Estate Investment Corporation', 'R', 'reit', '', '', 52000, 5.4, [5, 11]],
+  ['3462', '野村不動産マスターファンド投資法人', 'Nomura Real Estate Master Fund,Inc.', 'R', 'reit', '', '', 109000, 4.1, [1, 7]],
+  ['3283', '日本プロロジスリート投資法人', 'Nippon Prologis REIT,Inc.', 'R', 'reit', '', '', 109000, 4.3, [5, 11]],
+  ['8953', '日本都市ファンド投資法人', 'Japan Metropolitan Fund Investment Corporation', 'R', 'reit', '', '', 54000, 5.8, [5, 11]],
+  ['3269', 'アドバンス・レジデンス投資法人', 'Advance Residence Investment Corporation', 'R', 'reit', '', '', 58000, 4.6, [3, 9]],
+  ['8963', 'インヴィンシブル投資法人', 'Invincible Investment Corporation', 'R', 'reit', '', '', 150000, 4.3, [3, 9]],
+  ['3281', 'GLP投資法人', 'GLP J-REIT', 'R', 'reit', '', '', 148000, 5.4, [5, 11]],
+  ['1306', 'NEXT FUNDS TOPIX連動型上場投信', 'NEXT FUNDS TOPIX Exchange Traded Fund', 'E', 'etf', '', '', 3107, 2.6, [3]],
   [
     '9282',
     'いちごグリーンインフラ投資法人',
@@ -69,9 +70,9 @@ const U: Seed[] = [
     'other',
     '',
     '',
-    52000,
-    6.0,
-    [6, 12],
+    89000,
+    4.9,
+    [5, 11],
   ],
 ]
 const BY = new Map(U.map((s) => [s[0], s]))
@@ -132,7 +133,8 @@ function series(code: string) {
       }
     }
   }
-  const splits: Split[] = code === '7203' ? [{ date: '2021-09-29', ratio: 5 }] : code === '9434' ? [{ date: '2024-09-27', ratio: 10 }] : []
+  // 分割の検知・調整を試すための架空の分割（日付・比率は実際とは無関係）
+  const splits: Split[] = code === '7203' ? [{ date: '2023-04-26', ratio: 3 }] : code === '9434' ? [{ date: '2024-06-26', ratio: 4 }] : []
   const out = { bars, dividends, splits }
   cache.set(code, out)
   return out
@@ -222,7 +224,7 @@ function idx(from: string, interval: '1d' | '1mo'): HistoryResult {
     const end = lastClosedSession()
     const days: string[] = []
     for (let d = '2000-01-04'; d <= end; d = addDays(d, 1)) if (isTradingDay(d)) days.push(d)
-    let c = 61000
+    let c = 38000 // 架空の水準
     const arr: RawBar[] = []
     for (let i = days.length - 1; i >= 0; i--) {
       const o = c * (1 + (r() - 0.5) * 0.01)

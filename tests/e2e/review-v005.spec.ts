@@ -107,9 +107,9 @@ test('保有のフォーム: 銘柄の候補を出しても下の欄が動かな
 test('配当カレンダー: 9 銘柄以上の月も全部を選べる', async () => {
   const { app, page } = await launch()
   await ready(page)
-  // お気に入りに 3 月に権利が確定する 14 銘柄を足す（カレンダーはすべてのウォッチリストの銘柄を並べる）
+  // お気に入りに 3 月に権利が確定する 10 銘柄を足す（スタブの架空の権利月）（カレンダーはすべてのウォッチリストの銘柄を並べる）
   await keys(page, 'Control+Shift+Digit4')
-  for (const c of ['7203', '8058', '8306', '8316', '8411', '9432', '9433', '9434', '8001', '8031', '8053', '4502', '8766', '5401']) {
+  for (const c of ['7203', '8058', '8306', '9434', '8053', '8766', '5401', '6501', '7974', '4063']) {
     await keys(page, ...[...c].map((d) => `Digit${d}`))
     await expect(page.locator('.dialog.jump')).toContainText(c)
     await keys(page, 'Enter', 'Control+d')

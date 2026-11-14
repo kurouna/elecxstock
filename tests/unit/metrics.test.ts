@@ -16,15 +16,15 @@ function days(from: string, to: string, f: (i: number) => number): DayBar[] {
 
 describe('利回りの基準合わせ（FR-I2）', () => {
   it('過去12か月以内に 10:1 分割した銘柄でも、保存値（分割調整済み）どうしで割れば揃う', () => {
-    // 評価日を固定: 2024-10-31（9434 の 10:1 分割 2024-09-27 の直後）
+    // 評価日を固定: 2024-10-31（架空の 10:1 分割 2024-09-20 の直後。値はすべて架空）
     const bars = days('2022-01-04', '2024-10-31', () => 200)
     const dividends = [
-      { date: '2024-03-28', amount: 4.3 },
-      { date: '2024-09-27', amount: 4.3 },
-    ] // 分割調整済み（43 円 → 4.3 円）
-    const m = computeMetrics('JP:9434', bars, dividends, [{ date: '2024-09-27', ratio: 10 }], null, '2024-10-31')
-    expect(m.div12).toBeCloseTo(8.6)
-    expect(m.yieldTrailing).toBeCloseTo(4.3)
+      { date: '2024-03-21', amount: 3.5 },
+      { date: '2024-09-20', amount: 3.5 },
+    ] // 分割調整済み（35 円 → 3.5 円）
+    const m = computeMetrics('JP:9434', bars, dividends, [{ date: '2024-09-20', ratio: 10 }], null, '2024-10-31')
+    expect(m.div12).toBeCloseTo(7)
+    expect(m.yieldTrailing).toBeCloseTo(3.5)
   })
   it('上場12か月未満は期間不足（欠損）', () => {
     const m = computeMetrics(

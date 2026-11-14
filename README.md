@@ -52,7 +52,7 @@
 
 2 枚のモニタに並べたところ（左: 1 枚目、右: フリー 2。リンク 1 のチャートが 1 枚目で選んだ銘柄を追う）
 
-（スクリーンショットはテスト用の架空のデータです）
+（スクリーンショットの株価・利回り・配当などの値は、テスト用に乱数で作った架空のものです。銘柄名とコードは実在しますが、表示の値は実際の値とは関係ありません。実際のデータは使っていません）
 
 ### インストール
 
@@ -139,7 +139,7 @@ Everything can be done with the keyboard alone.
 
 ![Grid (English)](docs/screenshots/grid-en.png)
 
-(Screenshots use fictitious test data.)
+(Prices, yields, dividends and other values in the screenshots are fictitious, generated at random for testing. Company names and codes are real, but the values shown have nothing to do with actual market data. No real market data is used.)
 
 ### Install
 

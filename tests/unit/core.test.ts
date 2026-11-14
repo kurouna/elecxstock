@@ -55,8 +55,10 @@ describe('Core（スタブのプロバイダで端から端まで）', () => {
     expect(m.monthlyUntil).toBeGreaterThan(0)
     const un = await svc.call('bars.get', { id: 'JP:7203', tf: 'D', adjustment: 'unadjusted' })
     const sp = await svc.call('bars.get', { id: 'JP:7203', tf: 'D' })
-    const i = sp.time.findIndex((t) => t < '2021-09-29')
-    if (i >= 0) expect(un.close[i]! / sp.close[i]!).toBeCloseTo(5)
+    // スタブの 7203 は 2023-04-26 に 1:3 の架空の分割（日足の期間の中）
+    const i = sp.time.findIndex((t) => t < '2023-04-26')
+    expect(i).toBeGreaterThanOrEqual(0)
+    expect(un.close[i]! / sp.close[i]!).toBeCloseTo(3)
   })
 
   it('スクリーニング: 既定の条件・無効な条件・欠損', async () => {
@@ -107,9 +109,9 @@ describe('Core（スタブのプロバイダで端から端まで）', () => {
         },
       ],
     })
-    // 取引の後の 10:1 分割（スタブの 9434 は 2024-09-27）で、数量 × 10・単価 ÷ 10
-    expect(saved[0]!.quantity).toBe(1000)
-    expect(saved[0]!.avgCost).toBe(200)
+    // 取引の後の 1:4 分割（スタブの 9434 は 2024-06-26 の架空の分割）で、数量 × 4・単価 ÷ 4
+    expect(saved[0]!.quantity).toBe(400)
+    expect(saved[0]!.avgCost).toBe(500)
     const json = await svc.call('portfolio.export', {})
     expect(JSON.parse(json).format).toBe('elecxstock.holdings')
     const incoming = JSON.stringify({
