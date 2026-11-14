@@ -3,29 +3,14 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { holdingSchema, portfolioMetaSchema, savedLayoutSchema, screenSchema, settingsSchema, watchlistSchema } from '@shared/api'
-import type { SavedScreen, Settings, Watchlist } from '@shared/types'
+import { DEFAULT_SETTINGS } from '@shared/settings'
+import type { SavedScreen, Watchlist } from '@shared/types'
 import { z } from 'zod'
 
 export const STORE_VERSION = 1
 const GENERATIONS = 10
 
-export const DEFAULT_SETTINGS: Settings = {
-  lang: 'ja',
-  candleStyle: 'jp',
-  density: 'normal',
-  uiScale: 1,
-  retentionYears: 5,
-  disclaimerAccepted: false,
-  firstRunDone: false,
-  userInstruments: [],
-  reduceMotion: false,
-  focusAlways: false,
-  theme: 'dark',
-  autoUpdate: true,
-  checkUpdates: true,
-  keymap: {},
-  maPeriods: { D: [5, 25, 75], W: [13, 26, 52], M: [12, 24, 60] },
-}
+export { DEFAULT_SETTINGS }
 
 export function defaultWatchlists(): Watchlist[] {
   return [

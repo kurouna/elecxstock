@@ -1,6 +1,7 @@
 // 楽天証券の「保有商品一覧（すべて）」CSV（assetbalance(all)_*.csv）を読む（FR-H11）。純粋関数。
 // 文字コードの変換（Shift_JIS → UTF-16）は renderer が済ませ、ここには文字列で渡す。
 // 取り込むのは「国内株式」の行だけ。投資信託・米国株式などは対象外として数える（§1.2）。
+import { CODE_RE } from '@shared/code'
 import type { AccountType, Holding } from '@shared/types'
 
 /** 口座の表記 → 口座区分。旧つみたて NISA は旧 NISA にまとめる */
@@ -109,7 +110,7 @@ export function parseRakutenCsv(text: string, importedAt = new Date().toISOStrin
       skipped.push({ kind, name, reason: 'unknown-account' })
       continue
     }
-    if (!/^[0-9][0-9A-Z]{3}$/.test(code) || quantity == null || quantity <= 0 || avgCost == null || avgCost < 0) {
+    if (!CODE_RE.test(code) || quantity == null || quantity <= 0 || avgCost == null || avgCost < 0) {
       skipped.push({ kind, name, reason: 'invalid' })
       continue
     }

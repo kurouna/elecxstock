@@ -85,6 +85,7 @@ export const lotSchema = z.object({
   fee: z.number().nonnegative().max(1e9).optional(),
 })
 export const holdingSchema = z.object({
+  // 保存済みのファイルを読めなくしないよう、検証は CODE_RE より広い（取り込む側で CODE_RE を当てる）
   code: z.string().regex(/^[0-9A-Z]{4,5}$/),
   account: z.enum(ACCOUNT_TYPES),
   quantity: z.number().nonnegative().max(1e9),
@@ -242,7 +243,7 @@ export interface Events {
   'user.error': { message: string }
   'provider.state': { offline: boolean; paused: boolean; message?: string }
   /** 利用者のデータが変わった（マルチモニタ）。from は変えたウィンドウ。op は★・◆の切り替え */
-  'user.changed': { kind: 'settings' | 'watchlists' | 'holdings'; from: string; op?: { list: string; id: string } }
+  'user.changed': { kind: 'settings' | 'watchlists' | 'holdings' | 'screens' | 'all'; from: string; op?: { list: string; id: string } }
 }
 export type EventName = keyof Events
 

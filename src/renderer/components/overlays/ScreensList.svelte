@@ -40,6 +40,7 @@ async function key(e: KeyboardEvent) {
       app.screens = app.screens.filter((s) => s.id !== x.id)
       saveScreens()
       pendingDel = null
+      sel = Math.max(0, Math.min(sel, items.length - 1)) // 末尾を消したら、新しい末尾を選ぶ
     }
   } else if (e.key === 'F2' && x) {
     const name = await promptDialog(t('scr.renameTitle'), screenName(x))

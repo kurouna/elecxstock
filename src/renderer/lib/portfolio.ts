@@ -1,5 +1,7 @@
 // 保有の記録（§6.9, FR-H7〜H11）の画面側の操作。保有は証券会社の CSV を取り込んで作る（FR-H11）。
 // CSV の読み取りと差分は Core（src/core/holdings.ts, src/core/brokers/rakuten.ts）。
+
+import { jstNow } from '@shared/calendar'
 import type { AccountType, Holding } from '@shared/types'
 import { app, choiceDialog, confirmDialog, holdingDialog, inst, loadInstruments, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
 import type { Key } from './i18n'
@@ -146,7 +148,7 @@ export async function exportHoldings(): Promise<void> {
   const r = await confirmDialog({ title: t('hold.exportTitle'), body: t('hold.exportWarn'), ok: t('hold.exportDo') })
   if (!r.ok) return
   const json = await rpc('portfolio.export', {})
-  if (await window.elecxstock.saveText(`elecxstock-holdings-${new Date().toISOString().slice(0, 10)}.json`, json)) toast(t('hold.exported'))
+  if (await window.elecxstock.saveText(`elecxstock-holdings-${jstNow().date}.json`, json)) toast(t('hold.exported'))
 }
 
 /** 保有の JSON 取り込み（FR-H9）: 差分を見せて確認し、合わせ方を選ぶ。取り込む前の記録は残して元に戻せる */

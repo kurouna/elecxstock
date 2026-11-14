@@ -11,7 +11,7 @@ import { fmt, money } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
-import { app, bridge, choiceDialog, listName, promptDialog, screenName, t } from '../../stores/app.svelte'
+import { app, bridge, choiceDialog, isFav, listName, promptDialog, screenName, t } from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -62,8 +62,13 @@ const sorted = $derived.by(() => {
   void app.metrics.size
   return sortIds(result.ids, cols.find((c) => c.id === sort.k) ?? COLUMN_BY_ID.get(sort.k), sort.dir)
 })
-/** 上位 N 件（FR-SC5）: 並べ替えの順で上から */
-const rows = $derived(limit ? sorted.slice(0, limit) : sorted)
+/** ★のみ表示（Ctrl+Shift+F。ほかの一覧と同じ。§6.5.3） */
+const starOnly = $derived(!!pane.state.starOnly)
+/** 上位 N 件（FR-SC5）: 並べ替えの順で上から。★のみ表示はその中の★の銘柄 */
+const rows = $derived.by(() => {
+  const top = limit ? sorted.slice(0, limit) : sorted
+  return starOnly ? top.filter((id) => isFav(id)) : top
+})
 $effect(() => {
   bridge.prioritize(rows.slice(0, 40))
 })
@@ -283,6 +288,11 @@ onMount(() => {
     key(e) {
       const k = e.key
       const ctrl = e.ctrlKey || e.metaKey
+      if (ctrl && e.shiftKey && !e.altKey && e.code === 'KeyF') {
+        patchState(pane, { starOnly: !starOnly })
+        sel = 0
+        return true
+      }
       if (ctrl && !e.altKey && e.code === 'KeyS') {
         if (e.shiftKey) void saveScreenAs(pane)
         else saveScreen(pane)
@@ -419,6 +429,7 @@ $effect(() => {
   {#if dirty}<span class="dirty">● {t('scr.modified')}</span>{/if}
   <button type="button" class="ibtn" aria-label={t('scr.save')} title={`${t('scr.save')} (Ctrl+S)`} disabled={!dirty} onclick={() => saveScreen(pane)}><Icon name="save" /></button>
   <button type="button" class="ibtn" aria-label={t('scr.saveAsLabel')} title={`${t('scr.saveAsLabel')} (Ctrl+Shift+S)`} onclick={() => saveScreenAs(pane)}><Icon name="saveAs" /></button>
+  <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>★</button>
   <button type="button" class="ibtn" aria-label={t('scr.openGrid')} title={`${t('scr.openGridTip')} (${keyOf('openGrid')})`} onclick={openInGrid}><Icon name="grid" /></button>
 </PaneHeader>
 <div class="conds">

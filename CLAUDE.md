@@ -47,8 +47,10 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 
 - **renderer は Core に `bridge.call(method, params)` だけで話す**。メソッドを足すときは `src/shared/api.ts` の
   `PARAMS`（zod）と `Results` を足し、`src/core/service.ts` に実装する。Core はすべての入力を zod で検証する。
-- **Svelte の状態（Proxy）は構造化複製できない**。`stores/app.svelte.ts` の `bridge` が送る前にスナップショットにするので、
-  `window.elecxstock` を直接呼ばない。
+- **Svelte の状態（Proxy）は構造化複製できない**。Core への呼び出し（`call`・`prioritize`）は `stores/app.svelte.ts` の
+  `bridge` / `rpc` を通す（送る前にスナップショットにする）。`window.elecxstock.call` を直接呼ばない。main の機能
+  （ファイルの保存・ダイアログ・窓の操作・窓どうしのバス）は `window.elecxstock` の各メソッドを呼んでよいが、Svelte の状態を
+  そのまま渡さない（`$state.snapshot` などで素の値にする）。
 - **指標は `src/shared/fields.ts` の登録表に足す**（FR-FD1〜FD5）。画面（条件エディタ・列・並べ替え）は登録表から作る。
   市場データだけで決まる指標は `metrics` 表の列（`METRIC_COLUMNS`）と `src/core/metrics.ts` の計算を足す。
   登録表の整合は `tests/unit/fields.test.ts` が確かめる。

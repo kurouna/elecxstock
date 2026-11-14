@@ -1,6 +1,7 @@
 // アプリ全体の状態（Svelte 5 runes）。Core とのやりとりは rpc() だけを通す。
 
 import type { CoreError, Method, Params, Results } from '@shared/api'
+import { DEFAULT_SETTINGS } from '@shared/settings'
 import type {
   AppInfo,
   Condition,
@@ -29,23 +30,7 @@ export const bridge: typeof raw = {
   prioritize: (ids) => raw.prioritize([...ids]),
 }
 
-export const DEFAULT_SETTINGS: Settings = {
-  lang: 'ja',
-  candleStyle: 'jp',
-  density: 'normal',
-  uiScale: 1,
-  retentionYears: 5,
-  disclaimerAccepted: false,
-  firstRunDone: false,
-  userInstruments: [],
-  reduceMotion: false,
-  focusAlways: false,
-  theme: 'dark',
-  autoUpdate: true,
-  checkUpdates: true,
-  keymap: {},
-  maPeriods: { D: [5, 25, 75], W: [13, 26, 52], M: [12, 24, 60] },
-}
+export { DEFAULT_SETTINGS }
 
 export type Overlay =
   | { kind: 'palette'; q?: string; title?: string }

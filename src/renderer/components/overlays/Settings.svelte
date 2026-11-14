@@ -1,5 +1,6 @@
 <script lang="ts">
 // 設定（Ctrl+,）: 一般・表示・データ（FR-S5〜S9, FR-D6）・キー・このアプリについて。↑↓ で項目、Tab で中へ。
+import { CODE_RE } from '@shared/code'
 import { onMount } from 'svelte'
 import { ACTIONS, checkUpdate, exportUser, importUser } from '../../lib/commands'
 import { dateTime } from '../../lib/format'
@@ -64,7 +65,7 @@ async function reset() {
 async function addUser() {
   const code = (await promptDialog(t('set.addInstrument'), ''))?.trim().toUpperCase()
   app.overlay = { kind: 'settings', tab: 'general' }
-  if (!code || !/^[0-9][0-9A-Z]{3,4}$/.test(code)) return
+  if (!code || !CODE_RE.test(code)) return
   const ins = await rpc('instruments.addUser', { code })
   if (ins) app.instruments.set(ins.id, ins)
   app.settings = (await rpc('user.load', {})).settings

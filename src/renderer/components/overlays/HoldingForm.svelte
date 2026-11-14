@@ -1,7 +1,9 @@
 <script lang="ts">
 // 保有を足す・直す（FR-H7）: 銘柄・口座区分・数量・平均取得単価を 1 つのフォームで。キーだけで入れられる:
 // Tab で項目、口座区分は ← →、Enter で保存、Esc で取り消し
+
 import { ACCOUNT_TYPES } from '@shared/api'
+import { CODE_RE } from '@shared/code'
 import type { AccountType, Holding, Instrument } from '@shared/types'
 import { onMount } from 'svelte'
 import type { Key } from '../../lib/i18n'
@@ -64,7 +66,7 @@ function codeKey(e: KeyboardEvent) {
 $effect(() => {
   const q = C
   const my = ++token
-  if (!/^[0-9][0-9A-Z]{3,4}$/.test(q)) {
+  if (!CODE_RE.test(q)) {
     found = null
     return
   }
@@ -78,9 +80,7 @@ const num = (s: string) => {
 }
 const q = $derived(num(qty))
 const a = $derived(num(avg))
-const error = $derived(
-  !/^[0-9][0-9A-Z]{3,4}$/.test(C) ? t('hold.errCode') : !(q > 0) ? t('hold.errQty') : !(a >= 0) ? t('hold.errAvg') : null,
-)
+const error = $derived(!CODE_RE.test(C) ? t('hold.errCode') : !(q > 0) ? t('hold.errQty') : !(a >= 0) ? t('hold.errAvg') : null)
 const name = $derived(found ? (app.settings.lang === 'en' && found.nameEn ? found.nameEn : found.nameJa) : C ? nameOf(`JP:${C}`) : '')
 
 // 閉じるとこの部品は外れて props が読めなくなるので、結果を渡してから閉じる
@@ -118,6 +118,8 @@ onMount(() => (holding ? qtyEl : codeEl)?.focus())
 <div class="dialog holding" role="dialog" aria-label={holding ? t('hold.editTitle') : t('hold.addTitle')} tabindex="-1" onkeydown={key}>
   <h3>{holding ? t('hold.editTitle') : t('hold.addTitle')}</h3>
   <div class="body">
+    <!-- 候補は下の欄に重ねて出す（欄を押し下げない） -->
+    <div class="codeRow">
     <label class="f">
       <span>{t('hold.code')}</span>
       <input
@@ -143,6 +145,7 @@ onMount(() => (holding ? qtyEl : codeEl)?.focus())
         {/each}
       </ul>
     {/if}
+    </div>
     <div class="f">
       <span>{t('hold.account')}</span>
       <!-- svelte-ignore a11y_interactive_supports_focus -->
@@ -208,9 +211,17 @@ onMount(() => (holding ? qtyEl : codeEl)?.focus())
   input.code {
     text-align: center;
   }
+  .codeRow {
+    position: relative;
+  }
   .cands {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 118px;
+    right: 0;
+    z-index: 10;
     list-style: none;
-    margin: -4px 0 0 118px;
+    margin: 0;
     padding: 2px 0;
     border: 1px solid var(--line-strong);
     border-radius: var(--radius);

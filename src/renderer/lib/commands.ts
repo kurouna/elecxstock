@@ -2,6 +2,7 @@
 // キーは物理キー（KeyboardEvent.code）で判定し、日本語 IME の変換中は無視する（FR-KB5）。
 // 登録表のキーは設定で変えられる（FR-KB6。settings.keymap が上書き）。ペインの中の単キーは各ペインが持つ。
 import { addDays, jstNow, lastClosedSession } from '@shared/calendar'
+import { CODE_RE } from '@shared/code'
 import type { InstrumentId, Watchlist } from '@shared/types'
 import {
   app,
@@ -109,6 +110,8 @@ export function setFocus(id: string | null): void {
   const open = layout.dockOpen
   if (open && !layout.entry.docks[open]?.pinned && dockOf(id) !== open) layout.dockOpen = null
   queueMicrotask(() => {
+    // その間にダイアログ（未保存の 3 択など）が開いていたら、ダイアログからフォーカスを奪わない
+    if (app.overlay) return
     const el = document.querySelector<HTMLElement>(`[data-pane-id="${id}"]`)
     if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true })
   })
@@ -373,7 +376,7 @@ async function importCodes(): Promise<void> {
             .replace(/^"|"$/g, '')
             .toUpperCase(),
         )
-        .filter((c) => /^[0-9][0-9A-Z]{3,4}$/.test(c)),
+        .filter((c) => CODE_RE.test(c)),
     ),
   ]
   if (!codes.length) {

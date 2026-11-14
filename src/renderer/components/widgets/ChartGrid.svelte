@@ -471,9 +471,10 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   <button type="button" class="ibtn" aria-label={t('grid.toListLabel')} title={`${t('grid.toListLabel')} (${keyOf('addTo')})`} onclick={candToList}><Icon name="listAdd" /></button>
   <button type="button" class="ibtn" aria-label={t('grid.pin')} title={`${t('grid.pinTip')} (P)`} onclick={pinCurrent}><Icon name="pin" /></button>
   <span class="sep"></span>
-  <button type="button" class="chip" title={`${t('grid.finer')} (+)`} aria-label={t('grid.finer')} onclick={() => set({ size: Math.max(0, size - 1), page: 0 })}>−</button>
+  <!-- − は粗く（枚数が減る。− キー）、＋ は細かく（枚数が増える。+ キー） -->
+  <button type="button" class="chip" title={`${t('grid.coarser')} (−)`} aria-label={t('grid.coarser')} onclick={() => set({ size: Math.max(0, size - 1), page: 0 })}>−</button>
   <span class="num">{dims[0]}×{dims[1]}</span>
-  <button type="button" class="chip" title={`${t('grid.coarser')} (−)`} aria-label={t('grid.coarser')} onclick={() => set({ size: Math.min(GRIDS.length - 1, size + 1), page: 0 })}>＋</button>
+  <button type="button" class="chip" title={`${t('grid.finer')} (+)`} aria-label={t('grid.finer')} onclick={() => set({ size: Math.min(GRIDS.length - 1, size + 1), page: 0 })}>＋</button>
   <span class="pager">
     <button type="button" class="chip" title={`${t('grid.prevPage')} (PageUp)`} aria-label={t('grid.prevPage')} disabled={Math.min(page, pages - 1) <= 0} onclick={() => goPage(-1, 0)}>‹</button>
     <span class="num muted">{t('grid.page', { p: Math.min(page, pages - 1) + 1, n: pages })}</span>

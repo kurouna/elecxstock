@@ -11,7 +11,7 @@ import { parseJpx } from './providers/jpx'
 import type { Provider } from './providers/types'
 import { idOf, Repo } from './repo'
 import { runScreen } from './screener'
-import { adjust, aggregate, mergeMonthly, toBars } from './series'
+import { adjust, adjustMonthly, aggregate, mergeMonthly, toBars } from './series'
 import { defaultScreens, UserStore } from './userstore'
 
 const RELEASES = 'https://api.github.com/repos/kurouna/elecxstock/releases/latest'
@@ -101,7 +101,7 @@ export class CoreService {
    * 一覧に無い銘柄を利用者の銘柄として足し、データを取りにいく（銘柄の追加と、保有の CSV・JSON の取り込みで使う）。
    * 何銘柄でも設定の保存・取得対象の更新・取得のジョブは 1 回ずつ（設定の世代を押し流さない）。上限（500）を超える分は足さない
    */
-  private addUserInstruments(list: { code: string; name?: string }[]): InstrumentId[] {
+  private addUserInstruments(list: { code: string; name?: string }[], also: InstrumentId[] = []): InstrumentId[] {
     const r = this.repo
     const s = this.user.load('settings')
     const have = new Set(s.userInstruments)
@@ -125,7 +125,7 @@ export class CoreService {
     }
     if (add.length) this.user.save('settings', { ...s, userInstruments: [...s.userInstruments, ...add.map((x) => x.code)] })
     r.setUserAdded(this.trackedCodes())
-    const fetch = ids.filter((id) => !r.fetchState(id).lastFull)
+    const fetch = [...new Set([...ids, ...also])].filter((id) => r.instrument(id) && !r.fetchState(id).lastFull)
     if (fetch.length) this.jobs.enqueue('refetch', [...fetch.map((id) => `F:${id}`), ...fetch.map((id) => `M:${id}`)])
     return ids
   }
@@ -165,7 +165,8 @@ export class CoreService {
     if (tf === 'M') {
       let monthly = repo.monthly(id)
       if (!monthly.length && !repo.fetchState(id).lastMonthly && repo.yahooOf(id)) this.jobs.enqueue('monthly', [`M:${id}`])
-      if (adj === 'unadjusted') monthly = adjust(monthly, 'unadjusted', splits, [])
+      // 日足の期間より前の月足も、日足と同じ基準（未調整・配当込み）にそろえる
+      monthly = adjustMonthly(monthly, adj, splits, dividends, daily, adjusted)
       const { bars, monthlyUntil } = mergeMonthly(monthly, adjusted)
       return { ...toBars(id, 'M', bars, today, monthlyUntil), dividends, splits, adjustment: adj }
     }
@@ -371,6 +372,7 @@ export class CoreService {
         return this.holdings() as Results[M]
       case 'portfolio.save':
         this.user.save('holdings', P.holdings as never)
+        this.trackHoldings()
         return this.holdings() as Results[M]
       case 'portfolio.export':
         return exportHoldings(
@@ -386,15 +388,15 @@ export class CoreService {
         this.user.keepBefore('holdings', 'preimport') // 取り込む前の記録を残し、元に戻せるようにする（FR-H9）
         this.user.keepBefore('portfolioMeta', 'preimport')
         const hs = P.holdings as Holding[]
-        // 別の PC で足した銘柄など、一覧に無いコードは銘柄として足してデータを取りにいく
-        this.addUserInstruments(hs.filter((h) => !r.instrument(`JP:${h.code}`)).map((h) => ({ code: h.code, name: h.name })))
         this.user.save('holdings', applyImport(this.user.load('holdings'), hs, P.mode as 'merge' | 'replace'))
         if (P.meta) this.user.save('portfolioMeta', P.meta as never)
+        this.trackHoldings()
         return this.holdings() as Results[M]
       }
       case 'portfolio.undoImport':
         if (!this.user.restoreBefore('holdings', 'preimport')) return null as Results[M]
         this.user.restoreBefore('portfolioMeta', 'preimport')
+        this.trackHoldings()
         return this.holdings() as Results[M]
       case 'portfolio.meta':
         return this.user.load('portfolioMeta') as Results[M]
@@ -405,9 +407,9 @@ export class CoreService {
         this.user.keepBefore('holdings', 'preimport')
         this.user.keepBefore('portfolioMeta', 'preimport')
         const hs = P.holdings as Holding[]
-        this.addUserInstruments(hs.filter((h) => !r.instrument(`JP:${h.code}`)).map((h) => ({ code: h.code, name: h.name })))
         this.user.save('holdings', hs)
         this.user.save('portfolioMeta', P.meta as never)
+        this.trackHoldings()
         return this.holdings() as Results[M]
       }
       case 'user.exportAll':
@@ -504,15 +506,30 @@ export class CoreService {
     }
   }
 
-  /** chart-grid などで表示中の銘柄を先に取得する（FR-F8） */
-  /** 取得を続ける銘柄の証券コード: 設定で足した銘柄 + ウォッチリストにある銘柄（FR-U3, U4） */
+  /** 取得を続ける銘柄の証券コード: 設定で足した銘柄 + ウォッチリストにある銘柄 + 保有の銘柄（FR-U3, U4） */
   trackedCodes(): string[] {
     const fromLists = this.user
       .load('watchlists')
       .flatMap((w) => w.items)
       .filter((id) => id.startsWith('JP:'))
       .map((id) => id.slice(3))
-    return [...new Set([...this.user.load('settings').userInstruments, ...fromLists])]
+    const held = this.user.load('holdings').map((h) => h.code)
+    return [...new Set([...this.user.load('settings').userInstruments, ...fromLists, ...held])]
+  }
+  /**
+   * 保有を変えたあと: 保有の銘柄は市場によらず取得の対象にする（スタンダード・グロース・ETF も）。
+   * 一覧に無いコード（別の PC で足した銘柄など）は利用者の銘柄として足す。まだ取っていない銘柄は取りにいく（1 回のジョブで）
+   */
+  private trackHoldings(): void {
+    const r = this.repo
+    const hs = this.user.load('holdings')
+    const unknown = [
+      ...new Map(hs.filter((h) => !r.instrument(idOf(h.code))).map((h) => [h.code, { code: h.code, name: h.name }])).values(),
+    ]
+    this.addUserInstruments(
+      unknown,
+      hs.map((h) => idOf(h.code)),
+    )
   }
   prioritize(ids: InstrumentId[]): void {
     this.jobs.prioritize(ids)

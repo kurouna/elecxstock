@@ -63,6 +63,16 @@ function confirmKey(e: KeyboardEvent) {
   e.preventDefault()
   ;(csel ? okBtn : first)?.focus()
 }
+/** 3 択（取り消し / 破棄 / 保存）: ← → ↑ ↓ でボタンを移る（確認と同じ。Enter は選んだボタン、Esc は取り消し） */
+function ask3Key(e: KeyboardEvent) {
+  if (overlay.kind !== 'ask3' || e.isComposing) return
+  const d = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : 0
+  if (!d) return
+  const bs = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('.actions button')]
+  const i = bs.indexOf(document.activeElement as HTMLButtonElement)
+  bs[Math.max(0, Math.min(bs.length - 1, (i < 0 ? bs.length - 1 : i) + d))]?.focus()
+  e.preventDefault()
+}
 function checkKey(e: KeyboardEvent) {
   if (overlay.kind !== 'checklist') return
   const it = overlay.items
@@ -166,7 +176,8 @@ function checkKey(e: KeyboardEvent) {
     </div>
   </div>
 {:else if overlay.kind === 'ask3'}
-  <div class="dialog box" role="alertdialog">
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="dialog box" role="alertdialog" tabindex="-1" onkeydown={ask3Key}>
     <h3>{overlay.title}</h3>
     <p class="dim">{overlay.body}</p>
     <div class="actions">
@@ -174,6 +185,7 @@ function checkKey(e: KeyboardEvent) {
       <button type="button" class="btn" onclick={() => done(overlay.resolve, 'discard')}>{t('scr.discard')}</button>
       <button type="button" class="btn primary" bind:this={first} onclick={() => done(overlay.resolve, 'save')}>{t('common.save')}</button>
     </div>
+    <div class="keys muted">{t('dlg.confirmKeys')}</div>
   </div>
 {/if}
 

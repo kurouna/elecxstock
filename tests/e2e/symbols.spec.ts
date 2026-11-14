@@ -44,9 +44,12 @@ test('銘柄: ジャンプの ☆ と Ctrl+Enter・ジャンプ後の Ctrl+D・�
   await expect(row).toBeVisible()
   const code = (await row.locator('td').first().textContent())!.replace(/\D/g, '')
   const tile = page.locator('.tile').nth(2)
+  const tiles = await page.locator('.tile').count()
   await row.dragTo(tile)
   await expect(page.locator('.dock')).not.toHaveClass(/open/)
   await expect(page.locator('.tile').nth(2).locator('.h')).toContainText(code)
+  // 対象がスクリーナーから「このグリッドの銘柄」に固定されても、ほかのタイルは残る（落とした 1 枚だけにならない）
+  await expect(page.locator('.tile')).toHaveCount(tiles)
 
   // MTF: ウォッチリストの行を日足のチャートに落とすと、リンク色の同じチャートがその銘柄になる
   await keys(page, 'Control+Shift+Digit4')

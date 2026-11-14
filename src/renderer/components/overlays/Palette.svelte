@@ -1,6 +1,7 @@
 <script lang="ts">
 // コマンドバー（Ctrl+K）: 銘柄（コード・日本語名・英語名）・スクリーン・アクションを 1 つの入力で探す（FR-KB1, O1）。
 
+import { CODE_RE } from '@shared/code'
 import type { Instrument } from '@shared/types'
 import { onMount } from 'svelte'
 import { ACTIONS, type Action, focusedWatchlist, holdingsTabLocked, keyOf, sendSymbol } from '../../lib/commands'
@@ -54,7 +55,7 @@ const items = $derived.by((): Item[] => {
   const out: Item[] = [...syms.map((i) => ({ kind: 'sym' as const, i })), ...scrs, ...acts]
   // 一覧に無いコードは「追加して取得する」（FR-U3）
   // 一覧にあっても取得の対象外（スタンダード・グロース・ETF など）なら「追加して取得する」を出す
-  if (!actOnly && /^[0-9][0-9A-Z]{3,4}$/i.test(qq)) {
+  if (!actOnly && CODE_RE.test(qq.toUpperCase())) {
     const hit = syms.find((s) => s.code.toLowerCase() === qq)
     if (!hit) out.unshift({ kind: 'add', code: qq.toUpperCase() })
     else if (!tracked(hit)) out.splice(syms.indexOf(hit) + 1, 0, { kind: 'add', code: hit.code })

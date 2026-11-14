@@ -1,6 +1,7 @@
 // JPX の上場銘柄一覧（data_j.xlsx / data_e.xlsx）の読み込み（FR-U1, U2, U5, U7）。
 // xlsx は zip の中の XML なので、fflate で展開して必要な 2 つの XML だけを読む（依存を増やさない）。
 
+import { CODE_RE } from '@shared/code'
 import type { InstrumentKind, Market } from '@shared/types'
 import { strFromU8, unzipSync } from 'fflate'
 import type { UniverseRow } from './types'
@@ -80,7 +81,7 @@ export function parseJpx(ja: Uint8Array, en?: Uint8Array): UniverseRow[] {
   const out: UniverseRow[] = []
   for (const r of rowsJa.slice(1)) {
     const code = String(r[1] ?? '').trim()
-    if (!/^[0-9][0-9A-Z]{3,4}$/.test(code)) continue
+    if (!CODE_RE.test(code)) continue
     const nameJa = String(r[2] ?? '')
       .normalize('NFKC')
       .trim()

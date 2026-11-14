@@ -12,6 +12,13 @@ import PaneHeader from '../PaneHeader.svelte'
 let { pane }: { pane: PaneNode } = $props()
 let mi = $state(new Date().getMonth())
 let ri = $state(0)
+let host = $state<HTMLElement>()
+// 選んだ行が月の枠の外に出たら見える位置まで動かす（月の銘柄は全部並べ、枠の中でスクロールする）
+$effect(() => {
+  void mi
+  void ri
+  host?.querySelector('.row.sel')?.scrollIntoView({ block: 'nearest' })
+})
 const ids = $derived([...new Set(app.watchlists.flatMap((w) => w.items))])
 $effect(() => ensureMetrics(ids))
 const months = $derived(
@@ -43,7 +50,7 @@ onMount(() =>
         return true
       }
       if (k === 'ArrowUp' || k === 'ArrowDown') {
-        const n = Math.min(8, months[mi]!.length)
+        const n = months[mi]!.length
         if (n) ri = (ri + (k === 'ArrowDown' ? 1 : -1) + n) % n
         send(months[mi]![ri])
         return true
@@ -61,11 +68,11 @@ onMount(() =>
 <PaneHeader {pane}>
   <span class="dim">{t('divcal.subtitle')}</span>
 </PaneHeader>
-<div class="cal">
+<div class="cal" bind:this={host}>
   {#each months as list, i (i)}
     <div class="m" class:cur={i === mi}>
       <h5><span>{label(i + 1)}</span><span class="num muted">{list.length}</span></h5>
-      {#each list.slice(0, 8) as id, r (id)}
+      {#each list as id, r (id)}
         <button type="button" class="row" class:sel={i === mi && r === ri} onclick={() => { mi = i; ri = r; send(id) }}>
           <span class="nm">{#if isFav(id)}<span class="star on">★</span> {/if}{nameOf(id)}</span><span class="num">{metric(id)?.yieldTrailing != null ? `${fmt(metric(id)?.yieldTrailing)}%` : '—'}</span>
         </button>
@@ -87,7 +94,8 @@ onMount(() =>
   .m {
     background: var(--panel);
     padding: 6px 8px;
-    overflow: hidden;
+    overflow-y: auto;
+    min-height: 0;
   }
   .m.cur h5 {
     color: var(--text);

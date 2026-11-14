@@ -3,6 +3,8 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { type CoreError, type Events, type Method, PARAMS } from '@shared/api'
+import { jstNow } from '@shared/calendar'
+import { CHANGES } from './changes'
 import { createStubProvider } from './providers/stub'
 import { createYahooProvider } from './providers/yahoo'
 import { CoreService } from './service'
@@ -20,7 +22,7 @@ globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
 
 const dataDir = process.env.ELECXSTOCK_DATA_DIR ?? join(process.cwd(), '.data')
 mkdirSync(join(dataDir, 'logs'), { recursive: true })
-const logFile = () => join(dataDir, 'logs', `core-${new Date().toISOString().slice(0, 10)}.log`)
+const logFile = () => join(dataDir, 'logs', `core-${jstNow().date}.log`)
 const log = (msg: string) => {
   try {
     appendFileSync(logFile(), `${new Date().toISOString()} ${msg}\n`) // 日付ごとのファイル（NFR-O1）
@@ -44,16 +46,6 @@ const broadcast = (msg: unknown) => {
 /** 表示中の銘柄（FR-F8）はウィンドウごとに受け、和集合で使う */
 const shown = new Map<string, string[]>()
 const prioritizeAll = () => service.prioritize([...new Set([...shown.values()].flat())].slice(0, 400))
-/** 利用者のデータを変えたら、どのウィンドウからかを添えて全部に知らせる（ほかの窓が読み直す） */
-const CHANGES: Partial<Record<string, 'settings' | 'watchlists' | 'holdings'>> = {
-  'user.saveSettings': 'settings',
-  'user.saveWatchlists': 'watchlists',
-  'watchlists.toggleItem': 'watchlists',
-  'portfolio.save': 'holdings',
-  'portfolio.applyImport': 'holdings',
-  'portfolio.applyCsv': 'holdings',
-  'portfolio.undoImport': 'holdings',
-}
 
 const provider = process.env.ELECXSTOCK_PROVIDER === 'stub' ? createStubProvider() : createYahooProvider()
 const service = new CoreService(

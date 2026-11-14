@@ -5,6 +5,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readF
 import { readFile } from 'node:fs/promises'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { jstNow } from '@shared/calendar'
 import {
   app,
   BrowserWindow,
@@ -41,7 +42,7 @@ const logDir = () => join(app.getPath('userData'), 'data', 'logs')
 function log(msg: string): void {
   try {
     mkdirSync(logDir(), { recursive: true })
-    appendFileSync(join(logDir(), `main-${new Date().toISOString().slice(0, 10)}.log`), `${new Date().toISOString()} ${msg}\n`)
+    appendFileSync(join(logDir(), `main-${jstNow().date}.log`), `${new Date().toISOString()} ${msg}\n`)
   } catch {
     /* ignore */
   }

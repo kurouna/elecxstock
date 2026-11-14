@@ -102,6 +102,41 @@ export function adjust(days: DayBar[], adj: Adjustment, splits: Split[], dividen
   })
 }
 
+/**
+ * 月足（月次の系列）の価格の調整（FR-C4, D7）。日足の期間より前は月次の系列を使うので、日足と同じ基準にそろえる。
+ * - 未調整: 分割係数で戻す
+ * - 配当込み: 日足の期間の配当で日足の最初の日が受けた倍率（dailyAdj / daily）を掛け、日足より前の配当は
+ *   前の月の終値で割って、その月より前の月足に掛けていく（権利落ちの月の終値は落ちたあとの値なので掛けない）
+ */
+export function adjustMonthly(
+  monthly: DayBar[],
+  adj: Adjustment,
+  splits: Split[],
+  dividends: Dividend[],
+  daily: DayBar[],
+  dailyAdj: DayBar[],
+): DayBar[] {
+  if (adj === 'split' || !monthly.length) return monthly
+  if (adj === 'unadjusted') return adjust(monthly, 'unadjusted', splits, [])
+  const first = daily[0]
+  const base = first && first.c > 0 && dailyAdj[0] ? dailyAdj[0].c / first.c : 1
+  const factors = new Array<number>(monthly.length).fill(base)
+  for (const dv of dividends) {
+    if (first && dv.date >= first.d) continue // 日足の期間の配当は base に入っている
+    const m = monthKey(dv.date)
+    const i = monthly.findIndex((b) => monthKey(b.d) >= m)
+    if (i <= 0) continue
+    const prev = monthly[i - 1]!.c
+    if (!(prev > 0)) continue
+    const f = 1 - dv.amount / prev
+    for (let k = 0; k < i; k++) factors[k]! *= f
+  }
+  return monthly.map((b, i) => {
+    const f = factors[i]!
+    return f === 1 ? b : { ...b, o: b.o * f, h: b.h * f, l: b.l * f, c: b.c * f }
+  })
+}
+
 export function toBars(id: InstrumentId, tf: Timeframe, bars: DayBar[], today: JstDate, monthlyUntil = 0): Bars {
   const out: Bars = { id, tf, time: [], open: [], high: [], low: [], close: [], volume: [], provisional: [], forming: [] }
   bars.forEach((b, i) => {

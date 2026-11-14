@@ -1,4 +1,5 @@
 <script lang="ts">
+import { jstNow } from '@shared/calendar'
 import { changeSymbol } from '../../lib/chartMenu'
 import { keyOf } from '../../lib/commands'
 // 銘柄情報（FR-I1, H3, V12）: 指標と配当・分配金の推移。利回りには「実績」と基準日・出所を必ず添える。
@@ -42,7 +43,7 @@ $effect(() => {
 })
 
 const mode = $derived((pane.state.divMode as 'year' | 'event' | undefined) ?? 'year')
-const asOf = $derived(m?.asOf ?? new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10))
+const asOf = $derived(m?.asOf ?? jstNow().date)
 const fit = $derived(yearsThatFit(plotW))
 const years = $derived(annualDividends(divs, asOf).slice(-fit))
 const events = $derived(divs.slice(-fit))

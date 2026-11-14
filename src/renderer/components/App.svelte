@@ -150,10 +150,14 @@ async function onUserChanged(d: { kind: string; from: string; op?: { list: strin
     return
   }
   const u = await rpc('user.load', {})
-  if (d.kind === 'settings') {
+  const all = d.kind === 'all' // 一括の取り込み・元に戻す
+  if (all || d.kind === 'settings') {
     app.settings = u.settings
     applySettingsToDom()
-  } else if (d.kind === 'watchlists') app.watchlists = u.watchlists
+  }
+  if (all || d.kind === 'watchlists') app.watchlists = u.watchlists
+  if (all || d.kind === 'screens') app.screens = u.screens
+  if (all) await loadHoldings()
 }
 /** 起動（失敗したら理由と、再試行・ログを開くを出す。空白の画面にしない） */
 let bootError = $state<string | null>(null)
