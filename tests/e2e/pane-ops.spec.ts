@@ -162,3 +162,20 @@ test('動かしたレイアウトは再起動のあとも残る', async () => {
   expect(near(moved.height, mb.height, 4)).toBe(true)
   await second.app.close()
 })
+
+test('最大化したまま別のペイン（ドロワーのスクリーナー）を開くと、最大化を戻して見せる', async () => {
+  const { app, page } = await launch()
+  await expect(page.getByRole('dialog', { name: /elecxstock/ })).toBeVisible()
+  await keys(page, 'Enter', 'Enter')
+  await expect(page.locator('footer')).toContainText(/待機/, { timeout: 60_000 })
+  // グリッドのタブでグリッドを最大化する（スクリーナーは左のドロワーにある）
+  await keys(page, 'Control+Shift+Digit3')
+  await page.locator('[data-widget="grid"]').click({ position: { x: 200, y: 200 } })
+  await keys(page, 'Control+Shift+Enter')
+  await expect(page.locator('.pane.maxed')).toHaveCount(1)
+  // スクリーンの一覧（Ctrl+O）から開く → 最大化を戻し、ドロワーのスクリーナーを見せる
+  await keys(page, 'Control+o', 'Enter')
+  await expect(page.locator('.pane.maxed')).toHaveCount(0)
+  await expect(page.locator('[data-widget="screener"]')).toBeVisible()
+  await app.close()
+})

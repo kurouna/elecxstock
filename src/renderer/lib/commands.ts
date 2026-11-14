@@ -438,8 +438,12 @@ export function openInGrid(): void {
     setFocus(g.id)
   }
 }
-/** ペインを見せてフォーカスする。ドロワーの中なら、そのタブに切り替えてドロワーを開く（ピン留めしていなければ） */
+/**
+ * ペインを見せてフォーカスする。ドロワーの中なら、そのタブに切り替えてドロワーを開く（ピン留めしていなければ）。
+ * 別のペインを最大化していたら戻す（最大化したペインがドロワー・ほかのペインの上に重なって隠すため）
+ */
 export function revealPane(p: PaneNode): void {
+  if (app.maximized && app.maximized !== p.id) app.maximized = null
   const side = dockOf(p.id)
   if (side) {
     const d = layout.entry.docks[side]!
