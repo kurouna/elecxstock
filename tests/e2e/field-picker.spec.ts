@@ -28,6 +28,16 @@ test('Insert で開き、打って絞り込み、Enter で足す。Shift+Enter �
   await expect(fp).toHaveCount(0)
   await expect(conds).toHaveCount(n0 + 1)
   await expect(conds.last()).toContainText('ROE')
+  // EPS（1 株あたりの円）は円のまま出す（「0 万」にしない）。Enter で打つときも円
+  await keys(page, 'Insert')
+  await page.keyboard.type('EPS')
+  await keys(page, 'Enter')
+  await expect(conds.last().locator('.v')).toHaveText(/^100(.0)?$/)
+  // 足した条件に移っているので、Enter で値を打つ（円）。Delete で外す
+  await keys(page, 'Enter')
+  await expect(page.locator('.dialog').last()).toContainText('EPS（円）')
+  await keys(page, 'Escape', 'Delete', 'Escape')
+  await expect(conds).toHaveCount(n0 + 1)
 
   // Shift+Enter で 2 つ続けて足し、Esc（検索を消す）→ Esc（閉じる）
   await keys(page, 'Insert')
@@ -37,6 +47,8 @@ test('Insert で開き、打って絞り込み、Enter で足す。Shift+Enter �
   await keys(page, 'Shift+Enter')
   await expect(conds).toHaveCount(n0 + 2)
   await expect(fp).toBeVisible()
+  // 続けて足した項目にもすぐ ✓ が付く
+  await expect(fp.getByRole('option', { name: /最低投資金額/ }).locator('.ck')).toBeVisible()
   await keys(page, 'Escape')
   await expect(fp.locator('input')).toHaveValue('')
   await page.keyboard.type('ボラ')
@@ -71,5 +83,21 @@ test('F で今の条件の指標を変える', async () => {
   await expect(fp).toHaveCount(0)
   await expect(first).toContainText('PBR')
   expect(before).not.toContain('PBR')
+  await app.close()
+})
+
+test('結果が 0 件でも、条件の値をクリックして直せる（空の知らせが条件をふさがない）', async () => {
+  const { app, page } = await launch()
+  await ready(page)
+  await keys(page, 'Control+Shift+Digit2', 'Insert')
+  await page.keyboard.type('ボラ')
+  await keys(page, 'Enter', 'Enter')
+  await page.keyboard.type('0.0001')
+  await keys(page, 'Enter')
+  const scr = page.locator('[data-widget="screener"]')
+  await expect(scr.locator('.state')).toBeVisible()
+  await scr.locator('.cond').last().locator('.v').click({ timeout: 5000 })
+  await expect(page.locator('.dialog').last()).toContainText('ボラティリティ')
+  await keys(page, 'Escape')
   await app.close()
 })

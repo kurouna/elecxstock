@@ -11,7 +11,7 @@ import { onMount } from 'svelte'
 import { condsText, distanceText } from '../../lib/alertText'
 import { changeSymbol } from '../../lib/chartMenu'
 import { keyOf } from '../../lib/commands'
-import { annualDividends, dividendCagr, eventYoy, nextRightsDates, recordDayOf, yearsThatFit } from '../../lib/dividends'
+import { annualDividends, eventYoy, nextRightsDates, recordDayOf, yearsThatFit } from '../../lib/dividends'
 import { cls, date, fmt, money, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
@@ -138,7 +138,8 @@ const summary = $derived.by(() => {
   if (!last) return t('info.divNone')
   return t('info.divSummary', { from: a[0]!.year, to: last.year, v: px(last.total), yoy: last.yoy != null ? sgn(last.yoy, 1, '%') : '—' })
 })
-const cagr = $derived(dividendCagr(allYears))
+// 5 年の増配率はスクリーナーと同じ値（記録の最初の年が年の途中なら使わない。metrics.divCagr5）
+const cagr = $derived(m?.divCagr5 ?? null)
 /**
  * 連続増配・非減配の年数が、配当の記録の長さで頭打ちか（「以上」と書く）。記録（月次の系列で約 10 年）の最初の年まで
  * 続いているときだけ。記録の最初の年は年の途中かもしれないので、指標（metrics.divYears）と同じくその次の年から数える

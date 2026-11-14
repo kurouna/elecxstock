@@ -801,6 +801,22 @@ export const usable = (f: FieldDef | undefined): f is FieldDef => !!f && f.avail
  * 比べる相手にできる指標（相対条件 FR-SC5。例: 終値 ≥ 75日移動平均）: 同じまとまり（refGroup）の市場データの指標だけ。
  * 種類（金額・率）だけで選ぶと、終値 ≥ 時価総額 のような意味の無い比べ方ができてしまう
  */
+/**
+ * 金額の指標を打つときの単位: 1 株あたり（価格・EPS・BPS・1 株配当）は円、最低投資金額は万円、
+ * それ以外（時価総額・売買代金）は億円。表示の単位（UNIT_OF）と合わせる
+ */
+export function moneyScale(f: Pick<FieldDef, 'id' | 'type' | 'unit'>): number {
+  if (perShare(f)) return 1
+  return f.id === 'price.minInvest' ? 1e4 : 1e8
+}
+/**
+ * 1 株あたりの金額（終値・移動平均・52 週高値・EPS・BPS・1 株配当）か。円で表し、分割で換算する。売買代金は category が
+ * 'price' でも 1 株あたりではない（億円。分割で変わらない）ので、単位で見分ける
+ */
+export function perShare(f: Pick<FieldDef, 'type' | 'unit'>): boolean {
+  return f.type === 'money' && f.unit?.ja === '円'
+}
+
 export function refFields(f: FieldDef): FieldDef[] {
   if (f.source.kind !== 'metrics' || !f.refGroup) return []
   return FIELDS.filter((g) => usable(g) && g.id !== f.id && g.source.kind === 'metrics' && g.refGroup === f.refGroup)
@@ -890,5 +906,7 @@ export const METRIC_COLUMNS = [
   /** 次の決算発表・権利付最終日（1970-01-01 からの日数。スクリーナーが今日からの日数にする） */
   'earningsDay',
   'rightsDay',
+  /** 権利確定日の日（0 = 月末、1〜31 = その日）。権利付最終日が過ぎたら実行時に次を出す */
+  'recordDay',
 ] as const
 export type MetricColumn = (typeof METRIC_COLUMNS)[number]

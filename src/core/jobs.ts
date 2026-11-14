@@ -1,6 +1,6 @@
 // 取得ジョブ（§3.2）: 永続化されたキュー（FR-F1）、レート制御（F2）、失敗の分類とバックオフ（F3）、
 // 進捗の通知（F4）、表示中の銘柄を先に（F8）、日々の更新方式（F9）、分割の検知と取り直し（FR-D3, S11）。
-import type { InstrumentId, JobKind, JobProgress, JstDate } from '@shared/types'
+import type { InstrumentId, InstrumentKind, JobKind, JobProgress, JstDate } from '@shared/types'
 import { addDays, addYears, CLOSE_MINUTES, isTradingDay, jstNow, lastClosedSession, prevTradingDay, toJstDate } from './calendar'
 import { computeMetrics, METRIC_BARS } from './metrics'
 import { type Provider, ProviderError, type RawBar } from './providers/types'
@@ -323,6 +323,7 @@ export class JobRunner {
   }
 
   private dataChanged(id: InstrumentId): void {
+    if (id === N225) this.indexCloses = null
     this.pendingData.add(id)
     if (!this.dataTimer) this.dataTimer = setTimeout(() => this.flushData(), 1000)
   }
@@ -494,7 +495,7 @@ export class JobRunner {
         }
         // 分割イベントの無い大きなギャップ（FR-D5）は全期間を取り直して照合する（同じ銘柄は 7 日に 1 回まで）
         const lf = repo.fetchState(p.id).lastFull
-        if (repo.metrics([p.id])[0]?.gapSuspect && (!lf || Date.now() - Date.parse(lf) > 7 * 86400_000)) {
+        if ((!lf || Date.now() - Date.parse(lf) > 7 * 86400_000) && repo.gapSuspect(p.id)) {
           extra.push(`F:${p.id}`)
           continue
         }
@@ -588,20 +589,25 @@ export class JobRunner {
   }
 
   /** 1 銘柄の指標を作り直す。日足は直近 METRIC_BARS 本と最初の日付だけを読む（全期間は読まない） */
-  recompute(id: InstrumentId): void {
+  recompute(id: InstrumentId, kind?: InstrumentKind): void {
     const repo = this.h.repo
     const bars = repo.recentDaily(id, METRIC_BARS)
     const first = bars.length === METRIC_BARS ? (repo.firstDaily(id) ?? undefined) : bars[0]?.d
-    const m = computeMetrics(id, bars, repo.dividends(id), repo.splits(id), repo.quote(id), lastClosedSession(), first, {
-      kind: repo.instrument(id)?.kind,
-      index: this.indexCloses ?? this.loadIndex(),
+    const { dividends, splits } = repo.actions(id)
+    const m = computeMetrics(id, bars, dividends, splits, repo.quote(id), lastClosedSession(), first, {
+      kind: kind ?? repo.kindOf(id),
+      index: this.index(),
     })
     repo.putMetrics(m)
   }
-  /** 日経平均の終値（日付 → 終値。ベータ）。全銘柄の作り直しの間は 1 回だけ読む */
+  /**
+   * 日経平均の終値（日付 → 終値。ベータ）。1 回読んだら持っておき、日経平均の日足を書いたとき（dataChanged）と
+   * 全銘柄の作り直しの始めに読み直す
+   */
   private indexCloses: Map<JstDate, number> | null = null
-  private loadIndex(): Map<JstDate, number> {
-    return new Map(this.h.repo.recentDaily(N225, 260).map((b) => [b.d, b.c]))
+  private index(): Map<JstDate, number> {
+    this.indexCloses ??= this.h.repo.recentCloses(N225, 260)
+    return this.indexCloses
   }
   /**
    * 全銘柄の指標を作り直す。100 銘柄ごとに 1 つのトランザクションで書き、その合間に処理を譲って
@@ -609,19 +615,16 @@ export class JobRunner {
    */
   async recomputeAll(signal?: AbortSignal): Promise<void> {
     const repo = this.h.repo
-    const ids = [...repo.fetchSet().map((s) => s.id)]
-    this.indexCloses = this.loadIndex()
-    try {
-      for (let i = 0; i < ids.length; i += 100) {
-        // 閉じる・全データの削除・取り消しのときは、残りのバッチを書かずに止める（項目は待ちに戻る）
-        if (signal?.aborted || this.stopping) throw new Error('aborted')
-        repo.db.tx(() => {
-          for (const id of ids.slice(i, i + 100)) this.recompute(id)
-        })
-        await new Promise<void>((r) => setImmediate(r))
-      }
-    } finally {
-      this.indexCloses = null
+    // 種別も一緒に読む（銘柄ごとに instruments を引かない）
+    const ids = repo.fetchSet()
+    this.indexCloses = null // 全データの削除のあとなどに古い値を使わない
+    for (let i = 0; i < ids.length; i += 100) {
+      // 閉じる・全データの削除・取り消しのときは、残りのバッチを書かずに止める（項目は待ちに戻る）
+      if (signal?.aborted || this.stopping) throw new Error('aborted')
+      repo.db.tx(() => {
+        for (const s of ids.slice(i, i + 100)) this.recompute(s.id, s.kind)
+      })
+      await new Promise<void>((r) => setImmediate(r))
     }
     this.h.emitData(['*'])
   }

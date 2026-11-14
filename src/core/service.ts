@@ -37,7 +37,7 @@ import { JobRunner } from './jobs'
 import { parseJpx } from './providers/jpx'
 import type { Provider } from './providers/types'
 import { idOf, Repo } from './repo'
-import { runScreen, screenable } from './screener'
+import { runScreen, type ScreenInput, screenable } from './screener'
 import { adjust, adjustMonthly, aggregate, mergeMonthly, toBars } from './series'
 import { defaultScreens, UserStore } from './userstore'
 
@@ -732,6 +732,7 @@ export class CoreService {
       for (const m of metrics.values()) if (m.asOf && (!latest || m.asOf > latest)) latest = m.asOf
       const fires: AlertFire[] = []
       const stopped = new Set<string>()
+      let ctx: Omit<ScreenInput, 'conditions'> | undefined
       for (const a of defs) {
         if (!a.enabled || (only && !rebase?.has(a.id))) continue
         const last = states[a.id]?.lastFired
@@ -743,7 +744,8 @@ export class CoreService {
           if (!sc) ev.invalid = 'noScreen'
           else if (loading) ev.invalid = 'loading'
           else {
-            const res = this.runSavedScreen(sc.conditions)
+            ctx ??= this.screenContext()
+            const res = runScreen({ ...ctx, conditions: sc.conditions })
             if (res.invalid.length) ev.invalid = 'condition'
             else {
               const suspect = new Set(res.ids.filter((id) => metrics.get(id)?.gapSuspect || metrics.get(id)?.anomaly))
@@ -812,16 +814,16 @@ export class CoreService {
     }
   }
   /** 保存したスクリーンを、Core が持つ★・ウォッチリスト・保有で走らせる（スクリーンのアラート。上位 N 件は使わない） */
-  private runSavedScreen(conditions: Condition[]) {
+  /** 保存したスクリーンを走らせる材料（銘柄・★・ウォッチリスト・保有）。スクリーンのアラートの判定では 1 回だけ作る */
+  private screenContext(): Omit<ScreenInput, 'conditions'> {
     const lists = this.user.load('watchlists')
-    return runScreen({
-      conditions,
+    return {
       instruments: this.repo.universe(),
       metrics: this.metricsMap(),
       favorites: new Set(lists.find((w) => w.builtin === 'favorites')?.items ?? []),
       watchlists: Object.fromEntries(lists.map((w) => [w.id, w.items])),
       holdings: this.heldMap(),
-    })
+    }
   }
   /** すべてのアラートの判定の状態を捨て、鳴らさずに今の値で基準を取り直す（取り込み・元に戻す） */
   private rebaseAllAlerts(): void {

@@ -116,6 +116,8 @@ export interface MetricsRow {
   /** 次の決算発表・権利付最終日（1970-01-01 からの日数） */
   earningsDay: number | null
   rightsDay: number | null
+  /** 権利確定日の日（0 = 月末、1〜31 = その日） */
+  recordDay: number | null
   recordMonths: number[] // 権利確定月（FR-H3）
   gapSuspect: boolean // 分割イベントのない ±50% 超のギャップ（FR-D5）
   /** 高値 < 安値・終値 0 以下などの異常値（FR-D5 の残り） */

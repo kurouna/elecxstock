@@ -1,6 +1,7 @@
 // アラートの条件の確かめ・分割の換算・指標の値・条件までの距離（FR-AL1・AL8。design-alerts.md）。
 // Core（判定）と renderer（ダイアログの「いま」・一覧）の両方が使う純粋な関数
-import { FIELD_BY_ID, usable } from './fields'
+import type { Held } from './compute'
+import { FIELD_BY_ID, perShare, refFields, usable } from './fields'
 import type { Alert, AlertView, Condition, InstrumentId, JstDate, MetricsRow, Split } from './types'
 
 export const ALERT_LIMIT = 500
@@ -10,7 +11,7 @@ export const SCREEN_ALERT_LIMIT = 20
 export const SCREEN_FIRE_MAX = 20
 export const HISTORY_LIMIT = 500
 
-export type Held = Map<InstrumentId, { qty: number; cost: number }>
+export type { Held }
 /** 保有を銘柄ごとの数量と取得額の合計にまとめる（口座区分をまたぐ。Core の判定とダイアログの「いま」が使う） */
 export function heldFrom(holdings: { code: string; quantity: number; avgCost: number }[]): Held {
   const out: Held = new Map()
@@ -36,7 +37,7 @@ export function alertConditionOk(c: Condition): boolean {
   if (f.source.kind === 'metrics') {
     if (c.ref) {
       const g = FIELD_BY_ID.get(c.ref)
-      return usable(g) && g.source.kind === 'metrics' && NUMERIC.has(g.type)
+      return usable(g) && g.source.kind === 'metrics' && NUMERIC.has(g.type) && refFields(f).some((x) => x.id === g.id)
     }
     return true
   }
@@ -46,7 +47,7 @@ export function alertConditionOk(c: Condition): boolean {
 /** 分割・併合で換算する条件か: 1 株あたりの価格の指標（終値・移動平均・52 週高値など）で、相対条件の無いもの（§3.3） */
 export function splitSensitive(c: Condition): boolean {
   const f = FIELD_BY_ID.get(c.field)
-  return !!f && f.category === 'price' && f.type === 'money' && !c.ref
+  return !!f && perShare(f) && !c.ref
 }
 
 /** 基準日より後の分割・併合の比率の積（5:1 の分割なら 5。価格は分割調整済みなので、しきい値をこれで割る） */

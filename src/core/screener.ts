@@ -1,8 +1,7 @@
 // スクリーニング（§5.2）。指標の登録表（FR-FD1）に従って条件を評価する。metrics 表だけを読む（FR-S10）。
 // 条件は「または」（Condition.or）でまとめたグループを「かつ」でつなぐ（FR-SC5）。相対条件は Condition.ref で別の指標と比べる。
-import { jstNow } from '@shared/calendar'
-import { FIELD_BY_ID, migrateConditions, usable } from '@shared/fields'
-import { epochDay } from '@shared/rights'
+import { COMPUTE_KEYS, computeValue, type HeldStats, heldStats } from '@shared/compute'
+import { FIELD_BY_ID, migrateConditions, refFields, usable } from '@shared/fields'
 import type { Condition, Instrument, InstrumentId, JstDate, MetricsRow, ScreenResult } from '@shared/types'
 
 export interface ScreenInput {
@@ -18,66 +17,7 @@ export interface ScreenInput {
   /** 保有の評価額の合計と業種ごとの合計（保有割合。runScreen が 1 回だけ作る） */
   held?: HeldStats
 }
-interface HeldStats {
-  total: number
-  value: Map<InstrumentId, number>
-  bySector: Map<string, number>
-}
-
-/** 実行時に計算する指標（登録表の source.kind === 'compute'） */
-export const COMPUTE_KEYS = new Set(['pnlPct', 'earningsDays', 'rightsDays', 'weight', 'sectorWeight', 'yoc'])
-/** 業種のまとまり（J-REIT はまとめて 1 つ。銘柄情報の業種の中央値と同じ） */
-const sectorOf = (i: Pick<Instrument, 'kind' | 'sectorJa'>) => (i.kind === 'reit' ? 'REIT' : i.sectorJa)
-
-/** 保有の評価額（最新の終値 × 数量）の合計と、銘柄ごと・業種ごと */
-function heldStats(inp: ScreenInput, byId: Map<InstrumentId, Instrument>): HeldStats {
-  const value = new Map<InstrumentId, number>()
-  const bySector = new Map<string, number>()
-  let total = 0
-  for (const [id, h] of inp.holdings ?? []) {
-    const c = inp.metrics.get(id)?.close
-    if (c == null || !(h.qty > 0)) continue
-    const v = c * h.qty
-    value.set(id, v)
-    total += v
-    const ins = byId.get(id)
-    if (ins) bySector.set(sectorOf(ins), (bySector.get(sectorOf(ins)) ?? 0) + v)
-  }
-  return { total, value, bySector }
-}
-
-/** 実行時に計算する指標の値。欠損は null（FR-SC8） */
-export function computeValue(key: string, ins: Instrument, m: MetricsRow, inp: ScreenInput): number | null {
-  const h = inp.holdings?.get(ins.id)
-  switch (key) {
-    case 'pnlPct':
-      // 保有の評価損益率: 持っていない銘柄・終値の無い銘柄は欠損
-      return h && h.cost > 0 && m.close != null ? ((m.close * h.qty) / h.cost - 1) * 100 : null
-    case 'earningsDays':
-    case 'rightsDays': {
-      // 日付から今日までの暦日数（metrics に日数を持つと、更新しない日に古くなる）。過ぎた日付は欠損
-      const day = key === 'earningsDays' ? m.earningsDay : m.rightsDay
-      if (day == null) return null
-      const d = day - epochDay(inp.today ?? jstNow().date)
-      return d >= 0 ? d : null
-    }
-    case 'weight': {
-      // 保有割合: 保有していない銘柄は 0%（保有の記録が無ければ欠損）
-      const s = inp.held
-      if (!s || !(s.total > 0)) return null
-      return ((s.value.get(ins.id) ?? 0) / s.total) * 100
-    }
-    case 'sectorWeight': {
-      const s = inp.held
-      if (!s || !(s.total > 0)) return null
-      return ((s.bySector.get(sectorOf(ins)) ?? 0) / s.total) * 100
-    }
-    case 'yoc':
-      // 取得利回り: 過去 12 か月の配当 ÷ 平均取得単価。保有していない銘柄は欠損
-      return h && h.qty > 0 && h.cost > 0 && m.div12 != null ? (m.div12 / (h.cost / h.qty)) * 100 : null
-  }
-  return null
-}
+export { COMPUTE_KEYS, computeValue }
 
 /** 条件が評価できるか（FR-SC11: 今の版に無い・使えない指標は無効として残す） */
 export function conditionValid(c: Condition): boolean {
@@ -87,6 +27,8 @@ export function conditionValid(c: Condition): boolean {
   if (c.ref) {
     const g = FIELD_BY_ID.get(c.ref)
     if (!usable(g) || g.source.kind !== 'metrics' || f.source.kind !== 'metrics' || (c.op !== '>=' && c.op !== '<=')) return false
+    // 相手は同じ種類の指標だけ（価格どうし・騰落率どうしなど。前の版で保存した「終値 ≥ 時価総額」などは無効）
+    if (!refFields(f).some((x) => x.id === g.id)) return false
   }
   return true
 }
@@ -172,15 +114,26 @@ export function screenable(ins: Instrument): boolean {
 export function runScreen(input: ScreenInput): ScreenResult {
   const t0 = performance.now()
   // 保有割合の分母（保有の評価額の合計）は 1 回だけ作る
-  const inp: ScreenInput = input.holdings?.size
-    ? { ...input, held: heldStats(input, new Map(input.instruments.map((i) => [i.id, i]))) }
-    : input
+  let inp: ScreenInput = input
+  if (input.holdings?.size) {
+    const byId = new Map(input.instruments.map((i) => [i.id, i]))
+    inp = {
+      ...input,
+      held: heldStats(
+        input.holdings,
+        (id) => input.metrics.get(id),
+        (id) => byId.get(id),
+      ),
+    }
+  }
   const invalid: number[] = []
   // 保存したときの指標の版から今の版へ移す（FR-FD5）。移せなかった条件は無効
   const { conditions, failed } = migrateConditions(inp.conditions)
   const groups: { c: Condition }[][] = []
   conditions.forEach((c, i) => {
-    const ok = conditionValid(c) && !failed.includes(i)
+    // 保有の記録が無いときの保有の指標は無効（FR-SC11・H6。全銘柄が欠損で 0 件にしない）
+    const noHoldings = !!FIELD_BY_ID.get(c.field)?.requires?.includes('holdings') && !inp.holdings?.size
+    const ok = conditionValid(c) && !failed.includes(i) && !noHoldings
     if (!ok) {
       invalid.push(i)
       return

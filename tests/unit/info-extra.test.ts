@@ -3,7 +3,7 @@ import { addDays, isTradingDay } from '@shared/calendar'
 import { describe, expect, it } from 'vitest'
 import { computeInfoExtra, earningsOf, sectorStats } from '../../src/core/infoExtra'
 import { adjust, type DayBar } from '../../src/core/series'
-import { annualDividends, dividendCagr, nextRightsDates } from '../../src/renderer/lib/dividends'
+import { nextRightsDates } from '../../src/renderer/lib/dividends'
 
 /** 営業日だけの日足（終値は与えた関数で） */
 function bars(from: string, n: number, close: (i: number) => number): DayBar[] {
@@ -135,11 +135,5 @@ describe('権利付最終日の目安と 5 年の増配率（FR-I8）', () => {
     ])
     expect(nextRightsDates([6, 12], '2026-11-14')[0]).toEqual({ month: 12, lastCum: '2026-12-28', ex: '2026-12-29' })
     expect(nextRightsDates([], '2026-11-14')).toEqual([])
-  })
-  it('5 年の増配率: 年途中を除いた最新の年と 5 年前の年から', () => {
-    const divs = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map((y, i) => ({ date: `${y}-03-28`, amount: 100 * 1.1 ** i }))
-    const ys = annualDividends(divs, '2026-11-14')
-    expect(dividendCagr(ys)).toBeCloseTo(10, 6)
-    expect(dividendCagr(ys.slice(-3))).toBeNull()
   })
 })

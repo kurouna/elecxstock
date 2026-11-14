@@ -1,6 +1,6 @@
 // アラートの条件・値・距離の表示（FR-AL8）。言葉はスクリーナーの条件の書き方にそろえる
 
-import { FIELD_BY_ID } from '@shared/fields'
+import { FIELD_BY_ID, perShare } from '@shared/fields'
 import type { AlertView, Condition } from '@shared/types'
 import { app } from '../stores/app.svelte'
 import { fmt, money, px } from './format'
@@ -14,7 +14,7 @@ export function fieldValueText(field: string, v: number | null | undefined): str
   const f = FIELD_BY_ID.get(field)
   if (!f) return fmt(v, 2)
   if (f.type === 'money') {
-    if (f.category === 'price') return px(v)
+    if (perShare(f)) return px(v)
     const m = money(v)
     return `${m.n} ${m.u}`
   }
@@ -26,7 +26,7 @@ export function fieldValueText(field: string, v: number | null | undefined): str
 /** しきい値（整数の価格は小数を付けない: 990.0 ではなく 990） */
 function thresholdText(field: string, v: number): string {
   const f = FIELD_BY_ID.get(field)
-  return f?.type === 'money' && f.category === 'price' && Number.isInteger(v) ? fmt(v, 0) : fieldValueText(field, v)
+  return f && perShare(f) && Number.isInteger(v) ? fmt(v, 0) : fieldValueText(field, v)
 }
 /** 条件の文（例: 終値 ≤ 17,500 / 終値 ≤ 75日移動平均 +0% / 実績利回り ≥ 5.50%） */
 export function condText(c: Condition): string {

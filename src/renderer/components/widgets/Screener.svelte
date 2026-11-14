@@ -1,13 +1,14 @@
 <script lang="ts">
 // スクリーナー（§5.2, §5.3）。条件エディタは指標の登録表から作る（FR-FD1）。結果は仮想スクロール（FR-SC3）。
 
-import { FIELD_BY_ID, FIELDS, type FieldDef, MARKET_CHOICES, refFields, usable } from '@shared/fields'
+import { FIELD_BY_ID, FIELDS, type FieldDef, MARKET_CHOICES, moneyScale, refFields, usable } from '@shared/fields'
 import type { Condition, InstrumentId, ScreenResult } from '@shared/types'
 import { onMount, untrack } from 'svelte'
+import { fieldValueText } from '../../lib/alertText'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, resolveColumns, sortIds } from '../../lib/columns'
 import { keyOf, openInGrid } from '../../lib/commands'
-import { fmt, money } from '../../lib/format'
+import { fmt } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
@@ -155,9 +156,13 @@ async function typeValue(i: number) {
     if (s != null && Number.isFinite(v)) update(i, { ...c, value: v })
     return
   }
-  const unit =
-    f.type === 'money' && !['price.close', 'price.ma25', 'price.ma75', 'price.ma200', 'price.hi52', 'price.lo52'].includes(f.id) ? 1e8 : 1
-  const s = await promptDialog(`${f.label[app.settings.lang]}${f.type === 'money' ? t('scr.unitOku') : ''}`, String(Number(c.value) / unit))
+  // 金額は表示の単位（円・万円・億円）で打つ
+  const unit = f.type === 'money' ? moneyScale(f) : 1
+  const lang = app.settings.lang
+  const s = await promptDialog(
+    `${f.label[lang]}${f.type === 'money' && f.unit ? (lang === 'ja' ? `（${f.unit.ja}）` : ` (${f.unit.en})`) : ''}`,
+    String(Number(c.value) / unit),
+  )
   if (s == null) return
   const v = Number(s.replace(/[,，]/g, ''))
   if (Number.isFinite(v)) update(i, { ...c, value: v * unit })
@@ -272,10 +277,7 @@ function showValue(c: Condition): string {
         return w ? listName(w) : id
       })
       .join(', ')
-  if (f.type === 'money') {
-    const m = money(Number(c.value))
-    return `${m.n} ${m.u}`
-  }
+  if (f.type === 'money') return fieldValueText(f.id, Number(c.value))
   if (f.type === 'percent') return `${fmt(Number(c.value), f.digits ?? 2)} %`
   if (f.type === 'ratio') return `${fmt(Number(c.value), f.digits ?? 2)} ×`
   return fmt(Number(c.value), f.digits ?? 0)
@@ -451,7 +453,7 @@ $effect(() => {
       <button type="button" class="f" title={`${t('scr.changeField')} (F)`} onclick={() => { ci = i; void changeField(i) }}>{f ? f.label[app.settings.lang] : c.field}</button>
       <button type="button" class="op" onclick={() => flipOp(i)}>{opLabel(c.op)}</button>
       <button type="button" class="v" onclick={() => { ci = i; void typeValue(i) }}>{showValue(c)}</button>
-      {#if f?.source.kind === 'metrics'}
+      {#if (f?.source.kind === 'metrics' && f.type !== 'enum') || f?.source.kind === 'compute'}
         <button type="button" class="toggle miss" class:on={c.includeMissing} title={t('scr.missing')} onclick={() => update(i, { ...c, includeMissing: !c.includeMissing })}><span class="box"></span></button>
       {:else}<span></span>{/if}
       <button type="button" class="mv" aria-label={t('scr.moveUp')} title={`${t('scr.moveUp')} (Alt+↑)`} disabled={i === 0} onclick={() => moveCond(i, -1)}>↑</button>

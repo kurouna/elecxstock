@@ -1,8 +1,9 @@
 // 一覧の列（FR-SC3, §6.3 watchlist の「列の選択」）。指標の列は登録表（FR-FD1）から作る。
 // watchlist・screener・ranking・portfolio が同じ列の定義を使い、Ctrl+Shift+C で選ぶ・並べ替える。
+import { heldFrom } from '@shared/alerts'
 import { jstNow } from '@shared/calendar'
-import { FIELDS, type FieldDef, usable } from '@shared/fields'
-import { epochDay } from '@shared/rights'
+import { type ComputeContext, computeValue, heldStats } from '@shared/compute'
+import { FIELDS, type FieldDef, perShare, usable } from '@shared/fields'
 import type { InstrumentId, MetricsRow } from '@shared/types'
 import { app, checklistDialog, inst, metric, t } from '../stores/app.svelte'
 import { cls, date, fmt, money, px, sgn } from './format'
@@ -26,6 +27,18 @@ export interface ListCol {
   fixed?: boolean
 }
 
+/** 保有の合計（保有割合の分母）。保有と、保有の銘柄の終値が変わったときだけ作り直す */
+let ctxMemo: { key: string; holdings: unknown; ctx: ComputeContext } | null = null
+function computeContext(): ComputeContext {
+  const today = jstNow().date
+  const key = today + app.holdings.map((h) => `${h.code}:${metric(`JP:${h.code}`)?.close ?? ''}`).join(',')
+  if (ctxMemo?.holdings === app.holdings && ctxMemo.key === key) return ctxMemo.ctx
+  const holdings = heldFrom(app.holdings)
+  const ctx: ComputeContext = { today, ...(holdings.size ? { holdings, held: heldStats(holdings, metric, inst) } : {}) }
+  ctxMemo = { key, holdings: app.holdings, ctx }
+  return ctx
+}
+
 const mv = (id: InstrumentId, col: string) => (metric(id) as unknown as Record<string, number | null> | undefined)?.[col] ?? null
 
 function fieldCell(f: FieldDef, v: number | null): Cell {
@@ -33,7 +46,7 @@ function fieldCell(f: FieldDef, v: number | null): Cell {
   switch (f.type) {
     case 'money': {
       // 1 株あたりの金額（価格・EPS・BPS・1株配当）は円、それ以外（時価総額・売買代金・最低投資金額）は万・億・兆
-      if (f.source.kind === 'metrics' && f.category === 'price') return { t: px(v) }
+      if (perShare(f)) return { t: px(v) }
       const m = money(v)
       return { t: m.n, u: m.u }
     }
@@ -94,17 +107,15 @@ export const COLUMNS: ListCol[] = [
       cell: (id) => fieldCell(f, mv(id, (f.source as { column: string }).column)),
     }),
   ),
-  // 予定（日付から今日までの日数。スクリーナーと同じく実行時に数える）
-  ...(['event.earningsDays', 'event.rightsDays'] as const).map((fid): ListCol => {
-    const f = FIELDS.find((x) => x.id === fid)!
-    const col = fid === 'event.earningsDays' ? 'earningsDay' : 'rightsDay'
-    const days = (id: InstrumentId) => {
-      const d = mv(id, col)
-      if (d == null) return null
-      const n = d - epochDay(jstNow().date)
-      return n >= 0 ? n : null
+  // 実行時に計算する指標（予定までの日数・保有）。スクリーナーと同じ関数で数える（src/shared/compute.ts）
+  ...FIELDS.filter((f) => usable(f) && f.source.kind === 'compute').map((f): ListCol => {
+    const key = (f.source as { key: string }).key
+    const value = (id: InstrumentId) => {
+      const m = metric(id)
+      const i = inst(id)
+      return m && i ? computeValue(key, i, m, computeContext()) : null
     }
-    return { id: f.id, label: () => f.label[app.settings.lang], w: 64, sort: days, cell: (id) => fieldCell(f, days(id)) }
+    return { id: f.id, label: () => f.label[app.settings.lang], w: 72, sort: value, cell: (id) => fieldCell(f, value(id)) }
   }),
   {
     id: 'recordMonths',

@@ -53,17 +53,5 @@ export function yearsThatFit(width: number): number {
   return Math.max(5, Math.min(10, Math.floor(width / 44)))
 }
 
-/**
- * 5 年の増配率（年率）: 年途中を除いた最新の年と、その 5 年前の年の合計から。どちらかが 0・年が足りなければ null。
- * 暦年の合計で比べる（連続増配の数え方と同じ）
- */
-export function dividendCagr(years: DividendYear[], span = 5): number | null {
-  const full = years.filter((y) => !y.partial)
-  const last = full.at(-1)
-  const first = full.at(-1 - span)
-  if (!last || !first || !(first.total > 0) || !(last.total > 0)) return null
-  return ((last.total / first.total) ** (1 / span) - 1) * 100
-}
-
 // 権利付最終日の目安は Core と共有する（src/shared/rights.ts）
 export { nextRightsDates, recordDayOf } from '@shared/rights'

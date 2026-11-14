@@ -110,6 +110,7 @@ export function computeMetrics(
     tr3y: null,
     earningsDay: null,
     rightsDay: null,
+    recordDay: null,
     recordMonths: [],
     gapSuspect: false,
     anomaly: false,
@@ -131,6 +132,7 @@ export function computeMetrics(
   const vAvg = vPrev.length === NEED.turnover ? vPrev.reduce((s, b) => s + b.v, 0) / NEED.turnover : null
   const ma25 = sma(bars, NEED.ma25)
   const ma75 = sma(bars, NEED.ma75)
+  const ma200 = sma(bars, 200)
   // 分割イベントのない ±50% 超のギャップ（FR-D5）
   const splitDays = new Set(splits.map((s) => s.date))
   let gapSuspect = false
@@ -172,12 +174,12 @@ export function computeMetrics(
     volRatio: vAvg && vAvg > 0 ? last.v / vAvg : null,
     ma25,
     ma75,
-    ma200: sma(bars, 200),
+    ma200,
     payout: div12 > 0 && quote?.eps && quote.eps > 0 ? (div12 / quote.eps) * 100 : null,
     ...divYears(dividends, asOf, firstBar ?? bars[0]!.d),
     ...crossDays(bars),
     yield2p: yieldTwoPeriods(dividends, asOf, close),
-    ...moreMetrics(bars, dividends, asOf, firstBar ?? bars[0]!.d, quote, opt, { hi: null, lo: lo52, ma200: sma(bars, 200), months }),
+    ...moreMetrics(bars, dividends, asOf, firstBar ?? bars[0]!.d, quote, opt, { lo: lo52, ma200, months }),
     recordMonths: [...months].sort((a, b) => a - b),
     gapSuspect,
     anomaly: anomalous(bars),
@@ -200,17 +202,8 @@ export function divYears(
   asOf: JstDate,
   firstBar: JstDate,
 ): { divUpYears: number | null; divNoCutYears: number | null } {
-  const total = new Map<number, number>()
-  for (const d of dividends) {
-    const y = Number(d.date.slice(0, 4))
-    total.set(y, (total.get(y) ?? 0) + d.amount)
-  }
+  const { total, first } = annualTotals(dividends, firstBar)
   const last = Number(asOf.slice(0, 4)) - 1 // 終わった年まで
-  // 記録の始まり: 日足の最初の日か、それより前からある配当の記録（月次の系列で 10 年分入る）の古いほう。
-  // 日足だけで数えると、保存期間（既定 5 年）で頭打ちになり、銘柄情報の配当の棒グラフと食い違う
-  let start = firstBar
-  for (const d of dividends) if (d.date < start) start = d.date
-  const first = Number(start.slice(0, 4)) + (start.slice(5) <= '01-10' ? 0 : 1) // 1 年分そろっている最初の年
   if (last - first < 1) return { divUpYears: null, divNoCutYears: null }
   const count = (ok: (a: number, b: number) => boolean) => {
     let n = 0
@@ -279,8 +272,11 @@ export function totalReturnSeries(bars: DayBar[], dividends: Dividend[]): Float6
   return out
 }
 
-/** 暦年の配当合計（記録の最初の年は年の途中かもしれないので除く。divYears と同じ考え方） */
-function annualTotals(dividends: Dividend[], firstBar: JstDate): { total: Map<number, number>; first: number } {
+/**
+ * 暦年（権利落ち日）ごとの配当合計と、1 年分そろっている最初の年。記録の始まりは日足の最初の日か、それより前からある
+ * 配当の記録（月次の系列で 10 年分入る）の古いほう。日足だけで数えると保存期間（既定 5 年）で頭打ちになり、銘柄情報と食い違う
+ */
+export function annualTotals(dividends: Dividend[], firstBar: JstDate): { total: Map<number, number>; first: number } {
   const total = new Map<number, number>()
   let start = firstBar
   for (const d of dividends) {
@@ -337,7 +333,7 @@ function moreMetrics(
   firstBar: JstDate,
   quote: Quote | null,
   opt: { kind?: InstrumentKind; index?: Map<JstDate, number> },
-  base: { hi: number | null; lo: number | null; ma200: number | null; months: Set<number> },
+  base: { lo: number | null; ma200: number | null; months: Set<number> },
 ): Partial<MetricsRow> {
   const last = bars.at(-1)!
   const close = last.c
@@ -353,7 +349,8 @@ function moreMetrics(
   const a0 = at(ly)
   const a1 = at(ly - 1)
   const a5 = at(ly - 5)
-  const divYoy = a0 != null && a1 != null && a0 > 0 && a1 > 0 ? (a0 / a1 - 1) * 100 : null
+  // 無配に転じた年は −100%（減配の条件から漏らさない）
+  const divYoy = a0 != null && a1 != null && a0 >= 0 && a1 > 0 ? (a0 / a1 - 1) * 100 : null
   const divCagr5 = a0 != null && a5 != null && a0 > 0 && a5 > 0 ? ((a0 / a5) ** (1 / 5) - 1) * 100 : null
   // 最低投資金額: 株式 100 株・REIT 1 口。ETF・ETN などは単位が分からないので欠損
   const lot = opt.kind === 'stock' ? 100 : opt.kind === 'reit' ? 1 : null
@@ -395,11 +392,12 @@ function moreMetrics(
   }
   // 次の決算発表（Yahoo の予定）と権利付最終日（過去の権利落ち日から推定）を日付の数で持つ
   const earningsDay = quote?.earningsNext ? epochDay(quote.earningsNext) : null
+  const recordDay = recordDayOf(dividends)
   const rights = nextRightsDates(
     [...base.months].sort((a, b) => a - b),
     asOf,
     1,
-    recordDayOf(dividends),
+    recordDay,
   )[0]
   return {
     roe,
@@ -419,5 +417,6 @@ function moreMetrics(
     tr3y: back(NEED.ret3y),
     earningsDay,
     rightsDay: rights ? epochDay(rights.lastCum) : null,
+    recordDay: base.months.size ? (recordDay === 'end' ? 0 : recordDay) : null,
   }
 }

@@ -49,7 +49,8 @@ export class Repo {
     let delisted = 0
     this.db.tx(() => {
       const seen = new Set<string>()
-      const exists = new Set(this.db.all<{ id: string }>('SELECT id FROM instruments').map((r) => r.id))
+      const status = new Map(this.db.all<{ id: string; status: string }>('SELECT id, status FROM instruments').map((r) => [r.id, r.status]))
+      const exists = new Set(status.keys())
       for (const r of rows) {
         const id = idOf(r.code)
         seen.add(id)
@@ -75,8 +76,7 @@ export class Repo {
       }
       for (const id of exists) {
         if (seen.has(id) || !id.startsWith('JP:')) continue
-        const r = this.db.get<{ status: string }>('SELECT status FROM instruments WHERE id = ?', id)
-        if (r?.status === 'active') {
+        if (status.get(id) === 'active') {
           this.db.run(`UPDATE instruments SET status = 'delisted', updated = ? WHERE id = ?`, now, id)
           delisted++
         }
@@ -93,16 +93,20 @@ export class Repo {
   setUserAdded(codes: string[]): void {
     const set = new Set(codes.map((c) => idOf(c.toUpperCase())))
     this.db.tx(() => {
-      this.db.run('UPDATE instruments SET user_added = 0')
+      this.db.run('UPDATE instruments SET user_added = 0 WHERE user_added = 1')
       for (const id of set) this.db.run('UPDATE instruments SET user_added = 1 WHERE id = ?', id)
     })
   }
   /** 取得する銘柄: プライム・J-REIT と利用者の追加、指数（FR-U1〜U3）。廃止銘柄は取らない（FR-U8） */
-  fetchSet(): { id: string; yahoo: string }[] {
-    return this.db.all<{ id: string; yahoo: string }>(
-      `SELECT id, yahoo FROM instruments WHERE status = 'active' AND (market IN ('P', 'R', 'I') OR user_added = 1) ORDER BY
+  fetchSet(): { id: string; yahoo: string; kind: InstrumentKind }[] {
+    return this.db.all<{ id: string; yahoo: string; kind: InstrumentKind }>(
+      `SELECT id, yahoo, kind FROM instruments WHERE status = 'active' AND (market IN ('P', 'R', 'I') OR user_added = 1) ORDER BY
          CASE WHEN market = 'I' THEN 0 ELSE 1 END, code`,
     )
+  }
+  /** 種別だけ（指標の再計算。全列を読まない） */
+  kindOf(id: InstrumentId): InstrumentKind | undefined {
+    return this.db.get<{ kind: InstrumentKind }>('SELECT kind FROM instruments WHERE id = ?', id)?.kind
   }
   instrument(id: InstrumentId): Instrument | null {
     const r = this.db.get<InstRow>('SELECT * FROM instruments WHERE id = ?', id)
@@ -169,6 +173,15 @@ export class Repo {
     return rows.map((r) => ({ d: r.d, o: r.o, h: r.h, l: r.l, c: r.c, v: r.v, ...(r.prov ? { prov: true } : {}) }))
   }
   /** 直近 n 本の日足（古い順）。指標の再計算・グリッドのタイルのように最後の数百本だけ要るとき（全期間を読まない） */
+  /** 直近 n 本の終値（日付 → 終値。ベータの日経平均） */
+  recentCloses(id: InstrumentId, n: number): Map<JstDate, number> {
+    const rows = this.db.all<{ d: string; c: number }>('SELECT d, c FROM daily_bars WHERE id = ? ORDER BY d DESC LIMIT ?', id, n)
+    return new Map(rows.map((r) => [r.d, r.c]))
+  }
+  /** 分割の疑いのある銘柄か（気配のバッチ。指標の全列を読まない） */
+  gapSuspect(id: InstrumentId): boolean {
+    return !!this.db.get<{ g: number }>('SELECT gap_suspect AS g FROM metrics WHERE id = ?', id)?.g
+  }
   recentDaily(id: InstrumentId, n: number): DayBar[] {
     const rows = this.db.all<{ d: string; o: number; h: number; l: number; c: number; v: number; prov: number }>(
       'SELECT d, o, h, l, c, v, prov FROM daily_bars WHERE id = ? ORDER BY d DESC LIMIT ?',
@@ -263,6 +276,19 @@ export class Repo {
     return this.db
       .all<{ d: string; value: number }>(`SELECT d, value FROM actions WHERE id = ? AND type = 'div' ORDER BY d`, id)
       .map((r) => ({ date: r.d, amount: r.value }))
+  }
+  /** 配当と分割を 1 回の検索で（指標の再計算） */
+  actions(id: InstrumentId): { dividends: Dividend[]; splits: Split[] } {
+    const dividends: Dividend[] = []
+    const splits: Split[] = []
+    for (const r of this.db.all<{ d: string; type: string; value: number }>(
+      'SELECT d, type, value FROM actions WHERE id = ? ORDER BY d',
+      id,
+    )) {
+      if (r.type === 'div') dividends.push({ date: r.d, amount: r.value })
+      else if (r.type === 'split') splits.push({ date: r.d, ratio: r.value })
+    }
+    return { dividends, splits }
   }
   splits(id: InstrumentId): Split[] {
     return this.db

@@ -241,6 +241,8 @@ kbd {
 .scroll {
   overflow: auto;
   height: 100%;
+  /* 空のときの知らせ（.state は inset: 0）を一覧の中に収める。ペイン全体に広がると、上の条件・ボタンのクリックをふさぐ */
+  position: relative;
 }
 ::-webkit-scrollbar {
   width: 8px;

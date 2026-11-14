@@ -5,6 +5,7 @@
 // Shift+Enter 続けて足す · Esc 検索を消す／閉じる。IME の変換中は矢印・Enter を渡さない（FR-KB5）
 import { DEFAULT_RECENT_FIELDS, FIELD_BY_ID, FIELD_GROUPS, type FieldDef, MISSING_FIELDS, NEW_FIELD_IDS } from '@shared/fields'
 import { onMount, tick } from 'svelte'
+import { SvelteSet } from 'svelte/reactivity'
 import { app, closeOverlay, t } from '../../stores/app.svelte'
 import Icon from '../Icon.svelte'
 
@@ -17,8 +18,9 @@ let {
 }: { title: string; fields: string[]; used: string[]; onAdd?: (id: string) => void; resolve: (id: string | null) => void } = $props()
 
 const lang = $derived(app.settings.lang)
+// 続けて足した項目にも ✓ を付ける（Shift+Enter のあとに描き直す）
 // svelte-ignore state_referenced_locally
-const usedSet = new Set(used)
+const usedSet = new SvelteSet(used)
 let q = $state('')
 // svelte-ignore state_referenced_locally
 let sel = $state(fields[0] ?? '')
@@ -36,6 +38,8 @@ const norm = (s: string) => s.normalize('NFKC').toLowerCase()
 function match(f: FieldDef): number {
   if (!q) return 2
   const t0 = norm(q)
+  // 名前と同じ（「EPS」で EPS を、別名に EPS を持つ配当性向より先に）
+  if (norm(f.label.ja) === t0 || norm(f.label.en) === t0) return 3
   if (norm(`${f.label.ja} ${f.label.en} ${f.alias ?? ''}`).includes(t0)) return 2
   if (norm(`${f.description?.ja ?? ''} ${f.description?.en ?? ''}`).includes(t0)) return 1
   return 0
@@ -57,7 +61,16 @@ const recent = $derived(
     .map((id) => FIELD_BY_ID.get(id)!)
     .filter(Boolean),
 )
+// 打つたびにいちばん合う項目を選ぶ（同じ合い方なら並びの先）。絞り込みで選んでいた項目が消えたら先頭へ
+let lastQ = ''
 $effect(() => {
+  if (q !== lastQ) {
+    lastQ = q
+    let best: FieldDef | undefined
+    for (const f of flat) if (!best || match(f) > match(best)) best = f
+    if (best) sel = best.id
+    return
+  }
   if (flat.length && !flat.some((f) => f.id === sel)) sel = flat[0]!.id
 })
 const cur = $derived(FIELD_BY_ID.get(hover ?? sel))

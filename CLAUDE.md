@@ -55,7 +55,8 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
   市場データだけで決まる指標は `metrics` 表の列（`METRIC_COLUMNS`）と `src/core/metrics.ts` の計算を足す。
   登録表の整合は `tests/unit/fields.test.ts` が確かめる。条件を選ぶダイアログ（`overlays/FieldPicker.svelte`）の分類は `GROUP_OF`、
   単位・別名・説明は `UNIT_OF`・`ALIAS_OF`・`DESC_OF`、相対条件の相手は同じ `refGroup` だけ。実行時に計算する指標（保有・予定までの日数）は
-  `src/core/screener.ts` の `COMPUTE_KEYS` と `computeValue` に足す。
+  `src/shared/compute.ts` の `COMPUTE_KEYS` と `computeValue` に足す（スクリーナーと結果表の列が共有する）。1 株あたりの金額（円で表し、
+  分割で換算する）かは `perShare(f)`（単位で見分ける。売買代金は category が price でも億円）、打つときの単位は `moneyScale(f)`。
 - **価格は分割調整済みで保存する**（Yahoo の値のまま）。未調整・配当込みは表示時に計算する（FR-D2）。
   `adjclose` は保存しない。分割を検知したら全期間を取り直す（FR-D3）。
 - **取得に成功してから置き換える**（FR-S11）。消してから取り直すのは、利用者が明示した全データの削除だけ。

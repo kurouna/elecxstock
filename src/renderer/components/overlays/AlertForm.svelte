@@ -3,7 +3,7 @@
 // 条件の行で F 指標・O ≥ と ≤・R 相対条件・← → 値・Enter 値を入力・Delete 条件を外す・Insert 条件を足す。
 // Tab で項目を移り、Ctrl+Enter で保存、Esc で取り消し（メモ欄の文字と単キーがぶつからないよう、単キーは条件の行だけ）
 import { alertConditionOk, conditionMet, distanceOf, fieldValue, heldFrom, SCREEN_ALERT_LIMIT } from '@shared/alerts'
-import { FIELD_BY_ID, FIELDS, type FieldDef, refFields, usable } from '@shared/fields'
+import { FIELD_BY_ID, FIELDS, type FieldDef, perShare, refFields, usable } from '@shared/fields'
 import type { AlertView, Condition, InstrumentId } from '@shared/types'
 import { onMount, tick, untrack } from 'svelte'
 import { condText, distanceText, fieldValueText } from '../../lib/alertText'
@@ -49,7 +49,7 @@ const fields = FIELDS.filter(
 function stepOf(c: Condition): number {
   const f = FIELD_BY_ID.get(c.field)
   if (c.ref) return 1
-  if (f?.type === 'money' && f.category === 'price') {
+  if (f && perShare(f)) {
     const v = Math.abs(Number(c.value)) || Math.abs(fieldNow(c.field) ?? 0)
     return v >= 1 ? Math.max(1, 10 ** (Math.floor(Math.log10(v)) - 2)) : 1
   }
@@ -63,7 +63,7 @@ function defaultCond(field: string): Condition {
   const f = FIELD_BY_ID.get(field)
   const now = fieldNow(field)
   const base: Condition = { field, op: '<=', value: 0 }
-  if (f?.type === 'money' && f.category === 'price' && now != null) {
+  if (f && perShare(f) && now != null) {
     const v = now * 0.95
     return { ...base, value: round(v, stepOf({ ...base, value: v })) }
   }
