@@ -113,6 +113,34 @@ export interface Quote {
   shares: number | null
   bps: number | null
   eps: number | null
+  /** 次の決算発表（日本時間の日付）・前回・Yahoo の推定か */
+  earningsNext?: JstDate | null
+  earningsLast?: JstDate | null
+  earningsEst?: boolean | null
+}
+
+/** 銘柄情報の追加の値（FR-I5〜I8。表示中の銘柄だけ Core がその場で計算する） */
+export interface InfoExtra {
+  id: InstrumentId
+  /** 最新の足の始値・高値・安値・出来高と前日終値 */
+  day: { o: number; h: number; l: number; v: number; prev: number | null } | null
+  /** 52 週の高値・安値をつけた日 */
+  hi52d: JstDate | null
+  lo52d: JstDate | null
+  /** 5 年の騰落率（値段） */
+  ret5y: number | null
+  /** 配当込みの騰落率（チャートの「配当込み」と同じ考え方） */
+  tr: { y1: number | null; y3: number | null; y5: number | null }
+  /** 最大下落率（配当込み。5 年か、ある分だけ）と、その始まりと底の日 */
+  mdd: { pct: number; from: JstDate; to: JstDate; years: number } | null
+  /** 実績利回りの範囲（5 年か、ある分だけ。日ごとの「過去 12 か月の配当 ÷ 終値」） */
+  yieldRange: { lo: number; hi: number; years: number } | null
+  /** 同じ業種（REIT はまとめて）の中央値 */
+  sector: { name: string; n: number; yield: number | null; per: number | null; pbr: number | null } | null
+  /** 次の決算発表（Yahoo の予定。estimate は Yahoo の推定）と前回 */
+  earnings: { next: JstDate | null; estimate: boolean; last: JstDate | null } | null
+  /** 直近の株式分割・併合 */
+  split: Split | null
 }
 
 // ---------------------------------------------------------------- screening（§5.2, §5.3）

@@ -38,7 +38,7 @@ test('画面: 拡大から戻る・サイズを戻すの無効・ドロワーか
 
   // 配当の推移: 棒に金額が出て、ポインタを載せると詳細が出る（年ごと → 回ごとでは権利落ち日）
   const bars = page.locator('.dchart')
-  await expect(bars.locator('.v.show').first()).toBeVisible()
+  await expect(bars.locator('.bv.show').first()).toBeVisible()
   await bars.locator('.b').last().hover()
   await expect(bars.locator('.tip')).toContainText('年')
   await bars.getByRole('button', { name: '回' }).click()

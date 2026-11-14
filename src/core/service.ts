@@ -32,11 +32,12 @@ import { AlertBook, decide, decideScreen, evaluateAlert, type ScreenEval } from 
 import { addYears, jstNow, lastClosedSession } from './calendar'
 import { Db } from './db'
 import { applyImport, exportHoldings, normalize, previewBrokerCsv, previewImport } from './holdings'
+import { computeInfoExtra, EXTRA_BARS, earningsOf, sectorStats } from './infoExtra'
 import { JobRunner } from './jobs'
 import { parseJpx } from './providers/jpx'
 import type { Provider } from './providers/types'
 import { idOf, Repo } from './repo'
-import { runScreen } from './screener'
+import { runScreen, screenable } from './screener'
 import { adjust, adjustMonthly, aggregate, mergeMonthly, toBars } from './series'
 import { defaultScreens, UserStore } from './userstore'
 
@@ -331,6 +332,26 @@ export class CoreService {
           this.jobs.enqueue('refetch', [`M:${id}`])
         }
         return r.dividends(id) as Results[M]
+      }
+      case 'info.extra': {
+        // 表示中の銘柄だけ: 5 年分の日足（約 1,250 本）を 1 回なめて計算する（全銘柄の指標には入れない。decisions.md）
+        const id = P.id as InstrumentId
+        const ins = r.instrument(id)
+        const group = (i: { kind: string; sectorJa: string }) => (i.kind === 'reit' ? 'REIT' : i.sectorJa)
+        const metrics = this.metricsMap()
+        const rows = r
+          .universe()
+          .filter((i) => screenable(i) && i.kind !== 'etf')
+          .flatMap((i) => {
+            const m = metrics.get(i.id)
+            return m ? [{ sector: group(i), m }] : []
+          })
+        return {
+          ...computeInfoExtra(id, r.recentDaily(id, EXTRA_BARS), r.dividends(id)),
+          sector: ins && ins.kind !== 'etf' ? sectorStats(rows, group(ins)) : null,
+          earnings: earningsOf(r.quote(id), jstNow().date),
+          split: r.splits(id).at(-1) ?? null,
+        } as Results[M]
       }
       case 'metrics.get': {
         const map = this.metricsMap()

@@ -1,6 +1,7 @@
 // DB の読み書き（リポジトリ層）。SQL はここに閉じ込める。
 import { METRIC_COLUMNS } from '@shared/fields'
 import type { Dividend, Instrument, InstrumentId, InstrumentKind, JstDate, Market, MetricsRow, Quote, Split } from '@shared/types'
+import { toJstDate } from './calendar'
 import type { Db } from './db'
 import type { ProviderQuote, RawBar, UniverseRow } from './providers/types'
 import type { DayBar } from './series'
@@ -293,8 +294,9 @@ export class Repo {
   }
   putQuote(id: InstrumentId, q: ProviderQuote, fetched: string): void {
     this.db.run(
-      `INSERT OR REPLACE INTO quotes(id, t, price, open, high, low, volume, prev_close, per, pbr, market_cap, shares, bps, eps, fetched)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO quotes(id, t, price, open, high, low, volume, prev_close, per, pbr, market_cap, shares, bps, eps, fetched,
+         earnings_next, earnings_last, earnings_est)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       q.time ? new Date(q.time).toISOString() : null,
       q.price,
@@ -310,6 +312,9 @@ export class Repo {
       q.bps,
       q.eps,
       fetched,
+      q.earningsNext ? toJstDate(q.earningsNext) : null,
+      q.earningsLast ? toJstDate(q.earningsLast) : null,
+      q.earningsEst == null ? null : q.earningsEst ? 1 : 0,
     )
     if (q.nameEn) this.db.run(`UPDATE instruments SET name_en = ? WHERE id = ? AND name_en = ''`, q.nameEn, id)
   }
@@ -332,6 +337,9 @@ export class Repo {
       shares: n('shares'),
       bps: n('bps'),
       eps: n('eps'),
+      earningsNext: (r.earnings_next as string) ?? null,
+      earningsLast: (r.earnings_last as string) ?? null,
+      earningsEst: r.earnings_est == null ? null : r.earnings_est === 1,
     }
   }
 

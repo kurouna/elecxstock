@@ -29,6 +29,10 @@ export interface ProviderQuote {
   bps: number | null
   eps: number | null
   nameEn: string | null
+  /** 次の決算発表（予定の始まり）・前回の決算発表（ms）と、Yahoo の推定か */
+  earningsNext?: number | null
+  earningsLast?: number | null
+  earningsEst?: boolean | null
 }
 export interface UniverseRow {
   code: string

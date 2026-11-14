@@ -184,6 +184,14 @@ export function createStubProvider(): Provider {
             bps: null,
             eps: null,
             nameEn: s?.[2] ?? 'Nikkei 225',
+            // 決算発表（架空）: 株式は最新の足の 40〜100 日後を推定の予定、45〜90 日前を前回にする。REIT・ETF は無し
+            ...(s && s[4] === 'stock'
+              ? {
+                  earningsNext: Date.parse(`${last.d}T06:00:00Z`) + Math.floor(40 + r() * 60) * 86400000,
+                  earningsLast: Date.parse(`${last.d}T06:00:00Z`) - Math.floor(45 + r() * 45) * 86400000,
+                  earningsEst: true,
+                }
+              : {}),
           },
         ]
       })

@@ -1,4 +1,5 @@
 // 銘柄情報の配当・分配金のグラフ（FR-I1）の計算。純粋関数（テストは tests/unit/renderer/dividends.test.ts）。
+import { addDays, isTradingDay, prevTradingDay } from '@shared/calendar'
 import type { Dividend, JstDate } from '@shared/types'
 
 export interface DividendYear {
@@ -51,4 +52,44 @@ export function eventYoy(divs: Dividend[], i: number): number | null {
 /** グラフの幅に収まる本数（1 本 44px、5〜10 本。配当は 10 年分まで持つ） */
 export function yearsThatFit(width: number): number {
   return Math.max(5, Math.min(10, Math.floor(width / 44)))
+}
+
+/**
+ * 5 年の増配率（年率）: 年途中を除いた最新の年と、その 5 年前の年の合計から。どちらかが 0・年が足りなければ null。
+ * 暦年の合計で比べる（連続増配の数え方と同じ）
+ */
+export function dividendCagr(years: DividendYear[], span = 5): number | null {
+  const full = years.filter((y) => !y.partial)
+  const last = full.at(-1)
+  const first = full.at(-1 - span)
+  if (!last || !first || !(first.total > 0) || !(last.total > 0)) return null
+  return ((last.total / first.total) ** (1 / span) - 1) * 100
+}
+
+/**
+ * 権利付最終日と権利落ち日の目安（FR-I7）: 権利確定日を月末とし、休場日なら前の営業日にする。
+ * 権利付最終日はその 2 営業日前（受け渡しが 2 営業日後のため）、権利落ち日はその次の営業日。
+ * 今日より後のものを、近い順に count 件
+ */
+export function nextRightsDates(months: number[], today: JstDate, count = 2): { month: number; lastCum: JstDate; ex: JstDate }[] {
+  if (!months.length) return []
+  const out: { month: number; lastCum: JstDate; ex: JstDate }[] = []
+  let y = Number(today.slice(0, 4))
+  let m = Number(today.slice(5, 7))
+  for (let k = 0; k < 24 && out.length < count; k++) {
+    if (months.includes(m)) {
+      const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
+      const record = isTradingDay(end) ? end : prevTradingDay(end)
+      const lastCum = prevTradingDay(prevTradingDay(record))
+      let ex = addDays(lastCum, 1)
+      while (!isTradingDay(ex)) ex = addDays(ex, 1)
+      if (lastCum >= today) out.push({ month: m, lastCum, ex })
+    }
+    m++
+    if (m > 12) {
+      m = 1
+      y++
+    }
+  }
+  return out
 }

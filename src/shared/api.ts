@@ -14,6 +14,7 @@ import type {
   FetchFailure,
   Holding,
   HoldingsImportPreview,
+  InfoExtra,
   Instrument,
   InstrumentId,
   JobProgress,
@@ -150,6 +151,8 @@ export const PARAMS = {
   'bars.get': z.object({ id, tf, adjustment: z.enum(['split', 'unadjusted', 'total']).optional() }),
   'bars.many': z.object({ ids: z.array(id).max(60), tf, count: z.number().int().min(2).max(3000) }),
   'dividends.get': z.object({ id }),
+  /** 銘柄情報の追加の値（FR-I5〜I8）。表示中の銘柄だけ */
+  'info.extra': z.object({ id }),
   'returns.get': z.object({ ids, from: jstDate }),
   'metrics.get': z.object({ ids }),
   'quotes.get': z.object({ ids }),
@@ -230,6 +233,7 @@ export interface Results {
   'bars.get': Bars & { dividends: Dividend[]; splits: Split[]; adjustment: Adjustment }
   'bars.many': Record<InstrumentId, Bars>
   'dividends.get': Dividend[]
+  'info.extra': InfoExtra
   'returns.get': Record<InstrumentId, number>
   'metrics.get': MetricsRow[]
   'quotes.get': Quote[]

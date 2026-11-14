@@ -37,6 +37,10 @@ describe.skipIf(!live)('実際のプロバイダとの契約', () => {
     const q = await p.fetchQuotes(['7203.T', '8951.T', '94345.T'], { signal })
     expect(q.length).toBe(3)
     expect(q.every((x) => x.price && x.prevClose)).toBe(true)
+    // 決算発表（FR-I8）: 株式には前回（earningsTimestamp）が入る。次の予定（Start）は日時か無し
+    const toyota = q.find((x) => x.symbol === '7203.T')!
+    expect(typeof toyota.earningsLast).toBe('number')
+    expect(toyota.earningsNext == null || typeof toyota.earningsNext === 'number').toBe(true)
   }, 60_000)
 
   it('Core で数銘柄を取り直して指標まで計算できる', async () => {

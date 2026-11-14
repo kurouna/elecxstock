@@ -84,22 +84,32 @@ export function adjust(days: DayBar[], adj: Adjustment, splits: Split[], dividen
       return f === 1 ? b : { ...b, o: b.o * f, h: b.h * f, l: b.l * f, c: b.c * f, v: b.v / f }
     })
   }
-  // 配当込み: 権利落ち日より前の価格に (1 − 配当 / 前日終値) を掛けていく
-  const idx = new Map(days.map((b, i) => [b.d, i]))
-  const factors = new Array<number>(days.length).fill(1)
+  // 配当込み: 権利落ち日より前の価格に (1 − 配当 / 前日終値) を掛けていく。
+  // 権利落ちの足ごとに割合をまとめ、後ろから掛けていく（O(本数 + 配当の回数)。配当ごとに前の足を全部なめない）
+  const at = new Float64Array(days.length).fill(1)
   for (const dv of dividends) {
-    let i = idx.get(dv.date)
-    if (i == null) i = days.findIndex((b) => b.d >= dv.date)
-    if (i == null || i <= 0) continue
+    // 権利落ち日の足（休場なら次の足）を二分探索で
+    let lo = 0
+    let hi = days.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (days[mid]!.d < dv.date) lo = mid + 1
+      else hi = mid
+    }
+    const i = lo
+    if (i <= 0 || i >= days.length) continue
     const prev = days[i - 1]!.c
     if (!(prev > 0)) continue
-    const f = 1 - dv.amount / prev
-    for (let k = 0; k < i; k++) factors[k]! *= f
+    at[i]! *= 1 - dv.amount / prev
   }
-  return days.map((b, i) => {
-    const f = factors[i]!
-    return f === 1 ? b : { ...b, o: b.o * f, h: b.h * f, l: b.l * f, c: b.c * f }
-  })
+  const out = new Array<DayBar>(days.length)
+  let f = 1
+  for (let k = days.length - 1; k >= 0; k--) {
+    const b = days[k]!
+    out[k] = f === 1 ? b : { ...b, o: b.o * f, h: b.h * f, l: b.l * f, c: b.c * f }
+    f *= at[k]!
+  }
+  return out
 }
 
 /**

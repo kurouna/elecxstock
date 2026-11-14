@@ -31,6 +31,16 @@ export function classifyError(e: unknown): ProviderError {
 
 const n = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : null)
 
+/** 日時（Date・秒・ミリ秒のどれでも）を ms に */
+const ms = (x: unknown): number | null => {
+  if (x instanceof Date) return Number.isFinite(x.getTime()) ? x.getTime() : null
+  if (typeof x === 'number' && Number.isFinite(x)) return x < 1e11 ? x * 1000 : x
+  if (typeof x === 'string') {
+    const t = Date.parse(x)
+    return Number.isFinite(t) ? t : null
+  }
+  return null
+}
 export function createYahooProvider(): Provider {
   const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] })
   return {
@@ -109,6 +119,10 @@ export function createYahooProvider(): Provider {
           bps: n(q.bookValue),
           eps: n(q.epsTrailingTwelveMonths),
           nameEn: typeof q.longName === 'string' ? q.longName : typeof q.shortName === 'string' ? q.shortName : null,
+          // 決算発表: earningsTimestampStart が次の予定（過去なら予定なし）、earningsTimestamp が前回（契約テストで確かめた）
+          earningsNext: ms(q.earningsTimestampStart),
+          earningsLast: ms(q.earningsTimestamp),
+          earningsEst: typeof q.isEarningsDateEstimate === 'boolean' ? q.isEarningsDateEstimate : null,
         }))
       } catch (e) {
         throw classifyError(e)
