@@ -810,6 +810,20 @@ export function moneyScale(f: Pick<FieldDef, 'id' | 'type' | 'unit'>): number {
   return f.id === 'price.minInvest' ? 1e4 : 1e8
 }
 /**
+ * 打った値を数にする。単位の無い数は `scale`（表示の単位。金額なら moneyScale）を掛ける。「兆」「億」「万」が付いていれば
+ * その倍率（「30万」「1.5億」）。円・%・桁区切り・空白は読み飛ばす。読めなければ null
+ */
+export function parseTyped(s: string, scale = 1): number | null {
+  const t = s
+    .normalize('NFKC')
+    .replace(/[,円¥%\s]/g, '')
+    .replace(/[−–]/g, '-')
+  const m = /^(-?(?:\d+\.?\d*|\.\d+))(兆|億|万)?$/.exec(t)
+  if (!m) return null
+  const mul = m[2] === '兆' ? 1e12 : m[2] === '億' ? 1e8 : m[2] === '万' ? 1e4 : scale
+  return Math.round(Number(m[1]) * mul * 1e6) / 1e6
+}
+/**
  * 1 株あたりの金額（終値・移動平均・52 週高値・EPS・BPS・1 株配当）か。円で表し、分割で換算する。売買代金は category が
  * 'price' でも 1 株あたりではない（億円。分割で変わらない）ので、単位で見分ける
  */

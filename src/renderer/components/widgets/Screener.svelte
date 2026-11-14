@@ -1,7 +1,7 @@
 <script lang="ts">
 // スクリーナー（§5.2, §5.3）。条件エディタは指標の登録表から作る（FR-FD1）。結果は仮想スクロール（FR-SC3）。
 
-import { FIELD_BY_ID, FIELDS, type FieldDef, MARKET_CHOICES, moneyScale, refFields, usable } from '@shared/fields'
+import { FIELD_BY_ID, FIELDS, type FieldDef, MARKET_CHOICES, moneyScale, parseTyped, refFields, usable } from '@shared/fields'
 import type { Condition, InstrumentId, ScreenResult } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { fieldValueText } from '../../lib/alertText'
@@ -66,12 +66,14 @@ $effect(() => {
   void conds
   void app.dataVersion
   void app.watchlists
+  void app.holdings // 保有の条件（保有の追加・直し・取り込み・元に戻す。別の窓での変更も）
   if (timer) clearTimeout(timer)
   timer = setTimeout(run, 120)
 })
 const sorted = $derived.by(() => {
   if (!result) return [] as InstrumentId[]
   void app.metrics.size
+  void app.holdings // 保有の列で並べ替えているとき
   return sortIds(result.ids, cols.find((c) => c.id === sort.k) ?? COLUMN_BY_ID.get(sort.k), sort.dir)
 })
 /** ★のみ表示（Ctrl+Shift+F。ほかの一覧と同じ。§6.5.3） */
@@ -152,8 +154,8 @@ async function typeValue(i: number) {
   if (!c || !f || (f.type !== 'number' && f.type !== 'percent' && f.type !== 'ratio' && f.type !== 'money')) return step(i, 1)
   if (c.ref) {
     const s = await promptDialog(t('scr.refOffset'), String(c.value))
-    const v = Number((s ?? '').replace(/[,，%％]/g, ''))
-    if (s != null && Number.isFinite(v)) update(i, { ...c, value: v })
+    const v = s == null ? null : parseTyped(s)
+    if (v != null) update(i, { ...c, value: v })
     return
   }
   // 金額は表示の単位（円・万円・億円）で打つ
@@ -161,11 +163,12 @@ async function typeValue(i: number) {
   const lang = app.settings.lang
   const s = await promptDialog(
     `${f.label[lang]}${f.type === 'money' && f.unit ? (lang === 'ja' ? `（${f.unit.ja}）` : ` (${f.unit.en})`) : ''}`,
-    String(Number(c.value) / unit),
+    String(Math.round((Number(c.value) / unit) * 1e4) / 1e4),
   )
   if (s == null) return
-  const v = Number(s.replace(/[,，]/g, ''))
-  if (Number.isFinite(v)) update(i, { ...c, value: v * unit })
+  // 「30万」「1.5億」のように単位を付けて打ってもよい
+  const v = parseTyped(s, unit)
+  if (v != null) update(i, { ...c, value: v })
 }
 function flipOp(i: number) {
   const c = conds[i]

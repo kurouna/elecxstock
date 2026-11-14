@@ -73,6 +73,7 @@ const set = (patch: Record<string, unknown>) => patchState(pane, patch)
 // 対象（FR-G1）
 $effect(() => {
   void app.dataVersion
+  void app.holdings // 保有の条件のスクリーン
   let conds: Condition[] | null = null
   if (src === 'live') conds = app.liveConds.length ? app.liveConds : (app.screens[0]?.conditions ?? [])
   else if (src.startsWith('scr:')) conds = app.screens.find((s) => `scr:${s.id}` === src)?.conditions ?? []

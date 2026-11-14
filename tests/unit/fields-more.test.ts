@@ -5,7 +5,7 @@ import { computeValue, conditionValid, runScreen } from '@core/screener'
 import type { DayBar } from '@core/series'
 import { alertConditionOk, splitSensitive } from '@shared/alerts'
 import { COMPUTE_KEYS } from '@shared/compute'
-import { FIELD_BY_ID, FIELD_GROUPS, FIELDS, moneyScale, refFields, usable } from '@shared/fields'
+import { FIELD_BY_ID, FIELD_GROUPS, FIELDS, moneyScale, parseTyped, refFields, usable } from '@shared/fields'
 import { epochDay, nextRightsDates, recordDayOf } from '@shared/rights'
 import type { Instrument, MetricsRow, Quote } from '@shared/types'
 import { describe, expect, it } from 'vitest'
@@ -367,5 +367,25 @@ describe('境界値', () => {
     const bars = days('2020-06-01', '2026-11-13', () => 1000)
     const dividends = [2020, 2021, 2022, 2023, 2024, 2025].map((y) => ({ date: `${y}-09-27`, amount: 10 }))
     expect(computeMetrics('JP:1', bars, dividends, [], null, '2026-11-13').divCagr5).toBeNull()
+  })
+})
+
+describe('打った値の読み取り（スクリーナーとアラートのダイアログ）', () => {
+  it('単位の無い数は表示の単位を掛ける。兆・億・万が付けばその倍率', () => {
+    const cap = moneyScale(FIELD_BY_ID.get('value.marketCap')!)
+    const inv = moneyScale(FIELD_BY_ID.get('price.minInvest')!)
+    expect(parseTyped('100', cap)).toBe(1e10)
+    expect(parseTyped('30', inv)).toBe(3e5)
+    expect(parseTyped('30万', cap)).toBe(3e5)
+    expect(parseTyped('1.5億', inv)).toBe(1.5e8)
+    expect(parseTyped('1兆')).toBe(1e12)
+    expect(parseTyped('１，２００円')).toBe(1200)
+    expect(parseTyped('−5%')).toBe(-5)
+    expect(parseTyped('0.1', cap)).toBe(1e7)
+  })
+  it('読めない文字は null（条件を変えない）', () => {
+    expect(parseTyped('')).toBeNull()
+    expect(parseTyped('abc')).toBeNull()
+    expect(parseTyped('1万2')).toBeNull()
   })
 })

@@ -5,7 +5,7 @@ import { jstNow } from '@shared/calendar'
 import { type ComputeContext, computeValue, heldStats } from '@shared/compute'
 import { FIELDS, type FieldDef, perShare, usable } from '@shared/fields'
 import type { InstrumentId, MetricsRow } from '@shared/types'
-import { app, checklistDialog, inst, metric, t } from '../stores/app.svelte'
+import { app, checklistDialog, ensureMetrics, inst, metric, t } from '../stores/app.svelte'
 import { cls, date, fmt, money, px, sgn } from './format'
 import type { Key } from './i18n'
 
@@ -34,6 +34,8 @@ function computeContext(): ComputeContext {
   const key = today + app.holdings.map((h) => `${h.code}:${metric(`JP:${h.code}`)?.close ?? ''}`).join(',')
   if (ctxMemo?.holdings === app.holdings && ctxMemo.key === key) return ctxMemo.ctx
   const holdings = heldFrom(app.holdings)
+  // 保有割合の分母は保有のすべての銘柄の終値で出す（画面に出ていない保有の銘柄も。届いたら key が変わって作り直す）
+  ensureMetrics([...holdings.keys()])
   const ctx: ComputeContext = { today, ...(holdings.size ? { holdings, held: heldStats(holdings, metric, inst) } : {}) }
   ctxMemo = { key, holdings: app.holdings, ctx }
   return ctx

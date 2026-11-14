@@ -70,6 +70,7 @@ const cols = $derived(width < 470 ? allCols.filter((c) => c.id !== 'liq.turnover
 
 const rows = $derived.by(() => {
   void app.dataVersion
+  void app.holdings // 保有の列で並べ替えているとき
   let items = list?.items ?? []
   if (starOnly) items = items.filter((id) => isFav(id))
   if (sort) items = sortIds(items, COLUMN_BY_ID.get(sort.k), sort.dir)
