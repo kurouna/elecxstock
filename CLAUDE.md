@@ -38,7 +38,7 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 | `src/core/`                                   | Core。Electron の utilityProcess で動く純 TS（**`electron` を import しない**。NFR-A1、Biome で禁止）。SQLite（`node:sqlite`）・取得ジョブ・指標・スクリーナー・利用者データ・保有（`holdings.ts`）           |
 | `src/core/providers/`                         | データ源。`yahoo.ts`（yahoo-finance2）・`jpx.ts`（上場銘柄一覧の xlsx）・`stub.ts`（テスト用）                                                                                                                |
 | `src/shared/`                                 | 全プロセス共通の型・API の契約（`api.ts`: メソッド名と zod スキーマ）・指標の登録表（`fields.ts`）・営業日（`calendar.ts`）                                                                                   |
-| `src/main/index.ts`                           | 薄い main。ウィンドウ・安全策・Core の起動と、renderer と Core を MessagePort でつなぐ                                                                                                                        |
+| `src/main/index.ts`                           | 薄い main。ウィンドウ（1 枚目 + フリー 2〜4）・安全策・Core の起動と、renderer と Core を窓ごとの MessagePort でつなぐ。窓をまたぐリンクのバス。位置の計算は `placement.ts`（純関数）                         |
 | `src/preload/index.ts`                        | `window.elecxstock` だけを出す                                                                                                                                                                                |
 | `src/renderer/`                               | Svelte 5 の画面。`stores/`（状態・レイアウト）、`lib/commands.ts`（アクションとキー操作）、`lib/columns.ts`（一覧の列）、`lib/chartMenu.ts`・`lib/indicators.ts`（チャート）、`components/widgets/`（ペイン） |
 | `tests/unit` / `tests/e2e` / `tests/contract` | Vitest / Playwright（`_electron`）/ 実プロバイダ                                                                                                                                                              |
@@ -72,6 +72,11 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 - 依存はすべて `devDependencies` に置き、バンドルに入れる（yahoo-finance2 の MCP 用の依存を配布物に入れないため）。
   バンドルに入る OSS を足したら `scripts/gen-notices.mjs` の `bundled` にも足す。GPL 系は入れない（`scripts/check-licenses.mjs`）。
 - 通信先は Core の許可リスト（`src/core/worker.ts`）だけ。renderer の CSP は `connect-src 'none'`。
+- **マルチモニタ**（[docs/design-multimonitor.md](docs/design-multimonitor.md)）: 2 枚目以降はタブなしの「フリー 2〜4」。窓の種類は
+  `lib/windowSlot.ts`（`SLOT`・`IS_FREE`・`FREE_WIDGETS`・`blockedInFree`）。利用者のデータの持ち主は 1 枚目で、フリー N は読むだけ
+  （★・◆だけ Core の `watchlists.toggleItem`）。Core は利用者のデータを変えたら `user.changed` を全窓に配るので、利用者のデータを書く
+  メソッドを足したら `src/core/worker.ts` の `CHANGES` にも足す。フリー N のレイアウトは `user.saveWindowLayout` で自分の分だけ保存する。
+  フリー N で使えない操作を足したら `blockedInFree` に足す。
 
 ## テスト
 

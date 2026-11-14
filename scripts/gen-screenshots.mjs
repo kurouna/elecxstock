@@ -47,11 +47,13 @@ async function session(lang, shots) {
   await wait(400)
   await page.evaluate(() => document.querySelectorAll('.toasts .toast').forEach((t) => t.remove()))
   for (const [name, fn] of shots) {
-    await fn({ k, type, page })
+    // 撮る窓を返したら、その窓を撮る（フリーのウィンドウ）
+    const target = (await fn({ k, type, page, app })) ?? page
     await wait(900)
-    await page.evaluate(() => document.querySelectorAll('.toasts .toast').forEach((t) => t.remove()))
-    await page.screenshot({ path: join(out, `${name}.png`) })
+    await target.evaluate(() => document.querySelectorAll('.toasts .toast').forEach((t) => t.remove()))
+    await target.screenshot({ path: join(out, `${name}.png`) })
     console.log('shot', name)
+    if (target !== page) await target.close()
   }
   await app.close()
 }
@@ -73,6 +75,25 @@ await session('ja', [
   ['help', async ({ k }) => k('Escape', 'F1')],
   ['settings', async ({ k }) => k('Escape', 'Control+Comma', 'ArrowDown', 'ArrowDown')],
   ['market', async ({ k }) => k('Escape', 'Control+Shift+Digit1', 'Alt+ArrowRight', 'ArrowRight')],
+  [
+    // 2 枚目のモニタ用のフリーのウィンドウ（Ctrl+Alt+N → 4 分割）
+    'free',
+    async ({ k, page, app }) => {
+      const next = app.waitForEvent('window')
+      await k('Control+Alt+n')
+      await page.locator('.dialog').getByText('4 分割', { exact: true }).click()
+      const w = await next
+      await w.waitForLoadState('domcontentloaded')
+      await app.evaluate(({ BrowserWindow }) => {
+        const f = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('w=free2'))
+        f?.unmaximize()
+        f?.setContentSize(1680, 1000)
+      })
+      await w.locator('[data-widget="chart"] canvas').first().waitFor()
+      await wait(2500)
+      return w
+    },
+  ],
   [
     'light',
     async ({ k, page }) => {
