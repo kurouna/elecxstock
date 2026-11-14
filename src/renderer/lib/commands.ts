@@ -265,6 +265,8 @@ async function refetchList(): Promise<void> {
 
 export async function addToListDialog(ids: InstrumentId[]): Promise<void> {
   if (!ids.length) return
+  // フリー N はウォッチリストを書かない（★・◆だけ。docs/design-multimonitor.md §3.3）
+  if (IS_FREE) return void toast(t('win.notInFree'))
   const lists = app.watchlists.filter((w) => w.builtin !== 'favorites')
   const choice = await choiceDialog(t('list.pickTarget'), [
     ...lists.map((l) => ({ id: l.id, label: listName(l), hint: t('list.items', { n: l.items.length }) })),
@@ -418,6 +420,7 @@ export function openInGrid(): void {
 }
 /** そのペインの種類があればフォーカスし、無ければフォーカス中のペインの下に開く */
 export function openPane(widget: WidgetId): void {
+  if (IS_FREE && !FREE_WIDGETS.includes(widget)) return void toast(t('win.notInFree'))
   const p = allPanes().find((x) => x.widget === widget)
   if (p) {
     const side = dockOf(p.id)

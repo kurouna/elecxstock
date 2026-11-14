@@ -50,6 +50,7 @@ export function blockedInFree(id: string): boolean {
       'checkUpdate',
       'universe',
       'sendToFree',
+      'jobs',
     ].includes(id)
   )
 }

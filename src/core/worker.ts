@@ -32,6 +32,7 @@ const log = (msg: string) => {
 interface PortLike {
   postMessage(msg: unknown): void
   on(ev: 'message', f: (e: { data: unknown }) => void): void
+  on(ev: 'close', f: () => void): void
   start(): void
   close?(): void
 }
@@ -76,6 +77,9 @@ async function handle(slot: string, port: PortLike, msg: { id: number; method: s
       prioritizeAll()
       return send({ id, result: null })
     }
+    // フリー N は自分の配置だけを書ける
+    if (method === 'user.saveWindowLayout' && (msg.params as { slot?: unknown } | null)?.slot !== slot)
+      throw { code: 'invalid-params', message: 'slot' } satisfies CoreError
     const schema = PARAMS[method as Method]
     if (!schema) throw { code: 'unknown-method', args: { method } } satisfies CoreError
     const parsed = schema.safeParse(msg.params ?? {})
@@ -127,6 +131,13 @@ parentPort.on('message', (e) => {
     ports.set(slot, port)
     shown.delete(slot)
     port.on('message', (m) => void handle(slot, port, m.data as { id: number; method: string; params: unknown }))
+    // 窓が閉じたら、その窓の表示中の銘柄と送り先を外す
+    port.on('close', () => {
+      if (ports.get(slot) !== port) return
+      ports.delete(slot)
+      shown.delete(slot)
+      prioritizeAll()
+    })
     port.start()
   }
 })

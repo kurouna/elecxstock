@@ -216,16 +216,15 @@ export function saveWatchlists(): void {
   if (saveListsTimer) clearTimeout(saveListsTimer)
   saveListsTimer = setTimeout(flushWatchlists, 150)
 }
-function flushWatchlists(): void {
+function flushWatchlists(): Promise<unknown> {
   saveListsTimer = null
-  void rpc('user.saveWatchlists', { watchlists: $state.snapshot(app.watchlists) }).catch(() => {})
+  return rpc('user.saveWatchlists', { watchlists: $state.snapshot(app.watchlists) }).catch(() => {})
 }
-/** 閉じる前に、遅らせている保存を確定させる */
-export function flushListSaves(): void {
-  if (saveListsTimer) {
-    clearTimeout(saveListsTimer)
-    flushWatchlists()
-  }
+/** 閉じる前に、遅らせている保存を確定させる（終わるのを待てる） */
+export function flushListSaves(): Promise<unknown> {
+  if (!saveListsTimer) return Promise.resolve()
+  clearTimeout(saveListsTimer)
+  return flushWatchlists()
 }
 /** フリー N の★・◆: 利用者のデータは Core が書き、ほかの窓へ知らせる（マルチモニタ） */
 function toggleViaCore(list: 'favorites' | 'candidates', id: InstrumentId, on: Key, off: Key): void {
@@ -302,7 +301,7 @@ export function applySettingsToDom(): void {
   r.dataset.reduceMotion = String(app.settings.reduceMotion)
   r.dataset.theme = app.settings.theme
   r.dataset.focusAlways = String(app.settings.focusAlways)
-  void raw.setChrome?.(app.settings.theme, app.settings.uiScale)
+  void raw.setChrome?.(app.settings.theme, app.settings.uiScale * winZoom.v)
   r.style.zoom = String(Math.round(app.settings.uiScale * winZoom.v * 100) / 100)
 }
 

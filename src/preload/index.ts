@@ -81,6 +81,12 @@ const api: ElecxstockBridge = {
     ipcRenderer.on('win:receive', f)
     return () => void ipcRenderer.off('win:receive', f)
   },
+  /** 終了の前に main が頼む: 遅らせている保存を終えたら知らせる */
+  onFlush: (cb: () => Promise<unknown>) => {
+    const f = (_e: unknown, id: number) => void cb().finally(() => ipcRenderer.send('app:flushed', id))
+    ipcRenderer.on('app:flush', f)
+    return () => void ipcRenderer.off('app:flush', f)
+  },
   busPublish: (topic: string, data: unknown) => ipcRenderer.send('bus:publish', topic, data),
   busLast: () => ipcRenderer.invoke('bus:last') as Promise<{ topic: string; data: unknown; seq: number }[]>,
   onBus: (cb: (m: { topic: string; data: unknown; seq: number }) => void) => {

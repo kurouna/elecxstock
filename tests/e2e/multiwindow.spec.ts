@@ -95,8 +95,7 @@ test('フリー 2: キーで送る・★は 1 枚目に届く・リンク色を�
   await keys(page, 'Enter')
   await expect(charts.nth(1)).toContainText('9432')
 
-  // 再起動: フリー 2 が開き直し、並び（4 枚・送った銘柄）が残る
-  await free.waitForTimeout(800)
+  // 再起動: フリー 2 が開き直し、並び（4 枚・送った銘柄）が残る（終了の前に main が全窓の保存を待つので、待たずに閉じる）
   await app.close()
   const second = await launch({ userData: first.userData })
   await expect.poll(() => second.app.windows().length, { timeout: 20_000 }).toBe(2)
@@ -104,6 +103,26 @@ test('フリー 2: キーで送る・★は 1 枚目に届く・リンク色を�
   await expect(again.locator('[data-widget="chart"]')).toHaveCount(4)
   await expect(again.locator('[data-widget="chart"]').first()).toContainText('8306')
   await second.app.close()
+})
+
+test('フリーのウィンドウが無いときに送ると、グリッドで開いて銘柄が並ぶ（R4）', async () => {
+  const { app, page } = await launch()
+  await ready(page)
+  await keys(page, 'Control+Shift+Digit4')
+  await page
+    .locator('[data-widget="chart"]')
+    .first()
+    .click({ position: { x: 300, y: 200 } })
+  await keys(page, 'Digit8', 'Digit0', 'Digit5', 'Digit8')
+  await expect(page.locator('.dialog.jump')).toContainText('三菱商事')
+  await keys(page, 'Enter')
+  const next = app.waitForEvent('window')
+  await keys(page, 'Control+Alt+Enter')
+  const free = await next
+  await expect(free.locator('[data-widget="grid"] .tile').first()).toContainText('8058', { timeout: 20_000 })
+  // 初期の形は 1 度だけ（URL から外れる）
+  expect(free.url()).not.toContain('shape=')
+  await app.close()
 })
 
 test('フリー 2: このウィンドウだけ文字を大きくでき、メモリを測る（R2・R4）', async () => {

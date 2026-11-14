@@ -5,8 +5,19 @@ import { clearBars } from '../lib/barsCache'
 import { checkUpdate, handleKey, sendSymbol, startUpdate } from '../lib/commands'
 import { loadHoldings } from '../lib/portfolio'
 import { IS_FREE, SHAPE, SLOT } from '../lib/windowSlot'
-import { app, applySettingsToDom, bridge, flushListSaves, loadInstruments, rpc, t, toast, winZoom } from '../stores/app.svelte'
-import { applyRemoteLink, flushLayoutSave, freeDoc, layout, normalizeDoc } from '../stores/layout.svelte'
+import {
+  app,
+  applySettingsToDom,
+  bridge,
+  flushListSaves,
+  loadInstruments,
+  rpc,
+  saveWatchlists,
+  t,
+  toast,
+  winZoom,
+} from '../stores/app.svelte'
+import { applyRemoteLink, flushLayoutSave, freeDoc, layout, normalizeDoc, saveLayout } from '../stores/layout.svelte'
 import Overlays from './overlays/Overlays.svelte'
 import StatusBar from './StatusBar.svelte'
 import Toasts from './Toasts.svelte'
@@ -98,8 +109,11 @@ onMount(() => {
     bridge.on('user.changed', (d) => void onUserChanged(d)),
     window.elecxstock.onBus((m) => onBus(m)),
     window.elecxstock.onReceive((ids) => {
+      if (!app.ready) return
       for (const id of ids) sendSymbol(id)
     }),
+    // 終了の前に main が頼む（Core を止める前に保存を終える）
+    window.elecxstock.onFlush(() => Promise.all([flushListSaves(), flushLayoutSave()])),
   )
   void boot()
   // Core が立ち上げ直されたら、状態を取り直す（NFR-Q11）
@@ -131,6 +145,8 @@ async function onUserChanged(d: { kind: string; from: string; op?: { list: strin
     // 1 枚目がウォッチリストの持ち主: フリー N の★・◆の切り替えだけを手元に足す（保存中の自分の変更を消さない）
     const w = app.watchlists.find((x) => x.id === d.op!.list || x.builtin === d.op!.list)
     if (w) w.items = w.items.includes(d.op.id) ? w.items.filter((x) => x !== d.op!.id) : [...w.items, d.op.id]
+    // 自分の保存（配列ごと）が先に届いて Core の切り替えを上書きしていても、保存し直して直す
+    saveWatchlists()
     return
   }
   const u = await rpc('user.load', {})
@@ -153,6 +169,14 @@ async function boot() {
     app.readOnly = u.readOnly
     if (u.error) app.userError = u.error
     layout.doc = IS_FREE ? freeDoc(u.layout, SLOT, SHAPE) : normalizeDoc(u.layout)
+    if (IS_FREE) {
+      // 窓の名前（タスクバー・Alt+Tab）。初期の形は 1 度だけ: URL から外し、選んだ形を保存する（読み込み直しで前の配置に戻す）
+      document.title = `elecxstock — ${t('win.freeTitle', { n: SLOT.replace('free', '') })}`
+      if (SHAPE) {
+        history.replaceState(null, '', `${location.pathname}?w=${SLOT}`)
+        if (SHAPE !== 'last') saveLayout()
+      }
+    }
     winZoom.v = (await window.elecxstock.zoomWindow(null).catch(() => null)) ?? 1
     applySettingsToDom()
     await loadInstruments()

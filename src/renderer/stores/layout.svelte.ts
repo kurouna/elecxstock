@@ -255,11 +255,12 @@ export function saveLayout(): void {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(flushLayout, 400)
 }
-function flushLayout(): void {
+function flushLayout(): Promise<unknown> {
   saveTimer = null
   // フリー N は自分の配置だけを保存する（1 枚目のレイアウトに触らない。マルチモニタ）
-  if (IS_FREE) void rpc('user.saveWindowLayout', { slot: SLOT as 'free2', entry: $state.snapshot(layout.doc.entries.free) }).catch(() => {})
-  else void rpc('user.saveLayout', { layout: $state.snapshot(layout.doc) }).catch(() => {})
+  if (IS_FREE)
+    return rpc('user.saveWindowLayout', { slot: SLOT as 'free2', entry: $state.snapshot(layout.doc.entries.free) }).catch(() => {})
+  return rpc('user.saveLayout', { layout: $state.snapshot(layout.doc) }).catch(() => {})
 }
 
 // ---------------------------------------------------------------- フリー N（マルチモニタ、docs/design-multimonitor.md）
@@ -309,11 +310,10 @@ export function applyRemoteLink(group: number, id: InstrumentId): void {
   if (!IS_FREE) saveLayout()
 }
 /** 閉じる前に、遅らせている保存を確定させる */
-export function flushLayoutSave(): void {
-  if (saveTimer) {
-    clearTimeout(saveTimer)
-    flushLayout()
-  }
+export function flushLayoutSave(): Promise<unknown> {
+  if (!saveTimer) return Promise.resolve()
+  clearTimeout(saveTimer)
+  return flushLayout()
 }
 
 // ---------------------------------------------------------------- queries
@@ -541,7 +541,7 @@ export function resetLayout(): void {
 }
 /** 右・下に分割（Ctrl+Shift+E / O） */
 export function splitPane(paneId: string, dir: 'row' | 'col', widget: WidgetId = 'chart'): string | null {
-  if (inDock(paneId)) return null
+  if (inDock(paneId) || (IS_FREE && !FREE_WIDGETS.includes(widget))) return null
   const pane = findPane(paneId)
   if (!pane) return null
   const fresh = P(widget, pane.link, {
@@ -579,7 +579,7 @@ export function closePane(paneId: string): void {
 }
 export function changeWidget(paneId: string, widget: WidgetId): void {
   const p = findPane(paneId)
-  if (!p) return
+  if (!p || (IS_FREE && !FREE_WIDGETS.includes(widget))) return
   p.widget = widget
   // リンク色の無いペインは自分の銘柄を持つので、種類を変えても引き継ぐ（FR-L11）
   const sym = !p.link ? p.state.sym : undefined

@@ -31,6 +31,8 @@ export interface ElecxstockBridge {
   /** フリー N の準備ができた（読み込み前に送られた銘柄を受け取る） */
   freeReady(): Promise<string[]>
   onReceive(cb: (ids: string[]) => void): () => void
+  /** 終了の前に、遅らせている保存を終える（終えたら main に知らせる） */
+  onFlush(cb: () => Promise<unknown>): () => void
   /** ウィンドウをまたぐ知らせ（R3: リンク）。main が番号を付けて配り、最後の値を覚える */
   busPublish(topic: string, data: unknown): void
   busLast(): Promise<{ topic: string; data: unknown; seq: number }[]>

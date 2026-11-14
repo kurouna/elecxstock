@@ -338,7 +338,9 @@ export class CoreService {
         return undefined as Results[M]
       }
       case 'user.saveWindowLayout': {
-        // フリー N は自分の分だけを保存する（1 枚目のレイアウトに触らない）
+        // フリー N は自分の分だけを保存する（1 枚目のレイアウトに触らない）。大きすぎるもの・形の違うものは受けない
+        if (!P.entry || typeof P.entry !== 'object' || JSON.stringify(P.entry).length > 200_000)
+          throw { code: 'invalid-params', message: 'entry' }
         const prev = (this.user.load('layout') as Record<string, unknown> | null) ?? {}
         const windows = { ...((prev.windows as Record<string, unknown> | undefined) ?? {}), [String(P.slot)]: P.entry }
         this.user.save('layout', { ...prev, windows } as never)

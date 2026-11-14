@@ -77,6 +77,8 @@ const isSlot = (s: unknown): s is Slot => typeof s === 'string' && (SLOTS as str
 interface Win {
   win: BrowserWindow
   loaded: boolean
+  /** renderer が起動を終えて銘柄を受け取れる（win:ready を呼んだ） */
+  ready: boolean
 }
 const wins = new Map<Slot, Win>()
 /** 最後に前に出たウィンドウ（知らせの出し先・Ctrl+F6 の起点・フリー N へ送る先） */
@@ -225,9 +227,11 @@ async function createWindow(slot: Slot, shape?: string): Promise<void> {
       backgroundThrottling: false,
     },
   })
-  const w: Win = { win, loaded: false }
+  const w: Win = { win, loaded: false, ready: false }
   wins.set(slot, w)
   if (free) lastFree = slot
+  // 倍率の違うモニタでは、作るときの大きさが崩れることがある: 位置を決めてから大きさをもう一度当てる（§5）
+  win.setBounds(p.bounds)
   if (p.maximized) win.maximize()
   if (p.fullScreen) win.setFullScreen(true)
   win.once('ready-to-show', () => win.show())
@@ -241,6 +245,7 @@ async function createWindow(slot: Slot, shape?: string): Promise<void> {
   })
   win.on('closed', () => {
     wins.delete(slot)
+    pendingSend.delete(slot)
     if (activeSlot === slot) activeSlot = 'main'
     if (lastFree === slot) lastFree = FREE_SLOTS.find((s) => wins.has(s)) ?? null
     // 主ウィンドウを閉じたらアプリを終える。フリー N を利用者が閉じたら、次の起動では開き直さない
@@ -258,6 +263,7 @@ async function createWindow(slot: Slot, shape?: string): Promise<void> {
   win.webContents.on('will-navigate', (e) => e.preventDefault())
   win.webContents.on('did-start-loading', () => {
     w.loaded = false
+    w.ready = false
   })
   win.webContents.on('did-finish-load', () => {
     w.loaded = true
@@ -477,7 +483,8 @@ ipcMain.handle('win:send', async (e, ids: unknown) => {
     if (!target) return null
   }
   const w = wins.get(target)!
-  if (w.loaded) w.win.webContents.send('win:receive', list)
+  // 起動を終えるまで（win:ready まで）は預かる。読み込み中に送ると、起動でレイアウトが置き換わって消える
+  if (w.ready) w.win.webContents.send('win:receive', list)
   else pendingSend.set(target, [...(pendingSend.get(target) ?? []), ...list])
   return target
 })
@@ -485,6 +492,8 @@ ipcMain.handle('win:send', async (e, ids: unknown) => {
 ipcMain.handle('win:ready', (e) => {
   const slot = slotOf(e.sender)
   if (!fromApp(e) || !slot) return []
+  const w = wins.get(slot)
+  if (w) w.ready = true
   const list = pendingSend.get(slot) ?? []
   pendingSend.delete(slot)
   return list
@@ -515,8 +524,8 @@ app.whenReady().then(async () => {
   for (const s of state.open) if (isSlot(s) && s !== 'main') await createWindow(s)
   // ディスプレイが外れたら、その画面にあった窓は全画面を解いて主ディスプレイへ（この位置は記録しない）
   screen.on('display-removed', () => {
-    for (const [s, w] of wins) {
-      if (w.win.isDestroyed() || s === 'main') continue
+    for (const w of wins.values()) {
+      if (w.win.isDestroyed()) continue
       const b = w.win.getBounds()
       const ok = displays().some((d) => b.x < d.workArea.x + d.workArea.width - 100 && b.x + b.width > d.workArea.x + 100)
       if (!ok) {
@@ -530,6 +539,28 @@ app.whenReady().then(async () => {
 // 閉じるとき: 開いている窓の位置を残し、Core に止めるよう頼み、取得中の項目を止めて DB を閉じるのを待つ（続きは次の起動で再開。FR-F1）。
 // 応答が無ければ 4 秒で強制終了する（項目の書き込みはトランザクションなので、途中で切っても半端な状態は残らない）
 let coreStopped = false
+let flushed = false
+/** 全窓に、遅らせている保存（レイアウト・ウォッチリスト）を Core に書かせ、返事を待つ（最長 2 秒） */
+let flushSeq = 0
+function flushWindows(): Promise<void> {
+  const targets = [...wins.values()].filter((w) => !w.win.isDestroyed() && w.loaded)
+  if (!targets.length) return Promise.resolve()
+  const id = ++flushSeq
+  return new Promise((resolve) => {
+    let left = targets.length
+    const finish = () => {
+      clearTimeout(timer)
+      ipcMain.off('app:flushed', onAck)
+      resolve()
+    }
+    const onAck = (_e: unknown, n: unknown) => {
+      if (n === id && --left <= 0) finish()
+    }
+    const timer = setTimeout(finish, 2000)
+    ipcMain.on('app:flushed', onAck)
+    for (const w of targets) w.win.webContents.send('app:flush', id)
+  })
+}
 app.on('before-quit', (e) => {
   if (!quitting) {
     // 終了で閉じるフリー N は、次の起動で開き直す
@@ -538,6 +569,13 @@ app.on('before-quit', (e) => {
     saveState()
   }
   quitting = true
+  // 先に全窓の保存を終わらせてから Core を止める（beforeunload は Core が止まったあとに来るので頼らない）
+  if (!flushed && core) {
+    flushed = true
+    e.preventDefault()
+    void flushWindows().then(() => app.quit())
+    return
+  }
   const c = core
   if (!c || coreStopped) return
   e.preventDefault()
