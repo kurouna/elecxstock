@@ -12,6 +12,8 @@
 長期投資家向けに、日足・週足・月足（上場以来の月次系列）、実績利回り、配当の履歴を中心に作っています。
 すべての操作がキーボードだけで行えます。
 
+現在は**ベータ版**です。不具合や使いにくいところがあれば、[Issues](https://github.com/kurouna/elecxstock/issues) で知らせてください。
+
 > **注意**
 >
 > - 株価・配当などのデータは **Yahoo Finance の非公式 API**（[yahoo-finance2](https://github.com/gadicc/yahoo-finance2)）から取得しています。
@@ -115,6 +117,8 @@ Electron 45・Svelte 5・TypeScript・SQLite（`node:sqlite`）・Lightweight Ch
 A desktop app that keeps Japanese equity and J-REIT data on your PC so you can **compare many charts side by side and screen by conditions**.
 It is built for long-term investors: daily, weekly and monthly bars (a monthly series since listing), trailing yield and dividend history.
 Everything can be done with the keyboard alone.
+
+This is a **beta**. Please report bugs and rough edges in [Issues](https://github.com/kurouna/elecxstock/issues).
 
 > **Notice**
 >
