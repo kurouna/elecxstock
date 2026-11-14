@@ -85,7 +85,7 @@ $effect(() => {
 
 function send(i = sel) {
   const id = rows[i]
-  if (id) setLinkSymbol(pane.link || 1, id)
+  if (id) setLinkSymbol(pane.link, id)
   prefetch([rows[i + 1], rows[i - 1]])
 }
 function scrollSel() {

@@ -26,7 +26,7 @@ onMount(() =>
     key(e) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         sel = Math.max(0, Math.min(fails.length - 1, sel + (e.key === 'ArrowDown' ? 1 : -1)))
-        if (fails[sel]) setLinkSymbol(pane.link || 1, fails[sel]!.id)
+        if (fails[sel]) setLinkSymbol(pane.link, fails[sel]!.id)
         return true
       }
       return false
@@ -67,7 +67,7 @@ const running = (s: string) => s === 'running' || s === 'queued' || s === 'waiti
     <colgroup><col style="width:60px" /><col style="width:180px" /><col style="width:150px" /><col /></colgroup>
     <tbody>
       {#each fails as f, i (f.id)}
-        <tr class:sel={i === sel} onclick={() => { sel = i; setLinkSymbol(pane.link || 1, f.id) }}>
+        <tr class:sel={i === sel} onclick={() => { sel = i; setLinkSymbol(pane.link, f.id) }}>
           <td class="l code">{codeOf(f.id)}</td>
           <td class="l name">{nameOf(f.id)}</td>
           <td class="l">{dateTime(f.at)}</td>

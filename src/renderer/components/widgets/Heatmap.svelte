@@ -93,7 +93,7 @@ function color(r: number | null): string {
 function enter(i = sel) {
   const p = placed[i]
   if (!p) return
-  if (p.item.id) setLinkSymbol(pane.link || 1, p.item.id)
+  if (p.item.id) setLinkSymbol(pane.link, p.item.id)
   else {
     patchState(pane, { sector: p.item.key })
     sel = 0
@@ -136,7 +136,7 @@ onMount(() => {
       const dir = ({ ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' } as const)[k as 'ArrowLeft']
       if (dir) {
         sel = neighbor(placed, sel, dir)
-        if (placed[sel]?.item.id) setLinkSymbol(pane.link || 1, placed[sel]!.item.id!)
+        if (placed[sel]?.item.id) setLinkSymbol(pane.link, placed[sel]!.item.id!)
         return true
       }
       if (k === 'Enter') {

@@ -126,3 +126,33 @@ test('配当カレンダー: 9 銘柄以上の月も全部を選べる', async (
   await expect(month.locator('.row')).toHaveCount(Number(counts[mi]))
   await app.close()
 })
+
+test('リンク色を外した一覧（Ctrl+0）は、行を動かしてもチャートに銘柄を送らない', async () => {
+  const { app, page } = await launch()
+  await ready(page)
+  await keys(page, 'Control+Shift+Digit4')
+  const scr = page.locator('[data-widget="screener"]').first()
+  const chart = page.locator('[data-widget="chart"]').first()
+  await scr.locator('tbody tr').nth(1).click()
+  const sym = async () => ((await chart.locator('.ph .sym .code').textContent()) ?? '').trim()
+  /** チャートの銘柄が、一覧で選んでいる行の銘柄か（行の先頭がコード） */
+  const followsSel = async () => {
+    const code = await sym()
+    const row = ((await scr.locator('tbody tr.sel').first().textContent()) ?? '').replace(/^\W*/, '')
+    return !!code && row.startsWith(code)
+  }
+  await expect.poll(followsSel).toBe(true)
+  // 外すと送らない
+  await keys(page, 'Control+Digit0')
+  await expect(scr.locator('.ph .link')).toHaveText('·')
+  const before = await sym()
+  expect(before).toMatch(/^[0-9]/)
+  await keys(page, 'ArrowDown', 'Enter')
+  await page.waitForTimeout(300)
+  expect(await sym()).toBe(before)
+  // 付け直すと、また送る
+  await keys(page, 'Control+Digit1', 'ArrowDown')
+  await expect.poll(sym).not.toBe(before)
+  await expect.poll(followsSel).toBe(true)
+  await app.close()
+})

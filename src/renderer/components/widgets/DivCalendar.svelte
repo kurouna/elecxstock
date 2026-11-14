@@ -30,7 +30,7 @@ const months = $derived(
 )
 const label = (m: number) => (app.settings.lang === 'ja' ? `${m}月` : new Date(2026, m - 1, 1).toLocaleString('en', { month: 'short' }))
 function send(id: InstrumentId | undefined) {
-  if (id) setLinkSymbol(pane.link || 1, id)
+  if (id) setLinkSymbol(pane.link, id)
 }
 onMount(() =>
   registerPane(pane.id, {

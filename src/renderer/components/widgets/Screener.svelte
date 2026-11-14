@@ -78,7 +78,7 @@ const end = $derived(Math.min(rows.length, Math.ceil((scrollTop + viewH) / ROW) 
 
 function send() {
   const id = rows[sel]
-  if (id) setLinkSymbol(pane.link || 1, id)
+  if (id) setLinkSymbol(pane.link, id)
   prefetch([rows[sel + 1], rows[sel - 1]])
 }
 function scrollSel() {

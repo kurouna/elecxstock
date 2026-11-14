@@ -86,7 +86,7 @@ async function importAny() {
   else if (c === 'json') await importHoldings()
 }
 function send() {
-  if (cur) setLinkSymbol(pane.link || 1, idOf(cur))
+  if (cur) setLinkSymbol(pane.link, idOf(cur))
 }
 function scrollSel() {
   queueMicrotask(() => scroller?.querySelector('tr.sel')?.scrollIntoView({ block: 'nearest' }))

@@ -41,7 +41,7 @@ const ret = (id: InstrumentId) => {
   const b = bars[id]
   return b && b.close.length > 1 ? (b.close.at(-1)! / b.close.at(-2)! - 1) * 100 : null
 }
-const send = () => ids[sel] && setLinkSymbol(pane.link || 1, ids[sel]!)
+const send = () => ids[sel] && setLinkSymbol(pane.link, ids[sel]!)
 
 onMount(() => {
   // 1306・1343 はプライム・REIT ではないので、取得の対象に足す（FR-U3, U6）

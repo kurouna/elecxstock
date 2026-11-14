@@ -369,6 +369,7 @@ export function toggleDockOpen(open: boolean, side: DockSide | null = layout.doc
   if (open) layout.dockOpen = side
   else if (layout.dockOpen === side) layout.dockOpen = null
 }
+/** リンクグループの銘柄を変える。一覧のペインは自分のリンク色をそのまま渡す（Ctrl+0 で外した一覧は 0 で、どこにも送らない） */
 export function setLinkSymbol(group: number, id: InstrumentId): void {
   if (!group) return
   layout.doc.links[String(group)] = id
