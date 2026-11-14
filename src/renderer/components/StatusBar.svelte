@@ -2,6 +2,7 @@
 import { keyOf, runAction } from '../lib/commands'
 import { dateTime } from '../lib/format'
 import type { Key } from '../lib/i18n'
+import { IS_FREE } from '../lib/windowSlot'
 import { app, rpc, t } from '../stores/app.svelte'
 
 const ACTIVE = ['running', 'waiting-offline', 'provider-paused', 'paused', 'queued']
@@ -14,6 +15,11 @@ const offline = $derived(app.provider.offline || app.provider.paused)
 </script>
 
 <footer class="sb">
+  {#if IS_FREE}
+    <span class="muted">{t('win.freeStatus')}</span>
+    <span class="grow"></span>
+    <button type="button" class="seg" onclick={() => runAction('help')}>{t('status.help')} <kbd>{keyOf('help')}</kbd></button>
+  {:else}
   <span title={offline ? t('status.connOff') : t('status.connOk')}>
     <span class="dot" class:off={offline} aria-hidden="true"></span>{t('status.lastUpdate')}
     <span class="num">{app.status?.lastUpdate ? dateTime(app.status.lastUpdate) : t('status.never')}</span>
@@ -41,6 +47,7 @@ const offline = $derived(app.provider.offline || app.provider.paused)
   {#if app.readOnly}<span class="warn">{t('status.readOnly')}</span>{/if}
   <span class="grow"></span>
   <button type="button" class="seg" onclick={() => runAction('help')}>{t('status.help')} <kbd>{keyOf('help')}</kbd></button>
+  {/if}
 </footer>
 
 <style>

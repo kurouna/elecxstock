@@ -216,3 +216,43 @@ describe('種類の変更（レビューの修正）', () => {
     expect(L.findPane(own.id)?.state.sym).toBe(sym)
   })
 })
+
+describe('フリー N（マルチモニタ）', () => {
+  it('初期の形と前回の配置。置けるのはチャートを並べるペインだけ、ドロワーは持たない', () => {
+    const g = L.freeDoc(null, 'free2', null)
+    expect(g.active).toBe('free')
+    expect(L.allPanes(g.entries.free).map((p) => p.widget)).toEqual(['grid'])
+    expect(L.allPanes(L.freeDoc(null, 'free2', 'quad').entries.free).map((p) => [p.widget, p.link])).toEqual([
+      ['chart', 0],
+      ['chart', 0],
+      ['chart', 0],
+      ['chart', 0],
+    ])
+    expect(L.allPanes(L.freeDoc(null, 'free2', 'detail').entries.free).map((p) => p.widget)).toEqual(['mtf', 'info'])
+    // 前回の配置: 一覧のペインやドロワーが紛れていたら、チャートにしてドロワーを外す
+    const saved = {
+      windows: {
+        free2: {
+          root: {
+            kind: 'split',
+            id: 's',
+            dir: 'row',
+            sizes: [50, 50],
+            children: [
+              { kind: 'pane', id: 'a', widget: 'watchlist', link: 1, state: {} },
+              { kind: 'pane', id: 'b', widget: 'mtf', link: 0, state: {} },
+            ],
+          },
+          docks: {
+            left: { panes: [{ kind: 'pane', id: 'd', widget: 'screener', link: 1, state: {} }], active: 0, pinned: false, width: 600 },
+          },
+        },
+      },
+    }
+    const d = L.freeDoc(saved, 'free2', null)
+    expect(L.allPanes(d.entries.free, false).map((p) => p.widget)).toEqual(['chart', 'mtf'])
+    expect(d.entries.free.docks).toEqual({})
+    // 形を選んで開いたら、前回の配置より形が勝つ
+    expect(L.allPanes(L.freeDoc(saved, 'free2', 'empty').entries.free).map((p) => p.widget)).toEqual(['chart'])
+  })
+})

@@ -1,6 +1,7 @@
 // レイアウト（§6.1, FR-L1〜L10, FR-DR1〜DR5）。木構造の変更はすべてこのモジュールの関数で行う（FR-L6）。
 // 今のレイアウトは作業に追従して自動保存する（FR-L4）。プリセットの初期値は残し、FR-L9 / L10 で戻せる。
 import type { InstrumentId } from '@shared/types'
+import { FREE_WIDGETS, IS_FREE, SHAPE, SLOT } from '../lib/windowSlot'
 import { app, rpc } from './app.svelte'
 
 export type WidgetId =
@@ -256,7 +257,56 @@ export function saveLayout(): void {
 }
 function flushLayout(): void {
   saveTimer = null
-  void rpc('user.saveLayout', { layout: $state.snapshot(layout.doc) }).catch(() => {})
+  // フリー N は自分の配置だけを保存する（1 枚目のレイアウトに触らない。マルチモニタ）
+  if (IS_FREE) void rpc('user.saveWindowLayout', { slot: SLOT as 'free2', entry: $state.snapshot(layout.doc.entries.free) }).catch(() => {})
+  else void rpc('user.saveLayout', { layout: $state.snapshot(layout.doc) }).catch(() => {})
+}
+
+// ---------------------------------------------------------------- フリー N（マルチモニタ、docs/design-multimonitor.md）
+/**
+ * フリー N の初期の形。どれもリンク色なし（それぞれ自分の銘柄）。あとからフリーと同じ操作で自由に組み替えられる
+ * - grid: チャートグリッド 1 枚（このグリッドの銘柄、空から）。1 枚目から銘柄をドラッグして並べる
+ * - quad: チャート 4 枚（2×2）・detail: マルチ時間軸 + 銘柄情報・empty: チャート 1 枚
+ */
+export function freeShape(shape: string | null): LayoutEntry {
+  switch (shape) {
+    case 'quad':
+      return {
+        root: R(
+          [50, 50],
+          C([50, 50], P('chart', 0, { tf: 'D', sym: 'JP:7203' }), P('chart', 0, { tf: 'D', sym: 'JP:8306' })),
+          C([50, 50], P('chart', 0, { tf: 'D', sym: 'JP:8058' }), P('chart', 0, { tf: 'D', sym: 'JP:9432' })),
+        ),
+        docks: {},
+      }
+    case 'detail':
+      return { root: R([62, 38], P('mtf', 0, { sym: 'JP:7203' }), P('info', 0, { sym: 'JP:7203' })), docks: {} }
+    case 'empty':
+      return { root: P('chart', 0, { tf: 'D', sym: 'JP:7203' }), docks: {} }
+    default:
+      return { root: P('grid', 0, { src: 'own', own: [], tf: 'D' }), docks: {} }
+  }
+}
+/** フリー N のレイアウトを作る: 開くときに形を選んだらその形、無ければ前回の配置、それも無ければグリッド */
+export function freeDoc(raw: unknown, slot: string, shape: string | null): LayoutDoc {
+  const saved = (raw as { windows?: Record<string, unknown> } | null)?.windows?.[slot]
+  const entry = shape ? freeShape(shape) : saved ? normalizeEntry(saved) : null
+  const d = normalizeDoc({ version: 1, active: 'free', entries: { free: entry ?? freeShape('grid') }, links: {} })
+  // 置けるのはチャートを並べるペインだけ（一覧は 1 枚目で）。古い保存に他の種類があればチャートにする
+  for (const p of allPanes(d.entries.free)) if (!FREE_WIDGETS.includes(p.widget)) changeWidgetIn(p, 'chart')
+  d.entries.free.docks = {}
+  return d
+}
+function changeWidgetIn(p: PaneNode, widget: WidgetId): void {
+  p.widget = widget
+  p.state = widget === 'chart' ? { tf: 'D' } : {}
+}
+/** ほかのウィンドウから届いたリンク（R3）。保存し直したり送り返したりしない（こだまを防ぐ） */
+export function applyRemoteLink(group: number, id: InstrumentId): void {
+  if (!group || layout.doc.links[String(group)] === id) return
+  layout.doc.links[String(group)] = id
+  // 1 枚目はリンクを保存しておく（次の起動で同じ銘柄から）。フリー N はリンクを保存しない
+  if (!IS_FREE) saveLayout()
 }
 /** 閉じる前に、遅らせている保存を確定させる */
 export function flushLayoutSave(): void {
@@ -323,6 +373,8 @@ export function setLinkSymbol(group: number, id: InstrumentId): void {
   if (!group) return
   layout.doc.links[String(group)] = id
   saveLayout()
+  // ほかのウィンドウの同じリンク色にも知らせる（R3、main のバス）
+  if (typeof window !== 'undefined') window.elecxstock?.busPublish?.(`link:${group}`, id)
 }
 export function linkSymbol(group: number): InstrumentId | undefined {
   return layout.doc.links[String(group)]
@@ -483,7 +535,7 @@ export function undoResetSizes(): boolean {
 }
 /** レイアウトを初期状態に戻す（FR-L10。確認は呼ぶ側で行う） */
 export function resetLayout(): void {
-  layout.doc.entries[layout.doc.active] = presetEntry(layout.doc.active)
+  layout.doc.entries[layout.doc.active] = IS_FREE ? freeShape(SHAPE) : presetEntry(layout.doc.active)
   app.focus = null
   saveLayout()
 }

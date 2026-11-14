@@ -175,7 +175,8 @@ const periodRet = (id: InstrumentId) => {
 }
 function send() {
   const id = shown[sel]
-  if (id) setLinkSymbol(pane.link || 1, id)
+  // リンク色の無いグリッド（フリー N の既定）は、ほかのチャートの銘柄を変えない
+  if (id && pane.link) setLinkSymbol(pane.link, id)
 }
 /** ページをめくる（FR-G2）。at はめくった先で選ぶタイル（ページの枚数に収める）。端では何もしない */
 function goPage(delta: number, at = 0): boolean {

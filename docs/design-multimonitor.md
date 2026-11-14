@@ -1,6 +1,6 @@
 # マルチモニタ対応の仕様・設計
 
-状態: 実装中（第 3 版。段階は R1〜R4）。第 2 版（Fable 5.2 のレビュー反映）を、利用者の提案「2 枚目以降はタブなしのフリーだけ」に合わせて組み直した。`docs/design-p3.md` §8「別ウィンドウ（FR-L7）」を具体化する。
+状態: 実装済み（第 3 版。段階 R1〜R4、v0.0.5）。第 2 版（Fable 5.2 のレビュー反映）を、利用者の提案「2 枚目以降はタブなしのフリーだけ」に合わせて組み直した。`docs/design-p3.md` §8「別ウィンドウ（FR-L7）」を具体化する。
 
 ## 1. 方針
 
@@ -61,9 +61,9 @@
 ```ts
 interface LayoutDoc {
   version: 1
-  active: PresetId                        // 1 枚目（今と同じ）
-  entries: Record<PresetId, LayoutEntry>  // 1 枚目（今と同じ。今のフリーもここ）
-  links: Record<string, InstrumentId>     // 1 枚目（今と同じ）
+  active: PresetId // 1 枚目（今と同じ）
+  entries: Record<PresetId, LayoutEntry> // 1 枚目（今と同じ。今のフリーもここ）
+  links: Record<string, InstrumentId> // 1 枚目（今と同じ）
   windows?: Partial<Record<'free2' | 'free3' | 'free4', LayoutEntry>> // 足すだけ。タブもドロワーも持たない
 }
 ```
@@ -101,6 +101,8 @@ interface LayoutDoc {
 | 次・前のウィンドウへ（その窓で最後にフォーカスしたペインへ） | **Ctrl+F6 / Ctrl+Shift+F6**                                |
 | ウィンドウを閉じる / 別のモニタへ / 全画面                   | Alt+F4 / Win+Shift+← → / F11（OS・今のまま。ヘルプに書く） |
 | 閉じたフリー N を開き直す                                    | コマンドバー「フリー 2 を開く」など                        |
+| 選んだ銘柄をフリー N へ送る                                  | **Ctrl+Alt+Enter**                                         |
+| このウィンドウの文字を大きく / 小さく / 戻す                 | **Ctrl+Alt+= / Ctrl+Alt+- / Ctrl+Alt+0**                   |
 
 ## 5. 位置の記憶と戻し
 
@@ -115,7 +117,7 @@ interface LayoutDoc {
 | **R1** | ウィンドウをまたぐドラッグの試作（最初に）。Core の窓ごとのポート。main の WindowManager（主 + フリー 2）・IPC の送り元化・1 枚目だけの処理。フリー N の画面（タブ・ドロワーなし、置けるペインの制限）。`user.saveWindowLayout`。`settings.changed`・`watchlists.changed` の配信と★の `watchlist.toggleFav`。初期の形の選択。Ctrl+Alt+N・Ctrl+F6。位置の記憶と戻し |
 | R2     | フリー 3・フリー 4。ウィンドウごとの文字の大きさ。閉じたフリー N をコマンドバーから開き直す                                                                                                                                                                                                                                                                        |
 | R3     | ウィンドウをまたぐリンク: main のバス（番号つき・最後の値を覚える）でリンク色 → 銘柄を配り、フリー N のペインにリンク色を付けると 1 枚目で選んだ銘柄を追う（こだまを防ぐ `applyRemoteLink`）                                                                                                                                                                       |
-| R4     | キーだけでフリー N へ送る（FR-KB4。ウィンドウをまたぐドラッグの代わり）: 1 枚目の一覧で選んだ銘柄を「フリー N に送る」（Ctrl+Alt+→）。送り先はフリー N でフォーカスしているペイン（グリッドなら足す、チャートなら入れ替え）。メモリの実測と記録                                                                                                                    |
+| R4     | キーだけでフリー N へ送る（FR-KB4。ウィンドウをまたぐドラッグの代わり）: 1 枚目の一覧で選んだ銘柄を「フリー N に送る」（Ctrl+Alt+Enter。Ctrl+Alt+→ は Windows の画面の回転と重なるため変えた）。送り先はフリー N でフォーカスしているペイン（グリッドなら足す、チャートなら入れ替え）。メモリの実測と記録                                                          |
 
 ## 7. テスト
 
@@ -126,6 +128,6 @@ interface LayoutDoc {
 ## 8. リスク・未決
 
 - **ウィンドウをまたぐドラッグ**が届くか（R1 の最初に試す）。届かない場合の代わり: 1 枚目の一覧で「フリー 2 に送る」（コマンドバー・キー。例 Ctrl+Alt+→）。
-- メモリ: 窓ごとに 150〜250MB の見込み。R1 で実測して `docs/decisions.md` に書く。
+- メモリ: 実測は 1 枚目の renderer 約 190MB、フリー 2（グリッド）約 145MB（`docs/decisions.md`）。
 - 終了: main は全窓の保存の完了を知れないので、今の 150ms の猶予を保つか、明示のフラッシュを足す。
 - フリー N で★以外の書き込み（ウォッチリストへの追加など）は置かない。必要になったら Core の操作単位の API を足す。

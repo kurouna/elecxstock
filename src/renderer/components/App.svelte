@@ -2,10 +2,11 @@
 import { addDays, isTradingDay, jstNow } from '@shared/calendar'
 import { onMount } from 'svelte'
 import { clearBars } from '../lib/barsCache'
-import { checkUpdate, handleKey, startUpdate } from '../lib/commands'
+import { checkUpdate, handleKey, sendSymbol, startUpdate } from '../lib/commands'
 import { loadHoldings } from '../lib/portfolio'
-import { app, applySettingsToDom, bridge, flushListSaves, loadInstruments, rpc, t, toast } from '../stores/app.svelte'
-import { flushLayoutSave, layout, normalizeDoc } from '../stores/layout.svelte'
+import { IS_FREE, SHAPE, SLOT } from '../lib/windowSlot'
+import { app, applySettingsToDom, bridge, flushListSaves, loadInstruments, rpc, t, toast, winZoom } from '../stores/app.svelte'
+import { applyRemoteLink, flushLayoutSave, freeDoc, layout, normalizeDoc } from '../stores/layout.svelte'
 import Overlays from './overlays/Overlays.svelte'
 import StatusBar from './StatusBar.svelte'
 import Toasts from './Toasts.svelte'
@@ -91,7 +92,15 @@ onMount(() => {
   }
   window.addEventListener('beforeunload', onUnload)
   const timer = setInterval(refreshStatus, 10_000)
-  const autoTimer = setInterval(autoUpdate, 5 * 60_000)
+  const autoTimer = setInterval(() => !IS_FREE && autoUpdate(), 5 * 60_000)
+  // マルチモニタ: ほかの窓の変更・リンク・送られた銘柄
+  offs.push(
+    bridge.on('user.changed', (d) => void onUserChanged(d)),
+    window.elecxstock.onBus((m) => onBus(m)),
+    window.elecxstock.onReceive((ids) => {
+      for (const id of ids) sendSymbol(id)
+    }),
+  )
   void boot()
   // Core が立ち上げ直されたら、状態を取り直す（NFR-Q11）
   offs.push(
@@ -109,6 +118,27 @@ onMount(() => {
   }
 })
 
+/** ほかの窓のリンク（R3） */
+function onBus(m: { topic: string; data: unknown }) {
+  const g = /^link:([1-5])$/.exec(m.topic)
+  if (g && typeof m.data === 'string') applyRemoteLink(Number(g[1]), m.data)
+}
+/** ほかの窓が利用者のデータを変えた（マルチモニタ）。自分の変更は無視する */
+async function onUserChanged(d: { kind: string; from: string; op?: { list: string; id: string } }) {
+  if (d.from === SLOT) return
+  if (d.kind === 'holdings') return void loadHoldings()
+  if (d.kind === 'watchlists' && !IS_FREE && d.op) {
+    // 1 枚目がウォッチリストの持ち主: フリー N の★・◆の切り替えだけを手元に足す（保存中の自分の変更を消さない）
+    const w = app.watchlists.find((x) => x.id === d.op!.list || x.builtin === d.op!.list)
+    if (w) w.items = w.items.includes(d.op.id) ? w.items.filter((x) => x !== d.op!.id) : [...w.items, d.op.id]
+    return
+  }
+  const u = await rpc('user.load', {})
+  if (d.kind === 'settings') {
+    app.settings = u.settings
+    applySettingsToDom()
+  } else if (d.kind === 'watchlists') app.watchlists = u.watchlists
+}
 /** 起動（失敗したら理由と、再試行・ログを開くを出す。空白の画面にしない） */
 let bootError = $state<string | null>(null)
 async function boot() {
@@ -122,12 +152,21 @@ async function boot() {
     app.layouts = u.layouts
     app.readOnly = u.readOnly
     if (u.error) app.userError = u.error
-    layout.doc = normalizeDoc(u.layout)
+    layout.doc = IS_FREE ? freeDoc(u.layout, SLOT, SHAPE) : normalizeDoc(u.layout)
+    winZoom.v = (await window.elecxstock.zoomWindow(null).catch(() => null)) ?? 1
     applySettingsToDom()
     await loadInstruments()
     await refreshStatus()
     app.jobs = await rpc('jobs.list', {})
     app.ready = true
+    // ほかの窓で選んだリンクの最後の値を受け取る（R3）
+    for (const m of (await window.elecxstock.busLast()).sort((a, b) => a.seq - b.seq)) onBus(m)
+    if (IS_FREE) {
+      // フリー N: 初回起動・更新の確認・自動更新は 1 枚目だけ。読み込み前に送られた銘柄を受け取る（R4）
+      void loadHoldings()
+      for (const id of await window.elecxstock.freeReady()) sendSymbol(id)
+      return
+    }
     if (!app.settings.disclaimerAccepted || !app.settings.firstRunDone) app.overlay = { kind: 'firstrun' }
     else {
       void loadHoldings()

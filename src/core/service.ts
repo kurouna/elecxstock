@@ -330,9 +330,30 @@ export class CoreService {
       case 'user.saveScreens':
         this.user.save('screens', P.screens as never)
         return undefined as Results[M]
-      case 'user.saveLayout':
-        this.user.save('layout', P.layout as never)
+      case 'user.saveLayout': {
+        // 1 枚目の保存は、フリー N の配置（windows）を残したまま置き換える（マルチモニタ）
+        const prev = this.user.load('layout') as { windows?: unknown } | null
+        const next = P.layout as Record<string, unknown> | null
+        this.user.save('layout', (next && prev?.windows ? { ...next, windows: prev.windows } : next) as never)
         return undefined as Results[M]
+      }
+      case 'user.saveWindowLayout': {
+        // フリー N は自分の分だけを保存する（1 枚目のレイアウトに触らない）
+        const prev = (this.user.load('layout') as Record<string, unknown> | null) ?? {}
+        const windows = { ...((prev.windows as Record<string, unknown> | undefined) ?? {}), [String(P.slot)]: P.entry }
+        this.user.save('layout', { ...prev, windows } as never)
+        return undefined as Results[M]
+      }
+      case 'watchlists.toggleItem': {
+        // フリー N の★・◆: Core で入れ・外しして保存する（ほかの窓には worker が知らせる）
+        const lists = this.user.load('watchlists')
+        const w = lists.find((x) => x.id === P.list || x.builtin === P.list)
+        if (!w) throw Object.assign(new Error('no such list'), { code: 'not-found' })
+        const id = String(P.id)
+        w.items = w.items.includes(id) ? w.items.filter((x) => x !== id) : [...w.items, id]
+        this.user.save('watchlists', lists)
+        return lists as Results[M]
+      }
       case 'user.saveLayouts':
         this.user.save('layouts', P.layouts as never)
         return undefined as Results[M]

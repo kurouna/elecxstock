@@ -15,5 +15,25 @@ export interface ElecxstockBridge {
   setChrome(theme: string, scale: number): Promise<boolean>
   /** 同梱 OSS のライセンス一覧 */
   notices(): Promise<string>
+  /** アプリを終える（どの窓からでも全部を閉じる） */
+  quit(): Promise<boolean>
+  // ---- マルチモニタ（docs/design-multimonitor.md）
+  /** フリー N を開く（slot が null なら空いている番号）。shape は初期の形。開いた番号を返す */
+  openWindow(slot: string | null, shape?: string): Promise<string | null>
+  /** 開いているウィンドウ・いま前にある窓・自分 */
+  windowInfo(): Promise<{ open: string[]; active: string; self: string | null } | null>
+  /** 次・前のウィンドウへ（Ctrl+F6） */
+  cycleWindow(dir: 1 | -1): Promise<string | null>
+  /** このウィンドウの文字の大きさ（+1 / −1、0 で戻す） */
+  zoomWindow(step: number | null): Promise<number | null>
+  /** フリー N へ銘柄を送る（R4。開いていなければ開く）。送った先を返す */
+  sendToFree(ids: string[]): Promise<string | null>
+  /** フリー N の準備ができた（読み込み前に送られた銘柄を受け取る） */
+  freeReady(): Promise<string[]>
+  onReceive(cb: (ids: string[]) => void): () => void
+  /** ウィンドウをまたぐ知らせ（R3: リンク）。main が番号を付けて配り、最後の値を覚える */
+  busPublish(topic: string, data: unknown): void
+  busLast(): Promise<{ topic: string; data: unknown; seq: number }[]>
+  onBus(cb: (m: { topic: string; data: unknown; seq: number }) => void): () => void
   platform: string
 }

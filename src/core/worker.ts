@@ -33,28 +33,47 @@ interface PortLike {
   postMessage(msg: unknown): void
   on(ev: 'message', f: (e: { data: unknown }) => void): void
   start(): void
+  close?(): void
 }
-let port: PortLike | null = null
-const send = (msg: unknown) => port?.postMessage(msg)
+/** ウィンドウ（スロット）ごとのポート（マルチモニタ）。返事は来たポートへ、イベントは全部へ */
+const ports = new Map<string, PortLike>()
+const broadcast = (msg: unknown) => {
+  for (const p of ports.values()) p.postMessage(msg)
+}
+/** 表示中の銘柄（FR-F8）はウィンドウごとに受け、和集合で使う */
+const shown = new Map<string, string[]>()
+const prioritizeAll = () => service.prioritize([...new Set([...shown.values()].flat())].slice(0, 400))
+/** 利用者のデータを変えたら、どのウィンドウからかを添えて全部に知らせる（ほかの窓が読み直す） */
+const CHANGES: Partial<Record<string, 'settings' | 'watchlists' | 'holdings'>> = {
+  'user.saveSettings': 'settings',
+  'user.saveWatchlists': 'watchlists',
+  'watchlists.toggleItem': 'watchlists',
+  'portfolio.save': 'holdings',
+  'portfolio.applyImport': 'holdings',
+  'portfolio.applyCsv': 'holdings',
+  'portfolio.undoImport': 'holdings',
+}
 
 const provider = process.env.ELECXSTOCK_PROVIDER === 'stub' ? createStubProvider() : createYahooProvider()
 const service = new CoreService(
   dataDir,
   provider,
-  <E extends keyof Events>(event: E, data: Events[E]) => send({ event, data }),
+  <E extends keyof Events>(event: E, data: Events[E]) => broadcast({ event, data }),
   process.env.ELECXSTOCK_VERSION ?? '0.0.0',
   log,
 )
 log(`core start provider=${provider.id}`)
 
-async function handle(msg: { id: number; method: string; params: unknown }): Promise<void> {
+async function handle(slot: string, port: PortLike, msg: { id: number; method: string; params: unknown }): Promise<void> {
   const { id, method } = msg
+  const send = (m: unknown) => port.postMessage(m)
   try {
     if (method === 'jobs.prioritize') {
       const ids = Array.isArray(msg.params)
         ? msg.params.filter((x): x is string => typeof x === 'string' && x.length <= 24).slice(0, 200)
         : []
-      service.prioritize(ids)
+      shown.set(slot, ids)
+      prioritizeAll()
       return send({ id, result: null })
     }
     const schema = PARAMS[method as Method]
@@ -63,6 +82,14 @@ async function handle(msg: { id: number; method: string; params: unknown }): Pro
     if (!parsed.success) throw { code: 'invalid-params', message: parsed.error.issues[0]?.message } satisfies CoreError
     const result = await service.call(method as Method, parsed.data as never)
     send({ id, result })
+    const kind = CHANGES[method]
+    if (kind) {
+      const p = parsed.data as { list?: string; id?: string }
+      broadcast({
+        event: 'user.changed',
+        data: { kind, from: slot, ...(method === 'watchlists.toggleItem' ? { op: { list: p.list, id: p.id } } : {}) },
+      })
+    }
   } catch (e) {
     const err = e as Partial<CoreError> & { message?: string; code?: string }
     const code = (err.code === 'read-only' ? 'read-only' : (err.code as CoreError['code'])) ?? 'internal'
@@ -93,8 +120,13 @@ parentPort.on('message', (e) => {
     return
   }
   if (d?.type === 'port' && e.ports[0]) {
-    port = e.ports[0]
-    port.on('message', (m) => void handle(m.data as { id: number; method: string; params: unknown }))
+    // 同じウィンドウが読み込み直したら、古いポートを閉じて置き換える
+    const slot = typeof (d as { slot?: unknown }).slot === 'string' ? (d as { slot: string }).slot : 'main'
+    const port = e.ports[0]
+    ports.get(slot)?.close?.()
+    ports.set(slot, port)
+    shown.delete(slot)
+    port.on('message', (m) => void handle(slot, port, m.data as { id: number; method: string; params: unknown }))
     port.start()
   }
 })

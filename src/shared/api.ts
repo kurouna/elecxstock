@@ -145,6 +145,8 @@ export const PARAMS = {
   }),
   'portfolio.undoImport': z.object({}),
   'portfolio.meta': z.object({}),
+  'user.saveWindowLayout': z.object({ slot: z.enum(['free2', 'free3', 'free4']), entry: z.unknown() }),
+  'watchlists.toggleItem': z.object({ list: z.string().max(40), id }),
   'portfolio.previewCsv': z.object({ text: z.string().max(20_000_000) }),
   'portfolio.applyCsv': z.object({ holdings: z.array(holdingSchema).max(5000), meta: portfolioMetaSchema }),
   'bars.csv': z.object({ ids: z.array(id).max(500), from: jstDate.optional(), to: jstDate.optional() }),
@@ -209,6 +211,8 @@ export interface Results {
   'portfolio.applyImport': Holding[]
   'portfolio.undoImport': Holding[] | null
   'portfolio.meta': PortfolioMeta | null
+  'user.saveWindowLayout': undefined
+  'watchlists.toggleItem': Watchlist[]
   'portfolio.previewCsv': BrokerCsvPreview
   'portfolio.applyCsv': Holding[]
   'bars.csv': string
@@ -237,6 +241,8 @@ export interface Events {
   'data.updated': { ids: InstrumentId[]; metrics: boolean }
   'user.error': { message: string }
   'provider.state': { offline: boolean; paused: boolean; message?: string }
+  /** 利用者のデータが変わった（マルチモニタ）。from は変えたウィンドウ。op は★・◆の切り替え */
+  'user.changed': { kind: 'settings' | 'watchlists' | 'holdings'; from: string; op?: { list: string; id: string } }
 }
 export type EventName = keyof Events
 

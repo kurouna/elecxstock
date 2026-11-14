@@ -18,6 +18,7 @@ import type {
 } from '@shared/types'
 import { SvelteMap } from 'svelte/reactivity'
 import { DICTS, format, type Key } from '../lib/i18n'
+import { IS_FREE } from '../lib/windowSlot'
 
 const raw = window.elecxstock
 /** Core への窓口。Svelte の状態（Proxy）は構造化複製できないので、送る前に必ずスナップショットにする */
@@ -226,8 +227,17 @@ export function flushListSaves(): void {
     flushWatchlists()
   }
 }
+/** フリー N の★・◆: 利用者のデータは Core が書き、ほかの窓へ知らせる（マルチモニタ） */
+function toggleViaCore(list: 'favorites' | 'candidates', id: InstrumentId, on: Key, off: Key): void {
+  const was = (list === 'favorites' ? favorites() : candidates()).items.includes(id)
+  void rpc('watchlists.toggleItem', { list, id }).then((ls) => {
+    app.watchlists = ls
+    toast(t(was ? off : on, { name: nameOf(id) }))
+  })
+}
 export function toggleFav(id: InstrumentId | null | undefined): void {
   if (!id) return
+  if (IS_FREE) return void toggleViaCore('favorites', id, 'fav.on', 'fav.off')
   const f = favorites()
   if (f.items.includes(id)) {
     f.items = f.items.filter((x) => x !== id)
@@ -240,6 +250,7 @@ export function toggleFav(id: InstrumentId | null | undefined): void {
 }
 export function toggleCand(id: InstrumentId | null | undefined): void {
   if (!id) return
+  if (IS_FREE) return void toggleViaCore('candidates', id, 'cand.on', 'cand.off')
   const c = candidates()
   if (c.items.includes(id)) {
     c.items = c.items.filter((x) => x !== id)
@@ -251,6 +262,7 @@ export function toggleCand(id: InstrumentId | null | undefined): void {
   saveWatchlists()
 }
 export function addToList(listId: string, ids: InstrumentId[]): void {
+  if (IS_FREE) return void toast(t('win.notInFree'))
   const l = app.watchlists.find((w) => w.id === listId)
   if (!l) return
   const add = ids.filter((id) => !l.items.includes(id))
@@ -272,6 +284,16 @@ export function saveSettings(patch: Partial<Settings>): void {
   applySettingsToDom()
   void rpc('user.saveSettings', { settings: $state.snapshot(app.settings) }).catch(() => {})
 }
+/** このウィンドウだけの文字の倍率（マルチモニタ R2）。設定の uiScale に掛ける */
+export const winZoom = { v: 1 }
+/** このウィンドウの倍率を 1 段変える（0 で戻す） */
+export async function zoomThisWindow(step: number): Promise<void> {
+  const z = await window.elecxstock.zoomWindow(step)
+  if (typeof z !== 'number') return
+  winZoom.v = z
+  applySettingsToDom()
+  toast(t('win.zoom', { pct: Math.round(z * 100) }))
+}
 export function applySettingsToDom(): void {
   const r = document.documentElement
   r.lang = app.settings.lang
@@ -281,7 +303,7 @@ export function applySettingsToDom(): void {
   r.dataset.theme = app.settings.theme
   r.dataset.focusAlways = String(app.settings.focusAlways)
   void raw.setChrome?.(app.settings.theme, app.settings.uiScale)
-  r.style.zoom = String(app.settings.uiScale)
+  r.style.zoom = String(Math.round(app.settings.uiScale * winZoom.v * 100) / 100)
 }
 
 // ---------------------------------------------------------------- overlays（promise で答えを待つ）

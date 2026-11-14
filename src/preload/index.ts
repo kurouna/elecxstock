@@ -68,6 +68,26 @@ const api: ElecxstockBridge = {
   exportBackup: (file: string) => ipcRenderer.invoke('app:exportBackup', file) as Promise<boolean>,
   openLogs: () => ipcRenderer.invoke('app:openLogs') as Promise<boolean>,
   setChrome: (theme: string, scale: number) => ipcRenderer.invoke('app:setChrome', theme, scale) as Promise<boolean>,
+  quit: () => ipcRenderer.invoke('app:quit') as Promise<boolean>,
+  // マルチモニタ（docs/design-multimonitor.md）
+  openWindow: (slot: string | null, shape?: string) => ipcRenderer.invoke('win:open', slot, shape) as Promise<string | null>,
+  windowInfo: () => ipcRenderer.invoke('win:info') as Promise<{ open: string[]; active: string; self: string | null } | null>,
+  cycleWindow: (dir: 1 | -1) => ipcRenderer.invoke('win:cycle', dir) as Promise<string | null>,
+  zoomWindow: (step: number | null) => ipcRenderer.invoke('win:zoom', step) as Promise<number | null>,
+  sendToFree: (ids: string[]) => ipcRenderer.invoke('win:send', ids) as Promise<string | null>,
+  freeReady: () => ipcRenderer.invoke('win:ready') as Promise<string[]>,
+  onReceive: (cb: (ids: string[]) => void) => {
+    const f = (_e: unknown, ids: string[]) => cb(ids)
+    ipcRenderer.on('win:receive', f)
+    return () => void ipcRenderer.off('win:receive', f)
+  },
+  busPublish: (topic: string, data: unknown) => ipcRenderer.send('bus:publish', topic, data),
+  busLast: () => ipcRenderer.invoke('bus:last') as Promise<{ topic: string; data: unknown; seq: number }[]>,
+  onBus: (cb: (m: { topic: string; data: unknown; seq: number }) => void) => {
+    const f = (_e: unknown, m: { topic: string; data: unknown; seq: number }) => cb(m)
+    ipcRenderer.on('bus', f)
+    return () => void ipcRenderer.off('bus', f)
+  },
   platform: process.platform,
 }
 contextBridge.exposeInMainWorld('elecxstock', api)

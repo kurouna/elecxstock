@@ -19,6 +19,7 @@ import {
   t,
   toast,
   toggleFav,
+  zoomThisWindow,
 } from '../stores/app.svelte'
 import {
   allPanes,
@@ -57,6 +58,7 @@ import { matches, normalizeKey } from './keys'
 import { paneApi } from './panes'
 import { exportHoldings, importBrokerCsv, importHoldings, undoHoldingsImport } from './portfolio'
 import { confirmCloseScreen } from './screens'
+import { blockedInFree, FREE_WIDGETS, freeNo, IS_FREE } from './windowSlot'
 
 export interface Action {
   id: string
@@ -573,8 +575,57 @@ export const ACTIONS: Action[] = [
   { id: 'jobs', label: () => t('act.jobs'), run: () => openPane('jobs') },
   { id: 'fullscreen', label: () => t('act.fullscreen'), key: 'F11', when: 'global', run: () => toggleFullscreen() },
   // アプリを終了する。閉じる前の保存（beforeunload）はウィンドウを閉じるときと同じ
-  { id: 'quit', label: () => t('act.quit'), key: 'Ctrl+Shift+Q', when: 'global', run: () => window.close() },
+  { id: 'quit', label: () => t('act.quit'), key: 'Ctrl+Shift+Q', when: 'global', run: () => void window.elecxstock.quit() },
+  // ---- マルチモニタ（docs/design-multimonitor.md）
+  { id: 'newWindow', label: () => t('act.newWindow'), key: 'Ctrl+Alt+N', when: 'global', run: () => newWindowDialog() },
+  { id: 'nextWindow', label: () => t('act.nextWindow'), key: 'Ctrl+F6', when: 'global', run: () => void window.elecxstock.cycleWindow(1) },
+  {
+    id: 'prevWindow',
+    label: () => t('act.prevWindow'),
+    key: 'Ctrl+Shift+F6',
+    when: 'global',
+    run: () => void window.elecxstock.cycleWindow(-1),
+  },
+  ...(['free2', 'free3', 'free4'] as const).map((s) => ({
+    id: `open.${s}`,
+    label: () => t('act.openFree', { n: freeNo(s) }),
+    run: () => void window.elecxstock.openWindow(s),
+  })),
+  { id: 'zoomIn', label: () => t('act.zoomIn'), key: 'Ctrl+Alt+=', when: 'global', run: () => void zoomThisWindow(1) },
+  { id: 'zoomOut', label: () => t('act.zoomOut'), key: 'Ctrl+Alt+-', when: 'global', run: () => void zoomThisWindow(-1) },
+  { id: 'zoomReset', label: () => t('act.zoomReset'), key: 'Ctrl+Alt+0', when: 'global', run: () => void zoomThisWindow(0) },
+  { id: 'sendToFree', label: () => t('act.sendToFree'), key: 'Ctrl+Alt+Enter', when: 'global', run: () => sendToFree() },
 ]
+// フリー N では、タブ・ドロワー・設定・利用者のデータの編集を使わない（1 枚目で）
+for (const a of ACTIONS) {
+  const orig = a.run
+  a.run = () => (IS_FREE && blockedInFree(a.id) ? toast(t('win.notInFree')) : orig())
+}
+/** 新しいフリー N を開く（Ctrl+Alt+N）: 初期の形を選ぶ。前に閉じた番号の配置が残っていれば「前回の配置」も選べる */
+async function newWindowDialog(): Promise<void> {
+  const info = await window.elecxstock.windowInfo()
+  const next = (['free2', 'free3', 'free4'] as const).find((s) => !info?.open.includes(s))
+  if (!next) return void toast(t('win.full'))
+  const raw = (await rpc('user.load', {})).layout as { windows?: Record<string, unknown> } | null
+  const choices = [
+    ...(raw?.windows?.[next] ? [{ id: 'last', label: t('win.shape.last', { n: freeNo(next) }), hint: t('win.shape.lastHint') }] : []),
+    { id: 'grid', label: t('win.shape.grid'), hint: t('win.shape.gridHint') },
+    { id: 'quad', label: t('win.shape.quad'), hint: t('win.shape.quadHint') },
+    { id: 'detail', label: t('win.shape.detail'), hint: t('win.shape.detailHint') },
+    { id: 'empty', label: t('win.shape.empty'), hint: t('win.shape.emptyHint') },
+  ]
+  const c = await choiceDialog(t('win.newTitle', { n: freeNo(next) }), choices)
+  if (!c) return
+  await window.elecxstock.openWindow(next, c === 'last' ? undefined : c)
+}
+/** 1 枚目の一覧で選んだ銘柄をフリー N へ送る（R4、Ctrl+Alt+Enter。ウィンドウをまたぐドラッグのキーの代わり） */
+async function sendToFree(): Promise<void> {
+  const sel = paneApi(app.focus)?.selected?.()
+  const ids = sel?.length ? sel : focusedSymbol() ? [focusedSymbol()!] : []
+  if (!ids.length) return
+  const to = await window.elecxstock.sendToFree(ids)
+  if (to) toast(t('win.sent', { n: freeNo(to), count: ids.length }))
+}
 
 function focusNew(id: string | null): void {
   if (id) setFocus(id)
@@ -609,7 +660,7 @@ async function changeWidgetDialog(): Promise<void> {
   if (!id) return
   const w = await choiceDialog(
     t('act.changeWidget'),
-    WIDGETS.map((x) => ({ id: x, label: t(`widget.${x}` as Key) })),
+    (IS_FREE ? FREE_WIDGETS : WIDGETS).map((x) => ({ id: x, label: t(`widget.${x}` as Key) })),
   )
   if (w) changeWidget(id, w as (typeof WIDGETS)[number])
 }

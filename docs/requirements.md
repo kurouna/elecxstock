@@ -332,7 +332,7 @@ type LinkGroup = 'red' | 'green' | 'blue' | 'yellow' | 'purple'
 | FR-L4  | 今のレイアウト（分割・ペイン・ドロワー・選んだリストなど）は作業に追従して自動保存し、次回起動時に戻す（P1）。名前を付けた保存・名前変更・削除・一覧（Ctrl+Shift+L）は P2                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | P1 / P2 |
 | FR-L5  | プリセットを同梱し（§6.4）、Ctrl+Shift+1〜8 で切り替える（並びは マーケット・スクリーナー・グリッド・MTF・トリプル・インカム・保有・フリー。市場全体 → 探す → 見比べる → 1 銘柄を深く → 配当 → 保有 → 自由に組む）。タブにはショートカットの数字をキーの形で添える。プリセットはテンプレートで、切り替えたあとの変更はそのプリセットの「今のレイアウト」として保存される                                                                                                                                                                                                                                                                     | P1      |
 | FR-L6  | レイアウトの変更は純粋関数（layout-ops）で行い、ディスクから読んだ木は正規化してから使う                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | P1      |
-| FR-L7  | ペインを別ウィンドウに切り出す（マルチモニタ）。ウィンドウごとにレイアウトと位置を復元                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | P3      |
+| FR-L7  | **フリーのウィンドウ（マルチモニタ）**: 2 枚目以降はタブなしの「フリー 2〜4」（最大 3 枚）。チャート・MTF・グリッド・銘柄情報だけを並べ、レイアウトは窓ごとに保存して、位置（モニタの組み合わせごと）・文字の大きさとともに再起動で戻す。銘柄は 1 枚目の一覧からのドラッグ、銘柄ジャンプ、Ctrl+Alt+Enter（送る）で足す。リンク色を付けたペインは 1 枚目の同じ色の銘柄を追う。設定・リストの編集は 1 枚目だけ（★・◆は可）。設計は docs/design-multimonitor.md                                                                                                                                                                                 | P3 ✓    |
 | FR-L8  | ペイン 1 つの例外はそのペインだけを止め、再試行とエラー通知を出す                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | P1      |
 | FR-L9  | **サイズを元に戻す**: 今のレイアウトの区切り線の比率とドロワーの幅を、プリセットの初期値に一度に戻す。ペインの並び・中身（グリッドの銘柄など）は変えない。比率は木の位置ではなく中身で探す（プリセットのうち向き・子の数が同じで、子の中のペインがいちばん重なる区切りの比率。似たものが無ければ等分）。ペインをドロワーに移したあとや前の版で保存した形でも、例えば MTF の日足は大きいまま戻る。トップバーのボタン・コマンドバー・キー（Ctrl+Alt+R）から実行でき、確認は出さずに実行して「元に戻す」（10 秒間、Ctrl+Z）を出す。押しても変わらないとき（既定の大きさのまま・ペインの最大化中）はボタンを押せなくし、理由をツールチップに出す | P1      |
 | FR-L10 | **レイアウトを初期状態に戻す**: ペインの並び・中身も含めて、表示中のタブのレイアウトだけをプリセットの初期状態に戻す（ほかのタブ・ウォッチリスト・スクリーン・保有・保存したレイアウトは変えない。確認と完了の通知にタブの名前を出す）。グリッドの銘柄などが失われるので、失われるものを示して確認してから行う。コマンドバーから実行する                                                                                                                                                                                                                                                                                                     | P1      |
@@ -434,7 +434,11 @@ type LinkGroup = 'red' | 'green' | 'blue' | 'yellow' | 'purple'
 | 一覧内の検索                                                                    | **Ctrl+F**                                     |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | 設定                                                                            | **Ctrl+,**                                     | データの削除と取り直し（FR-S6, S7）もここから。コマンドバーからも実行できる                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | 全画面                                                                          | **F11**                                        |
-| アプリを終了                                                                    | **Ctrl+Shift+Q**                               |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| アプリを終了                                                                    | **Ctrl+Shift+Q**                               | どのウィンドウから押してもアプリ全体を終える                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 新しいフリーのウィンドウを開く（初期の形を選ぶ）                                | **Ctrl+Alt+N**                                 | FR-L7。閉じたフリー N はコマンドバー「フリー N を開く」で開き直す                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 次 / 前のウィンドウへ                                                           | **Ctrl+F6 / Ctrl+Shift+F6**                    | FR-L7                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 選んだ銘柄をフリーのウィンドウへ送る                                            | **Ctrl+Alt+Enter**                             | FR-L7。最後に使ったフリー N のフォーカス中のペインへ（無ければ開く）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| このウィンドウの文字を大きく / 小さく / 戻す                                    | **Ctrl+Alt+= / Ctrl+Alt+- / Ctrl+Alt+0**       | FR-L7。窓ごとに覚える                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 確認ダイアログで取り消し / 実行を選ぶ・決める（危険な操作は取り消しから始まる） | **← → ↑ ↓**・**Enter**（Esc で取り消し）       |
 | 閉じる・取り消す                                                                | **Esc**                                        | ダイアログ、コマンドバー、最大化の順に戻す                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 左 / 右のドロワーを開く・閉じる                                                 | **Ctrl+B / Ctrl+Shift+B**                      | 開くとドロワーにフォーカスが移り、Esc で閉じて元のペインに戻る                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -584,9 +588,24 @@ type LinkGroup = 'red' | 'green' | 'blue' | 'yellow' | 'purple'
       "account": "nisa_growth",
       "quantity": 300,
       "avgCost": 2680.5,
-      "lots": [{ "date": "2024-03-04", "side": "buy", "quantity": 300, "price": 2680.5, "fee": 0 }]
+      "lots": [
+        {
+          "date": "2024-03-04",
+          "side": "buy",
+          "quantity": 300,
+          "price": 2680.5,
+          "fee": 0
+        }
+      ]
     },
-    { "code": "8951", "name": "日本ビルファンド投資法人", "account": "tokutei", "quantity": 10, "avgCost": 118400, "broker": "○○証券" }
+    {
+      "code": "8951",
+      "name": "日本ビルファンド投資法人",
+      "account": "tokutei",
+      "quantity": 10,
+      "avgCost": 118400,
+      "broker": "○○証券"
+    }
   ]
 }
 ```
@@ -727,10 +746,16 @@ interface ElecxstockApi {
     get(
       id: InstrumentId,
       tf: 'D' | 'W' | 'M',
-      opt?: { from?: JstDate; adjustment?: 'split' | 'unadjusted' | 'total'; signal?: AbortSignal },
+      opt?: {
+        from?: JstDate
+        adjustment?: 'split' | 'unadjusted' | 'total'
+        signal?: AbortSignal
+      },
     ): Promise<Bars>
   } // FR-C4。既定は 'split'
-  barsMany: { get(ids: InstrumentId[], tf: 'D' | 'W' | 'M', opt: { from: JstDate }): Promise<Map<InstrumentId, Bars>> } // chart-grid 用（FR-G9）
+  barsMany: {
+    get(ids: InstrumentId[], tf: 'D' | 'W' | 'M', opt: { from: JstDate }): Promise<Map<InstrumentId, Bars>>
+  } // chart-grid 用（FR-G9）
   dividends: { history(id: InstrumentId): Promise<DividendRecord[]> }
   metrics: { get(ids: InstrumentId[]): Promise<MetricsRow[]> } // as_of・仮の印つき（FR-S13）
   screener: {
@@ -742,7 +767,11 @@ interface ElecxstockApi {
     favorites(): Promise<InstrumentId[]> // 組み込みリスト 'favorites' の中身（watchlists の薄い包み）
     setFavorite(id: InstrumentId, on: boolean): Promise<void> // Ctrl+D
     setCandidate(id: InstrumentId, on: boolean): Promise<void> // chart-grid の Space（組み込みリスト 'candidates'）
-    watchlists: { list(): Promise<Watchlist[]>; save(w: Watchlist): Promise<void>; remove(id: string): Promise<void> }
+    watchlists: {
+      list(): Promise<Watchlist[]>
+      save(w: Watchlist): Promise<void>
+      remove(id: string): Promise<void>
+    }
     screens: {
       // 名前を付けたスクリーン（FR-SC12〜16）
       list(): Promise<SavedScreen[]>
@@ -753,7 +782,10 @@ interface ElecxstockApi {
       restoreDefaults(): Promise<void>
     }
     layout: { load(): Promise<Layout>; save(l: Layout): Promise<void> }
-    settings: { get(): Promise<Settings>; set(patch: Partial<Settings>): Promise<void> }
+    settings: {
+      get(): Promise<Settings>
+      set(patch: Partial<Settings>): Promise<void>
+    }
     exportAll(): Promise<string>
     importAll(json: string): Promise<ImportReport>
     onChanged(cb: (what: 'favorites' | 'watchlists' | 'settings') => void): Unsubscribe
@@ -768,7 +800,10 @@ interface ElecxstockApi {
     cancel(id: JobId): Promise<void>
     onProgress(cb: (p: JobProgress) => void): Unsubscribe
   }
-  data: { status(): Promise<DataStatus>; onUpdated(cb: (ids: InstrumentId[]) => void): Unsubscribe } // FR-S5
+  data: {
+    status(): Promise<DataStatus>
+    onUpdated(cb: (ids: InstrumentId[]) => void): Unsubscribe
+  } // FR-S5
   portfolio: {
     // P2（FR-H7〜H10）。P1 では予約のみ
     list(): Promise<Holding[]>
