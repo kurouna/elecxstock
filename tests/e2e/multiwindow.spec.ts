@@ -28,6 +28,10 @@ async function openFree(app: ElectronApplication, page: Page, label: string): Pr
 test('フリー 2: キーで開き、銘柄ジャンプで足し、タブ・設定は 1 枚目だけ', async () => {
   const { app, page } = await launch()
   await ready(page)
+  // タイトルバーのボタンでも開ける（Ctrl+Alt+N と同じダイアログ）
+  await page.getByRole('button', { name: '新しいウィンドウ（フリー）を開く' }).click()
+  await expect(page.locator('.dialog')).toContainText('初期の形')
+  await keys(page, 'Escape')
   const free = await openFree(app, page, 'チャートグリッド')
   await expect(free.locator('.wname')).toHaveText('フリー 2')
   await expect(free.locator('.presets')).toHaveCount(0)

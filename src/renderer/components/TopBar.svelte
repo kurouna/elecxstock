@@ -42,6 +42,8 @@ onMount(() => {
     <span class="ic">›</span><span class="ph">{t('top.search')}</span><kbd>Ctrl+K</kbd>
   </button>
   <div class="right">
+    <!-- 2 枚目以降のモニタ用のフリーのウィンドウを開く（Ctrl+Alt+N と同じ。初期の形を選ぶ） -->
+    <button type="button" class="ibtn" onclick={() => runAction('newWindow')} aria-label={t('act.newWindow')} title={`${t('act.newWindow')} (${keyOf('newWindow')})`}><Icon name="newWindow" /></button>
     <!-- 押しても変わらないとき（既定のまま・最大化中）は押せない -->
     <button type="button" class="ibtn" onclick={doResetSizes} disabled={!!app.maximized || sizesAtDefault()} aria-label={t('top.resetSizes')} title={`${t('top.resetSizes')}${app.maximized ? ` — ${t('top.resetSizesMax')}` : sizesAtDefault() ? ` — ${t('top.resetSizesNone')}` : ` (${keyOf('resetSizes')})`}`}><Icon name="resetSize" /></button>
     <span class="pill" class:open={market === 'open'}>{t(market === 'open' ? 'market.open' : market === 'holiday' ? 'market.holiday' : 'market.closed')}</span>
