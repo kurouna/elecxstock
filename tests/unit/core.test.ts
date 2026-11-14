@@ -149,7 +149,7 @@ describe('Core（スタブのプロバイダで端から端まで）', () => {
     const st = await svc.call('data.status', {})
     expect(st.retentionYears).toBe(2)
     expect(st.oldestBar! >= plan.deleteBefore!).toBe(true)
-  })
+  }, 30_000) // VACUUM と全銘柄の再計算をするので、遅い CI では 5 秒を超えることがある
 
   it('全データの削除と取り直しで、利用者のデータは残る（FR-S6）', async () => {
     const wl = (await svc.call('user.load', {})).watchlists

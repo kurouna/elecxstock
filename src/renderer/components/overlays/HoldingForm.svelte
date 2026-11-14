@@ -41,9 +41,12 @@ $effect(() => {
     if (my !== candToken) return
     cands = r
     ci = 0
+    moved = false
   })
 })
 const showCands = $derived(codeFocused && cands.length > 0 && !(cands.length === 1 && cands[0]!.code === C))
+/** 候補を矢印キーで選んだか（選んでいなければ、打ったコードを優先する） */
+let moved = false
 function pick(x: Instrument | undefined) {
   if (!x) return
   code = x.code
@@ -54,11 +57,17 @@ function codeKey(e: KeyboardEvent) {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault()
     ci = Math.max(0, Math.min(cands.length - 1, ci + (e.key === 'ArrowDown' ? 1 : -1)))
+    moved = true
   } else if (e.key === 'Enter' || e.key === 'Tab') {
     // 候補を選んでから次の項目へ（Enter はここでは保存しない）
     if (e.key === 'Enter') {
       e.preventDefault()
       e.stopPropagation()
+    }
+    // コードを打ち切っていて候補を矢印で選んでいなければ、打ったコードのまま（候補が打ち途中の古い結果でも取り違えない）
+    if (!moved && CODE_RE.test(C)) {
+      cands = []
+      return
     }
     pick(cands[ci])
   }

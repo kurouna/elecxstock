@@ -164,8 +164,8 @@ test('保有のフォームでグロースの銘柄を足しても、利用者�
   await expect(page.locator('[data-widget="portfolio"]')).toHaveClass(/focused/)
   await keys(page, 'Insert')
   const form = page.locator('.dialog.holding')
+  // コードを打ち切ってすぐ Tab: 候補が「130」の古い結果（先頭が 1306）のままでも、打ったコード 130A になる
   await page.keyboard.type('130A')
-  await expect(form).toContainText('Veritas') // 候補が 130A になってから進む（「130」の候補で決めない）
   await keys(page, 'Tab', 'Tab')
   await page.keyboard.type('100')
   await keys(page, 'Tab')
