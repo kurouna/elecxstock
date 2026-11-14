@@ -5,10 +5,10 @@
 //   DEMO_SIZE=1920x1080  窓の中身の大きさ（既定は最大化。キャプチャする大きさに合わせる）
 //   DEMO_WAIT=8          タイトルを出してから始めるまでの秒数（その間に録画を始める）
 //   DEMO_SPEED=1         速さの倍率（1.5 で速く、0.8 でゆっくり）
-//   DEMO_MULTI=0         2 枚目の窓（フリー 2）の場面を飛ばす
+//   DEMO_MULTI=1         2 枚目の窓（フリー 2）を実際に開く場面にする（既定はマルチモニタの説明の画面だけ）
 //   DEMO_SHOTS=<フォルダ> 場面ごとにスクリーンショットを残す（確認用）。DEMO_EXIT=1 で終わったら閉じる
 // 終わったら終わりの画面のまま止まる。窓を閉じると終わる。
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from '@playwright/test'
@@ -16,8 +16,10 @@ import { _electron as electron } from '@playwright/test'
 const SPEED = Number(process.env.DEMO_SPEED ?? 1) || 1
 const WAIT = Number(process.env.DEMO_WAIT ?? 8)
 const SIZE = process.env.DEMO_SIZE ?? 'max'
-const MULTI = process.env.DEMO_MULTI !== '0'
+const MULTI = process.env.DEMO_MULTI === '1'
 const SHOTS = process.env.DEMO_SHOTS
+/** マルチモニタの説明に使う画像（README のスクリーンショット。値は架空） */
+const MULTI_IMG = `data:image/png;base64,${readFileSync(join(process.cwd(), 'docs', 'screenshots', 'multi.png')).toString('base64')}`
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms / SPEED))
 const userData = mkdtempSync(join(tmpdir(), 'elecxstock-demo-'))
 const env = { ...process.env, ELECXSTOCK_PROVIDER: 'stub', ELECXSTOCK_USER_DATA: userData }
@@ -39,8 +41,15 @@ const call = (page, method, params = {}) => page.evaluate(([m, p]) => window.ele
   const fav = ['JP:8058', 'JP:7203', 'JP:8306', 'JP:9434', 'JP:94345', 'JP:8951', 'JP:3462', 'JP:8963', 'JP:2914', 'JP:8766']
   // 高配当のリスト（インカムのタブ）: J-REIT と 5 桁の優先株
   const income = ['JP:8951', 'JP:3462', 'JP:8963', 'JP:3281', 'JP:94345', 'JP:2914']
+  // 監視のリスト（グリッドで 30 枚を並べる）: スタブのプライム・J-REIT から 30 銘柄
+  const all = await call(page, 'instruments.all')
+  const watch = all
+    .filter((i) => i.market === 'P' || i.market === 'R')
+    .map((i) => i.id)
+    .slice(0, 30)
   const is = (w, id) => w.builtin === id || w.id === id
-  const lists = u.watchlists.map((w) => (is(w, 'favorites') ? { ...w, items: fav } : is(w, 'income') ? { ...w, items: income } : w))
+  const items = (w) => (is(w, 'favorites') ? fav : is(w, 'income') ? income : is(w, 'watch') ? watch : w.items)
+  const lists = u.watchlists.map((w) => ({ ...w, items: items(w) }))
   await call(page, 'user.saveWatchlists', { watchlists: lists })
   // 保有（数量・取得単価はすべて架空）
   await call(page, 'portfolio.save', {
@@ -237,6 +246,35 @@ const card = (p, lines) =>
     if (note) note.style.display = 'none'
   }, lines)
 
+/** 説明の画面（画像と文。null で消す） */
+const panel = (p, o) =>
+  p.evaluate((o) => {
+    const c = document.getElementById('demo-card')
+    const note = document.getElementById('demo-note')
+    if (!c) return
+    if (!o) {
+      c.style.opacity = '0'
+      setTimeout(() => (c.style.display = 'none'), 500)
+      if (note) note.style.display = ''
+      return
+    }
+    const h = document.createElement('div')
+    h.textContent = o.title
+    Object.assign(h.style, { fontSize: '40px', fontWeight: '800' })
+    const img = document.createElement('img')
+    img.src = o.img
+    Object.assign(img.style, { maxWidth: '78%', maxHeight: '58%', borderRadius: '8px', boxShadow: '0 16px 40px rgba(0,0,0,.5)' })
+    const ls = o.lines.map((s) => {
+      const d = document.createElement('div')
+      d.textContent = s
+      Object.assign(d.style, { fontSize: '24px', color: '#d6dde8' })
+      return d
+    })
+    c.replaceChildren(h, img, ...ls)
+    c.style.display = 'flex'
+    c.style.opacity = '1'
+  }, o)
+
 /** キーを押す（少し間を空けて、見ている人が追えるように） */
 const press = async (p, ...keys) => {
   for (const k of keys) {
@@ -324,6 +362,17 @@ await press(page, 'NumpadAdd')
 await sleep(1100)
 await press(page, 'NumpadAdd')
 await sleep(1300)
+// 最大の 30 枚（6×5）: 対象を 30 銘柄の「監視」のリストに切り替える（G キー。Shift+G で逆順）
+await caption(page, 'G キーで対象をウォッチリストに切り替え、最大 30 枚（6×5）のチャートを一度に表示します')
+await press(page, 'Shift+KeyG', 'Shift+KeyG')
+await sleep(1200)
+await press(page, 'NumpadAdd')
+await sleep(900)
+await press(page, 'NumpadAdd')
+await sleep(3000)
+await shot(page, 'grid-30')
+await press(page, 'NumpadSubtract', 'NumpadSubtract')
+await sleep(800)
 // ドロワー: 普段は畳んでおき、要るときだけ引き出す。ピン留めすると開いたまま
 await caption(page, 'Ctrl+B で、左のドロワーからウォッチリストやスクリーナーを引き出せます')
 await press(page, 'Control+b')
@@ -387,7 +436,25 @@ for (let i = 0; i < 3; i++) await press(page, 'ArrowDown'), await sleep(800)
 await sleep(600)
 
 await shot(page, 'holdings')
-// 7. 2 枚目のモニタ用のフリーのウィンドウ
+// 7. マルチモニタ: 録画では映しにくいので、説明の画面（README のスクリーンショット）で見せる
+if (!MULTI) {
+  await caption(page, '')
+  await panel(page, {
+    title: 'マルチモニタに対応しています',
+    lines: [
+      'Ctrl+Alt+N で、2 枚目以降のモニタ用にチャートを並べた窓を最大 3 枚まで開けます',
+      'リンク色を付けたチャートは、1 枚目で選んだ銘柄に追従します',
+      '※ 画面は開発中のものです。値はすべて架空のデモデータです',
+    ],
+    img: MULTI_IMG,
+  })
+  await sleep(1000)
+  await shot(page, 'multi-panel')
+  await sleep(6000)
+  await panel(page, null)
+  await sleep(800)
+}
+// 7'. 2 枚目のモニタ用のフリーのウィンドウを実際に開く（DEMO_MULTI=1）
 if (MULTI) {
   await press(page, 'Control+Shift+Digit4')
   await caption(page, 'Ctrl+Alt+N で、2 枚目のモニタ用にチャートを並べた窓を開けます')
