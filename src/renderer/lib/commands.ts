@@ -12,6 +12,7 @@ import {
   closeOverlay,
   confirmDialog,
   listName,
+  loadInstruments,
   nameOf,
   promptDialog,
   rpc,
@@ -328,6 +329,7 @@ async function reloadUser(): Promise<void> {
   app.settings = u.settings
   app.layouts = u.layouts
   applySettingsToDom()
+  await loadInstruments() // 取り込んだウォッチリストの銘柄が取得の対象になる
 }
 async function undoUserImport(): Promise<void> {
   if (!(await rpc('user.undoImport', {}))) {

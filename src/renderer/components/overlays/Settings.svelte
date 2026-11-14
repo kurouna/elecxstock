@@ -5,7 +5,7 @@ import { onMount } from 'svelte'
 import { ACTIONS, checkUpdate, exportUser, importUser } from '../../lib/commands'
 import { dateTime } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
-import { app, bridge, confirmDialog, nameOf, promptDialog, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
+import { app, bridge, confirmDialog, loadInstruments, nameOf, promptDialog, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
 import KeysSettings from './KeysSettings.svelte'
 
 let { tab = 'general' }: { tab?: string } = $props()
@@ -74,6 +74,7 @@ async function addUser() {
 async function removeUser(code: string) {
   await rpc('instruments.removeUser', { code })
   app.settings = { ...app.settings, userInstruments: app.settings.userInstruments.filter((c) => c !== code) }
+  await loadInstruments()
 }
 async function importJpx() {
   const bytes = await window.elecxstock.openFile('xlsx')

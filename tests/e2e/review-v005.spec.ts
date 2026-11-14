@@ -156,3 +156,32 @@ test('リンク色を外した一覧（Ctrl+0）は、行を動かしてもチ�
   await expect.poll(followsSel).toBe(true)
   await app.close()
 })
+
+test('保有のフォームでグロースの銘柄を足しても、利用者の銘柄（設定）には入れない（保有として取得する）', async () => {
+  const { app, page } = await launch()
+  await ready(page)
+  await keys(page, 'Control+Shift+Digit7')
+  await expect(page.locator('[data-widget="portfolio"]')).toHaveClass(/focused/)
+  await keys(page, 'Insert')
+  const form = page.locator('.dialog.holding')
+  await page.keyboard.type('130A')
+  await expect(form).toContainText('Veritas') // 候補が 130A になってから進む（「130」の候補で決めない）
+  await keys(page, 'Tab', 'Tab')
+  await page.keyboard.type('100')
+  await keys(page, 'Tab')
+  await page.keyboard.type('900')
+  await keys(page, 'Enter')
+  await expect(form).toHaveCount(0)
+  await expect(page.locator('[data-widget="portfolio"] tbody tr', { hasText: '130A' })).toContainText('Veritas')
+  const user = (await page.evaluate(() =>
+    (window as unknown as { elecxstock: { call: (m: string, p: unknown) => Promise<unknown> } }).elecxstock.call('user.load', {}),
+  )) as { settings: { userInstruments: string[] } }
+  expect(user.settings.userInstruments).not.toContain('130A')
+  const [ins] = (await page.evaluate(() =>
+    (window as unknown as { elecxstock: { call: (m: string, p: unknown) => Promise<unknown> } }).elecxstock.call('instruments.get', {
+      ids: ['JP:130A'],
+    }),
+  )) as { userAdded: boolean }[]
+  expect(ins?.userAdded).toBe(true)
+  await app.close()
+})

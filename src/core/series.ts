@@ -103,10 +103,10 @@ export function adjust(days: DayBar[], adj: Adjustment, splits: Split[], dividen
 }
 
 /**
- * 月足（月次の系列）の価格の調整（FR-C4, D7）。日足の期間より前は月次の系列を使うので、日足と同じ基準にそろえる。
+ * 月足（月次の系列）の価格の調整（FR-C4, D7）。日足の最初の月までは月次の系列を使うので、日足と同じ基準にそろえる。
  * - 未調整: 分割係数で戻す
- * - 配当込み: 日足の期間の配当で日足の最初の日が受けた倍率（dailyAdj / daily）を掛け、日足より前の配当は
- *   前の月の終値で割って、その月より前の月足に掛けていく（権利落ちの月の終値は落ちたあとの値なので掛けない）
+ * - 配当込み: 日足の最初の月の最後の日が受けた倍率（dailyAdj / daily。その月より後の配当の分）を掛け、
+ *   それまでの配当は前の月の終値で割って、その月より前の月足に掛けていく（権利落ちの月の終値は落ちたあとの値なので掛けない）
  */
 export function adjustMonthly(
   monthly: DayBar[],
@@ -118,11 +118,16 @@ export function adjustMonthly(
 ): DayBar[] {
   if (adj === 'split' || !monthly.length) return monthly
   if (adj === 'unadjusted') return adjust(monthly, 'unadjusted', splits, [])
-  const first = daily[0]
-  const base = first && first.c > 0 && dailyAdj[0] ? dailyAdj[0].c / first.c : 1
+  // 日足の最初の月（月足と日足の境目。mergeMonthly はこの月まで月次の系列を使う）の最後の日
+  const firstMonth = daily[0] ? monthKey(daily[0].d) : null
+  let li = -1
+  for (let i = 0; i < daily.length && monthKey(daily[i]!.d) === firstMonth; i++) li = i
+  const last = li >= 0 ? daily[li] : undefined
+  const lastAdj = li >= 0 ? dailyAdj[li] : undefined
+  const base = last && lastAdj && last.c > 0 ? lastAdj.c / last.c : 1
   const factors = new Array<number>(monthly.length).fill(base)
   for (const dv of dividends) {
-    if (first && dv.date >= first.d) continue // 日足の期間の配当は base に入っている
+    if (last && dv.date > last.d) continue // 境目の月より後の配当は base に入っている
     const m = monthKey(dv.date)
     const i = monthly.findIndex((b) => monthKey(b.d) >= m)
     if (i <= 0) continue

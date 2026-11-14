@@ -150,9 +150,15 @@ export function nameOf(id: InstrumentId | null | undefined): string {
 export function codeOf(id: InstrumentId | null | undefined): string {
   return id ? (inst(id)?.code ?? id.replace(/^\w+:/, '')) : ''
 }
+/** 一覧（取得の対象と、指標のある銘柄）を読み直す。対象から外れた銘柄は名前を残し、取得の対象の印だけ外す */
 export async function loadInstruments(): Promise<void> {
   const all = await rpc('instruments.all', {})
-  for (const i of all) app.instruments.set(i.id, i)
+  const seen = new Set<string>()
+  for (const i of all) {
+    app.instruments.set(i.id, i)
+    seen.add(i.id)
+  }
+  for (const [id, i] of app.instruments) if (i.userAdded && !seen.has(id)) app.instruments.set(id, { ...i, userAdded: false })
 }
 const pendingMetrics = new Set<InstrumentId>()
 let metricsTimer: ReturnType<typeof setTimeout> | null = null

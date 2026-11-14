@@ -157,7 +157,11 @@ async function onUserChanged(d: { kind: string; from: string; op?: { list: strin
   }
   if (all || d.kind === 'watchlists') app.watchlists = u.watchlists
   if (all || d.kind === 'screens') app.screens = u.screens
-  if (all) await loadHoldings()
+  if (all) {
+    app.layouts = u.layouts
+    await loadHoldings()
+    await loadInstruments()
+  }
 }
 /** 起動（失敗したら理由と、再試行・ログを開くを出す。空白の画面にしない） */
 let bootError = $state<string | null>(null)

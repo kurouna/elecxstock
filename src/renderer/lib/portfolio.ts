@@ -3,7 +3,7 @@
 
 import { jstNow } from '@shared/calendar'
 import type { AccountType, Holding } from '@shared/types'
-import { app, choiceDialog, confirmDialog, holdingDialog, inst, loadInstruments, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
+import { app, choiceDialog, confirmDialog, holdingDialog, loadInstruments, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
 import type { Key } from './i18n'
 
 export const accountName = (a: AccountType) => t(`acct.${a}` as Key)
@@ -123,13 +123,11 @@ export async function editHolding(cur?: Holding): Promise<void> {
   const h = await holdingDialog(cur)
   if (!h) return
   const { lots: _lots, price: _price, ...next } = h
-  if (!inst(`JP:${next.code}`)) {
-    await rpc('instruments.addUser', { code: next.code })
-    await loadInstruments()
-  }
   const drop = new Set([keyOf(next), ...(cur ? [keyOf(cur)] : [])])
+  // 保有の銘柄は Core が取得の対象にする（一覧に無いコードだけ利用者の銘柄として足す）。名前と取得の対象を読み直す
   app.holdings = await rpc('portfolio.save', { holdings: [...app.holdings.filter((x) => !drop.has(keyOf(x))), next] })
   app.settings = (await rpc('user.load', {})).settings
+  await loadInstruments()
   toast(t('hold.saved', { name: nameOf(`JP:${next.code}`) || next.code }))
 }
 /** 保有を外す（確認してから。取り消しから始まる） */
@@ -141,6 +139,7 @@ export async function removeHolding(h: Holding): Promise<void> {
   })
   if (!r.ok) return
   app.holdings = await rpc('portfolio.save', { holdings: app.holdings.filter((x) => keyOf(x) !== keyOf(h)) })
+  await loadInstruments()
 }
 
 /** 保有の JSON 書き出し（FR-H8, H10）。個人の資産情報なので、他人と共有しないことを示す */
@@ -187,5 +186,6 @@ export async function undoHoldingsImport(): Promise<void> {
   }
   app.holdings = r
   app.portfolioMeta = await rpc('portfolio.meta', {})
+  await loadInstruments()
   toast(t('hold.undone'))
 }

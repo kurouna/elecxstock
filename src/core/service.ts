@@ -355,6 +355,7 @@ export class CoreService {
         const id = String(P.id)
         w.items = w.items.includes(id) ? w.items.filter((x) => x !== id) : [...w.items, id]
         this.user.save('watchlists', lists)
+        this.syncTracked()
         return lists as Results[M]
       }
       case 'user.saveLayouts':
@@ -363,7 +364,7 @@ export class CoreService {
       case 'user.undoImport': {
         let any = false
         for (const n of ['watchlists', 'screens', 'layouts', 'settings'] as const) if (this.user.restoreBefore(n, 'preimport')) any = true
-        if (any) r.setUserAdded(this.trackedCodes())
+        if (any) this.syncTracked()
         return any as Results[M]
       }
       case 'user.defaultScreens':
@@ -414,8 +415,11 @@ export class CoreService {
       }
       case 'user.exportAll':
         return this.user.exportAll() as Results[M]
-      case 'user.importAll':
-        return this.user.importAll(String(P.json)) as Results[M]
+      case 'user.importAll': {
+        const res = this.user.importAll(String(P.json))
+        this.syncTracked() // 取り込んだウォッチリスト・設定の銘柄を取得の対象にする
+        return res as Results[M]
+      }
       case 'jobs.start': {
         const kind = P.kind as 'initial' | 'daily' | 'universe'
         if (kind === 'universe') return this.jobs.enqueue('universe', ['U']) as Results[M]
@@ -520,6 +524,13 @@ export class CoreService {
    * 保有を変えたあと: 保有の銘柄は市場によらず取得の対象にする（スタンダード・グロース・ETF も）。
    * 一覧に無いコード（別の PC で足した銘柄など）は利用者の銘柄として足す。まだ取っていない銘柄は取りにいく（1 回のジョブで）
    */
+  /** 取得の対象（user_added）を今の設定・ウォッチリスト・保有に合わせ、まだ取っていない銘柄を取りにいく（1 回のジョブで） */
+  private syncTracked(): void {
+    this.addUserInstruments(
+      [],
+      this.trackedCodes().map((c) => idOf(c)),
+    )
+  }
   private trackHoldings(): void {
     const r = this.repo
     const hs = this.user.load('holdings')

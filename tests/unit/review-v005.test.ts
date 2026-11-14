@@ -48,6 +48,20 @@ describe('保有の銘柄は市場によらず取得する（スタンダード�
   })
 })
 
+describe('ウォッチリストの一括の取り込み・フリー N の★でも、その銘柄を取得の対象にする', () => {
+  it('user.importAll と watchlists.toggleItem のあとすぐに対象になる', async () => {
+    expect(await tracked('1306')).toBe(false)
+    const all = JSON.parse(await svc.call('user.exportAll', {}))
+    all.watchlists[0].items.push('JP:1306')
+    await svc.call('user.importAll', { json: JSON.stringify(all) })
+    expect(await tracked('1306')).toBe(true)
+    expect(await tracked('9282')).toBe(false)
+    const list = all.watchlists[0].builtin ?? all.watchlists[0].id
+    await svc.call('watchlists.toggleItem', { list, id: 'JP:9282' })
+    expect(await tracked('9282')).toBe(true)
+  })
+})
+
 describe('月足の配当込み（FR-C4）: 日足の期間より前の月足も配当で調整する', () => {
   const bar = (d: string, c: number): DayBar => ({ d, o: c, h: c, l: c, c, v: 1 })
   // 月足は 1〜6 月（終値 100）、日足は 4 月から（終値 100）。5 月 1 日に配当 10、2 月 1 日に配当 5
@@ -68,6 +82,17 @@ describe('月足の配当込み（FR-C4）: 日足の期間より前の月足も
     // 2 月の配当は前の月の終値で割る（1 − 5 / 100）。1 月はさらに 0.95 倍
     expect(close('2026-01')).toBeCloseTo(90 * 0.95)
     expect(close('2026-02')).toBeCloseTo(90)
+  })
+  it('日足の最初の月の中（日足の始まりより後）に権利落ちがあっても、その月の月足を調整しすぎない', () => {
+    // 日足は 4 月 1 日から。4 月 27 日に配当 10（権利落ち）。4 月の月足の終値は落ちたあとの値なので調整しない
+    const d2 = ['2026-04-01', '2026-04-24', '2026-04-27', '2026-04-30', '2026-05-29'].map((d) => bar(d, 100))
+    const adj2 = d2.map((b, i) => (i < 2 ? { ...b, c: 90 } : b))
+    const m = adjustMonthly(monthly, 'total', [], [{ date: '2026-04-27', amount: 10 }], d2, adj2)
+    const { bars } = mergeMonthly(m, adj2)
+    const close = (d: string) => bars.find((b) => b.d.startsWith(d))!.c
+    expect(close('2026-04')).toBeCloseTo(100)
+    expect(close('2026-03')).toBeCloseTo(90) // 3 月末は権利落ちの前（1 − 10 / 100）
+    expect(close('2026-01')).toBeCloseTo(90)
   })
   it('分割調整（既定）・未調整はこれまでどおり', () => {
     expect(adjustMonthly(monthly, 'split', [], dividends, daily, daily)).toEqual(monthly)
