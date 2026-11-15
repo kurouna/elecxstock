@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { makeCore } from '../../support/core'
 
 const core = makeCore()
-const { svc, idle } = core
+const { svc, call, idle } = core
 const { events } = core
 afterAll(() => core.dispose())
 
@@ -18,7 +18,7 @@ const draft = (o: Partial<Alert> = {}) => ({
 
 describe('アラートを Core に通して', () => {
   it('作った直後は成り立っていても鳴らず「成立中」。外れてから成り立つと 1 回鳴る', async () => {
-    const v = await svc.call('alerts.save', { alert: draft() })
+    const v = await call('alerts.save', { alert: draft() })
     expect(v.id).toMatch(/^al-/)
     expect(v.state.met).toBe(true)
     expect(events.filter((e) => e.event === 'alerts.fired')).toHaveLength(0)
@@ -31,22 +31,22 @@ describe('アラートを Core に通して', () => {
     expect(ev.unread).toBe(1)
     // 同じ基準日では鳴り直さない
     expect(svc.evaluateAlerts()).toHaveLength(0)
-    expect(await svc.call('alerts.unread', {})).toBe(1)
-    expect(await svc.call('alerts.markRead', {})).toBe(0)
+    expect(await call('alerts.unread', {})).toBe(1)
+    expect(await call('alerts.markRead', {})).toBe(0)
   })
 
   it('1 回だけのアラートは鳴ったら止まる', async () => {
-    const v = await svc.call('alerts.save', { alert: draft({ repeat: false }) })
+    const v = await call('alerts.save', { alert: draft({ repeat: false }) })
     svc.alertBook.setStates({ ...svc.alertBook.states(), [v.id]: { met: false, asOf: '2000-01-04' } })
     expect(svc.evaluateAlerts().some((f) => f.alertId === v.id)).toBe(true)
-    const list = await svc.call('alerts.list', {})
+    const list = await call('alerts.list', {})
     expect(list.find((x) => x.id === v.id)?.enabled).toBe(false)
   })
 
   it('取得のジョブが終わると判定する（基準日が入る）', async () => {
-    const v = await svc.call('alerts.save', { alert: draft({ conditions: [{ field: 'income.yield', op: '>=', value: 99 }] }) })
+    const v = await call('alerts.save', { alert: draft({ conditions: [{ field: 'income.yield', op: '>=', value: 99 }] }) })
     svc.alertBook.setStates({ ...svc.alertBook.states(), [v.id]: { met: false } })
-    await svc.call('jobs.start', { kind: 'daily' })
+    await call('jobs.start', { kind: 'daily' })
     await idle()
     const s = svc.alertBook.states()[v.id]
     expect(s?.met).toBe(false)
@@ -55,47 +55,47 @@ describe('アラートを Core に通して', () => {
 
   it('使えない条件は保存できない', async () => {
     await expect(
-      svc.call('alerts.save', { alert: draft({ conditions: [{ field: 'attr.market', op: 'in', value: ['R'] }] }) }),
+      call('alerts.save', { alert: draft({ conditions: [{ field: 'attr.market', op: 'in', value: ['R'] }] }) }),
     ).rejects.toBeTruthy()
   })
 
   it('プライム・J-REIT 以外の銘柄に付けたアラートは、その銘柄を取得の対象にする', async () => {
     expect(svc.trackedCodes()).not.toContain('130A')
-    await svc.call('alerts.save', { alert: draft({ target: { kind: 'symbol', id: 'JP:130A' } }) })
+    await call('alerts.save', { alert: draft({ target: { kind: 'symbol', id: 'JP:130A' } }) })
     expect(svc.trackedCodes()).toContain('130A')
   })
 
   it('消して、id と状態を保ったまま戻せる（Ctrl+Z）', async () => {
-    const v = await svc.call('alerts.save', { alert: draft({ note: '消して戻す' }) })
-    const removed = await svc.call('alerts.remove', { id: v.id })
+    const v = await call('alerts.save', { alert: draft({ note: '消して戻す' }) })
+    const removed = await call('alerts.remove', { id: v.id })
     expect(removed?.alert.id).toBe(v.id)
-    expect((await svc.call('alerts.list', {})).some((x) => x.id === v.id)).toBe(false)
-    const back = await svc.call('alerts.restore', { alert: removed!.alert, state: removed!.state })
+    expect((await call('alerts.list', {})).some((x) => x.id === v.id)).toBe(false)
+    const back = await call('alerts.restore', { alert: removed!.alert, state: removed!.state })
     expect(back.id).toBe(v.id)
     expect(back.state.met).toBe(removed!.state.met)
   })
 
   it('書き出しと取り込みの対象になる。取り込むと判定の基準を取り直す', async () => {
-    const json = await svc.call('user.exportAll', {})
+    const json = await call('user.exportAll', {})
     const o = JSON.parse(json)
     expect(o.alerts.length).toBeGreaterThan(0)
-    await svc.call('user.importAll', { json })
+    await call('user.importAll', { json })
     // 取り込んだら、鳴らさずに今の値で基準を取り直す（次の更新で鳴る準備ができている）
     const states = svc.alertBook.states()
-    const enabled = (await svc.call('alerts.list', {})).filter((a) => a.enabled)
+    const enabled = (await call('alerts.list', {})).filter((a) => a.enabled)
     expect(enabled.length).toBeGreaterThan(0)
     for (const a of enabled) expect(states[a.id]?.met ?? states[a.id]?.invalid).not.toBeUndefined()
-    await svc.call('user.undoImport', {})
+    await call('user.undoImport', {})
     for (const a of enabled) expect(svc.alertBook.states()[a.id]).toBeDefined()
   })
 
   it('保有を変えたら、保有の条件のアラートは鳴らさずに基準を取り直す', async () => {
-    await svc.call('portfolio.save', { holdings: [{ code: '7203', account: 'tokutei', quantity: 100, avgCost: 1_000_000 }] })
-    const v = await svc.call('alerts.save', { alert: draft({ conditions: [{ field: 'holding.pnlPct', op: '<=', value: -10 }] }) })
+    await call('portfolio.save', { holdings: [{ code: '7203', account: 'tokutei', quantity: 100, avgCost: 1_000_000 }] })
+    const v = await call('alerts.save', { alert: draft({ conditions: [{ field: 'holding.pnlPct', op: '<=', value: -10 }] }) })
     expect(v.state.met).toBe(true)
     svc.alertBook.setStates({ ...svc.alertBook.states(), [v.id]: { met: false, asOf: '2000-01-04' } })
     const before = events.filter((e) => e.event === 'alerts.fired').length
-    await svc.call('portfolio.save', { holdings: [{ code: '7203', account: 'tokutei', quantity: 200, avgCost: 1_000_000 }] })
+    await call('portfolio.save', { holdings: [{ code: '7203', account: 'tokutei', quantity: 200, avgCost: 1_000_000 }] })
     expect(events.filter((e) => e.event === 'alerts.fired').length).toBe(before)
     expect(svc.alertBook.states()[v.id]?.met).toBe(true)
   })
@@ -110,9 +110,9 @@ describe('スクリーンのアラートを Core に通して（FR-AL2）', () =
     enabled: true,
   })
   it('作った直後は結果を覚えるだけ。新しく入った銘柄を 1 つの記録で知らせる', async () => {
-    const { screens } = await svc.call('user.load', {})
+    const { screens } = await call('user.load', {})
     const s = screens[0]!
-    const v = await svc.call('alerts.save', { alert: screenDraft(s.id) })
+    const v = await call('alerts.save', { alert: screenDraft(s.id) })
     const members = svc.alertBook.states()[v.id]?.members ?? []
     expect(members.length).toBeGreaterThan(1)
     expect(v.now).toBe(members.length)
@@ -123,34 +123,34 @@ describe('スクリーンのアラートを Core に通して（FR-AL2）', () =
     expect(fires[0]).toMatchObject({ screenId: s.id, members: members.slice(0, 2), more: 0, instrument: members[0] })
   })
   it('スクリーンの条件を変えたら鳴らさずに基準を取り直す。名前だけの変更では取り直さない', async () => {
-    const { screens } = await svc.call('user.load', {})
-    const v = (await svc.call('alerts.list', {})).find((a) => a.target.kind === 'screen')!
+    const { screens } = await call('user.load', {})
+    const v = (await call('alerts.list', {})).find((a) => a.target.kind === 'screen')!
     const sid = v.target.kind === 'screen' ? v.target.screenId : ''
     const stale = { met: true, asOf: '2000-01-04', members: [] }
     svc.alertBook.setStates({ ...svc.alertBook.states(), [v.id]: stale })
-    await svc.call('user.saveScreens', { screens: screens.map((x) => (x.id === sid ? { ...x, name: { ja: '改名', en: 'Renamed' } } : x)) })
+    await call('user.saveScreens', { screens: screens.map((x) => (x.id === sid ? { ...x, name: { ja: '改名', en: 'Renamed' } } : x)) })
     expect(svc.alertBook.states()[v.id]).toEqual(stale)
     const changed = screens.map((x) => (x.id === sid ? { ...x, conditions: [...x.conditions] } : x))
     const target = changed.find((x) => x.id === sid)!
     target.conditions = target.conditions.map((c, i) => (i === 0 && typeof c.value === 'number' ? { ...c, value: c.value - 0.5 } : c))
-    await svc.call('user.saveScreens', { screens: changed })
+    await call('user.saveScreens', { screens: changed })
     expect(svc.alertBook.states()[v.id]?.members?.length).toBeGreaterThan(1)
     expect(svc.evaluateAlerts().some((f) => f.alertId === v.id)).toBe(false)
-    await svc.call('user.saveScreens', { screens })
+    await call('user.saveScreens', { screens })
   })
   it('スクリーンが無ければ判定できない。条件付き・存在しないスクリーンは保存できない', async () => {
-    const { screens } = await svc.call('user.load', {})
-    await expect(svc.call('alerts.save', { alert: screenDraft('no-such-screen') })).rejects.toBeTruthy()
+    const { screens } = await call('user.load', {})
+    await expect(call('alerts.save', { alert: screenDraft('no-such-screen') })).rejects.toBeTruthy()
     await expect(
-      svc.call('alerts.save', { alert: { ...screenDraft(screens[0]!.id), conditions: [{ field: 'price.close', op: '<=', value: 1 }] } }),
+      call('alerts.save', { alert: { ...screenDraft(screens[0]!.id), conditions: [{ field: 'price.close', op: '<=', value: 1 }] } }),
     ).rejects.toBeTruthy()
-    const v = (await svc.call('alerts.list', {})).find((a) => a.target.kind === 'screen')!
-    await svc.call('user.saveScreens', { screens: screens.filter((x) => v.target.kind === 'screen' && x.id !== v.target.screenId) })
+    const v = (await call('alerts.list', {})).find((a) => a.target.kind === 'screen')!
+    await call('user.saveScreens', { screens: screens.filter((x) => v.target.kind === 'screen' && x.id !== v.target.screenId) })
     svc.evaluateAlerts()
     expect(svc.alertBook.states()[v.id]?.invalid).toBe('noScreen')
-    await svc.call('user.saveScreens', { screens })
+    await call('user.saveScreens', { screens })
   })
   it('銘柄のアラートは条件が無いと保存できない', async () => {
-    await expect(svc.call('alerts.save', { alert: { ...draft(), conditions: [] } })).rejects.toBeTruthy()
+    await expect(call('alerts.save', { alert: { ...draft(), conditions: [] } })).rejects.toBeTruthy()
   })
 })

@@ -110,8 +110,11 @@ test.describe('状態の変化への追従: 保有（§8.1, FR-H4, FR-H6, FR-H7,
     alerts: [alert('pnl', '8058', 'holding.pnlPct', '>=', -100)],
   }
 
-  test('保有を足す・直す・外すと、スクリーナー・グリッド・ウォッチリストの並び・保有割合の列が追従する', async ({ start }) => {
+  test('保有を足す・直す・外すと、スクリーナー・グリッド・ウォッチリストの並び・保有割合の列・アラートの「いま」が追従する', async ({
+    start,
+  }) => {
     const { page } = await start({ layout, user })
+    expect(await alertNow(page, '8058')).toBe('—') // 持っていない銘柄の損益率は欠損
     const pf = widget(page, 'portfolio')
     const wl = widget(page, 'watchlist')
     const scr = widget(page, 'screener')
@@ -160,27 +163,6 @@ test.describe('状態の変化への追従: 保有（§8.1, FR-H4, FR-H6, FR-H7,
     await expect(rows(scr)).toHaveCount(1)
     await expect(tiles(grid)).toHaveCount(1)
     await expect(weightOf('7203')).toHaveText(/^100(\.0+)?%$/)
-  })
-
-  // 回帰（2026-11-15 に E2E で見つけて直した不具合）
-  test('保有を足すと、アラートの「いま」（保有の損益率）が追従する', async ({ start }) => {
-    const { page } = await start({ layout, user })
-    expect(await alertNow(page, '8058')).toBe('—')
-    await focusPane(page, widget(page, 'portfolio'))
-    await keys(page, 'Insert')
-    const form = page.locator('.dialog.holding')
-    await expect(form.locator('input[name="code"]')).toBeFocused()
-    await type(page, '8058')
-    await expect(form).toContainText('三菱商事')
-    await keys(page, 'Tab', 'Tab')
-    await type(page, '1000')
-    await keys(page, 'Tab')
-    await type(page, '100')
-    await keys(page, 'Enter')
-    await expect(form).toHaveCount(0)
-    await expect(rows(widget(page, 'screener'))).toHaveCount(2)
-    expect(await rpc<{ now: number | null }[]>(page, 'alerts.list').then((l) => l[0]?.now)).not.toBeNull() // Core は今の保有で数える
-    await expect.poll(() => alertNow(page, '8058')).toMatch(/%$/)
   })
 
   test('保有の JSON の取り込みと元に戻すに、スクリーナーと保有割合の列が追従する（FR-H9）', async ({ start }) => {
@@ -245,6 +227,7 @@ test.describe('状態の変化への追従: ★・ウォッチリスト・スク
     await keys(page, 'Escape')
     await expect(page.locator('.dialog.jump')).toHaveCount(0)
     await each(2)
+    await focusPane(page, wl)
     await selectRow(page, wl, '7203')
     await keys(page, 'Control+d')
     await each(1)
@@ -266,35 +249,48 @@ test.describe('状態の変化への追従: ★・ウォッチリスト・スク
     await each(1)
   }
 
-  test('★を入れる・外すと、グリッドとウォッチリストが追従する', async ({ start }) => {
-    const { page } = await start({ layout: favLayout, user: { screens: SCREENS, watchlists: watchlists({ favorites: ['7203'] }) } })
+  /** ★の銘柄のスクリーンのアラート（「いま」は結果の件数） */
+  const favAlert = {
+    id: 'sfav',
+    target: { kind: 'screen', screenId: 'fav' },
+    conditions: [],
+    basis: '2026-11-13',
+    repeat: true,
+    enabled: true,
+    created: TEST_NOW,
+  }
+  const wlAlert = { ...favAlert, id: 'swl', target: { kind: 'screen', screenId: 'wl' } }
+
+  test('★を入れる・外すと、ウォッチリスト・グリッド・スクリーナーとスクリーンのアラートの件数が追従する', async ({ start }) => {
+    const { page } = await start({
+      layout: favLayout,
+      user: { screens: SCREENS, watchlists: watchlists({ favorites: ['7203'] }), alerts: [favAlert] },
+    })
+    let changed = false
     await toggleStars(page, async (n) => {
       await expect(rows(widget(page, 'watchlist'))).toHaveCount(n)
       await expect(tiles(widget(page, 'grid'))).toHaveCount(n)
-    })
-  })
-
-  // 回帰（2026-11-15 に E2E で見つけて直した不具合）
-  test('★を入れる・外すと、スクリーナーの結果が追従する', async ({ start }) => {
-    const { page } = await start({ layout: favLayout, user: { screens: SCREENS, watchlists: watchlists({ favorites: ['7203'] }) } })
-    await toggleStars(page, async (n) => {
       await expect(rows(widget(page, 'screener'))).toHaveCount(n)
+      // 自分の窓での変更でも、Core が基準を取り直した件数をポップアップに出す（はじめは基準が無いので見ない）
+      if (changed) await expect.poll(() => alertNow(page, '★の銘柄')).toBe(`${n} 件`)
+      changed = true
     })
   })
 
-  test('ウォッチリストの銘柄を足す・外すと、グリッドとウォッチリストが追従する', async ({ start }) => {
-    const { page } = await start({ layout: wlLayout, user: { screens: SCREENS, watchlists: watchlists({ watch: ['7203'] }) } })
+  test('ウォッチリストの銘柄を足す・外すと、ウォッチリスト・グリッド・スクリーナーとスクリーンのアラートの件数が追従する', async ({
+    start,
+  }) => {
+    const { page } = await start({
+      layout: wlLayout,
+      user: { screens: SCREENS, watchlists: watchlists({ watch: ['7203'] }), alerts: [wlAlert] },
+    })
+    let changed = false
     await editWatch(page, async (n) => {
       await expect(rows(widget(page, 'watchlist'))).toHaveCount(n)
       await expect(tiles(widget(page, 'grid'))).toHaveCount(n)
-    })
-  })
-
-  // 回帰（2026-11-15 に E2E で見つけて直した不具合）
-  test('ウォッチリストの銘柄を足す・外すと、スクリーナーの結果が追従する', async ({ start }) => {
-    const { page } = await start({ layout: wlLayout, user: { screens: SCREENS, watchlists: watchlists({ watch: ['7203'] }) } })
-    await editWatch(page, async (n) => {
       await expect(rows(widget(page, 'screener'))).toHaveCount(n)
+      if (changed) await expect.poll(() => alertNow(page, '監視の銘柄')).toBe(`${n} 件`)
+      changed = true
     })
   })
 

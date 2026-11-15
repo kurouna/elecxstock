@@ -818,7 +818,8 @@ export function parseTyped(s: string, scale = 1): number | null {
     .normalize('NFKC')
     .replace(/[,円¥%\s]/g, '')
     .replace(/[−–]/g, '-')
-  const m = /^(-?(?:\d+\.?\d*|\.\d+))(兆|億|万)?$/.exec(t)
+  // 正の符号（画面の「+5%」の表示にならって打つ）も読む。全角の＋は NFKC で + になる
+  const m = /^([+-]?(?:\d+\.?\d*|\.\d+))(兆|億|万)?$/.exec(t)
   if (!m) return null
   const mul = m[2] === '兆' ? 1e12 : m[2] === '億' ? 1e8 : m[2] === '万' ? 1e4 : scale
   return Math.round(Number(m[1]) * mul * 1e6) / 1e6

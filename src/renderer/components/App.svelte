@@ -70,8 +70,6 @@ function flushData() {
 let alertsTimer: ReturnType<typeof setTimeout> | null = null
 $effect(() => {
   void app.alertsRev
-  // 保有の損益率の条件は、今の保有で「いま」の値と距離を数え直す（Core の alerts.list は今の保有で数える）
-  void app.holdings
   if (!app.ready || alertsTimer) return
   alertsTimer = setTimeout(() => {
     alertsTimer = null
@@ -159,11 +157,13 @@ function onBus(m: { topic: string; data: unknown }) {
   const g = /^link:([1-5])$/.exec(m.topic)
   if (g && typeof m.data === 'string') applyRemoteLink(Number(g[1]), m.data)
 }
-/** ほかの窓が利用者のデータを変えた（マルチモニタ）。自分の変更は無視する */
+/** 利用者のデータが変わった（Core が全窓に配る）。自分の変更は、アラートの一覧を読み直すだけ */
 async function onUserChanged(d: { kind: string; from: string; op?: { list: string; id: string } }) {
+  // 保有・★・ウォッチリスト・スクリーン・利用者の銘柄・アラートのどれが変わっても、Core はアラートの「いま」（保有の損益率・
+  // スクリーンの件数）と判定の状態を数え直している（SCREEN_REBASE）。どの窓の変更でも読み直す（まとめて 1 回。FR-AL2, AL8）
+  app.alertsRev++
   if (d.from === SLOT) return
   if (d.kind === 'alerts' || d.kind === 'all') {
-    app.alertsRev++
     if (!IS_FREE) app.alertsUnread = await rpc('alerts.unread', {}).catch(() => app.alertsUnread)
     if (d.kind === 'alerts') return
   }

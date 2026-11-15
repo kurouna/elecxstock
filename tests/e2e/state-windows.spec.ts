@@ -37,28 +37,18 @@ test.describe('状態の変化への追従: 窓をまたぐ（§8.1, FR-L7, FR-F
     user: { screens: SCREENS, watchlists: watchlists({ favorites: ['7203'] }) },
   }
 
-  test('別の窓での★: 1 枚目のウォッチリストに入る', async ({ start }) => {
+  test('別の窓での★: 1 枚目のウォッチリストとスクリーナーの結果が追従する', async ({ start }) => {
     const { app, page } = await start(opts)
     const free = await freeWindow(app)
     const wl = page.locator('[data-widget="watchlist"]')
+    const scr = page.locator('[data-widget="screener"]')
     await expect(rows(wl)).toHaveCount(1)
+    await expect(rows(scr)).toHaveCount(1)
     await expect(free.locator('.pane.focused')).toHaveCount(1)
     await keys(free, 'Control+d')
     await expect(free.locator('.toasts')).toContainText('お気に入りに')
     await expect(rows(wl)).toHaveCount(2)
     await expect(wl.locator('tbody')).toContainText('8058')
-  })
-
-  // 回帰（2026-11-15 に E2E で見つけて直した不具合）
-  test('別の窓での★: 1 枚目のスクリーナーの結果が追従する', async ({ start }) => {
-    const { app, page } = await start(opts)
-    const free = await freeWindow(app)
-    const scr = page.locator('[data-widget="screener"]')
-    await expect(rows(scr)).toHaveCount(1)
-    await expect(free.locator('.pane.focused')).toHaveCount(1)
-    await keys(free, 'Control+d')
-    await expect(free.locator('.toasts')).toContainText('お気に入りに')
-    await expect(rows(page.locator('[data-widget="watchlist"]'))).toHaveCount(2)
     await expect(rows(scr)).toHaveCount(2)
   })
 

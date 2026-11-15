@@ -33,16 +33,18 @@ describe('配当の指標と銘柄情報の配当のグラフ（FR-I1, FR-I8, FR
 })
 
 describe('スクリーナーの判定とアラートの判定（FR-SC5, FR-AL1）', () => {
-  const ins = [instrument({ code: '1' }), instrument({ code: '2', sectorJa: '小売業' })]
-  const rows: MetricsRow[] = EDGE_SETS.slice(0, 2).map((set, i) => ({
+  const ins = EDGE_SETS.map((_, i) => instrument({ code: String(i + 1), sectorJa: i % 2 ? '小売業' : '銀行業' }))
+  // 境界の組すべて（上場 5 年未満・無配に転じた・配当なしでは欠損が出る）
+  const rows: MetricsRow[] = EDGE_SETS.map((set, i) => ({
     ...computeMetrics(`JP:${i + 1}`, set.bars, set.dividends, [], null, TODAY),
   }))
   const metrics = new Map(rows.map((r) => [r.id, r]))
   const hs = [holding({ code: '1', quantity: 300, avgCost: 900 })]
   const held = heldFrom(hs)
   const fields = FIELDS.filter((f) => usable(f) && alertConditionOk({ field: f.id, op: '>=', value: 0 }))
-  it('アラートで使える指標・相対条件のすべてで、同じ値なら同じ結果', () => {
+  it('アラートで使える指標・相対条件のすべてで、同じ値なら同じ結果（欠損は外れる）', () => {
     let n = 0
+    let missing = 0
     for (const f of fields)
       for (const r of rows)
         for (const op of ['>=', '<='] as const) {
@@ -62,11 +64,13 @@ describe('スクリーナーの判定とアラートの判定（FR-SC5, FR-AL1�
               holdings: held,
               today: TODAY,
             })
-            if (met == null) continue // 判定できない（欠損）はスクリーナーでは外れる。ここでは比べない
-            expect(scr.ids.includes(r.id), `${f.id} ${op} ${c.ref ?? c.value} ${r.id}`).toBe(met)
+            // 判定できない（欠損）は、欠損を含めない条件のスクリーナーでは外れる
+            expect(scr.ids.includes(r.id), `${f.id} ${op} ${c.ref ?? c.value} ${r.id}`).toBe(met === true)
             n++
+            if (met == null) missing++
           }
         }
     expect(n).toBeGreaterThan(100)
+    expect(missing).toBeGreaterThan(10) // 欠損の組み合わせも確かめた
   })
 })
