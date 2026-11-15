@@ -817,6 +817,8 @@ export function parseTyped(s: string, scale = 1): number | null {
   const t = s
     .normalize('NFKC')
     .replace(/[,円¥%\s]/g, '')
+    // 画面に出る単位（相対条件の差の pt・倍率の ×）を付けて打っても読む。末尾の単位だけを外す
+    .replace(/(pt|ポイント|×|倍)$/i, '')
     .replace(/[−–]/g, '-')
   // 正の符号（画面の「+5%」の表示にならって打つ）も読む。全角の＋は NFKC で + になる
   const m = /^([+-]?(?:\d+\.?\d*|\.\d+))(兆|億|万)?$/.exec(t)

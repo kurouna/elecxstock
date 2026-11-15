@@ -21,6 +21,15 @@ describe('打った値の読み取り（スクリーナーとアラートのダ�
     expect(parseTyped('+1.5億')).toBe(1.5e8)
     expect(parseTyped('+-5')).toBeNull()
   })
+  it('画面に出る単位（相対条件の pt・倍率の ×）を付けて打っても読む（FR-SC5）', () => {
+    expect(parseTyped('+5pt')).toBe(5)
+    expect(parseTyped('−0.5 pt')).toBe(-0.5)
+    expect(parseTyped('＋２ＰＴ')).toBe(2)
+    expect(parseTyped('3ポイント')).toBe(3)
+    expect(parseTyped('1.5 ×')).toBe(1.5)
+    expect(parseTyped('2倍')).toBe(2)
+    expect(parseTyped('5p')).toBeNull()
+  })
   it('読めない文字は null（条件を変えない）', () => {
     expect(parseTyped('')).toBeNull()
     expect(parseTyped('abc')).toBeNull()
