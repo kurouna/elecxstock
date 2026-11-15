@@ -27,7 +27,6 @@ jobs:
         run: npm run coverage
       - name: Requirement IDs vs tests
         run: npm run trace
-      - run: node scripts/check-licenses.mjs
   e2e:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -39,6 +38,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # 同梱 OSS のライセンス（ビルドが作る out/THIRD_PARTY_NOTICES.txt を読む。NFR-CI4）
+      - run: node scripts/check-licenses.mjs
       - name: E2E (stub provider, fixed clock, keyboard only)
         run: npx playwright test
       - name: Package and smoke-test the installer build
