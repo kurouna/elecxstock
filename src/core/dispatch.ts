@@ -32,6 +32,8 @@ export async function dispatch(
     const newAlert = method === 'alerts.save' && !(msg.params as { alert?: { id?: unknown } } | null)?.alert?.id
     if (slot !== 'main' && /^alerts\.(save|remove|restore|setEnabled|markRead)$/.test(method) && !newAlert)
       throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
+    // 資産推移の記録を消すのは 1 枚目だけ（FR-PF2）
+    if (slot !== 'main' && method === 'folio.clear') throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
     // フリー N は自分の配置だけを書ける
     if (method === 'user.saveWindowLayout' && (msg.params as { slot?: unknown } | null)?.slot !== slot)
       throw { code: 'invalid-params', message: 'slot' } satisfies CoreError

@@ -327,7 +327,7 @@ describe('リンク色の初期値はタブの並び（§6.4・FR-K1）', () => 
     const ps = [...L.allPanes(e, false), ...(e.docks.left?.panes ?? [])]
     return [...new Set(ps.map((p) => p.link).filter((n) => n > 0))]
   }
-  it('マーケット 1・探して見比べるタブ 2・配当 3・保有 4', () => {
+  it('マーケット 1・探して見比べるタブ 2・配当 3・保有とポートフォリオ 4', () => {
     expect(L.PRESET_IDS.map((id) => [id, links(id)])).toEqual([
       ['market', [1]],
       ['screener', [2]],
@@ -337,6 +337,7 @@ describe('リンク色の初期値はタブの並び（§6.4・FR-K1）', () => 
       ['income', [3]],
       ['holdings', [4]],
       ['free', [2]],
+      ['folio', [4]],
     ])
   })
   it('色の番号はタブの並びで初めて出てくる順（Ctrl+Shift+1・2 はタブの番号と同じ）', () => {
@@ -346,5 +347,23 @@ describe('リンク色の初期値はタブの並び（§6.4・FR-K1）', () => 
   })
   it('各色の最初の銘柄は、前の割り当てでそのタブに出ていた銘柄のまま', () => {
     expect(L.defaultDoc().links).toEqual({ '1': 'JP:8306', '2': 'JP:7203', '3': 'JP:2914', '4': 'JP:8951', '5': 'JP:3462' })
+  })
+})
+
+describe('ポートフォリオのタブ（FR-PF1）', () => {
+  it('前の版で保存したレイアウト（ポートフォリオのタブが無い）を読んでも、9 つ目のタブは初期の形で出る', () => {
+    const d = L.defaultDoc()
+    const old = JSON.parse(JSON.stringify({ ...d, entries: Object.fromEntries(Object.entries(d.entries).filter(([k]) => k !== 'folio')) }))
+    const n = L.normalizeDoc(old)
+    expect(L.PRESET_IDS.at(-1)).toBe('folio')
+    const ps = L.allPanes(n.entries.folio, false)
+    expect(ps.map((p) => p.widget)).toEqual(['folio', 'chart', 'info'])
+    expect(ps.every((p) => p.link === 4)).toBe(true)
+    expect(L.PRESET_FOCUS.folio).toBe('folio')
+    // 右の列はチャート 2 : 銘柄情報 3（銘柄情報の配当・保有を広く見せる）
+    type Split = { sizes: number[]; children: unknown[] }
+    const root = n.entries.folio.root as unknown as Split
+    expect(root.sizes).toEqual([62, 38])
+    expect((root.children[1] as Split).sizes).toEqual([40, 60])
   })
 })

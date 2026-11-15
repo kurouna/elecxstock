@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 /** 利用者のデータを書くメソッド（名前の形で見分ける） */
 const WRITES = Object.keys(PARAMS).filter((m) =>
-  /^(user\.(save|import|undo)|watchlists\.|portfolio\.(save|apply|undo)|alerts\.(save|remove|restore|setEnabled|markRead)|instruments\.(add|remove)User|jobs\.applyRetention)/.test(
+  /^(user\.(save|import|undo)|watchlists\.|portfolio\.(save|apply|undo)|alerts\.(save|remove|restore|setEnabled|markRead)|instruments\.(add|remove)User|jobs\.applyRetention|folio\.clear)/.test(
     m,
   ),
 )
@@ -22,6 +22,7 @@ const NO_NOTICE: Record<string, string> = {
 const NO_REBASE: Record<string, string> = {
   'user.saveSettings': '設定の利用者の銘柄は Core が持ち、renderer の保存では変わらない',
   'jobs.applyRetention': '保存期間は対象の銘柄を変えない',
+  'folio.clear': '資産推移の記録はスクリーンの条件に使わない',
   'alerts.save': 'アラートの保存は、保存したアラートの基準だけを取り直す',
   'alerts.remove': 'アラートを消すだけ',
   'alerts.restore': '戻したアラートは id と状態を保つ',

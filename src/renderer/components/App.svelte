@@ -168,6 +168,7 @@ async function onUserChanged(d: { kind: string; from: string; op?: { list: strin
     if (d.kind === 'alerts') return
   }
   if (d.kind === 'holdings') return void loadHoldings()
+  if (d.kind === 'folio') return void app.dataVersion++ // 資産推移の記録（ポートフォリオのペインが読み直す）
   if (d.kind === 'watchlists' && !IS_FREE && d.op) {
     // 1 枚目がウォッチリストの持ち主: フリー N の★・◆の切り替えだけを手元に足す（保存中の自分の変更を消さない）
     const w = app.watchlists.find((x) => x.id === d.op!.list || x.builtin === d.op!.list)

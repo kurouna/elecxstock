@@ -485,6 +485,24 @@ const paneRun = (action: string) => () => {
   if (!paneApi(app.focus)?.run?.(action)) toast(t('cmd.needList'))
 }
 
+/** 配当の目標（月あたりの円。0 で消す。FR-PF7） */
+async function setDivGoal(): Promise<void> {
+  const v = await promptDialog(t('folio.goalPrompt'), String(app.settings.divGoal || ''))
+  if (v == null) return
+  const n = Number(v.replace(/[,，円¥s]/g, '').normalize('NFKC'))
+  if (!Number.isFinite(n) || n < 0) return void toast(t('folio.goalBad'))
+  saveSettings({ divGoal: Math.round(n) })
+  toast(t('folio.goalSet', { v: Math.round(n).toLocaleString() }))
+}
+/** 資産推移の記録を消す（確認してから。直前の版は .bak に残る。FR-PF2） */
+async function clearFolio(): Promise<void> {
+  const r = await confirmDialog({ title: t('folio.clearTitle'), body: t('folio.clearBody'), ok: t('folio.clearDo'), danger: true })
+  if (!r.ok) return
+  await rpc('folio.clear', {})
+  app.dataVersion++
+  toast(t('folio.cleared'))
+}
+
 export const ACTIONS: Action[] = [
   ...PRESET_IDS.map((p, i) => ({
     id: `layout.${p}`,
@@ -594,6 +612,10 @@ export const ACTIONS: Action[] = [
   { id: 'exportUser', label: () => t('act.exportUser'), run: () => exportUser() },
   { id: 'importUser', label: () => t('act.importUser'), run: () => importUser() },
   { id: 'portfolio', label: () => t('act.portfolio'), run: () => openPane('portfolio') },
+  // ポートフォリオ（FR-PF1・PF7）: ペインを開く・配当の目標・資産推移の記録を消す（確認つき）
+  { id: 'folio', label: () => t('act.folio'), run: () => openPane('folio') },
+  { id: 'folioGoal', label: () => t('act.folioGoal'), run: () => setDivGoal() },
+  { id: 'folioClear', label: () => t('act.folioClear'), run: () => clearFolio() },
   { id: 'importBrokerCsv', label: () => t('act.importBrokerCsv'), run: () => importBrokerCsv() },
   { id: 'exportHoldings', label: () => t('act.exportHoldings'), run: () => exportHoldings() },
   { id: 'importHoldings', label: () => t('act.importHoldings'), run: () => importHoldings() },

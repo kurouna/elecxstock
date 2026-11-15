@@ -43,6 +43,9 @@
   --acct-nisa_legacy: #9085e9;
   --acct-tokutei: #c98500;
   --acct-ippan: #8b95a2;
+  /* ポートフォリオ（FR-PF7）: 配当の棒（中立）と、ドーナツの塗りの金（ライトでは濁らない明るい金） */
+  --f-bar: #4a5666;
+  --f-gold-fill: #e3b341;
   --scrim: rgba(5, 6, 8, 0.55);
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   /* チャート（Lightweight Charts・グリッドの Canvas はここから色を読む） */
@@ -87,6 +90,8 @@
   --text-2: #4a5562;
   --text-3: #5d6875;
   --focus: #2f6fe0;
+  --f-bar: #b4bcc7;
+  --f-gold-fill: #c9971a;
   --select: #e3ecfb;
   --select-strong: #e6eefb;
   --hover: #f0f3f7;

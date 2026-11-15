@@ -1,6 +1,6 @@
 // 保有の記録（§6.9, FR-H5, H7〜H10）。純粋関数。保存は UserStore（holdings.json）で、市場データの DB には置かない。
-import { holdingSchema, portfolioMetaSchema } from '@shared/api'
-import type { BrokerCsvPreview, Holding, HoldingsImportPreview, Lot, PortfolioMeta, Split } from '@shared/types'
+import { folioPointSchema, holdingSchema, portfolioMetaSchema } from '@shared/api'
+import type { BrokerCsvPreview, FolioPoint, Holding, HoldingsImportPreview, Lot, PortfolioMeta, Split } from '@shared/types'
 import { z } from 'zod'
 import { parseRakutenCsv } from './brokers/rakuten'
 
@@ -53,6 +53,7 @@ export function exportHoldings(
   app: string,
   now = new Date(),
   meta: PortfolioMeta | null = null,
+  history: FolioPoint[] = [],
 ): string {
   return JSON.stringify(
     {
@@ -63,6 +64,8 @@ export function exportHoldings(
       // 最後に取り込んだ証券会社の CSV の情報（累計の実現損益・配当金）。別の PC に移しても同じ表示にする
       ...(meta ? { meta } : {}),
       holdings: holdings.map(({ price: _price, ...h }) => ({ ...h, name: nameOf(h.code) || h.name || '' })),
+      // 資産推移の記録（作り直せないので、保有と一緒に別の PC へ移せるようにする。FR-PF2）
+      ...(history.length ? { history } : {}),
     },
     null,
     1,
@@ -98,6 +101,12 @@ export function previewImport(json: string, current: Holding[], known: (code: st
     holdings: [],
     meta: m.success ? m.data : null,
   }
+  // 資産推移の記録（読めなければ取り込まない。保有の取り込みは止めない）
+  const hist = z
+    .array(folioPointSchema)
+    .max(100_000)
+    .safeParse((o as { history?: unknown }).history)
+  if (hist.success && hist.data.length) out.history = hist.data as FolioPoint[]
   const seen = new Set<string>()
   top.data.holdings.forEach((raw, index) => {
     const code = String((raw as { code?: unknown })?.code ?? '').toUpperCase()

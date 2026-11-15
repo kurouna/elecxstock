@@ -32,8 +32,8 @@ describe('アクションの登録表（FR-KB4〜KB6）', () => {
     for (const id of inHelp) expect(ids.has(id), id).toBe(true)
   })
   it('キーを持つアクションは F1 の一覧に載る', () => {
-    // レイアウトのプリセット（Ctrl+Shift+1〜8）は「Ctrl+Shift+1–8」の 1 行にまとめて載せる
-    const ranged = (a: (typeof ACTIONS)[number]) => a.id.startsWith('layout.') && /^Ctrl\+Shift\+[1-8]$/.test(a.key ?? '')
+    // レイアウトのプリセット（Ctrl+Shift+1〜9）は「Ctrl+Shift+1–9」の 1 行にまとめて載せる
+    const ranged = (a: (typeof ACTIONS)[number]) => a.id.startsWith('layout.') && /^Ctrl\+Shift\+[1-9]$/.test(a.key ?? '')
     const missing = ACTIONS.filter((a) => a.key && !inHelp.has(a.id) && !ranged(a)).map((a) => a.id)
     expect(missing).toEqual([])
   })

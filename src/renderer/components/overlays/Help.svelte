@@ -25,7 +25,7 @@ const G = $derived([
       [ja ? 'ペインを入れ替える（タイトルのドラッグでも）' : 'Swap pane (or drag the title)', 'Ctrl+Alt+Shift+Arrows'],
       [ja ? 'サイズを元に戻す / 取り消し' : 'Reset sizes / undo', `${K('resetSizes')} / Ctrl+Z`],
       [ja ? 'リンク色 1〜5 / 解除' : 'Link color 1–5 / none', 'Ctrl+1–5 / Ctrl+0'],
-      [ja ? 'レイアウト（プリセット）' : 'Layouts (presets)', 'Ctrl+Shift+1–8'],
+      [ja ? 'レイアウト（プリセット）' : 'Layouts (presets)', 'Ctrl+Shift+1–9'],
       [ja ? 'レイアウトの一覧（名前を付けて保存）' : 'Saved layouts', K('layouts')],
       [ja ? 'お気に入り' : 'Favorite', K('fav')],
       [ja ? 'ウォッチリストに追加' : 'Add to watchlist', K('addTo')],
@@ -119,7 +119,25 @@ const G = $derived([
         ja ? 'マーケット: 銘柄を足す / 外す / 時間軸 / 表示期間' : 'Market: add / remove / timeframe / period',
         '1–9 / Delete / D W M / Alt+1–6',
       ],
-      [ja ? '保有: 足す / 直す / 外す / 送る' : 'Portfolio: add / edit / remove / send', 'Insert / E / Delete / Enter'],
+      [ja ? '保有: 足す / 直す / 外す / 送る' : 'Holdings: add / edit / remove / send', 'Insert / E / Delete / Enter'],
+      [
+        ja
+          ? 'ポートフォリオ: カードを巡る / 資産推移の期間 / 十字線の日（連動）'
+          : 'Portfolio: cycle cards / history period / crosshair day (linked)',
+        'Tab / Alt+1–6 / ← →',
+      ],
+      [
+        ja ? 'ポートフォリオ: 円と % / ベンチマーク / 記録開始前の試算' : 'Portfolio: ¥ and % / benchmark / estimate before records',
+        'P / B / E',
+      ],
+      [
+        ja ? 'ポートフォリオ: 分類 / 色 / 寄与の期間 / 並べ替え' : 'Portfolio: grouping / color / contribution period / sort',
+        'G / H / T / S',
+      ],
+      [
+        ja ? 'ポートフォリオ: 概要 ／ 配当の分析 / 表を開く・閉じる' : 'Portfolio: overview / dividends / expand · collapse',
+        'PgUp PgDn / → ← · Enter',
+      ],
       [ja ? '銘柄情報: 配当の棒を選ぶ / 年・回の切り替え' : 'Symbol info: select dividend bar / per year–payout', '← → Home End / Y'],
     ],
   },

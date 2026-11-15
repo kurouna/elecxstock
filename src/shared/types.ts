@@ -320,6 +320,8 @@ export interface HoldingsImportPreview {
   holdings: Holding[]
   /** 書き出した PC で最後に取り込んだ証券会社の CSV の情報（あれば） */
   meta: PortfolioMeta | null
+  /** 資産推移の記録（あれば。取り込むと日付で混ぜる。FR-PF2） */
+  history?: FolioPoint[]
 }
 
 /** 名前を付けて保存したレイアウト（FR-L4 の P2） */
@@ -375,6 +377,8 @@ export interface Settings {
   recentFields: string[]
   /** チャートの移動平均の期間（FR-C2）。時間軸ごとに 3 本 */
   maPeriods: { D: number[]; W: number[]; M: number[] }
+  /** 配当の目標（月あたり・円。0 は無し） */
+  divGoal: number
 }
 
 export type JobKind = 'universe' | 'initial' | 'daily' | 'refetch' | 'monthly' | 'reset' | 'retention'
@@ -418,4 +422,104 @@ export interface AppInfo {
   provider: string
   userReadOnly: boolean
   userDataError?: string
+}
+
+// ---- ポートフォリオ（docs/design-portfolio.md。FR-PF1〜PF8） ----
+/** 記録した日の保有（銘柄 × 口座区分）。qty はその日の株数の基準（その後の分割は読むときに換算する） */
+export interface FolioPos {
+  code: string
+  acct: AccountType
+  qty: number
+  /** 平均取得単価（その日の株数の基準） */
+  cost: number
+}
+/** 資産推移の記録（1 日 1 件。§5.2） */
+export interface FolioPoint {
+  d: JstDate
+  /** 記録 / 起動しなかった日を前の保有 × その日の終値で埋めた補完値 */
+  src: 'rec' | 'fill'
+  /** その日の終値がすべてそろっているか（そろっていなければ次の記録で書き直す） */
+  final: boolean
+  /** 取得に失敗した銘柄があり、前の終値で評価した */
+  stale?: boolean
+  value: number
+  cost: number
+  pos: FolioPos[]
+  /** 実現損益・受取配当の累計（証券会社の CSV。あれば） */
+  realized?: number
+  received?: number
+  /** 書いた時刻（ms） */
+  at: number
+}
+/** 資産推移の系列（保有の明細は含めない）。est は記録の前の試算（参考） */
+export interface FolioSeriesPoint {
+  d: JstDate
+  src: 'rec' | 'fill' | 'est'
+  final: boolean
+  value: number
+  cost: number
+  realized?: number
+  received?: number
+}
+export interface FolioSeries {
+  points: FolioSeriesPoint[]
+  /** 記録の初日（無ければ null） */
+  first: JstDate | null
+  /** 記録を書けない（利用者のデータが読み取り専用・記録が読めない） */
+  readOnly: boolean
+  /** 今の保有（分割で換算した株数。CSV を取り込み直す前でも記録と同じ基準） */
+  now: FolioPos[]
+  error?: string
+}
+/** ある日の保有と終値（十字線の連動。§8） */
+export interface FolioAt {
+  d: JstDate
+  src: 'rec' | 'fill'
+  pos: FolioPos[]
+  /** その日の終値と前の取引日の終値（分割調整済み。pos の株数は換算済み） */
+  close: Record<string, number | null>
+  prev: Record<string, number | null>
+}
+/** 期間の損益寄与（今月・今年。§6.5）。price は値動き、div はその期間に権利落ちした配当（税引後） */
+export interface FolioContribRow {
+  code: string
+  price: number
+  div: number
+  /** 期間の途中で売った銘柄: 最後に持っていた日 */
+  soldOn?: JstDate
+}
+export interface FolioContrib {
+  from: JstDate
+  to: JstDate
+  /** 期間の初めが記録より前（その分は現在の株数で計算した） */
+  beforeRecords: boolean
+  rows: FolioContribRow[]
+}
+/** 1 株配当の年（直近 N 回の権利落ちの合計。§6.6） */
+export interface DpsBlocks {
+  /** 5 年分（古い → 新しい）。足りない年は null */
+  dps: (number | null)[]
+  /** 年あたりの回数 */
+  perYear: number
+  /** 回数が変わった（年 1 回 → 年 2 回など） */
+  regimeChanged: boolean
+  /** 前年の同じ回の 1.5 倍を超える回がある（特別配当の可能性） */
+  special: boolean
+  /** 直近 1 年の権利落ち（月割り・リボンに使う） */
+  last: Dividend[]
+}
+/** 配当の分析の 1 銘柄（§4.2・6.6） */
+export interface FolioDivRow extends DpsBlocks {
+  code: string
+  /** 今の株数（口座ごと。分割で換算済み） */
+  now: { acct: AccountType; qty: number }[]
+  /** 1 年前の株数（記録から。記録が 1 年に満たなければ null） */
+  yearAgo: { acct: AccountType; qty: number }[] | null
+}
+export interface FolioDividends {
+  rows: FolioDivRow[]
+  /** 1 年前の数量に使った記録の日（無ければ null） */
+  yearAgoDate: JstDate | null
+  /** 配当見込みの推移（記録の日ごと。税引後の年額） */
+  trend: { d: JstDate; v: number }[]
 }

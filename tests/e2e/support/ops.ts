@@ -12,6 +12,7 @@ export const TABS = {
   income: { n: 6, ja: 'インカム', en: 'Income' },
   holdings: { n: 7, ja: '保有', en: 'Holdings' },
   free: { n: 8, ja: 'フリー', en: 'Free' },
+  folio: { n: 9, ja: 'ポートフォリオ', en: 'Portfolio' },
 } as const
 export type Tab = keyof typeof TABS
 

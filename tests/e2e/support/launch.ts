@@ -33,6 +33,8 @@ export type UserFile =
   /** アラートの判定の状態と履歴（AlertBook。世代なし） */
   | 'alertState'
   | 'alertHistory'
+  /** 資産推移の記録（FolioBook。世代なし） */
+  | 'portfolioHistory'
 
 export const userFile = (userData: string, name: string) => join(userData, 'data', 'user', `${name}.json`)
 

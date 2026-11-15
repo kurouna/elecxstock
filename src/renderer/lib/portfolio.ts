@@ -122,7 +122,7 @@ const keyOf = (h: Pick<Holding, 'code' | 'account'>) => `${h.code}/${h.account}`
 export async function editHolding(cur?: Holding): Promise<void> {
   const h = await holdingDialog(cur)
   if (!h) return
-  const { lots: _lots, price: _price, ...next } = h
+  const { lots: _lots, price: _price, importedAt: _at, ...next } = h
   const drop = new Set([keyOf(next), ...(cur ? [keyOf(cur)] : [])])
   // 保有の銘柄は Core が取得の対象にする（一覧に無いコードだけ利用者の銘柄として足す）。名前と取得の対象を読み直す
   app.holdings = await rpc('portfolio.save', { holdings: [...app.holdings.filter((x) => !drop.has(keyOf(x))), next] })
@@ -165,16 +165,22 @@ export async function importHoldings(): Promise<void> {
     t('hold.prevSame', { n: p.same.length }),
     ...(p.unknown.length ? [t('hold.prevUnknown', { n: p.unknown.length, codes: p.unknown.slice(0, 8).join(', ') })] : []),
     t('hold.prevRejected', { n: p.rejected.length }),
+    ...(p.history?.length ? [t('hold.prevHistory', { n: p.history.length })] : []),
     ...p.rejected.slice(0, 8).map((r) => `✕ #${r.index + 1} ${r.code || '?'}: ${r.reason}`),
   ]
   const r = await confirmDialog({ title: t('hold.importTitle'), items, ok: t('hold.importNext') })
-  if (!r.ok || !p.holdings.length) return
+  if (!r.ok || (!p.holdings.length && !p.history?.length)) return
   const mode = await choiceDialog(t('hold.importMode'), [
     { id: 'merge', label: t('hold.merge'), hint: t('hold.mergeHint') },
     { id: 'replace', label: t('hold.replace'), hint: t('hold.replaceHint') },
   ])
   if (mode !== 'merge' && mode !== 'replace') return
-  app.holdings = await rpc('portfolio.applyImport', { holdings: p.holdings, mode, meta: p.meta })
+  app.holdings = await rpc('portfolio.applyImport', {
+    holdings: p.holdings,
+    mode,
+    meta: p.meta,
+    ...(p.history ? { history: p.history } : {}),
+  })
   await afterImport()
   toast(t('hold.imported', { n: p.holdings.length }), { label: t('hold.undo'), run: () => void undoHoldingsImport() }, 10_000)
 }

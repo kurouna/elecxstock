@@ -17,6 +17,7 @@ export type WidgetId =
   | 'heatmap'
   | 'ranking'
   | 'market'
+  | 'folio'
 export const WIDGETS: WidgetId[] = [
   'chart',
   'mtf',
@@ -26,6 +27,7 @@ export const WIDGETS: WidgetId[] = [
   'grid',
   'divcal',
   'portfolio',
+  'folio',
   'heatmap',
   'ranking',
   'market',
@@ -57,9 +59,9 @@ export interface LayoutEntry {
   root: LNode
   docks: { left?: Dock; right?: Dock }
 }
-export type PresetId = 'mtf' | 'grid' | 'screener' | 'income' | 'triple' | 'market' | 'free' | 'holdings'
-/** タブの並び（Ctrl+Shift+1〜8 の順）: 市場全体 → 探す → 見比べる → 1 銘柄を深く → 配当 → 保有 → 自由に組む */
-export const PRESET_IDS: PresetId[] = ['market', 'screener', 'grid', 'mtf', 'triple', 'income', 'holdings', 'free']
+export type PresetId = 'mtf' | 'grid' | 'screener' | 'income' | 'triple' | 'market' | 'free' | 'holdings' | 'folio'
+/** タブの並び（Ctrl+Shift+1〜9 の順）: 市場全体 → 探す → 見比べる → 1 銘柄を深く → 配当 → 保有 → 自由に組む → 資産全体（後から足したので最後） */
+export const PRESET_IDS: PresetId[] = ['market', 'screener', 'grid', 'mtf', 'triple', 'income', 'holdings', 'free', 'folio']
 export interface LayoutDoc {
   version: 1
   active: PresetId
@@ -70,7 +72,7 @@ export interface LayoutDoc {
 let uid = 0
 const nid = () => `n${Date.now().toString(36)}${(++uid).toString(36)}`
 /**
- * リンク色の初期値はタブの並び（Ctrl+Shift+1〜8）で初めて出てくる順: マーケット 1・探して見比べるタブ 2・配当 3・保有 4。
+ * リンク色の初期値はタブの並び（Ctrl+Shift+1〜9）で初めて出てくる順: マーケット 1・探して見比べるタブ 2・配当 3・保有とポートフォリオ 4。
  * 探して見比べるタブ（スクリーナー・グリッド・MTF・トリプル・フリー）は同じ色を共有し、スクリーナーで選んだ銘柄が MTF などのチャートにも出る
  */
 export const MAIN_LINK = 2
@@ -100,7 +102,7 @@ const selectDock = (link: number, active: number): Dock => ({
   width: DOCK_WIDTH,
 })
 /** タブを開いたときに最初にフォーカスするペイン（無ければ木の最初のペイン） */
-export const PRESET_FOCUS: Partial<Record<PresetId, WidgetId>> = { screener: 'screener', holdings: 'portfolio' }
+export const PRESET_FOCUS: Partial<Record<PresetId, WidgetId>> = { screener: 'screener', holdings: 'portfolio', folio: 'folio' }
 
 export function presetEntry(id: PresetId): LayoutEntry {
   switch (id) {
@@ -186,6 +188,12 @@ export function presetEntry(id: PresetId): LayoutEntry {
       // §6.4 保有（FR-H11）: 左に保有の一覧（このタブの一覧。列が多いので広め）、右にチャートと銘柄情報（リンク 4）
       return {
         root: R([58, 42], P('portfolio', 4), C([60, 40], P('chart', 4, { tf: 'D' }), P('info', 4))),
+        docks: {},
+      }
+    case 'folio':
+      // §6.4 ポートフォリオ（FR-PF1）: 左にダッシュボード、右にチャートと銘柄情報（保有のタブと同じリンク 4）
+      return {
+        root: R([62, 38], P('folio', 4), C([40, 60], P('chart', 4, { tf: 'D' }), P('info', 4))),
         docks: {},
       }
   }

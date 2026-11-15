@@ -15,6 +15,7 @@ import {
 } from '@shared/alerts'
 import type { CoreError, Events, Method, Params, Results } from '@shared/api'
 import { FIELD_BY_ID } from '@shared/fields'
+import { mergePoints } from '@shared/folio'
 import type {
   Adjustment,
   Alert,
@@ -22,6 +23,7 @@ import type {
   AlertState,
   AlertView,
   Condition,
+  FolioPoint,
   Holding,
   InstrumentId,
   JstDate,
@@ -31,6 +33,7 @@ import type {
 import { AlertBook, decide, decideScreen, evaluateAlert, type ScreenEval } from './alerts'
 import { addYears, jstNow, lastClosedSession } from './calendar'
 import { Db } from './db'
+import { atOf, contribOf, dividendsOf, FolioBook, type Market, recordPoint, seriesResult } from './folio'
 import { applyImport, exportHoldings, normalize, previewBrokerCsv, previewImport } from './holdings'
 import { computeInfoExtra, EXTRA_BARS, earningsOf, sectorStats } from './infoExtra'
 import { JobRunner } from './jobs'
@@ -87,6 +90,8 @@ export class CoreService {
   private metricsCache: Map<InstrumentId, MetricsRow> | null = null
   /** アラートの判定の状態と履歴（世代なし。§2） */
   readonly alertBook: AlertBook
+  /** 資産推移の記録（FR-PF2。作り直せないので .bak を残す） */
+  readonly folio: FolioBook
 
   constructor(
     dataDir: string,
@@ -100,6 +105,7 @@ export class CoreService {
     this.repo = new Repo(this.db)
     this.user = new UserStore(join(dataDir, 'user'))
     this.alertBook = new AlertBook(join(dataDir, 'user'), () => this.user.readOnly)
+    this.folio = new FolioBook(join(dataDir, 'user'), () => this.user.readOnly)
     if (this.user.readOnly || this.user.load('settings') == null) {
       /* settings を最初に読んで読み取り専用かを決める */
     }
@@ -123,7 +129,11 @@ export class CoreService {
       emitProvider: (s) => emit('provider.state', s),
       log,
       // 取得のジョブが終わったら、アラートを 1 回判定する（FR-AL3）
-      jobDone: () => this.evaluateAlerts(),
+      // 日々の更新・初回・全データの取り直しの終わりに、資産推移を 1 件記録する（FR-PF2）
+      jobDone: (kind) => {
+        this.evaluateAlerts()
+        if (kind === 'daily' || kind === 'initial' || kind === 'reset') this.recordFolio(true)
+      },
     })
   }
 
@@ -150,6 +160,60 @@ export class CoreService {
       }, 50)
     }
     this.jobs.resume()
+    // 起動したら、起動しなかった日を補完し、今日（取引の終わった最新の日）を記録する（値がそろっていなければ暫定）
+    setTimeout(() => this.recordFolio(), 80)
+  }
+
+  /** 市場データ（日足・配当・分割）を記録と計算に渡す形（1 回の計算の間だけ覚える） */
+  private folioMarket(): Market {
+    const r = this.repo
+    const memo = <T>(m: Map<string, T>, k: string, f: () => T): T => {
+      if (!m.has(k)) m.set(k, f())
+      return m.get(k)!
+    }
+    const sp = new Map<string, ReturnType<Repo['splits']>>()
+    const dv = new Map<string, ReturnType<Repo['dividends']>>()
+    const first = new Map<string, string | undefined>()
+    return {
+      closeOn: (code, d) => {
+        const x = r.db.get<{ d: string; c: number; prov: number }>(
+          'SELECT d, c, prov FROM daily_bars WHERE id = ? AND d <= ? ORDER BY d DESC LIMIT 1',
+          idOf(code),
+          d,
+        )
+        return x ? { d: x.d, c: x.c, ...(x.prov ? { prov: true } : {}) } : null
+      },
+      closes: (code, from) => r.daily(idOf(code), from).map((b) => ({ d: b.d, c: b.c, ...(b.prov ? { prov: true } : {}) })),
+      firstBar: (code) =>
+        memo(
+          first,
+          code,
+          () => r.db.get<{ d: string | null }>('SELECT MIN(d) AS d FROM daily_bars WHERE id = ?', idOf(code))?.d ?? undefined,
+        ),
+      splits: (code) => memo(sp, code, () => r.splits(idOf(code))),
+      dividends: (code) => memo(dv, code, () => r.dividends(idOf(code))),
+    }
+  }
+  /**
+   * 資産推移を記録する（FR-PF2）。書けない・失敗しても取得や保存は止めない。
+   * 保有を変えたのが取引の終わった日の後でなければ（取引時間中・休日）、前の取引日の確定した点の保有は変えない
+   */
+  recordFolio(jobDone = false, holdingsChanged = false): void {
+    try {
+      const d = lastClosedSession()
+      const next = recordPoint(this.folio.load(), {
+        d,
+        keepFinal: holdingsChanged && d !== jstNow().date,
+        holdings: this.holdings(),
+        meta: this.user.load('portfolioMeta'),
+        market: this.folioMarket(),
+        now: Date.now(),
+        jobDone,
+      })
+      if (next) this.folio.save(next)
+    } catch (e) {
+      this.log(`folio: ${String((e as Error)?.message ?? e)}`)
+    }
   }
 
   /**
@@ -453,6 +517,7 @@ export class CoreService {
       case 'portfolio.save':
         this.user.save('holdings', P.holdings as never)
         this.trackHoldings()
+        this.recordFolio(false, true)
         return this.holdings() as Results[M]
       case 'portfolio.export':
         return exportHoldings(
@@ -461,22 +526,29 @@ export class CoreService {
           `elecxstock ${this.version}`,
           new Date(),
           this.user.load('portfolioMeta'),
+          this.folio.load(),
         ) as Results[M]
       case 'portfolio.previewImport':
         return previewImport(String(P.json), this.user.load('holdings'), (code) => !!r.instrument(`JP:${code}`)) as Results[M]
       case 'portfolio.applyImport': {
         this.user.keepBefore('holdings', 'preimport') // 取り込む前の記録を残し、元に戻せるようにする（FR-H9）
         this.user.keepBefore('portfolioMeta', 'preimport')
+        this.folio.keepBefore() // 混ぜる前の資産推移の記録も、元に戻すで戻す
         const hs = P.holdings as Holding[]
         this.user.save('holdings', applyImport(this.user.load('holdings'), hs, P.mode as 'merge' | 'replace'))
         if (P.meta) this.user.save('portfolioMeta', P.meta as never)
         this.trackHoldings()
+        // 保有の JSON に入っていた資産推移は日付で混ぜる（丸ごと置き換えない）
+        if (P.history) this.folio.save(mergePoints(this.folio.load(), P.history as FolioPoint[]))
+        this.recordFolio(false, true)
         return this.holdings() as Results[M]
       }
       case 'portfolio.undoImport':
         if (!this.user.restoreBefore('holdings', 'preimport')) return null as Results[M]
         this.user.restoreBefore('portfolioMeta', 'preimport')
+        this.folio.restoreBefore()
         this.trackHoldings()
+        this.recordFolio(false, true)
         return this.holdings() as Results[M]
       case 'portfolio.meta':
         return this.user.load('portfolioMeta') as Results[M]
@@ -486,12 +558,38 @@ export class CoreService {
         // 取り込むたびに、保有は CSV の内容にすべて置き換える（FR-H11）。前の記録は世代に残して元に戻せる
         this.user.keepBefore('holdings', 'preimport')
         this.user.keepBefore('portfolioMeta', 'preimport')
+        this.folio.keepBefore()
         const hs = P.holdings as Holding[]
         this.user.save('holdings', hs)
         this.user.save('portfolioMeta', P.meta as never)
         this.trackHoldings()
+        this.recordFolio(false, true)
         return this.holdings() as Results[M]
       }
+      case 'folio.series':
+        return seriesResult(
+          this.folio,
+          this.folioMarket(),
+          Boolean(P.est),
+          this.user.readOnly,
+          this.holdings(),
+          lastClosedSession(),
+        ) as Results[M]
+      case 'folio.at':
+        return atOf(this.folio.load(), String(P.d), this.folioMarket()) as Results[M]
+      case 'folio.contrib':
+        return contribOf(
+          this.folio.load(),
+          this.holdings(),
+          P.period as 'month' | 'year',
+          lastClosedSession(),
+          this.folioMarket(),
+        ) as Results[M]
+      case 'folio.dividends':
+        return dividendsOf(this.folio.load(), this.holdings(), lastClosedSession(), this.folioMarket()) as Results[M]
+      case 'folio.clear':
+        if (this.user.readOnly) throw { code: 'read-only' } satisfies CoreError
+        return this.folio.clear() as Results[M]
       case 'user.exportAll':
         return this.user.exportAll() as Results[M]
       case 'alerts.list':

@@ -12,6 +12,10 @@ import type {
   DataStatus,
   Dividend,
   FetchFailure,
+  FolioAt,
+  FolioContrib,
+  FolioDividends,
+  FolioSeries,
   Holding,
   HoldingsImportPreview,
   InfoExtra,
@@ -100,6 +104,8 @@ export const settingsSchema = z.object({
   autoUpdate: z.boolean(),
   checkUpdates: z.boolean(),
   alertNotify: z.boolean(),
+  /** 配当の目標（月あたり・円。0 は無し。FR-PF7） */
+  divGoal: z.number().min(0).max(1e10),
   keymap: z.record(z.string().max(40), z.string().max(40)),
   recentFields: z.array(z.string().max(40)).max(12),
   maPeriods: z.object({ D: periods, W: periods, M: periods }),
@@ -132,6 +138,25 @@ export const portfolioMetaSchema = z.object({
   importedAt: z.string().max(40),
   realized: z.number().nullable(),
   dividends: z.number().nullable(),
+})
+const folioPosSchema = z.object({
+  code: z.string().min(1).max(12),
+  acct: z.enum(ACCOUNT_TYPES),
+  qty: z.number().nonnegative().max(1e12),
+  cost: z.number().nonnegative().max(1e12),
+})
+/** 資産推移の記録の 1 日（portfolioHistory.json と保有の JSON の history。FR-PF2） */
+export const folioPointSchema = z.object({
+  d: jstDate,
+  src: z.enum(['rec', 'fill']),
+  final: z.boolean(),
+  stale: z.boolean().optional(),
+  value: z.number().finite(),
+  cost: z.number().finite(),
+  pos: z.array(folioPosSchema).max(5000),
+  realized: z.number().finite().optional(),
+  received: z.number().finite().optional(),
+  at: z.number(),
 })
 export const savedLayoutSchema = z.object({
   id: z.string().max(40),
@@ -202,6 +227,8 @@ export const PARAMS = {
     holdings: z.array(holdingSchema).max(5000),
     mode: z.enum(['merge', 'replace']),
     meta: portfolioMetaSchema.nullable().optional(),
+    /** 保有の JSON に入っていた資産推移の記録（日付で混ぜる） */
+    history: z.array(folioPointSchema).max(100_000).optional(),
   }),
   'portfolio.undoImport': z.object({}),
   'portfolio.meta': z.object({}),
@@ -210,6 +237,12 @@ export const PARAMS = {
   'watchlists.toggleItem': z.object({ list: z.string().max(40), id }),
   'portfolio.previewCsv': z.object({ text: z.string().max(20_000_000) }),
   'portfolio.applyCsv': z.object({ holdings: z.array(holdingSchema).max(5000), meta: portfolioMetaSchema }),
+  // ポートフォリオ（FR-PF1〜PF8）
+  'folio.series': z.object({ est: z.boolean().optional() }),
+  'folio.at': z.object({ d: jstDate }),
+  'folio.contrib': z.object({ period: z.enum(['month', 'year']) }),
+  'folio.dividends': z.object({}),
+  'folio.clear': z.object({}),
   'bars.csv': z.object({ ids: z.array(id).max(500), from: jstDate.optional(), to: jstDate.optional() }),
   'data.backup': z.object({}),
   'app.checkUpdate': z.object({}),
@@ -285,6 +318,11 @@ export interface Results {
   'watchlists.toggleItem': Watchlist[]
   'portfolio.previewCsv': BrokerCsvPreview
   'portfolio.applyCsv': Holding[]
+  'folio.series': FolioSeries
+  'folio.at': FolioAt | null
+  'folio.contrib': FolioContrib
+  'folio.dividends': FolioDividends
+  'folio.clear': boolean
   'bars.csv': string
   /** 書き出した DB のファイル名（data/backups の中） */
   'data.backup': string

@@ -1,0 +1,213 @@
+// ポートフォリオ（FR-PF1〜PF8）: 9 つ目のタブ・カードを Tab で巡る・資産推移の期間と十字線の連動・損益寄与の期間・
+// 配当の分析（分類・アコーディオン）・段の移動。キーボードだけで操作する。値はスタブ（架空）と架空の記録
+
+import type { Page } from '@playwright/test'
+import { addDays, isTradingDay } from '../../src/shared/calendar'
+import type { FolioPoint } from '../../src/shared/types'
+import { expect, holdings, keys, tab, test } from './support'
+
+/** 目で確かめるためのスクリーンショット（FOLIO_SHOTS=<フォルダ> のときだけ） */
+const shot = async (page: Page, name: string) => {
+  if (process.env.FOLIO_SHOTS) await page.screenshot({ path: `${process.env.FOLIO_SHOTS}/${name}.png` })
+}
+
+const HOLD = holdings([
+  { code: '7203', quantity: 100, avgCost: 15000 },
+  { code: '8306', account: 'nisa_growth', quantity: 300, avgCost: 15000 },
+  { code: '8058', quantity: 200, avgCost: 11000 },
+  { code: '2914', quantity: 100, avgCost: 14000 },
+  { code: '8951', account: 'nisa_growth', quantity: 2, avgCost: 95000 },
+  { code: '1306', account: 'nisa_tsumitate', quantity: 300, avgCost: 2600 },
+])
+/** 架空の記録（約 1 年半。8306 は 1 年前は 200 株＝買い増し、2914 は今年の新規） */
+function history(): FolioPoint[] {
+  const out: FolioPoint[] = []
+  let d = '2025-05-01'
+  let v = 9_000_000
+  let i = 0
+  while (d < '2026-11-13') {
+    if (isTradingDay(d)) {
+      v *= 1 + Math.sin(i / 9) * 0.004 + 0.0006
+      const later = d >= '2026-04-01'
+      const pos = [
+        { code: '7203', acct: 'tokutei' as const, qty: 100, cost: 15000 },
+        { code: '8306', acct: 'nisa_growth' as const, qty: later ? 300 : 200, cost: 15000 },
+        { code: '8058', acct: 'tokutei' as const, qty: 200, cost: 11000 },
+        ...(later ? [{ code: '2914', acct: 'tokutei' as const, qty: 100, cost: 14000 }] : []),
+        { code: '8951', acct: 'nisa_growth' as const, qty: 2, cost: 95000 },
+        { code: '1306', acct: 'nisa_tsumitate' as const, qty: 300, cost: 2600 },
+      ]
+      const cost = pos.reduce((s, p) => s + p.qty * p.cost, 0)
+      out.push({ d, src: i % 13 === 5 ? 'fill' : 'rec', final: true, value: Math.round(v + cost - 9_000_000), cost, pos, at: 1 })
+      i++
+    }
+    d = addDays(d, 1)
+  }
+  return out
+}
+
+test.describe('ポートフォリオ（FR-PF1）', () => {
+  test('Ctrl+Shift+9 で開き、カードが出る。Tab で巡り、資産推移の期間・十字線の連動・Esc で戻る', async ({ start }) => {
+    const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    await expect(f).toHaveClass(/focused/)
+    await expect(f.locator('.c-hero')).toContainText('評価額')
+    await expect(f.locator('.c-hist .chart svg')).toBeVisible()
+    await expect(f.locator('.c-alloc .tile').first()).toBeVisible()
+    await expect(f.locator('.c-contrib .crow').first()).toBeVisible()
+    await expect(f.locator('.c-events')).toContainText('今後 30 日の予定')
+    // 期間の内訳は足すと期末と一致する（受取配当は別枠）
+    await expect(f.locator('.c-hist .wfbox')).toContainText('期首')
+
+    // Tab で資産推移を選び、Alt+3（3M）、← で十字線の日 → 評価額のカードがその日の値になる
+    await keys(page, 'Tab')
+    await expect(f.locator('.c-hist')).toHaveClass(/focus/)
+    await keys(page, 'Alt+Digit3')
+    await expect(f.locator('.c-hist .seg button.on').first()).toHaveText('3M')
+    const before = await f.locator('.hero-value').textContent()
+    await keys(page, 'ArrowLeft', 'ArrowLeft', 'ArrowLeft')
+    await expect(f.locator('.c-hero .crossday')).toBeVisible()
+    await expect(f.locator('.c-alloc .crossday')).toBeVisible()
+    await expect.poll(() => f.locator('.hero-value').textContent()).not.toBe(before)
+    await shot(page, 'folio-cross')
+    await keys(page, 'Escape')
+    await expect(f.locator('.c-hero .crossday')).toHaveCount(0)
+    await expect.poll(() => f.locator('.hero-value').textContent()).toBe(before)
+
+    // P で % にすると時間加重。B でベンチマーク
+    await keys(page, 'p')
+    await expect(f.locator('.c-hist .histhead')).toContainText('時間加重収益率')
+    await keys(page, 'p')
+    await shot(page, 'folio-top')
+  })
+
+  test('損益寄与は T で今日・今月・今年・取得来。行は ↓ で送り、Enter で同じリンク色のチャートに出す', async ({ start }) => {
+    const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    await keys(page, 'Tab', 'Tab', 'Tab')
+    const c = f.locator('.c-contrib')
+    await expect(c).toHaveClass(/focus/)
+    for (const label of ['今月', '今年', '取得来', '今日']) {
+      await keys(page, 't')
+      await expect(c.locator('.seg button.on')).toHaveText(label)
+    }
+    await keys(page, 'ArrowDown')
+    await expect(c.locator('.crow.sel')).toHaveCount(1)
+    const code = (await c.locator('.crow.sel .nm .num').textContent())!.trim()
+    await keys(page, 'Enter')
+    await expect(page.locator('[data-widget="chart"]').first()).toContainText(code)
+  })
+
+  test('配当の分析: PgDn で段を移り、分類を G で替え、表は → で開き ← で閉じる（FR-PF7）', async ({ start }) => {
+    const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    await expect(f.locator('.c-dsum')).toBeVisible() // 読み込みが終わってから
+    await keys(page, 'PageDown')
+    await expect(f.locator('.nav button.on')).toHaveText(/配当の分析/)
+    await expect(f.locator('.c-dsum')).toContainText('年間配当（税引後）')
+    await expect(f.locator('.c-dwf')).toContainText('買い増し')
+    // 表を選ぶ（Shift+Tab で後ろから）。初期値は銘柄ごと・銘柄コードの順
+    await keys(page, 'Shift+Tab')
+    const tb = f.locator('.c-dtab')
+    await expect(tb).toHaveClass(/focus/)
+    await expect(tb.locator('.seg button.on')).toHaveText('銘柄')
+    await expect(tb.locator('th.on')).toHaveText(/銘柄/)
+    const codes = await tb.locator('tbody tr td:first-child .num').allTextContents()
+    expect(codes).toEqual([...codes].sort())
+    // G で業種に分ける（アコーディオン）
+    await keys(page, 'g')
+    await expect(tb.locator('tr.g').first()).toBeVisible()
+    const groups = await tb.locator('tr.g').count()
+    await keys(page, 'ArrowRight')
+    await expect(tb.locator('tr.g.open')).toHaveCount(1)
+    expect(await tb.locator('tbody tr').count()).toBeGreaterThan(groups)
+    await keys(page, 'ArrowDown', 'ArrowLeft')
+    await expect(tb.locator('tr.g.open')).toHaveCount(0)
+    // G で分類（業種 → 17 業種）、S で並べ替え（銘柄 → 年間）
+    await keys(page, 'g')
+    await expect(tb.locator('.seg button.on')).toHaveText('17 業種')
+    await keys(page, 's')
+    await expect(tb.locator('th.on')).toHaveText(/年間/)
+    await shot(page, 'folio-div')
+    // 表を選んでいる間の PgUp は表の行。Esc でカードの選択を外すと、段を移る
+    // 見出しの分類と列名は押しても選べる（キーの G・S と同じ）
+    await tb.getByRole('radio', { name: '市場区分' }).click()
+    await expect(tb.locator('.seg button.on')).toHaveText('市場区分')
+    await expect(f.locator('.c-dshare .seg button.on')).toHaveText('市場区分')
+    await tb.locator('th', { hasText: '前年比' }).click()
+    await expect(tb.locator('th.on')).toHaveText(/前年比/)
+    await f.locator('.c-contrib').getByRole('radio', { name: '今年' }).click()
+    await expect(f.locator('.c-contrib .seg button.on')).toHaveText('今年')
+    await keys(page, 'Escape', 'PageUp')
+    await expect(f.locator('.nav button.on')).toHaveText(/概要/)
+  })
+
+  test('資産構成・損益寄与・予定・配当の表の銘柄を押すと、同じリンク色のチャートと銘柄情報に出る。キーで選んでも追従する（FR-PF6）', async ({
+    start,
+  }) => {
+    const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    const chart = page.locator('[data-widget="chart"]').first()
+    const info = page.locator('[data-widget="info"]').first()
+    // 口座区分の構成比の円グラフ
+    await expect(f.locator('.c-hero .ring path')).toHaveCount(3)
+    await expect(f.locator('.c-hero .ring')).toContainText('NISA')
+    // 損益寄与の行
+    const row = f.locator('.c-contrib .crow').nth(1)
+    const code = (await row.locator('.nm .num').textContent())!.trim()
+    await row.click()
+    await expect(chart).toContainText(code)
+    await expect(info).toContainText(code)
+    // 資産構成のタイル（銘柄コードを読み、押すとその銘柄）
+    const tile = f.locator('.c-alloc .tile').first()
+    const t0 = (await tile.getAttribute('title'))!.slice(0, 4)
+    await tile.click()
+    await expect(chart).toContainText(t0)
+    // キーで選んでも追従する（タイルを押して資産構成を選んだので、Tab で次の損益寄与）
+    await keys(page, 'Tab')
+    await expect(f.locator('.c-contrib')).toHaveClass(/focus/)
+    await keys(page, 'Home')
+    await expect(f.locator('.c-contrib .crow').first()).toHaveClass(/sel/)
+    const first = (await f.locator('.c-contrib .crow.sel .nm .num').textContent())!.trim()
+    await expect(chart).toContainText(first)
+    // 配当の表（銘柄ごと）の行（損益寄与を選んでいる間の PgDn は行なので、Esc で外してから段を移る）
+    await keys(page, 'Escape', 'PageDown')
+    await f.locator('.c-dshare .seg button').first().waitFor()
+    await keys(page, 'Shift+Tab')
+    // 初期値は銘柄ごと
+    const tr = f.locator('.c-dtab tbody tr').nth(2)
+    const c2 = (await tr.locator('td').first().locator('.num').textContent())!.trim()
+    await tr.click()
+    await expect(info).toContainText(c2)
+  })
+
+  // 回帰（2026-11-15 に利用者が見つけた見た目の不具合）: 1920 の画面（L の並び）で、口座で分けた配当の内訳の名前と年間配当の値が切れない
+  test('配当の内訳の名前・年間配当の値と注記が切れない（L の並び）', async ({ start }) => {
+    const { page } = await start({ user: { holdings: HOLD }, viewport: { width: 1920, height: 1040 } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    await expect(f.locator('.c-dsum')).toBeVisible()
+    await keys(page, 'PageDown')
+    await f.locator('.c-dshare').getByRole('radio', { name: '口座' }).click()
+    await keys(page, 'PageDown')
+    const clipped = (sel: string) =>
+      f.locator(sel).evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent))
+    await expect(f.locator('.c-dshare .shr .nm').first()).toBeVisible()
+    expect(await clipped('.c-dshare .shr .nm')).toEqual([])
+    expect(await clipped('.c-dsum .stat .v')).toEqual([])
+    expect(await clipped('.c-dsum .note')).toEqual([])
+    expect(await clipped('.c-hero .ring .nm')).toEqual([])
+    await shot(page, 'folio-div-l')
+  })
+
+  test('保有が無ければ取り込みの案内', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    await expect(f.locator('.empty')).toContainText('保有がありません')
+  })
+})
