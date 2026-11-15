@@ -167,4 +167,24 @@ test.describe('フリー N（FR-L7）', () => {
     await keys(page, 'Control+Alt+l')
     await expect(page.locator('.dialog.alerts tbody tr', { hasText: '8058' })).toBeVisible()
   })
+
+  test('1 枚目の設定で目標利回りの線を ON・OFF すると、開いているフリー 2 のタイルにもすぐ描く・消す（FR-C12, user.changed）', async ({
+    start,
+  }) => {
+    const { app, page } = await start({ settings: { yieldLine: false, yieldTargets: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } })
+    const free = await openFree(app, page, 'チャートグリッド')
+    const grid = free.locator('[data-widget="grid"]')
+    await grid.click({ position: { x: 200, y: 200 } })
+    await jump(free, '8951')
+    await expect(grid.locator('.tile').first()).toContainText('8951')
+    const drawn = grid.locator('canvas[data-yield]:not([data-yield=""])')
+    await expect(grid.locator('canvas[data-id]').first()).toBeVisible()
+    await expect(drawn).toHaveCount(0)
+    // 1 枚目: 設定 → チャート → Tab で「目標利回りの線」→ Space で ON
+    const toggle = () => keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'Tab', 'Space', 'Escape')
+    await toggle()
+    await expect.poll(() => drawn.count()).toBeGreaterThan(0)
+    await toggle()
+    await expect(drawn).toHaveCount(0)
+  })
 })

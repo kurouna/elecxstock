@@ -96,6 +96,63 @@ test.describe('目標利回りの線（FR-C12）', () => {
     await expect.poll(async () => (await rpc<{ settings: Settings }>(page, 'user.load')).settings.yieldTargets).toEqual([4, 6])
   })
 
+  test('比較の表示（% 目盛り）にすると線と凡例が消え、比較をやめると戻る。グリッドの比較% でも描かない', async ({ start }) => {
+    const { page } = await start({ settings: { yieldLine: true, yieldTargets: [4, 5.5] } })
+    const chart = page.locator('[data-widget="chart"]').first()
+    await keys(page, 'Alt+ArrowRight', 'Alt+ArrowUp')
+    await jump(page, '8951')
+    const yl = chart.locator('.legend .yl')
+    await expect(yl).toHaveCount(2)
+    // I → 「比較する銘柄を足す…」（↓ で送る）→ 銘柄を選ぶ
+    await keys(page, 'i')
+    await expect(page.locator('.dialog')).toContainText('比較する銘柄を足す')
+    await keys(page, 'ArrowDown', 'ArrowDown', 'ArrowDown', 'Enter')
+    const pal = page.locator('.dialog.palette')
+    await expect(pal).toContainText('重ねて比べる銘柄を選ぶ')
+    await page.keyboard.type('8058')
+    await expect(pal.locator('.it.sel')).toContainText('8058')
+    await keys(page, 'Enter')
+    await expect(chart.locator('.legend')).toContainText('比較')
+    await expect(yl).toHaveCount(0)
+    // 比較をやめる（↓ で 5 つ目）→ 戻る
+    await keys(page, 'i')
+    await expect(page.locator('.dialog')).toContainText('比較をやめる')
+    await keys(page, 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'Enter')
+    await expect(chart.locator('.legend')).not.toContainText('比較')
+    await expect(yl).toHaveCount(2)
+
+    // グリッド: N で比較%（線を描かない）、もう一度 N で戻すと描く
+    await tab(page, 'grid')
+    const grid = page.locator('[data-widget="grid"]')
+    const drawn = grid.locator('canvas[data-yield]:not([data-yield=""])')
+    await expect.poll(() => drawn.count()).toBeGreaterThan(0)
+    await keys(page, 'n')
+    await expect(grid.getByRole('button', { name: '比較%' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(drawn).toHaveCount(0)
+    await keys(page, 'n')
+    await expect.poll(() => drawn.count()).toBeGreaterThan(0)
+  })
+
+  test('無配に転じた銘柄・上場 12 か月未満の銘柄には引かない', async ({ start }) => {
+    const { page } = await start({ settings: { yieldLine: true, yieldTargets: [4] } })
+    const chart = page.locator('[data-widget="chart"]').first()
+    await keys(page, 'Alt+ArrowRight', 'Alt+ArrowUp')
+    // スタブの境界の銘柄（架空の設定）: 8002 は 2024 年を最後に無配、1605 は 2026-03-02 に上場（配当はあるが 12 か月に満たない）
+    const noDiv = await metricOf(page, 'JP:8002')
+    expect(noDiv.div12 ?? 0).toBe(0)
+    const young = await rpc<{ div12: number | null; yieldTrailing: number | null }[]>(page, 'metrics.get', { ids: ['JP:1605'] })
+    expect(young[0]!.yieldTrailing).toBeNull()
+    for (const code of ['8002', '1605']) {
+      await jump(page, code)
+      await expect(chart.locator('.ph').first()).toContainText(code)
+      await expect(chart.locator('.legend')).toBeVisible()
+      await expect(chart.locator('.legend .yl')).toHaveCount(0)
+    }
+    // 引ける銘柄に戻すと出る（銘柄を変えたときに描き直す）
+    await jump(page, '8951')
+    await expect(chart.locator('.legend .yl')).toHaveCount(1)
+  })
+
   test('OFF のときは、グリッドのタイルにも描かない', async ({ start }) => {
     const { page } = await start({ settings: { yieldLine: false, yieldTargets: [1, 2, 3, 4, 5] } })
     await tab(page, 'grid')
