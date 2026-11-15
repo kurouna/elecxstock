@@ -6,7 +6,7 @@ import type { ChartType, Indicator } from '../components/widgets/ChartView.svelt
 import { app, checklistDialog, choiceDialog, nameOf, promptDialog, saveSettings, t, toast } from '../stores/app.svelte'
 import { type PaneNode, paneSymbol, patchState } from '../stores/layout.svelte'
 import type { Key } from './i18n'
-import { PERIODS } from './periods'
+import { PERIODS, periodOfKey } from './periods'
 
 const IND: Indicator[] = ['ma', 'vol', 'volma', 'bb', 'ichimoku', 'rsi', 'macd', 'stoch', 'divs']
 const TYPES: ChartType[] = ['candle', 'bar', 'line']
@@ -127,8 +127,9 @@ export function changeSymbol(pane: PaneNode): void {
 /** chart・mtf-chart の共通のキー。扱えたら true */
 export function chartKey(pane: PaneNode, e: KeyboardEvent): boolean {
   // 表示期間（Alt+1〜6、グリッドと同じ）
-  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && /^Digit[1-6]$/.test(e.code)) {
-    patchState(pane, { period: Number(e.code.slice(5)) - 1 })
+  const period = periodOfKey(e)
+  if (period != null) {
+    patchState(pane, { period })
     return true
   }
   if (e.ctrlKey || e.altKey || e.metaKey) return false

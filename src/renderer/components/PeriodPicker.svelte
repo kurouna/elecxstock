@@ -1,5 +1,5 @@
 <script lang="ts">
-// 表示期間の選択（FR-G3, C13）。チャートグリッドとチャートで同じ形・同じ言葉・同じキー（Alt+1〜6）にそろえる
+// 表示期間の選択（FR-G3）。チャートグリッド・チャート・マーケットで同じ形・同じ言葉・同じキー（Alt+1〜6）にそろえる
 import { PERIODS } from '../lib/periods'
 import { t } from '../stores/app.svelte'
 
@@ -11,7 +11,7 @@ let {
   /** PERIODS の位置。undefined は既定（チャートは時間軸ごとの既定の本数） */
   value: number | undefined
   onchange: (v: number | undefined) => void
-  /** 「既定」を選べるか（チャートだけ） */
+  /** 「既定」を選べるか（チャート・マーケット。時間軸ごとの既定の本数） */
   allowDefault?: boolean
 } = $props()
 </script>

@@ -1,26 +1,30 @@
 <script lang="ts">
 // market-overview（§6.3, FR-U6）: 指数・指数連動 ETF の小さなチャート群。
 // 既定は日経平均（^N225）・TOPIX 連動 ETF（1306）・東証 REIT 指数連動 ETF（1343）。TOPIX そのものは Yahoo で取れない。
-// 1〜9 で銘柄を足し、Delete で外す。D/W/M で時間軸、矢印で選び、Enter でリンクグループへ。
+// 1〜9 で銘柄を足し、Delete で外す。D/W/M で時間軸、Alt+1〜6 で表示期間（チャートと同じ）、矢印で選び、Enter でリンクグループへ。
 import type { Bars, InstrumentId, Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
 import { cls, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
+import { marketBars, periodOfKey } from '../../lib/periods'
 import { app, bridge, codeOf, inst, nameOf, rpc, t, toast } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
+import PeriodPicker from '../PeriodPicker.svelte'
 import { drawTile } from './gridDraw'
 
 let { pane }: { pane: PaneNode } = $props()
 const DEFAULT = ['IDX:N225', 'JP:1306', 'JP:1343']
 const ids = $derived((pane.state.ids as InstrumentId[] | undefined) ?? DEFAULT)
 const tf = $derived(((pane.state.tf as Timeframe) ?? 'D') as Timeframe)
+/** 表示期間（PERIODS の位置）。無ければ時間軸ごとの既定の本数 */
+const period = $derived(pane.state.period as number | undefined)
 let bars = $state<Record<string, Bars>>({})
 let sel = $state(0)
 let host = $state<HTMLDivElement>()
 
 async function load() {
-  const r = await bridge.call('bars.many', { ids: [...ids], tf, count: tf === 'D' ? 130 : tf === 'W' ? 104 : 120 })
+  const r = await bridge.call('bars.many', { ids: [...ids], tf, count: marketBars(period, tf) })
   bars = r
   queueMicrotask(draw)
 }
@@ -33,6 +37,7 @@ function draw() {
 $effect(() => {
   void ids.join()
   void tf
+  void period
   void app.dataVersion
   void app.settings.theme
   void load()
@@ -62,6 +67,11 @@ onMount(() => {
       return true
     },
     key(e) {
+      const p = periodOfKey(e)
+      if (p != null) {
+        patchState(pane, { period: p })
+        return true
+      }
       if (e.ctrlKey || e.altKey || e.metaKey) return false
       const k = e.key
       if (k === 'ArrowRight' || k === 'ArrowDown') {
@@ -99,6 +109,7 @@ onMount(() => {
 
 <PaneHeader {pane}>
   <span class="seg">{#each ['D', 'W', 'M'] as x (x)}<button type="button" aria-pressed={tf === x} onclick={() => patchState(pane, { tf: x })}>{x}</button>{/each}</span>
+  <PeriodPicker allowDefault value={period} onchange={(v) => patchState(pane, { period: v })} />
   <span class="muted hint">{t('mkt.hint')}</span>
 </PaneHeader>
 <div class="tiles" bind:this={host}>

@@ -8,7 +8,7 @@ import { addToListDialog, keyOf, setFocus } from '../../lib/commands'
 import { cls, fmt, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
-import { PERIODS } from '../../lib/periods'
+import { PERIODS, periodOfKey } from '../../lib/periods'
 import { symbolDrop } from '../../lib/symbolDrag'
 import {
   app,
@@ -329,8 +329,9 @@ onMount(() => {
         }
         return true
       }
-      if (e.altKey && !ctrl && /^Digit[1-6]$/.test(c)) {
-        set({ period: Number(c.slice(5)) - 1 })
+      const period = periodOfKey(e)
+      if (period != null) {
+        set({ period })
         return true
       }
       // ★だけ表示: ほかのペインと同じ Ctrl+Shift+F（Shift+F も使える）

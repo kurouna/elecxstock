@@ -115,6 +115,10 @@ const G = $derived([
       [ja ? 'ヒートマップ: 移動 / 業種の中へ / 戻る' : 'Heatmap: move / drill in / back', 'Arrows / Enter / Esc'],
       [ja ? 'ヒートマップ: 期間' : 'Heatmap: period', 'P'],
       [ja ? 'ランキング: 指標 / 上位・下位 / 市場' : 'Ranking: metric / top-bottom / market', 'S / Shift+S / G'],
+      [
+        ja ? 'マーケット: 銘柄を足す / 外す / 時間軸 / 表示期間' : 'Market: add / remove / timeframe / period',
+        '1–9 / Delete / D W M / Alt+1–6',
+      ],
       [ja ? '保有: 足す / 直す / 外す / 送る' : 'Portfolio: add / edit / remove / send', 'Insert / E / Delete / Enter'],
       [ja ? '銘柄情報: 配当の棒を選ぶ / 年・回の切り替え' : 'Symbol info: select dividend bar / per year–payout', '← → Home End / Y'],
     ],
