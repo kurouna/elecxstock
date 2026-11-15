@@ -542,6 +542,16 @@ export function resetLayout(): void {
   app.focus = null
   saveLayout()
 }
+/**
+ * すべてのタブ（プリセット）のレイアウトを初期状態に戻す（FR-L10）。表示中のタブ・リンクの銘柄・名前を付けたレイアウトは変えない。
+ * 1 枚目だけ（フリー N はそれぞれの窓の配置なので、窓ごとに resetLayout で戻す）
+ */
+export function resetAllLayouts(): void {
+  if (IS_FREE) return
+  for (const id of PRESET_IDS) layout.doc.entries[id] = presetEntry(id)
+  app.focus = null
+  saveLayout()
+}
 /** 右・下に分割（Ctrl+Shift+E / O） */
 export function splitPane(paneId: string, dir: 'row' | 'col', widget: WidgetId = 'chart'): string | null {
   if (inDock(paneId) || (IS_FREE && !FREE_WIDGETS.includes(widget))) return null

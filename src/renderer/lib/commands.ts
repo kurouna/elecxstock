@@ -42,6 +42,7 @@ import {
   type PresetId,
   paneSymbol,
   patchState,
+  resetAllLayouts,
   resetLayout,
   resetSizes,
   saveLayout,
@@ -233,6 +234,19 @@ export async function doResetLayout(): Promise<void> {
   if (!r.ok) return
   resetLayout()
   toast(t('layout.resetDone', { tab }))
+}
+
+/** すべてのタブのレイアウトを初期状態に戻す（確認してから。FR-L10） */
+export async function doResetAllLayouts(): Promise<void> {
+  const r = await confirmDialog({
+    title: t('layout.resetAllTitle'),
+    body: t('layout.resetAllBody'),
+    ok: t('layout.resetDo'),
+    danger: true,
+  })
+  if (!r.ok) return
+  resetAllLayouts()
+  toast(t('layout.resetAllDone'))
 }
 
 export async function startUpdate(force = false): Promise<void> {
@@ -543,6 +557,7 @@ export const ACTIONS: Action[] = [
   },
   { id: 'resetSizes', label: () => t('act.resetSizes'), key: 'Ctrl+Alt+R', when: 'global', run: () => doResetSizes() },
   { id: 'resetLayout', label: () => t('act.resetLayout'), run: () => doResetLayout() },
+  { id: 'resetAllLayouts', label: () => t('act.resetAllLayouts'), run: () => doResetAllLayouts() },
   { id: 'drawer', label: () => t('act.drawer'), key: 'Ctrl+B', when: 'global', run: () => toggleDock('left') },
   { id: 'drawerRight', label: () => t('act.drawerRight'), key: 'Ctrl+Shift+B', when: 'global', run: () => toggleDock('right') },
   { id: 'drawerPin', label: () => t('act.drawerPin'), key: 'Ctrl+Alt+B', when: 'global', run: () => pinDock() },

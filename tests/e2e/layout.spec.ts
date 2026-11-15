@@ -3,7 +3,20 @@
 // 木の操作そのものは単体テスト（tests/unit/renderer/layout.test.ts）で、ここでは当たり判定と見た目の位置を見る。
 // ドラッグ（FR-L2）はポインタの操作そのものを確かめるのでマウスを使う（同じ操作はコマンドバーからもできる。下のキーのテスト）
 import type { Locator, Page } from '@playwright/test'
-import { command, expect, jump, keys, type Launched, type LaunchOpts, replaceSymbol, tab, test, type } from './support'
+import {
+  command,
+  expect,
+  jump,
+  keys,
+  type Launched,
+  type LaunchOpts,
+  type LayoutDoc,
+  pane,
+  replaceSymbol,
+  tab,
+  test,
+  type,
+} from './support'
 
 type Box = { x: number; y: number; width: number; height: number }
 const boxOf = async (l: Locator): Promise<Box> => {
@@ -390,5 +403,29 @@ test.describe('名前付きのレイアウト・再起動（FR-L4, FR-G11, FR-SC
     await expect(page.locator('.bar select.srcsel')).toHaveValue('own')
     await expect(page.locator('.tile')).toHaveCount(1)
     await expect(page.locator('.seg button[aria-pressed="true"]').first()).toHaveText('M')
+  })
+})
+
+test.describe('すべてのタブのレイアウトを初期状態に戻す（FR-L10）', () => {
+  test('コマンドパレットから実行し、確認すると、崩したタブも初期の並びに戻る。表示中のタブはそのまま', async ({ start }) => {
+    // MTF とスクリーナーのタブを、チャート 1 枚だけに崩した状態から起動する（表示中はフリー）
+    const one = (doc: LayoutDoc) => {
+      for (const id of ['mtf', 'screener']) doc.entries[id] = { root: pane('chart', { tf: 'D' }), docks: {} }
+      doc.active = 'free'
+    }
+    const { page } = await start({ layout: one })
+    await command(page, 'すべてのタブのレイアウトを初期状態に戻す')
+    const dlg = page.getByRole('alertdialog')
+    await expect(dlg).toContainText('すべてのタブ')
+    await expect(dlg).toContainText('名前を付けて保存したレイアウト')
+    await keys(page, 'ArrowRight', 'Enter')
+    await expect(page.locator('.toasts')).toContainText('すべてのタブのレイアウトを初期状態に戻しました')
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('フリー')
+    await tab(page, 'mtf')
+    await expect(page.locator('[data-widget="screener"]')).toHaveCount(2)
+    await expect(page.locator('[data-widget="chart"]')).toHaveCount(3)
+    await tab(page, 'screener')
+    await expect(page.locator('[data-widget="info"]')).toHaveCount(1)
+    await expect(page.locator('[data-widget="chart"]')).toHaveCount(2)
   })
 })

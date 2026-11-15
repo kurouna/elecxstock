@@ -294,3 +294,26 @@ describe('MTF のタブの初期の並び（§6.4 MTF・FR-L5）', () => {
     expect(L.allPanes(L.presetEntry('mtf'), false).every((p) => p.link === 1)).toBe(true)
   })
 })
+
+describe('すべてのタブのレイアウトを初期状態に戻す（FR-L10）', () => {
+  /** ID を除いた形（ペインの種類・リンク・状態・区切りの向きと比率・ドロワー） */
+  const shape = (n: unknown): unknown => JSON.parse(JSON.stringify(n, (k, v) => (k === 'id' ? undefined : v)))
+  it('すべてのタブの並び・区切り・ドロワーを初期状態にし、表示中のタブとリンクの銘柄は変えない', () => {
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('screener')
+    L.layout.doc.links['1'] = 'JP:7203'
+    // 2 つのタブを崩す（ペインを閉じる・区切りを動かす）
+    for (const id of ['mtf', 'market'] as const) {
+      const e = L.layout.doc.entries[id]!
+      const p = L.allPanes(e, false).at(-1)!
+      L.layout.doc.active = id
+      L.closePane(p.id)
+      ;(e.root as { sizes?: number[] }).sizes = [10, 90]
+    }
+    L.layout.doc.active = 'screener'
+    L.resetAllLayouts()
+    for (const id of L.PRESET_IDS) expect(shape(L.layout.doc.entries[id]), id).toEqual(shape(L.presetEntry(id)))
+    expect(L.layout.doc.active).toBe('screener')
+    expect(L.layout.doc.links['1']).toBe('JP:7203')
+  })
+})

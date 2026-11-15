@@ -19,6 +19,7 @@ export function blockedInFree(id: string): boolean {
     /^layout\./.test(id) ||
     [
       'layouts',
+      'resetAllLayouts',
       'alerts',
       'settings',
       'data',
