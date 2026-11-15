@@ -1,5 +1,6 @@
 // アラートの条件・値・距離の表示（FR-AL8）。言葉はスクリーナーの条件の書き方にそろえる
 
+import { refOffsetText } from '@shared/conditionInput'
 import { FIELD_BY_ID, perShare } from '@shared/fields'
 import type { AlertView, Condition } from '@shared/types'
 import { app } from '../stores/app.svelte'
@@ -31,8 +32,7 @@ function thresholdText(field: string, v: number): string {
 /** 条件の文（例: 終値 ≤ 17,500 / 終値 ≤ 75日移動平均 +0% / 実績利回り ≥ 5.50%） */
 export function condText(c: Condition): string {
   if (c.ref) {
-    const d = Number(c.value)
-    return `${label(c.field)} ${opText(c.op)} ${label(c.ref)} ${d >= 0 ? '+' : '−'}${fmt(Math.abs(d), 1)}%`
+    return `${label(c.field)} ${opText(c.op)} ${label(c.ref)} ${refOffsetText(c)}`
   }
   return `${label(c.field)} ${opText(c.op)} ${thresholdText(c.field, Number(c.value))}`
 }

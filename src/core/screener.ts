@@ -1,7 +1,7 @@
 // スクリーニング（§5.2）。指標の登録表（FR-FD1）に従って条件を評価する。metrics 表だけを読む（FR-S10）。
 // 条件は「または」（Condition.or）でまとめたグループを「かつ」でつなぐ（FR-SC5）。相対条件は Condition.ref で別の指標と比べる。
 import { COMPUTE_KEYS, computeValue, type HeldStats, heldStats } from '@shared/compute'
-import { FIELD_BY_ID, migrateConditions, refFields, usable } from '@shared/fields'
+import { FIELD_BY_ID, migrateConditions, refFields, refTarget, usable } from '@shared/fields'
 import type { Condition, Instrument, InstrumentId, JstDate, MetricsRow, ScreenResult } from '@shared/types'
 
 export interface ScreenInput {
@@ -53,7 +53,7 @@ function test(c: Condition, ins: Instrument, m: MetricsRow, inp: ScreenInput, wl
       const g = FIELD_BY_ID.get(c.ref)!
       const y = g.source.kind === 'metrics' ? (m as unknown as Row)[g.source.column] : null
       if (y == null || typeof y !== 'number') return null
-      v = y * (1 + Number(c.value) / 100) // 相手の値 ± value %
+      v = refTarget(c.field, y, Number(c.value)) // 価格は相手の ± %、% の指標どうしは ± ポイント
     }
     return c.op === '>=' ? x >= v : c.op === '<=' ? x <= v : false
   }
@@ -129,18 +129,24 @@ export function runScreen(input: ScreenInput): ScreenResult {
   const invalid: number[] = []
   // 保存したときの指標の版から今の版へ移す（FR-FD5）。移せなかった条件は無効
   const { conditions, failed } = migrateConditions(inp.conditions)
-  const groups: { c: Condition }[][] = []
+  // 先に「または」でまとまりを作ってから、無効な条件を外す（外してからまとめると、無効な条件のすぐ下の「または」が
+  // 前の「かつ」のまとまりに入り、条件が緩む）。条件がすべて無効なまとまりは外す
+  const raw: { c: Condition; i: number }[][] = []
   conditions.forEach((c, i) => {
-    // 保有の記録が無いときの保有の指標は無効（FR-SC11・H6。全銘柄が欠損で 0 件にしない）
-    const noHoldings = !!FIELD_BY_ID.get(c.field)?.requires?.includes('holdings') && !inp.holdings?.size
-    const ok = conditionValid(c) && !failed.includes(i) && !noHoldings
-    if (!ok) {
-      invalid.push(i)
-      return
-    }
-    if (c.or && groups.length) groups.at(-1)!.push({ c })
-    else groups.push([{ c }])
+    if (c.or && raw.length) raw.at(-1)!.push({ c, i })
+    else raw.push([{ c, i }])
   })
+  const groups: { c: Condition }[][] = []
+  for (const g of raw) {
+    const kept = g.filter(({ c, i }) => {
+      // 保有の記録が無いときの保有の指標は無効（FR-SC11・H6。全銘柄が欠損で 0 件にしない）
+      const noHoldings = !!FIELD_BY_ID.get(c.field)?.requires?.includes('holdings') && !inp.holdings?.size
+      const ok = conditionValid(c) && !failed.includes(i) && !noHoldings
+      if (!ok) invalid.push(i)
+      return ok
+    })
+    if (kept.length) groups.push(kept.map(({ c }) => ({ c })))
+  }
   const wl = new Map(Object.entries(inp.watchlists).map(([k, v]) => [k, new Set(v)]))
   const ids: InstrumentId[] = []
   const rows: MetricsRow[] = []

@@ -62,7 +62,7 @@ import type { Key } from './i18n'
 import { matches, normalizeKey } from './keys'
 import { paneApi } from './panes'
 import { exportHoldings, importBrokerCsv, importHoldings, undoHoldingsImport } from './portfolio'
-import { confirmCloseScreen } from './screens'
+import { condsOf, confirmCloseScreen } from './screens'
 import { blockedInFree, FREE_WIDGETS, freeNo, IS_FREE } from './windowSlot'
 
 export interface Action {
@@ -444,7 +444,8 @@ export async function checkUpdate(manual = false): Promise<void> {
 export function openInGrid(): void {
   // 開いた時点のスクリーナーの条件を「スクリーナーの結果」に使う（FR-SC6, G1）
   const scr = findPane(app.focus)
-  if (scr?.widget === 'screener' && Array.isArray(scr.state.conds)) app.liveConds = JSON.parse(JSON.stringify(scr.state.conds))
+  // まだ条件を変えていないスクリーン（条件はスクリーンのもの）でも渡す
+  if (scr?.widget === 'screener') app.liveConds = JSON.parse(JSON.stringify(condsOf(scr)))
   setPreset('grid')
   const g = allPanes().find((p) => p.widget === 'grid')
   if (g) {

@@ -2,14 +2,13 @@
 // スクリーナー（§5.2, §5.3）。条件エディタは指標の登録表から作る（FR-FD1）。結果は仮想スクロール（FR-SC3）。
 
 import { canIncludeMissing, editText, parseConditionValue, typesNumber, valueUnit } from '@shared/conditionInput'
-import { FIELD_BY_ID, FIELDS, type FieldDef, MARKET_CHOICES, refFields, usable } from '@shared/fields'
+import { FIELD_BY_ID, FIELDS, type FieldDef, refFields, refInPoints, usable } from '@shared/fields'
 import type { Condition, InstrumentId, ScreenResult } from '@shared/types'
-import { onMount, untrack } from 'svelte'
-import { fieldValueText } from '../../lib/alertText'
+import { onMount, tick, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
 import { keyOf, openInGrid } from '../../lib/commands'
-import { fmt } from '../../lib/format'
+import { conditionValueText, moveCondition, newCondition, stepValue, valueChoices } from '../../lib/conditionEdit'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
@@ -19,7 +18,6 @@ import {
   choiceDialog,
   fieldPicker,
   isFav,
-  listName,
   promptDialog,
   rememberField,
   screenInputs,
@@ -53,6 +51,10 @@ const allCols = $derived(resolveColumns(extras.columns, DEFAULT_COLUMNS.screener
 /** 一覧の幅（狭いと右の列から隠し、コードと銘柄名を残す。FR-V12） */
 let width = $state(600)
 const cols = $derived(fitColumns(allCols, width))
+// 狭くて列を隠したら、選んでいる列を見えている列に寄せる（見出しの枠と ← → の起点がずれないように）
+$effect(() => {
+  if (col > cols.length - 1) col = Math.max(1, cols.length - 1)
+})
 let scroller = $state<HTMLDivElement>()
 let scrollTop = $state(0)
 let viewH = $state(400)
@@ -89,6 +91,20 @@ const rows = $derived.by(() => {
 $effect(() => {
   bridge.prioritize(rows.slice(0, 40))
 })
+// 結果が減ったら、選んでいる行を最後の行に寄せ、見える位置まで送る（一覧が短くなると、スクロールの位置が描く範囲の外に残るため）
+$effect(() => {
+  if (sel < rows.length) return
+  sel = Math.max(0, rows.length - 1)
+  void tick().then(scrollSel)
+})
+// 別のスクリーンを開いたら先頭の行から
+$effect(() => {
+  void pane.state.screenId
+  untrack(() => {
+    sel = 0
+    anchor = -1
+  })
+})
 const ROW = $derived(app.settings.density === 'compact' ? 20 : 24)
 const start = $derived(Math.max(0, Math.floor(scrollTop / ROW) - 10))
 const end = $derived(Math.min(rows.length, Math.ceil((scrollTop + viewH) / ROW) + 10))
@@ -103,7 +119,16 @@ function scrollSel() {
   const y = sel * ROW
   if (y < scroller.scrollTop) scroller.scrollTop = y
   else if (y + ROW * 2 > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = y + ROW * 2 - scroller.clientHeight
+  // 描く範囲は scrollTop の状態から決めるので、DOM の値に合わせる（一覧が短くなってブラウザが位置を下げたとき、scroll が来ないことがある）
+  scrollTop = scroller.scrollTop
 }
+// 行の数が変わったら、描く範囲を DOM のスクロールの位置に合わせる
+$effect(() => {
+  void rows.length
+  void tick().then(() => {
+    if (scroller) scrollTop = scroller.scrollTop
+  })
+})
 function update(i: number, c: Condition | null) {
   const next = [...conds]
   if (c) next[i] = c
@@ -113,40 +138,19 @@ function update(i: number, c: Condition | null) {
 }
 function step(i: number, d: number) {
   const c = conds[i]
-  const f = c && FIELD_BY_ID.get(c.field)
-  if (!c || !f) return
-  if (f.type === 'bool') return update(i, { ...c, value: !c.value })
-  if (f.source.kind === 'attr' && f.source.key !== 'market') {
-    // 業種・種別: 1 つずつ切り替える（複数は Enter で足す）
-    const ch = f.choices ?? []
-    const cur = (Array.isArray(c.value) ? c.value[0] : String(c.value)) ?? ''
-    const k = ch.findIndex((x) => x.value === cur)
-    return update(i, { ...c, value: [ch[(k + d + ch.length) % ch.length]!.value] })
-  }
-  if (f.source.kind === 'attr') {
-    const opts = [['P', 'R'], ['P'], ['R'], ['P', 'S', 'G'], ['P', 'S', 'G', 'R', 'E']]
-    const k = opts.findIndex((o) => JSON.stringify(o) === JSON.stringify(c.value))
-    return update(i, { ...c, value: opts[(k + d + opts.length) % opts.length]! })
-  }
-  if (f.source.kind === 'user') {
-    const ids = app.watchlists.map((w) => w.id)
-    const cur = (Array.isArray(c.value) ? c.value[0] : '') ?? ''
-    const k = ids.indexOf(cur)
-    return update(i, { ...c, value: [ids[(k + d + ids.length) % ids.length]!] })
-  }
-  const st = c.ref ? 1 : (f.step ?? 1) // 相対条件の値は相手からの差（%）
-  const v = Math.round((Number(c.value) + st * d) * 1e6) / 1e6
-  update(i, { ...c, value: v })
+  const v = c ? stepValue(c, d) : null
+  if (c && v != null) update(i, { ...c, value: v })
 }
 async function typeValue(i: number) {
   const c = conds[i]
   const f = c && FIELD_BY_ID.get(c.field)
-  if (c && f?.type === 'enum' && f.choices) {
-    // 選択肢から 1 つ選んで、条件の値に足す・外す
+  const choices = f ? valueChoices(f, app.settings.lang) : []
+  if (c && f && choices.length) {
+    // 選択肢から 1 つ選んで、条件の値に足す・外す（業種・種別・権利確定月・ウォッチリストなど）
     const vals = new Set(Array.isArray(c.value) ? c.value : [String(c.value)])
     const id = await choiceDialog(
       f.label[app.settings.lang],
-      f.choices.map((x) => ({ id: x.value, label: (vals.has(x.value) ? '✓ ' : '') + x.label[app.settings.lang] })),
+      choices.map((x) => ({ id: x.id, label: (vals.has(x.id) ? '✓ ' : '') + x.label })),
     )
     if (!id) return
     if (vals.has(id)) vals.delete(id)
@@ -158,7 +162,9 @@ async function typeValue(i: number) {
   // 金額は表示の単位（円・万円・億円）で打つ。「30万」「1.5億」のように単位を付けてもよい（アラートのダイアログと同じ関数）
   const lang = app.settings.lang
   const unit = valueUnit(c, lang)
-  const title = c.ref ? t('scr.refOffset') : `${f!.label[lang]}${unit ? (lang === 'ja' ? `（${unit}）` : ` (${unit})`) : ''}`
+  const title = c.ref
+    ? t(refInPoints(c.field) ? 'scr.refOffsetPt' : 'scr.refOffset')
+    : `${f!.label[lang]}${unit ? (lang === 'ja' ? `（${unit}）` : ` (${unit})`) : ''}`
   const s = await promptDialog(title, editText(c))
   const v = s == null ? null : parseConditionValue(c, s)
   if (v != null) update(i, { ...c, value: v })
@@ -213,11 +219,7 @@ const available = (f: FieldDef) => !f.requires?.includes('holdings') || app.hold
 /** 条件にできる指標（保有の記録が無ければ保有の指標は出さない） */
 const pickable = () => FIELDS.filter((f) => usable(f) && available(f)).map((f) => f.id)
 /** 新しい条件の既定（演算子と値は指標の既定） */
-const newCond = (f: FieldDef): Condition => ({
-  field: f.id,
-  op: f.operators[0]!,
-  value: f.source.kind === 'user' && f.type === 'enum' ? [app.watchlists[0]?.id ?? 'favorites'] : (f.default ?? 0),
-})
+const newCond = (f: FieldDef): Condition => newCondition(f)
 async function changeField(i: number) {
   const c = conds[i]
   if (!c) return
@@ -234,13 +236,11 @@ async function changeField(i: number) {
   update(i, { field: f.id, op: f.operators[0]!, value, ...(c.or && i > 0 ? { or: true } : {}) })
   ci = i
 }
-/** 条件を上下に動かす（↑↓ のボタン・Alt+↑↓）。結果は変わらないが、読みやすい順に並べられる */
+/** 条件を上下に動かす（↑↓ のボタン・Alt+↑↓）。「かつ／または」は行の位置に残すので、まとまりの形は変わらない */
 function moveCond(i: number, d: number) {
   const j = i + d
   if (j < 0 || j >= conds.length) return
-  const next = [...conds]
-  ;[next[i], next[j]] = [next[j]!, next[i]!]
-  setConds(pane, next)
+  setConds(pane, moveCondition(conds, i, d))
   ci = j
 }
 async function addCond() {
@@ -253,31 +253,7 @@ async function addCond() {
   const choice = await fieldPicker({ title: t('scr.addCond'), fields: pickable(), used: conds.map((c) => c.field), onAdd: add })
   if (choice) add(choice)
 }
-function showValue(c: Condition): string {
-  const f = FIELD_BY_ID.get(c.field)
-  if (!f) return String(c.value)
-  if (c.ref) {
-    const g = FIELD_BY_ID.get(c.ref)
-    const d = Number(c.value)
-    return `${g?.label[app.settings.lang] ?? c.ref}${d ? ` ${d > 0 ? '+' : '−'}${fmt(Math.abs(d), 1)}%` : ''}`
-  }
-  if (f.type === 'bool') return c.value ? t('common.yes') : t('common.no')
-  if (f.source.kind === 'attr')
-    return (c.value as string[])
-      .map((v) => (f.choices ?? MARKET_CHOICES).find((m) => m.value === v)?.label[app.settings.lang] ?? v)
-      .join(', ')
-  if (f.source.kind === 'user')
-    return (c.value as string[])
-      .map((id) => {
-        const w = app.watchlists.find((x) => x.id === id)
-        return w ? listName(w) : id
-      })
-      .join(', ')
-  if (f.type === 'money') return fieldValueText(f.id, Number(c.value))
-  if (f.type === 'percent') return `${fmt(Number(c.value), f.digits ?? 2)} %`
-  if (f.type === 'ratio') return `${fmt(Number(c.value), f.digits ?? 2)} ×`
-  return fmt(Number(c.value), f.digits ?? 0)
-}
+const showValue = (c: Condition): string => conditionValueText(c, app.settings.lang)
 const opLabel = (op: string) => ({ '>=': '≥', '<=': '≤', '=': '=', in: '∈', notin: '∉' })[op] ?? op
 
 onMount(() => {
@@ -315,7 +291,8 @@ onMount(() => {
         return true
       }
       if (k === 'Tab' && !ctrl) {
-        ci = ci >= 0 ? -1 : 0
+        // 条件が無ければ結果の表のまま（無い条件の行にフォーカスを置かない）
+        ci = ci >= 0 || !conds.length ? -1 : 0
         return true
       }
       if (ci >= 0 && e.altKey && !ctrl && (k === 'ArrowUp' || k === 'ArrowDown')) {
@@ -425,13 +402,16 @@ onMount(() => {
     off()
   }
 })
-// 銘柄ジャンプなどでリンク先の銘柄が変わったら、一覧にあればその行を選ぶ
+// 銘柄ジャンプなどでリンク先の銘柄が変わったら（結果が変わって行の位置が動いたときも）、一覧にあればその行を選ぶ
 $effect(() => {
   const id = pane.link ? linkSymbol(pane.link) : null
   const i = id ? rows.indexOf(id) : -1
   if (i >= 0)
     untrack(() => {
-      if (sel !== i) sel = i
+      if (sel === i) return
+      sel = i
+      // 仮想スクロールの描く範囲の外なら、選んだ行が見える位置まで送る
+      void tick().then(scrollSel)
     })
 })
 </script>

@@ -1,6 +1,6 @@
 // 条件の値を打つ・直すときの変換と、条件の欄を出すかの判定。スクリーナー（Screener.svelte）とアラートのダイアログ（AlertForm.svelte）が
 // 同じ関数を呼ぶ（docs/test-plan.md §2 の 2。コンポーネントに変換・判定を書かない）。
-import { FIELD_BY_ID, type FieldDef, moneyScale, parseTyped } from './fields'
+import { FIELD_BY_ID, type FieldDef, moneyScale, parseTyped, refInPoints } from './fields'
 import type { Condition } from './types'
 
 type Lang = 'ja' | 'en'
@@ -36,4 +36,13 @@ export function typesNumber(f: FieldDef | undefined): boolean {
 /** 「欠損を含める」を選べるか（市場データの数値と、実行時に計算する指標。属性・列挙・利用者のデータは欠損しない） */
 export function canIncludeMissing(f: FieldDef | undefined): boolean {
   return !!f && ((f.source.kind === 'metrics' && f.type !== 'enum') || f.source.kind === 'compute')
+}
+/**
+ * 相対条件の差の表示（FR-SC5）。価格どうしは「+5%」、% の指標どうし（騰落率・乖離率・利回り）は「+0.5pt」（相手 ± ポイント）。
+ * 符号は − を使う
+ */
+export function refOffsetText(c: Pick<Condition, 'field' | 'value'>): string {
+  const d = Number(c.value)
+  const n = String(Math.round(Math.abs(d) * 100) / 100)
+  return `${d >= 0 ? '+' : '−'}${n}${refInPoints(c.field) ? 'pt' : '%'}`
 }

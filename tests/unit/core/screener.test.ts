@@ -154,3 +154,49 @@ describe('runScreen（FR-SC1, SC2, SC8, SC9, SC10）', () => {
     expect(loss.ids).toEqual([])
   })
 })
+
+describe('無効な条件と「または」（FR-SC5, FR-SC11）', () => {
+  const mk = (code: string, yieldTrailing: number, per: number) =>
+    ({ id: `JP:${code}`, close: 1000, yieldTrailing, per }) as unknown as MetricsRow
+  const ins4 = ['1', '2', '3', '4'].map((code) => ({
+    id: `JP:${code}`,
+    code,
+    nameJa: code,
+    nameEn: code,
+    market: 'P' as const,
+    kind: 'stock' as const,
+    sectorJa: '',
+    sectorEn: '',
+    status: 'active' as const,
+    userAdded: false,
+  }))
+  // 1: 利回り 5・PER 10 / 2: 利回り 5・PER 30 / 3: 利回り 2・PER 10 / 4: 利回り 2・PER 30
+  const ms = new Map([mk('1', 5, 10), mk('2', 5, 30), mk('3', 2, 10), mk('4', 2, 30)].map((x) => [x.id, x]))
+  const screen = (conditions: Parameters<typeof runScreen>[0]['conditions']) =>
+    runScreen({ conditions, instruments: ins4, metrics: ms, favorites: new Set(), watchlists: {} })
+  it('無効な条件のすぐ下の「または」は、前の「かつ」のまとまりに入らない（利回り かつ（無効 または PER））', () => {
+    const r = screen([
+      { field: 'income.yield', op: '>=', value: 4 },
+      { field: 'holding.weight', op: '<=', value: 3 }, // 保有の記録が無いので無効
+      { field: 'value.per', op: '<=', value: 15, or: true },
+    ])
+    expect(r.invalid).toEqual([1])
+    expect(r.ids).toEqual(['JP:1'])
+  })
+  it('まとまりの条件がすべて無効なら、そのまとまりだけを外す', () => {
+    const r = screen([
+      { field: 'income.yield', op: '>=', value: 4 },
+      { field: 'holding.weight', op: '<=', value: 3 },
+      { field: 'holding.yoc', op: '>=', value: 3, or: true },
+    ])
+    expect(r.invalid).toEqual([1, 2])
+    expect(r.ids.sort()).toEqual(['JP:1', 'JP:2'])
+  })
+  it('先頭の条件の「または」は無視する（前にまとまりが無い）', () => {
+    const r = screen([
+      { field: 'income.yield', op: '>=', value: 4, or: true },
+      { field: 'value.per', op: '<=', value: 15 },
+    ])
+    expect(r.ids).toEqual(['JP:1'])
+  })
+})

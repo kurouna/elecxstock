@@ -1,7 +1,7 @@
 // スクリーナー（FR-SC1〜SC16, FR-FD1, FR-H6）: 条件を選ぶダイアログ・条件の編集・金額の単位・0 件・スクリーンの一覧・★だけ表示・ツールバー。
 // キーボードだけで操作する（重なりの確かめだけクリックする）。値はスタブ（架空）
 import type { Locator, Page } from '@playwright/test'
-import { expect, holdings, keys, tab, test, type } from './support'
+import { expect, holdings, keys, rpc, tab, test, type } from './support'
 
 const screener = (page: Page) => page.locator('[data-widget="screener"]')
 
@@ -251,6 +251,8 @@ test.describe('狭い一覧の列（FR-V12, FR-SC3）', () => {
     const head = screener(page).locator('thead th')
     await expect(head.nth(1)).toHaveText('コード')
     await expect(head.nth(2)).toHaveText('銘柄名')
+    // 列を隠しても、選んでいる列の枠は見えている列に出る
+    await expect(screener(page).locator('thead th.cur')).toHaveCount(1)
     const name = screener(page).locator('tbody tr:not(.spacer)').first().locator('td').nth(2)
     await expect(name).not.toBeEmpty()
     expect((await name.boundingBox())!.width).toBeGreaterThanOrEqual(96)
@@ -259,5 +261,73 @@ test.describe('狭い一覧の列（FR-V12, FR-SC3）', () => {
     const table = (await screener(page).locator('table.grid').boundingBox())!
     const pane = (await screener(page).boundingBox())!
     expect(table.width).toBeLessThanOrEqual(pane.width)
+  })
+})
+
+test.describe('列挙の条件・条件の行と結果の行（FR-SC1, FR-SC10, FR-SC4）', () => {
+  test('権利確定月は月の名前で出し、Enter で月を足しても — にならず、← → でも壊れない', async ({ start }) => {
+    const { page } = await start()
+    const scr = await openScreener(page)
+    await addField(page, '権利確定月')
+    const cond = scr.locator('.cond.focus')
+    await expect(cond.locator('.v')).toHaveText(/^\d+月$/)
+    // Enter で選択肢を開き、もう 1 つの月を足す
+    await keys(page, 'Enter')
+    const dlg = page.locator('.dialog').last()
+    await expect(dlg.locator('.it').first()).toBeVisible()
+    await keys(page, 'ArrowDown', 'ArrowDown', 'ArrowDown', 'Enter')
+    await expect(cond.locator('.v')).toHaveText(/^\d+月, \d+月$/)
+    // → で 1 つずつ巡る（数にならない・条件が無効にならない）
+    await keys(page, 'ArrowRight')
+    await expect(cond.locator('.v')).toHaveText(/^\d+月$/)
+    await expect(scr.locator('.cond.invalid')).toHaveCount(0)
+    await expect(page.locator('.toasts')).not.toContainText(/エラー|error/i)
+  })
+
+  test('ウォッチリストの条件は Enter でリストを選ぶ', async ({ start }) => {
+    const { page } = await start()
+    await openScreener(page)
+    await addField(page, 'ウォッチリスト')
+    await keys(page, 'Enter')
+    const dlg = page.locator('.dialog').last()
+    await expect(dlg.locator('.it').filter({ hasText: 'お気に入り' })).toBeVisible()
+    await keys(page, 'Escape')
+  })
+
+  test('条件をすべて消しても、Tab で結果の行に残り ↓ で動ける。結果が減ったら選んでいる行は残る', async ({ start }) => {
+    const { page } = await start()
+    const scr = await openScreener(page)
+    // 最後の行を選ぶ → 条件で結果を減らしても、選んでいる行が消えない
+    await keys(page, 'End')
+    await expect(scr.locator('tbody tr.sel')).toHaveCount(1)
+    await keys(page, 'Tab')
+    await expect(scr.locator('.cond.focus')).toHaveCount(1)
+    await typeValue(page, '6')
+    await expect(scr.locator('tbody tr.sel')).toHaveCount(1)
+    // 条件をすべて消す
+    for (let i = 0; i < 10 && (await scr.locator('.cond').count()) > 0; i++) await keys(page, 'Delete')
+    await expect(scr.locator('.cond')).toHaveCount(0)
+    // 条件なし（全銘柄）の結果が届いてから動く（途中の結果のうちにキーを押すと、届いた結果で選んでいる銘柄の行に移るため）
+    const all = await rpc<{ ids: string[] }>(page, 'screener.run', { conditions: [], favorites: [], watchlists: {} })
+    await expect(scr.locator('.num').filter({ hasText: '件' }).first()).toContainText(`${all.ids.length} /`)
+    await keys(page, 'Tab', 'Home', 'ArrowDown')
+    await expect(scr.locator('tbody tr:not(.spacer)').nth(1)).toHaveClass(/sel/)
+  })
+
+  test('開いているスクリーンを一覧で消すと、残った最初のスクリーンを開く（「名前なし・変更あり」にならない）', async ({ start }) => {
+    const { page } = await start()
+    const scr = await openScreener(page)
+    const name = (await scr.locator('.ph').first().textContent()) ?? ''
+    await keys(page, 'Control+o')
+    const list = page.locator('.dialog')
+    await expect(list.locator('.sel')).toHaveCount(1)
+    await expect(list.locator('.sel')).toContainText('高配当')
+    await keys(page, 'Delete', 'Delete')
+    await expect(list).not.toContainText('高配当銘柄')
+    await keys(page, 'Escape')
+    await expect(list).toBeHidden()
+    await expect(scr.locator('.ph').first()).not.toContainText('名前なし')
+    await expect(scr.locator('.ph').first()).not.toContainText('変更あり')
+    expect(name).toContain('高配当')
   })
 })

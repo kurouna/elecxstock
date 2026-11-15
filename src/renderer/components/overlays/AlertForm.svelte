@@ -3,7 +3,7 @@
 // 条件の行で F 指標・O ≥ と ≤・R 相対条件・← → 値・Enter 値を入力・Delete 条件を外す・Insert 条件を足す。
 // Tab で項目を移り、Ctrl+Enter で保存、Esc で取り消し（メモ欄の文字と単キーがぶつからないよう、単キーは条件の行だけ）
 import { alertConditionOk, conditionMet, distanceOf, fieldValue, heldFrom, SCREEN_ALERT_LIMIT } from '@shared/alerts'
-import { editText, parseConditionValue, valueUnit } from '@shared/conditionInput'
+import { editText, parseConditionValue, refOffsetText, valueUnit } from '@shared/conditionInput'
 import { FIELD_BY_ID, FIELDS, type FieldDef, perShare, refFields, usable } from '@shared/fields'
 import type { AlertView, Condition, InstrumentId } from '@shared/types'
 import { onMount, tick, untrack } from 'svelte'
@@ -238,7 +238,7 @@ function repKey(e: KeyboardEvent) {
 }
 const fname = (f: FieldDef | undefined) => f?.label[lang] ?? ''
 const valueShown = (i: number, c: Condition) =>
-  typing?.i === i ? typing.s : c.ref ? `${Number(c.value) >= 0 ? '+' : ''}${c.value}%` : fieldValueText(c.field, Number(c.value))
+  typing?.i === i ? typing.s : c.ref ? refOffsetText(c) : fieldValueText(c.field, Number(c.value))
 /** 換算したしきい値を直すときは、元の値も出す（§6.2） */
 const adjustedNote = $derived(edit?.adjusted ? edit.conditions.map(condText).join(lang === 'ja' ? ' かつ ' : ' and ') : '')
 

@@ -101,18 +101,21 @@ async function addTo(i = sel) {
 async function go(i = sel) {
   const x = items[i]
   if (!x) return
-  app.overlay = null
-  if (x.kind === 'sym') sendSymbol(x.i.id)
-  else if (x.kind === 'scr') openScreenAnywhere(x.id)
-  else if (x.kind === 'act') await x.a.run()
-  else {
+  // 一覧に無いコードは、足してから閉じる（先に閉じると、待っている間に「閉じた＝やめた」と受け取られ、グリッドの C の差し替えが追加になる）
+  if (x.kind !== 'sym' && x.kind !== 'scr' && x.kind !== 'act') {
     const ins = await rpc('instruments.addUser', { code: x.code })
+    app.overlay = null
     if (ins) {
       app.instruments.set(ins.id, ins)
       sendSymbol(ins.id)
       toast(t('cmd.addUser', { code: x.code }))
     }
+    return
   }
+  app.overlay = null
+  if (x.kind === 'sym') sendSymbol(x.i.id)
+  else if (x.kind === 'scr') openScreenAnywhere(x.id)
+  else if (x.kind === 'act') await x.a.run()
 }
 function key(e: KeyboardEvent) {
   if (e.isComposing) return

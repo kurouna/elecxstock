@@ -1,8 +1,9 @@
 // 名前を付けたスクリーン（FR-SC4, SC12〜SC16）の操作。スクリーナーのペインとスクリーン一覧の両方から使う。
 import type { Condition, SavedScreen } from '@shared/types'
 import { app, ask3, promptDialog, saveScreens, screenName, t, toast } from '../stores/app.svelte'
-import { allPanes, type PaneNode, patchState, setPreset } from '../stores/layout.svelte'
+import { allPanes, layout, type PaneNode, patchState, setPreset } from '../stores/layout.svelte'
 import { revealPane } from './commands'
+import { withoutLeadingOr } from './conditionEdit'
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
 
@@ -37,8 +38,10 @@ function writeExtras(s: SavedScreen, pane: PaneNode): void {
   else delete s.limit
 }
 export function setConds(pane: PaneNode, conds: Condition[]): void {
-  patchState(pane, { conds })
-  app.liveConds = clone(conds)
+  // 先頭の条件に「または」を残さない（先頭を消して繰り上がったとき・並べ替えたとき）
+  const next = withoutLeadingOr(conds)
+  patchState(pane, { conds: next })
+  app.liveConds = clone(next)
 }
 export function saveScreen(pane: PaneNode): void {
   const s = screenOf(pane)
@@ -98,6 +101,29 @@ export async function openScreen(pane: PaneNode, id: string): Promise<void> {
   })
   app.liveConds = clone(s.conditions)
   app.liveScreenId = id
+}
+/**
+ * スクリーンを消す（Ctrl+O の一覧の Delete）。そのスクリーンを開いていたペインは、残った最初のスクリーンを開く
+ * （消した ID が残ると「無題のスクリーン・変更あり」になるため）。すべてのタブとドロワーのペインが対象
+ */
+export function removeScreen(id: string): void {
+  app.screens = app.screens.filter((s) => s.id !== id)
+  saveScreens()
+  const next = app.screens[0]
+  for (const entry of Object.values(layout.doc.entries))
+    for (const p of allPanes(entry))
+      if (p.widget === 'screener' && p.state.screenId === id)
+        patchState(p, {
+          screenId: next?.id,
+          conds: clone(next?.conditions ?? []),
+          sort: next?.sort ? { k: next.sort.field, dir: next.sort.dir } : undefined,
+          cols: next?.columns ? [...next.columns] : undefined,
+          limit: next?.limit,
+        })
+}
+/** グリッドの「スクリーナーの結果（表示中）」の条件。スクリーナーで条件をすべて消したら空（全銘柄）、まだ触っていなければ最初のスクリーン */
+export function liveConditions(): Condition[] {
+  return app.liveConds ?? app.screens[0]?.conditions ?? []
 }
 /** ペインを閉じる前に、保存されていないスクリーンの変更を尋ねる（FR-SC13）。閉じてよければ true */
 export async function confirmCloseScreen(pane: PaneNode | null | undefined): Promise<boolean> {

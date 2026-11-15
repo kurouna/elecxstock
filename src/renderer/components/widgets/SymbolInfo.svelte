@@ -12,7 +12,7 @@ import { condsText, distanceText } from '../../lib/alertText'
 import { changeSymbol } from '../../lib/chartMenu'
 import { keyOf } from '../../lib/commands'
 import { annualDividends, eventYoy, nextRightsDates, recordDayOf, yearsThatFit } from '../../lib/dividends'
-import { cls, date, fmt, money, px, sgn } from '../../lib/format'
+import { cls, date, fmt, money, px, retText, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { accountName, valuation } from '../../lib/portfolio'
@@ -453,12 +453,12 @@ onMount(() =>
             <tbody>
               <tr>
                 <td>{t('si.rowPrice')}</td>
-                {#each [m?.ret1m, m?.ret3m, m?.ret1y, m?.ret3y, extra?.ret5y] as v, i (i)}<td class={v == null ? 'na' : cls(v)}>{sgn(v, 1, '%')}</td>{/each}
+                {#each [m?.ret1m, m?.ret3m, m?.ret1y, m?.ret3y, extra?.ret5y] as v, i (i)}<td class={v == null ? 'na' : cls(v)}>{retText(v)}</td>{/each}
               </tr>
               <tr title={t('si.noteTotal')}>
                 <td>{t('si.rowTotal')}</td>
                 <td class="na"></td><td class="na"></td>
-                {#each [extra?.tr.y1, extra?.tr.y3, extra?.tr.y5] as v, i (i)}<td class={v == null ? 'na' : cls(v)}>{sgn(v, 1, '%')}</td>{/each}
+                {#each [extra?.tr.y1, extra?.tr.y3, extra?.tr.y5] as v, i (i)}<td class={v == null ? 'na' : cls(v)}>{retText(v)}</td>{/each}
               </tr>
             </tbody>
           </table>
@@ -1166,7 +1166,8 @@ onMount(() =>
     gap: var(--s-2);
     align-items: start;
   }
-  @container cards (min-width: 560px) {
+  /* 2 列にするのは、値動きの表（6 列の数字）が 1 列分の幅に収まるときだけ（狭いと数字がカードからはみ出す） */
+  @container cards (min-width: 660px) {
     .cards {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       grid-template-rows: auto 1fr;

@@ -68,6 +68,10 @@ let width = $state(600)
 const allCols = $derived(resolveColumns(pane.state.cols as string[] | undefined, DEFAULT_COLUMNS.watchlist))
 // 幅の狭いペインでは右の列から隠し、コードと銘柄名を残す（FR-V12。スクリーナーと同じ）
 const cols = $derived(fitColumns(allCols, width))
+// 狭くて列を隠したら、選んでいる列を見えている列に寄せる（見出しの枠と ← → の起点がずれないように）
+$effect(() => {
+  if (col > cols.length - 1) col = Math.max(1, cols.length - 1)
+})
 
 const rows = $derived.by(() => {
   void screenInputs() // 指標・保有の列で並べ替えているとき

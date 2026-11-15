@@ -65,7 +65,7 @@ test.describe('フリー N（FR-L7）', () => {
   test('キーで送る・★は 1 枚目に届く・リンク色を付けると 1 枚目の銘柄を追う・再起動で戻る', async ({ start }) => {
     const first = await start()
     const { app, page } = first
-    await tab(page, 'triple') // 1 枚目は、左の列にウォッチリスト（★）とチャートを置くタブ（MTF の左はスクリーナー 2 つ）
+    await tab(page, 'triple') // 1 枚目は、左の列にウォッチリスト（★）とチャートを置くタブ
     const free = await openFree(app, page, '4 分割')
     const charts = free.locator('[data-widget="chart"]')
     await expect(charts).toHaveCount(4)

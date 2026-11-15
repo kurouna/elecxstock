@@ -17,6 +17,10 @@ export function sgn(v: number | null | undefined, digits = 2, suffix = ''): stri
   const s = v > 0 ? '+' : v < 0 ? '−' : '±'
   return `${s}${Math.abs(v).toLocaleString(loc(), { minimumFractionDigits: digits, maximumFractionDigits: digits })}${suffix}`
 }
+/** 騰落率の短い書式（銘柄情報の値動き）。100% 未満は小数 1 桁、100% 以上は整数（狭いカードでも 3 桁の % が収まる。FR-V12） */
+export function retText(v: number | null | undefined): string {
+  return sgn(v, v != null && Math.abs(v) >= 100 ? 0 : 1, '%')
+}
 export function cls(v: number | null | undefined): string {
   return v == null ? '' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat'
 }

@@ -12,7 +12,7 @@ async function iconButton(scope: Locator, name: string, tipText: RegExp) {
 test.describe('銘柄ジャンプから入れる（FR-W4, FR-FV1）', () => {
   test('ジャンプの ☆（Ctrl+D）は閉じずに次のコードを待ち、ジャンプ後の Ctrl+D は表示中の銘柄を入れる', async ({ start }) => {
     const { page } = await start()
-    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナーを置くタブ（MTF の左はスクリーナー 2 つ）
+    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナー、右にチャートを置くタブ
     // トリプル: ウォッチリスト（お気に入り）にフォーカス。ジャンプ → Ctrl+D でお気に入りに入れる（コマンドバーは開いたまま）
     await expect(page.locator('.pane.focused')).toHaveAttribute('data-widget', 'watchlist')
     await typeJump(page, '7203', 'トヨタ')
@@ -57,7 +57,7 @@ test.describe('銘柄ジャンプの閉じ方（FR-W4）', () => {
 test.describe('保有のタブ（FR-W10）', () => {
   test('保有が無いときは、取り込み方を案内する', async ({ start }) => {
     const { page } = await start()
-    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナーを置くタブ（MTF の左はスクリーナー 2 つ）
+    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナー、右にチャートを置くタブ
     const wl = page.locator('[data-widget="watchlist"]').first()
     await wl.getByRole('tab', { name: /保有/ }).click()
     await expect(wl).toContainText('保有タブ（Ctrl+Shift+7）')
@@ -73,7 +73,7 @@ test.describe('保有のタブ（FR-W10）', () => {
         ]),
       },
     })
-    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナーを置くタブ（MTF の左はスクリーナー 2 つ）
+    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナー、右にチャートを置くタブ
     const wl = page.locator('[data-widget="watchlist"]').first()
     const holdTab = wl.getByRole('tab', { name: /保有/ })
     await holdTab.click()
@@ -101,7 +101,7 @@ test.describe('保有のタブ（FR-W10）', () => {
 test.describe('ツールバーと★の色（FR-V13, FR-V8, FR-FV1）', () => {
   test('★だけ表示・列はアイコンのボタンで、説明はツールチップに入れる', async ({ start }) => {
     const { page } = await start()
-    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナーを置くタブ（MTF の左はスクリーナー 2 つ）
+    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナー、右にチャートを置くタブ
     const wl = page.locator('[data-widget="watchlist"]').first()
     await expect(wl.locator('.filter')).not.toContainText('Ctrl+Shift+F')
     await iconButton(wl, '★のみ表示', /Ctrl\+Shift\+F/)

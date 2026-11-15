@@ -117,7 +117,8 @@ class AppState {
   toasts = $state<Toast[]>([])
   maximized = $state<string | null>(null)
   /** スクリーナーで今開いている条件（未保存の変更を含む）。chart-grid の「スクリーナーの結果」に使う */
-  liveConds = $state<Condition[]>([])
+  /** スクリーナーで編集中の条件（グリッドの「スクリーナーの結果」）。null はまだ触っていない */
+  liveConds = $state<Condition[] | null>(null)
   liveScreenId = $state<string | null>(null)
   /** 名前を付けて保存したレイアウト（FR-L4 の P2） */
   layouts = $state<SavedLayout[]>([])

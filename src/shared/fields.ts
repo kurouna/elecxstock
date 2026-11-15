@@ -832,6 +832,18 @@ export function perShare(f: Pick<FieldDef, 'type' | 'unit'>): boolean {
   return f.type === 'money' && f.unit?.ja === '円'
 }
 
+/**
+ * 相対条件の差の付け方（FR-SC5）。価格どうしは相手の ±x %（終値 ≥ 75日移動平均 +5% → 75日線 × 1.05）。
+ * すでに % の指標どうし（騰落率・乖離率・利回り）は相手 ± x ポイント（相手が負や 0 でも、+x が「上」になるように）
+ */
+export function refInPoints(field: string): boolean {
+  const f = FIELD_BY_ID.get(field)
+  return !!f && !!f.refGroup && f.refGroup !== 'px'
+}
+/** 相対条件のしきい値（相手の値 y と差 d から） */
+export function refTarget(field: string, y: number, d: number): number {
+  return refInPoints(field) ? y + d : y * (1 + d / 100)
+}
 export function refFields(f: FieldDef): FieldDef[] {
   if (f.source.kind !== 'metrics' || !f.refGroup) return []
   return FIELDS.filter((g) => usable(g) && g.id !== f.id && g.source.kind === 'metrics' && g.refGroup === f.refGroup)

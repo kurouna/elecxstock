@@ -9,6 +9,7 @@ import { cls, fmt, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { PERIODS, periodOfKey } from '../../lib/periods'
+import { liveConditions } from '../../lib/screens'
 import { symbolDrop } from '../../lib/symbolDrag'
 import {
   app,
@@ -75,7 +76,7 @@ const set = (patch: Record<string, unknown>) => patchState(pane, patch)
 $effect(() => {
   void screenInputs() // 指標・ウォッチリスト・保有の条件のスクリーン
   let conds: Condition[] | null = null
-  if (src === 'live') conds = app.liveConds.length ? app.liveConds : (app.screens[0]?.conditions ?? [])
+  if (src === 'live') conds = liveConditions()
   else if (src.startsWith('scr:')) conds = app.screens.find((s) => `scr:${s.id}` === src)?.conditions ?? []
   if (!conds) return
   const my = ++tokenScr

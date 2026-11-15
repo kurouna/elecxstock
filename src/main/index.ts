@@ -26,6 +26,7 @@ import {
   utilityProcess,
   type WebContents,
 } from 'electron'
+import { appUserModelId } from './appId'
 import { clockOffset } from './clock-init'
 import { type DisplayLike, type Placement, parseState, place, remember, type WindowStateV2 } from './placement'
 
@@ -35,7 +36,7 @@ const isDev = !!process.env.ELECTRON_RENDERER_URL
 const devTools = !app.isPackaged || process.env.ELECXSTOCK_DEVTOOLS === '1'
 
 if (process.env.ELECXSTOCK_USER_DATA) app.setPath('userData', process.env.ELECXSTOCK_USER_DATA)
-app.setAppUserModelId('dev.kurouna.elecxstock')
+app.setAppUserModelId(appUserModelId(app.isPackaged))
 
 // 画面は file:// ではなく独自プロトコルで読み込む（NFR-S3）
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }])

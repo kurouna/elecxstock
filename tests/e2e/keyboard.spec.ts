@@ -5,7 +5,7 @@ import { expect, jump, keys, tab, test, type } from './support'
 test.describe('一日の流れ（FR-KB8, FR-K2, FR-W4）', () => {
   test('銘柄ジャンプで★を付け、ウォッチリストをめくるとチャートが追従する', async ({ start }) => {
     const { page } = await start()
-    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナーを置くタブ（MTF の左はスクリーナー 2 つ）
+    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナー、右にチャートを置くタブ
     // トリプルのタブを開くとウォッチリストにフォーカスがある。チャートに移ってから銘柄ジャンプ → お気に入り
     await expect(page.locator('.pane.focused')).toHaveAttribute('data-widget', 'watchlist')
     await keys(page, 'Alt+ArrowRight')

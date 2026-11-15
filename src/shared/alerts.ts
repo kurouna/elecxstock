@@ -1,7 +1,7 @@
 // アラートの条件の確かめ・分割の換算・指標の値・条件までの距離（FR-AL1・AL8。design-alerts.md）。
 // Core（判定）と renderer（ダイアログの「いま」・一覧）の両方が使う純粋な関数
 import type { Held } from './compute'
-import { FIELD_BY_ID, perShare, refFields, usable } from './fields'
+import { FIELD_BY_ID, perShare, refFields, refInPoints, refTarget, usable } from './fields'
 import type { Alert, AlertView, Condition, InstrumentId, JstDate, MetricsRow, Split } from './types'
 
 export const ALERT_LIMIT = 500
@@ -85,7 +85,7 @@ export function fieldValue(field: string, m: MetricsRow, held: Held | undefined,
 export function targetOf(c: Condition, m: MetricsRow, held: Held | undefined, id: InstrumentId): number | null {
   if (!c.ref) return Number(c.value)
   const y = fieldValue(c.ref, m, held, id)
-  return y == null ? null : y * (1 + Number(c.value) / 100)
+  return y == null ? null : refTarget(c.field, y, Number(c.value))
 }
 
 /** 1 つの条件が成り立つか（値が欠ければ null） */
@@ -112,7 +112,9 @@ export function distanceOf(
     if (c.op === '>=' ? x >= t : x <= t) continue
     const f = FIELD_BY_ID.get(c.field)
     const d: NonNullable<AlertView['distance']> =
-      f?.type === 'money' || c.ref ? { kind: 'pct', value: x !== 0 ? (t / x - 1) * 100 : 0 } : { kind: 'pt', value: t - x }
+      (f?.type === 'money' && !c.ref) || (c.ref && !refInPoints(c.field))
+        ? { kind: 'pct', value: x !== 0 ? (t / x - 1) * 100 : 0 }
+        : { kind: 'pt', value: t - x }
     if (!best || Math.abs(d.value) > Math.abs(best.value)) best = d
   }
   return best

@@ -1,7 +1,7 @@
 // 銘柄情報（FR-I1〜I4・I6〜I9）: 枠の幅で並びを変える（広いときは 1 段目に値段と主な数字、2 段目に配当と値動き）。
 // 配当のグラフはキーで棒を選び、年と回を切り替えられる（FR-KB4）。値はスタブ（架空）
 import type { Locator, Page } from '@playwright/test'
-import { expect, holdings, jump, keys, tab, test } from './support'
+import { expect, focusPane, freeTab, holdings, jump, keys, pane, row, rpc, tab, test } from './support'
 
 const box = async (l: Locator) => (await l.boundingBox())!
 const info = (page: Page) => page.locator('[data-widget="info"]')
@@ -145,5 +145,30 @@ test.describe('配当のグラフ（FR-I6, FR-KB4）', () => {
     await bars.getByRole('button', { name: '回' }).click()
     await bars.locator('.b').last().hover()
     await expect(bars.locator('.tip')).toContainText('権利落ち日')
+  })
+})
+
+test.describe('値動きの表の幅（FR-V12）', () => {
+  test('どの幅でも、値動きの表の数字がカードからはみ出さない（騰落率が 100% を超える銘柄で）', async ({ start }) => {
+    const { page } = await start({ layout: freeTab(row(pane('info'), pane('chart'))) })
+    // 騰落率の大きい銘柄（3 桁の %）を出す
+    const all = await rpc<{ id: string; market: string }[]>(page, 'instruments.all')
+    const ms = await rpc<{ id: string; ret3y: number | null }[]>(page, 'metrics.get', {
+      ids: all.filter((i) => i.market === 'P' || i.market === 'R').map((i) => i.id),
+    })
+    const big = ms.filter((m) => m.ret3y != null).sort((a, b) => Math.abs(b.ret3y!) - Math.abs(a.ret3y!))[0]!
+    await focusPane(page, page.locator('[data-widget="chart"]'))
+    await jump(page, big.id.slice(3))
+    const card = info(page).locator('.card.c-tech')
+    await expect(card.locator('.rt td').nth(4)).toContainText('%')
+    // 窓の幅を変えて、銘柄情報のペイン（窓の半分）を 800px から 400px まで細くする
+    for (let w = 1600; w >= 800; w -= 40) {
+      await page.setViewportSize({ width: w, height: 960 })
+      const over = await card.evaluate((c) => {
+        const t = c.querySelector('.rt') as HTMLElement
+        return Math.round(t.getBoundingClientRect().right - c.getBoundingClientRect().right)
+      })
+      expect(over, `窓の幅 ${w}px`).toBeLessThanOrEqual(0)
+    }
   })
 })

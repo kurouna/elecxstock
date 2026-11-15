@@ -2,7 +2,7 @@
 // 保存したスクリーンの一覧（Ctrl+O。FR-SC12）: 開く・名前の変更（F2）・複製（Ctrl+Shift+D）・削除（Delete を 2 回）・
 // 並べ替え（Alt+↑↓）・既定のスクリーンを追加し直す（Ctrl+Shift+R、FR-SC15）。
 import { onMount } from 'svelte'
-import { openScreenAnywhere } from '../../lib/screens'
+import { openScreenAnywhere, removeScreen } from '../../lib/screens'
 import { app, promptDialog, rpc, saveScreens, screenName, t, toast } from '../../stores/app.svelte'
 import { allPanes } from '../../stores/layout.svelte'
 
@@ -37,8 +37,7 @@ async function key(e: KeyboardEvent) {
     if (app.screens.length <= 1) return
     if (pendingDel !== x.id) pendingDel = x.id
     else {
-      app.screens = app.screens.filter((s) => s.id !== x.id)
-      saveScreens()
+      removeScreen(x.id) // 開いていたペインは残った最初のスクリーンを開く
       pendingDel = null
       sel = Math.max(0, Math.min(sel, items.length - 1)) // 末尾を消したら、新しい末尾を選ぶ
     }
