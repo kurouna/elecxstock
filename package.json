@@ -46,6 +46,7 @@
     "gen:fields-doc": "node --experimental-strip-types --no-warnings scripts/gen-fields-doc.mjs",
     "demo": "node scripts/demo.mjs",
     "demo:0.1.1": "node scripts/demo-v0.1.1.mjs",
+    "demo:0.1.2": "node scripts/demo-v0.1.2.mjs",
     "contract": "vitest run --config vitest.contract.config.ts",
     "package": "npm run build && electron-builder --win --publish never",
     "package:dir": "npm run build && electron-builder --win --dir --publish never",
