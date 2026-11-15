@@ -673,6 +673,9 @@ export const ja = {
   'hold.importNext': '次へ',
   'hold.importTitle': '保有の記録を取り込む（内容の確認）',
   'hold.imported': '{n} 件の保有を取り込みました',
+  'hold.importedHistory': '資産推移の記録を {n} 日分取り込みました',
+  'folio.benchNone': 'なし',
+  'folio.estToggle': '記録前の試算',
   'hold.merge': '今の記録に合わせる',
   'hold.mergeHint': '同じ銘柄・口座区分は置き換え、ほかは残す',
   'hold.note':
@@ -1722,6 +1725,9 @@ export const en: Record<Key, string> = {
   'hold.importNext': 'Next',
   'hold.importTitle': 'Import holdings (review)',
   'hold.imported': 'Imported {n} holdings',
+  'hold.importedHistory': 'Imported {n} days of asset history',
+  'folio.benchNone': 'None',
+  'folio.estToggle': 'Estimate before records',
   'hold.merge': 'Merge',
   'hold.mergeHint': 'Replace the same symbol and account; keep the rest',
   'hold.note':

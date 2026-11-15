@@ -6,6 +6,7 @@ import {
   byMonth,
   concentration,
   cyclicalShare,
+  DIVIDEND_TAX,
   decompose,
   dpsCagr,
   dpsStreak,
@@ -202,6 +203,7 @@ export function byCode(rows: FRow[]): FRow[] {
       was.cost += r.cost
       was.pnl += r.pnl
       was.dayPnl += r.dayPnl
+      was.avgCost = was.qty ? was.cost / was.qty : 0
       if (r.value > was.value - r.value) was.acct = r.acct
     }
   }
@@ -609,6 +611,8 @@ export interface DivRow {
   special: boolean
   regimeChanged: boolean
   last: { date: string; amount: number }[]
+  /** 前の 1 年の権利落ち（前年同月） */
+  prevLast: { date: string; amount: number }[]
   /** 税引後の割合（口座の重み） */
   net: number
   sold: boolean
@@ -660,6 +664,7 @@ export function divRows(
       special: x.special,
       regimeChanged: x.regimeChanged,
       last: x.last,
+      prevLast: x.prev,
       net: q ? x.now.reduce((s, y) => s + y.qty * netRate(y.acct), 0) / q : netRate(acct),
       sold: q === 0,
     }
@@ -682,7 +687,7 @@ export function divSummary(rs: DivRow[], hasYearAgo: boolean, nowRows: { code: s
   const now = rs.reduce((s, r) => s + r.annual, 0)
   const prev = rs.reduce((s, r) => s + r.annualPrev, 0)
   const dps = new Map(rs.map((r) => [r.code, r.dpsNow]))
-  const nisaSaved = nowRows.filter((x) => x.acct.startsWith('nisa')).reduce((s, x) => s + x.qty * (dps.get(x.code) ?? 0) * 0.20315, 0)
+  const nisaSaved = nowRows.filter((x) => x.acct.startsWith('nisa')).reduce((s, x) => s + x.qty * (dps.get(x.code) ?? 0) * DIVIDEND_TAX, 0)
   const top = rs.map((r) => r.annual).sort((a, b) => b - a)
   const sum = (f: (r: DivRow) => number) => rs.reduce((s, r) => s + f(r), 0)
   return {
@@ -736,7 +741,7 @@ export function divMonths(
         now += amt
       }
       const qPrev = r.dpsPrev ? r.annualPrev / r.dpsPrev : 0
-      prev += (byMonth(r.last, qPrev).get(m) ?? 0) * (r.dpsNow ? r.dpsPrev / r.dpsNow : 0)
+      prev += byMonth(r.prevLast, qPrev).get(m) ?? 0
     }
     return { m, now, prev, codes: codes.sort((a, b) => b.amt - a.amt) }
   })
@@ -841,6 +846,59 @@ export function trendGeom(trend: { d: string; v: number }[], w: number, h: numbe
   const line = trend.map((t, i) => `${i ? `H${x(i).toFixed(1)}V` : 'M0,'}${y(t.v).toFixed(1)}`).join('')
   return { line, area: `${line}V${h - 14}H0Z`, x, y }
 }
+
+// ---------------- 評価額のカードの数（十字線の連動。FR-PF8） ----------------
+/**
+ * 評価額のカードの数: トータル損益・最高値から・前回比。十字線の日なら、その日の記録の実現損益・受取配当、
+ * その日までの最高値、その日と前の記録の差で数える（今日の累計と混ぜない）
+ */
+export function heroNumbers(
+  points: FolioSeriesPoint[],
+  crossDay: JstDate | null,
+  tot: { value: number; pnl: number },
+  meta: { realized: number | null; dividends: number | null } | null,
+): { total: number; fromPeak: number | null; prevRec: number | null } {
+  const real = points.filter((p) => p.src !== 'est')
+  let i = real.length - 1
+  if (crossDay) while (i >= 0 && real[i]!.d > crossDay) i--
+  const upto = real.slice(0, i + 1)
+  const p = real[i]
+  const realized = crossDay ? (p?.realized ?? 0) : (meta?.realized ?? 0)
+  const received = crossDay ? (p?.received ?? 0) : (meta?.dividends ?? 0)
+  const peak = upto.length ? Math.max(...upto.map((x) => x.value)) : 0
+  return {
+    total: tot.pnl + realized + received,
+    fromPeak: peak ? (tot.value / peak - 1) * 100 : null,
+    prevRec: i >= 1 ? p!.value - real[i - 1]!.value : null,
+  }
+}
+/** 配当の利回り・取得利回り（今の評価額・取得額で割る。十字線の日の値と混ぜない） */
+export function divYields(gross: number, base: { value: number; cost: number }): { yld: number | null; yoc: number | null } {
+  return { yld: base.value ? (gross / base.value) * 100 : null, yoc: base.cost ? (gross / base.cost) * 100 : null }
+}
+/** 並びが変わったら（取得で値が変わった・並べ替えた）、選んでいた銘柄の新しい位置。見つからなければ今の位置 */
+export function reselect<T>(list: T[], key: string | null, keyOf: (x: T) => string, cur: number): number {
+  if (!key) return cur
+  const i = list.findIndex((x) => keyOf(x) === key)
+  return i >= 0 ? i : cur
+}
+/** 一覧が短くなったら、選んでいる位置を最後に寄せる */
+export const clampIndex = (i: number, n: number) => Math.max(0, Math.min(i, n - 1))
+/** 損益寄与の上の行（合計・うち配当・値上がりと値下がりの数） */
+export function contribSummary(rs: ContribRow[]): { total: number; div: number; up: number; down: number } {
+  let total = 0
+  let div = 0
+  let up = 0
+  for (const r of rs) {
+    total += r.v
+    div += r.div
+    if (r.v > 0) up++
+  }
+  return { total, div, up, down: rs.length - up }
+}
+/** 保有の取り込みのあとの知らせ（記録だけの JSON なら記録の日数） */
+export const importedNote = (holdings: number, history: number): { key: 'hold.imported' | 'hold.importedHistory'; n: number } =>
+  holdings || !history ? { key: 'hold.imported', n: holdings } : { key: 'hold.importedHistory', n: history }
 
 // ---------------- 予定・要約・その他 ----------------
 export interface FolioEvent {

@@ -157,15 +157,14 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(f.locator('.c-hero .ring path')).toHaveCount(3)
     await expect(f.locator('.c-hero .ring')).toContainText('NISA')
     // 損益寄与の行
-    const row = f.locator('.c-contrib .crow').nth(1)
-    const code = (await row.locator('.nm .num').textContent())!.trim()
-    await row.click()
+    // 取得のジョブで値が変わると行の並びが入れ替わるので、押したあとに選ばれた行のコードを読む
+    await f.locator('.c-contrib .crow').nth(1).click()
+    const code = (await f.locator('.c-contrib .crow.sel .nm .num').textContent())!.trim()
     await expect(chart).toContainText(code)
     await expect(info).toContainText(code)
     // 資産構成のタイル（銘柄コードを読み、押すとその銘柄）
-    const tile = f.locator('.c-alloc .tile').first()
-    const t0 = (await tile.getAttribute('title'))!.slice(0, 4)
-    await tile.click()
+    await f.locator('.c-alloc .tile').first().click()
+    const t0 = (await f.locator('.c-alloc .tile.sel').getAttribute('title'))!.slice(0, 4)
     await expect(chart).toContainText(t0)
     // キーで選んでも追従する（タイルを押して資産構成を選んだので、Tab で次の損益寄与）
     await keys(page, 'Tab')
@@ -202,6 +201,54 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     expect(await clipped('.c-dsum .note')).toEqual([])
     expect(await clipped('.c-hero .ring .nm')).toEqual([])
     await shot(page, 'folio-div-l')
+  })
+
+  // 回帰（2026-11-15 のレビューで見つけた不具合）
+  test('配当見込みの月を押して選び Enter で表に移るとリンク色に送る。分類の行を押すと表を選ぶ。ベンチマーク・試算も見出しで選べる', async ({
+    start,
+  }) => {
+    const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    const chart = page.locator('[data-widget="chart"]').first()
+    await expect(f.locator('.c-dsum')).toBeVisible()
+    // 配当見込み: 権利月の銘柄がある月を押して選ぶ → Enter で配当の表に移り、その銘柄をチャートに出す
+    const cells = f.locator('.c-div .ribbon .cell')
+    const n = await cells.count()
+    let pickedMonth = -1
+    for (let i = 0; i < n; i++)
+      if ((await cells.nth(i).locator('i').count()) > 0) {
+        pickedMonth = i
+        break
+      }
+    expect(pickedMonth).toBeGreaterThanOrEqual(0)
+    await cells.nth(pickedMonth).click()
+    await expect(f.locator('.c-div')).toHaveClass(/focus/)
+    await expect(cells.nth(pickedMonth)).toHaveClass(/sel/)
+    const code = (await f.locator('.c-div .mlist .num').first().textContent())!.trim()
+    await keys(page, 'Enter')
+    await expect(f.locator('.c-dtab')).toHaveClass(/focus/)
+    await expect(f.locator('.c-dtab tr.sel')).toContainText(code)
+    await expect(chart).toContainText(code)
+    // 分類の行を押すと表を選んだことになり、続けて → ← が効く
+    await f.locator('.c-dtab').getByRole('radio', { name: '業種', exact: true }).click()
+    await keys(page, 'Escape')
+    await f.locator('.c-dtab tr.g').first().click()
+    await expect(f.locator('.c-dtab')).toHaveClass(/focus/)
+    await expect(f.locator('.c-dtab tr.g.open')).toHaveCount(1)
+    await keys(page, 'ArrowLeft')
+    await expect(f.locator('.c-dtab tr.g.open')).toHaveCount(0)
+    // 資産推移: 円では「記録前の試算」、% ではベンチマークを見出しで選べる。なしに戻すと線が消える
+    await keys(page, 'Escape', 'PageUp')
+    const hist = f.locator('.c-hist')
+    await hist.getByRole('button', { name: /記録前の試算/ }).click()
+    await expect(hist.getByRole('button', { name: /記録前の試算/ })).toHaveAttribute('aria-pressed', 'true')
+    await hist.getByRole('radio', { name: '%' }).click()
+    await hist.getByRole('radio', { name: '日経平均' }).click()
+    await expect(hist.locator('.histhead')).toContainText('日経平均')
+    await expect(hist.locator('path.bench')).toHaveCount(1)
+    await hist.getByRole('radio', { name: 'なし' }).click()
+    await expect(hist.locator('path.bench')).toHaveCount(0)
   })
 
   test('保有が無ければ取り込みの案内', async ({ start }) => {

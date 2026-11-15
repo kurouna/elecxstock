@@ -9,8 +9,10 @@ import {
   briefOf,
   byCode,
   CARDS,
+  clampIndex,
   contribBars,
   contribRows,
+  contribSummary,
   DEFAULT_VIEW,
   DIV_GROUPS,
   DIV_SORTS,
@@ -20,17 +22,21 @@ import {
   divMonths,
   divRows,
   divSummary,
+  divYields,
   eventsOf,
   groupKey,
   heatBg,
+  heroNumbers,
   histHead,
   histPoints,
+  importedNote,
   lastTone,
   manYen,
   moveRow,
   nextCard,
   niceTicks,
   nisaShare,
+  reselect,
   rowsAtDay,
   rowsOf,
   signPct,
@@ -307,6 +313,10 @@ describe('配当の分析（FR-PF7）', () => {
           { date: '2026-03-30', amount: 30 },
           { date: '2026-09-29', amount: 30 },
         ],
+        prev: [
+          { date: '2025-03-28', amount: 25 },
+          { date: '2025-09-29', amount: 25 },
+        ],
         now: [
           { acct: 'tokutei', qty: 100 },
           { acct: 'nisa_growth', qty: 50 },
@@ -324,6 +334,7 @@ describe('配当の分析（FR-PF7）', () => {
           { date: '2026-06-29', amount: 95 },
           { date: '2026-12-29', amount: 95 },
         ],
+        prev: [],
         now: [{ acct: 'tokutei', qty: 100 }],
         yearAgo: [],
       },
@@ -335,6 +346,7 @@ describe('配当の分析（FR-PF7）', () => {
         regimeChanged: false,
         special: false,
         last: [{ date: '2026-03-30', amount: 70 }],
+        prev: [{ date: '2025-03-28', amount: 65 }],
         now: [],
         yearAgo: [{ acct: 'tokutei', qty: 100 }],
       },
@@ -450,6 +462,7 @@ describe('分割の後の株数・口座の移動（FR-PF1・PF7）', () => {
           regimeChanged: false,
           special: false,
           last: [{ date: '2026-03-30', amount: 50 }],
+          prev: [{ date: '2025-03-28', amount: 50 }],
           now: [{ acct: 'nisa_growth', qty: 100 }],
           yearAgo: [{ acct: 'tokutei', qty: 100 }],
         },
@@ -472,6 +485,91 @@ describe('口座区分の構成比（FR-PF1）', () => {
     expect(p[0]!.value).toBe(150_000 + 200_000)
     expect(acctParts([])).toEqual([])
     expect(nisaShare(p)).toBeCloseTo(350_000 / 1_060_000)
+  })
+})
+
+// 回帰（2026-11-15 のレビューで見つけた不具合）
+describe('十字線の日の数・口座をまたぐ取得単価・無配になった前年同月・選択の範囲（FR-PF1・PF7・PF8）', () => {
+  const pts: FolioSeriesPoint[] = [
+    { d: '2026-11-04', src: 'rec', final: true, value: 900, cost: 800, realized: 10, received: 5 },
+    { d: '2026-11-05', src: 'rec', final: true, value: 1200, cost: 800, realized: 10, received: 5 },
+    { d: '2026-11-06', src: 'fill', final: true, value: 1000, cost: 800, realized: 10, received: 5 },
+    { d: '2026-11-09', src: 'rec', final: true, value: 1100, cost: 900, realized: 50, received: 30 },
+  ]
+  it('十字線の日は、その日までの最高値・その日の前回比・その日の実現損益と受取配当で数える', () => {
+    const h = heroNumbers(pts, '2026-11-06', { value: 1000, pnl: 200 }, { realized: 50, dividends: 30 })
+    expect(h.total).toBe(200 + 10 + 5)
+    expect(h.fromPeak).toBeCloseTo((1000 / 1200 - 1) * 100)
+    expect(h.prevRec).toBe(1000 - 1200)
+    // 十字線が無ければ今の値・CSV の累計・記録の最後の 2 点
+    const n = heroNumbers(pts, null, { value: 1100, pnl: 200 }, { realized: 50, dividends: 30 })
+    expect(n).toMatchObject({ total: 280, prevRec: 100 })
+    expect(heroNumbers([], null, { value: 1, pnl: 0 }, null)).toMatchObject({ fromPeak: null, prevRec: null, total: 0 })
+  })
+  it('配当の利回りは十字線の日ではなく今の評価額・取得額で割る', () => {
+    expect(divYields(30, { value: 1000, cost: 600 })).toEqual({ yld: 3, yoc: 5 })
+    expect(divYields(30, { value: 0, cost: 0 })).toEqual({ yld: null, yoc: null })
+  })
+  it('銘柄ごとにまとめると、平均取得単価も口座をまたいで加重平均にする', () => {
+    const r = byCode(
+      rowsOf(
+        [
+          { code: '7203', account: 'nisa_growth', quantity: 100, avgCost: 0 },
+          { code: '7203', account: 'tokutei', quantity: 100, avgCost: 3000 },
+        ],
+        get,
+      ),
+    )
+    expect(r[0]!.avgCost).toBe(1500)
+  })
+  it('今年無配になった銘柄も、前年同月の棒には前年の配当を入れる', () => {
+    const D3: FolioDividends = {
+      yearAgoDate: '2025-11-13',
+      trend: [],
+      rows: [
+        {
+          code: '7203',
+          dps: [50, 50, 50, 50, 0],
+          perYear: 1,
+          regimeChanged: false,
+          special: false,
+          last: [],
+          prev: [{ date: '2025-03-28', amount: 50 }],
+          now: [{ acct: 'nisa_growth', qty: 100 }],
+          yearAgo: [{ acct: 'nisa_growth', qty: 100 }],
+        },
+      ],
+    }
+    const m = divMonths(
+      divRows(D3, rows, (c) => ({ name: c })),
+      11,
+    )
+    expect(m.find((x) => x.m === 3)!.prev).toBe(5000)
+    expect(m.reduce((a, x) => a + x.now, 0)).toBe(0)
+  })
+  it('並びが変わっても、選んでいた銘柄の位置を選び直す（無くなったらそのまま）', () => {
+    const xs = [{ code: 'B' }, { code: 'A' }, { code: 'C' }]
+    expect(reselect(xs, 'A', (x) => x.code, 0)).toBe(1)
+    expect(reselect(xs, 'Z', (x) => x.code, 2)).toBe(2)
+    expect(reselect(xs, null, (x) => x.code, 1)).toBe(1)
+  })
+  it('選んでいる位置は一覧が短くなったら最後に寄せる', () => {
+    expect(clampIndex(5, 3)).toBe(2)
+    expect(clampIndex(1, 3)).toBe(1)
+    expect(clampIndex(4, 0)).toBe(0)
+  })
+  it('損益寄与の上の行（合計・うち配当・値上がりと値下がりの数）は 1 回で数える', () => {
+    expect(
+      contribSummary([
+        { code: 'A', name: '', price: 5, div: 2, v: 7 },
+        { code: 'B', name: '', price: -3, div: 0, v: -3 },
+        { code: 'C', name: '', price: 0, div: 0, v: 0 },
+      ]),
+    ).toEqual({ total: 4, div: 2, up: 1, down: 2 })
+  })
+  it('記録だけの保有の JSON を取り込んだら、その日数を知らせる', () => {
+    expect(importedNote(0, 120)).toEqual({ key: 'hold.importedHistory', n: 120 })
+    expect(importedNote(3, 120)).toEqual({ key: 'hold.imported', n: 3 })
   })
 })
 

@@ -2,8 +2,10 @@
 // CSV の読み取りと差分は Core（src/core/holdings.ts, src/core/brokers/rakuten.ts）。
 
 import { jstNow } from '@shared/calendar'
+import { DIVIDEND_TAX } from '@shared/folio'
 import type { AccountType, Holding } from '@shared/types'
 import { app, choiceDialog, confirmDialog, holdingDialog, loadInstruments, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
+import { importedNote } from './folio'
 import type { Key } from './i18n'
 
 export const accountName = (a: AccountType) => t(`acct.${a}` as Key)
@@ -15,8 +17,8 @@ export async function loadHoldings(): Promise<void> {
 
 /** NISA の口座区分（配当・売却益が非課税） */
 export const isNisa = (a: AccountType) => a.startsWith('nisa')
-/** 配当にかかる税（所得税・住民税・復興特別所得税） */
-export const DIVIDEND_TAX = 0.20315
+/** 配当にかかる税（所得税・住民税・復興特別所得税）。値は shared/folio.ts の 1 か所で持つ */
+export { DIVIDEND_TAX }
 
 export interface Valuation {
   /** 現在値: 取り込んだ日足の最新の終値。無ければ CSV の現在値 */
@@ -182,7 +184,9 @@ export async function importHoldings(): Promise<void> {
     ...(p.history ? { history: p.history } : {}),
   })
   await afterImport()
-  toast(t('hold.imported', { n: p.holdings.length }), { label: t('hold.undo'), run: () => void undoHoldingsImport() }, 10_000)
+  // 記録だけの JSON なら、取り込んだ記録の日数を知らせる
+  const note = importedNote(p.holdings.length, p.history?.length ?? 0)
+  toast(t(note.key, { n: note.n }), { label: t('hold.undo'), run: () => void undoHoldingsImport() }, 10_000)
 }
 export async function undoHoldingsImport(): Promise<void> {
   const r = await rpc('portfolio.undoImport', {})

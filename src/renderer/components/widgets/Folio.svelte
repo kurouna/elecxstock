@@ -15,8 +15,10 @@ import {
   briefOf,
   type Card,
   CONTRIB_PERIODS,
+  clampIndex,
   contribBars,
   contribRows,
+  contribSummary,
   DIV_GROUPS,
   DIV_SORTS,
   divBridgeSteps,
@@ -24,16 +26,19 @@ import {
   divMonths,
   divRows,
   divSummary,
+  divYields,
   eventsOf,
   type FolioView,
   groupKey,
   HIST_PERIODS,
+  heroNumbers,
   histHead,
   histPoints,
   manYen,
   moveRow,
   nextCard,
   nisaShare,
+  reselect,
   rowsAtDay,
   rowsOf,
   signPct,
@@ -129,8 +134,14 @@ $effect(() => {
 })
 $effect(() => {
   const id = BENCHES[view.bench]
-  if (!id) return
-  void rpc('bars.get', { id, tf: 'D', adjustment: 'split' }).then((b) => (bench = b.time.map((d, i) => ({ d, c: b.close[i]! }))))
+  if (!id) {
+    bench = []
+    return
+  }
+  void rpc('bars.get', { id, tf: 'D', adjustment: 'split' }).then((b) => {
+    // 素早く切り替えたとき、古い応答で新しいベンチマークを上書きしない
+    if (BENCHES[view.bench] === id) bench = b.time.map((d, i) => ({ d, c: b.close[i]! }))
+  })
 })
 
 // ---- 行と数 ----
@@ -142,7 +153,8 @@ const rows = $derived.by(() => {
 })
 const hp = $derived(series ? histPoints(series.points, view) : [])
 const head = $derived(histHead(hp))
-const realN = $derived(series ? series.points.filter((p) => p.src !== 'est').length : 0)
+const recs = $derived(series?.points.filter((p) => p.src !== 'est') ?? [])
+const realN = $derived(recs.length)
 /** 十字線の日（資産推移を選び、キーで日を決めたとき。最新の日・試算の日は連動しない） */
 const crossDay = $derived.by(() => {
   if (card !== 'hist' || cross < 0 || view.pct) return null
@@ -161,11 +173,11 @@ $effect(() => {
 })
 const shown = $derived(crossDay && at ? rowsAtDay(at, rows, (c) => nameOf(`JP:${c}`)) : rows)
 const tot = $derived(totalsOf(shown))
-const realized = $derived(app.portfolioMeta?.realized ?? 0)
+/** 今の合計（十字線の日でも、配当の利回りは今の評価額・取得額で割る） */
+const baseTot = $derived(totalsOf(rows))
+const heroN = $derived(heroNumbers(series?.points ?? [], crossDay && at ? crossDay : null, tot, app.portfolioMeta))
 const received = $derived(app.portfolioMeta?.dividends ?? 0)
-const recs = $derived(series?.points.filter((p) => p.src !== 'est') ?? [])
-const peak = $derived(recs.length ? Math.max(...recs.map((p) => p.value)) : 0)
-const prevRec = $derived(recs.length >= 2 ? recs.at(-1)!.value - recs.at(-2)!.value : null)
+const acctMix = $derived(acctParts(shown))
 const accts = $derived.by(() => {
   const m = new Map<string, number>()
   for (const r of shown) m.set(r.acct, (m.get(r.acct) ?? 0) + r.value)
@@ -177,6 +189,7 @@ const stats = $derived(allocStats(shown))
 const cPeriod = $derived(CONTRIB_PERIODS[view.contrib]!)
 const cRows = $derived(contribRows(cPeriod, shown, cPeriod === 'month' ? contribM : contribY, (c) => nameOf(`JP:${c}`)))
 const cBars = $derived(contribBars(cRows))
+const cSum = $derived(contribSummary(cRows))
 const zeroAt = $derived(cRows.findIndex((r) => r.v <= 0))
 const dRows = $derived(divs ? divRows(divs, rows, (c) => get(`JP:${c}`)) : [])
 const dsum = $derived(
@@ -188,6 +201,8 @@ const dsum = $derived(
       )
     : null,
 )
+/** 配当の利回り・取得利回り（十字線の日でも今の評価額・取得額で割る） */
+const dy = $derived(dsum ? divYields(dsum.gross, baseTot) : { yld: null, yoc: null })
 const today = $derived.by(() => {
   void app.dataVersion // データの更新のたびに数え直す（日付をまたいで開いたままでもずれない）
   return jstNow().date
@@ -224,6 +239,42 @@ let th = $state(0)
 const tg = $derived(tw > 40 && th > 20 ? trendGeom(trend, tw, th) : null)
 const evRange = 30
 
+// 選んでいる銘柄（行の位置ではなく銘柄で覚える。取得で値が変わって並びが入れ替わっても、選んだ銘柄から動かない）
+let crowKey: string | null = null
+let evKey: string | null = null
+let drowKey: string | null = null
+let tileKey: string | null = null
+let srowKey: string | null = null
+const evKeyOf = (e: (typeof events)[number]) => `${e.type}:${e.code}:${e.date}`
+const dKeyOf = (r: TableRow) => (r.type === 'g' ? `g:${r.g.key}` : `m:${r.r.code}`)
+$effect(() => {
+  const c = reselect(cRows, crowKey, (r) => r.code, crow)
+  if (c !== crow) crow = c
+  const e = reselect(events, evKey, evKeyOf, ev)
+  if (e !== ev) ev = e
+  const d = reselect(tRows, drowKey, dKeyOf, drow)
+  if (d !== drow) drow = d
+  const t0 = reselect(leaves, tileKey, (x) => x.item.key, tile)
+  if (t0 !== tile) tile = t0
+  const s0 = reselect(shareList, srowKey, (x) => x.key, srow)
+  if (s0 !== srow) srow = s0
+})
+/** 今選んでいる行の銘柄を覚える（行を動かした・押したとき） */
+function remember(): void {
+  crowKey = cRows[crow]?.code ?? null
+  evKey = events[ev] ? evKeyOf(events[ev]!) : null
+  drowKey = tRows[drow] ? dKeyOf(tRows[drow]!) : null
+  tileKey = leaves[tile]?.item.key ?? null
+  srowKey = shareList[srow]?.key ?? null
+}
+// 保有を外した・予定が過ぎた・分類を変えたなどで一覧が短くなったら、選んでいる位置を最後に寄せる
+$effect(() => {
+  if (crow >= cRows.length) crow = clampIndex(crow, cRows.length)
+  if (ev >= events.length) ev = clampIndex(ev, events.length)
+  if (srow >= shareList.length) srow = clampIndex(srow, shareList.length)
+  if (drow >= tRows.length) drow = clampIndex(drow, tRows.length)
+  if (tile >= leaves.length) tile = clampIndex(tile, leaves.length)
+})
 /** 選んでいる分類・月の銘柄（他のカードでは、それ以外を薄くする） */
 const brushed = $derived.by((): Set<string> | null => {
   if (card === 'alloc') {
@@ -289,6 +340,7 @@ function current(): InstrumentId | null {
 const LIST_CARDS: Card[] = ['contrib', 'dshare', 'dtab']
 /** 選んだ銘柄を同じリンク色のチャート・銘柄情報に出す（FR-PF6。一覧のペインと同じく、選ぶと追従する） */
 function follow(): void {
+  remember()
   const id = current()
   if (id) setLinkSymbol(pane.link, id)
 }
@@ -300,6 +352,7 @@ function pick(c: Card, i: number): void {
   else if (c === 'events') ev = i
   else if (c === 'dshare') srow = i
   else if (c === 'dtab') drow = i
+  else if (c === 'div') dm = i
   follow()
 }
 function key(e: KeyboardEvent): boolean {
@@ -370,15 +423,17 @@ function key(e: KeyboardEvent): boolean {
       return true
     }
     if (card === 'div') {
-      // 配当の表（銘柄ごと）へ移り、その月の最初の銘柄を選ぶ
+      // 配当の表（銘柄ごと）へ移り、その月の最初の銘柄を選んでリンク色に送る。権利月の銘柄が無い月は何もしない
       const first = months[dm]?.codes[0]?.code
-      setView({ ...view, dgroup: 0, dsort: 0 })
+      if (!first) return true
+      applyView({ ...view, dgroup: 0 })
       card = 'dtab'
       queueMicrotask(() => {
-        drow = Math.max(
-          0,
+        drow = clampIndex(
           tRows.findIndex((r) => r.type === 'm' && r.r.code === first),
+          tRows.length,
         )
+        follow()
       })
       goSec('div')
       return true
@@ -447,12 +502,12 @@ const empty = $derived(loaded && !rows.length && !recs.length)
         <div class="stats">
           <div class="stat"><span class="k">{t('folio.pnl')}</span><span class={`v num ${toneOf(tot.pnl)}`}>{manYen(tot.pnl, true)} <span class="mute">{signPct(pct(tot.pnl, tot.cost))}</span></span></div>
           <div class="stat"><span class="k">{t('folio.cost')}</span><span class="v num">{manYen(tot.cost)}</span></div>
-          <div class="stat" title={t('folio.totalTip')}><span class="k">{t('folio.total')}</span><span class={`v num ${toneOf(tot.pnl + realized + received)}`}>{manYen(tot.pnl + realized + received, true)}</span></div>
-          <div class="stat" title={t('folio.fromPeakTip')}><span class="k">{t('folio.fromPeak')}</span><span class={`v num ${peak && tot.value < peak ? 'down' : 'flat'}`}>{peak ? signPct((tot.value / peak - 1) * 100) : '—'}</span></div>
-          <div class="stat" title={t('folio.prevRecTip')}><span class="k">{t('folio.prevRec')}</span><span class={`v num ${toneOf(prevRec)}`}>{prevRec == null ? '—' : manYen(prevRec, true)}</span></div>
+          <div class="stat" title={t('folio.totalTip')}><span class="k">{t('folio.total')}</span><span class={`v num ${toneOf(heroN.total)}`}>{manYen(heroN.total, true)}</span></div>
+          <div class="stat" title={t('folio.fromPeakTip')}><span class="k">{t('folio.fromPeak')}</span><span class={`v num ${heroN.fromPeak != null && heroN.fromPeak < -0.05 ? 'down' : 'flat'}`}>{heroN.fromPeak == null ? '—' : signPct(heroN.fromPeak)}</span></div>
+          <div class="stat" title={t('folio.prevRecTip')}><span class="k">{t('folio.prevRec')}</span><span class={`v num ${toneOf(heroN.prevRec)}`}>{heroN.prevRec == null ? '—' : manYen(heroN.prevRec, true)}</span></div>
           <div class="stat"><span class="k">PER · β</span><span class="v num">{tot.per?.toFixed(1) ?? '—'} · {tot.beta?.toFixed(2) ?? '—'}</span></div>
         </div>
-        <AcctRing parts={acctParts(shown)} nisa={nisaShare(acctParts(shown))} />
+        <AcctRing parts={acctMix} nisa={nisaShare(acctMix)} />
         <div class="nisa" title={t('folio.nisaTip')}><span>{t('folio.nisa')}</span><span class="track"><i style:width={`${Math.min(100, (nisaCost / 18e6) * 100)}%`}></i></span><span class="num">{manYen(nisaCost)} <span class="mute">/ {t('folio.nisaLife')}</span></span></div>
       </section>
 
@@ -465,6 +520,13 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             <Seg items={[t('folio.yen'), '%']} on={view.pct ? 1 : 0} label={segLabel('folio.k.pct')} onpick={(i) => applyView({ ...view, pct: i === 1 })} />
           </span>
         </h3>
+        <div class="hist-tools">
+          {#if view.pct}
+            <Seg items={[t('folio.benchNone'), t('folio.bench.1'), t('folio.bench.2')]} on={view.bench} label={segLabel('folio.k.bench')} onpick={(i) => applyView({ ...view, bench: i })} />
+          {:else}
+            <button type="button" class="toggle" class:on={view.est} aria-pressed={view.est} tabindex="-1" title={t('folio.k.est')} onclick={() => applyView({ ...view, est: !view.est, period: !view.est && view.period === 0 ? 5 : view.period })}>{t('folio.estToggle')} <kbd>E</kbd></button>
+          {/if}
+        </div>
         <div class="histhead">
           {#if view.pct}
             <span class={`big num ${toneOf(head.twr.at(-1))}`}>{signPct(head.twr.at(-1), 2)}</span><span class="mute">{t('folio.twrNote')}</span>
@@ -525,9 +587,9 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           <span class="right"><Seg items={CONTRIB_PERIODS.map((p) => t(`folio.c.${p}` as Key))} on={view.contrib} label={segLabel('folio.k.cperiod')} onpick={(i) => applyView({ ...view, contrib: i })} /></span>
         </h3>
         <div class="csum">
-          <b class={`num ${toneOf(cRows.reduce((s, r) => s + r.v, 0))}`}>{manYen(cRows.reduce((s, r) => s + r.v, 0), true)}</b>
-          {#if cRows.some((r) => r.div)}<span>{t('folio.ofDiv')} <span class="num gold">{manYen(cRows.reduce((s, r) => s + r.div, 0), true)}</span></span>{/if}
-          <span>{t('folio.upDown', { u: cRows.filter((r) => r.v > 0).length, d: cRows.filter((r) => r.v <= 0).length })}</span>
+          <b class={`num ${toneOf(cSum.total)}`}>{manYen(cSum.total, true)}</b>
+          {#if cSum.div}<span>{t('folio.ofDiv')} <span class="num gold">{manYen(cSum.div, true)}</span></span>{/if}
+          <span>{t('folio.upDown', { u: cSum.up, d: cSum.down })}</span>
           <span class="right">{t(`folio.cNote.${cPeriod}` as Key, { d: lastClosedSession().slice(5).replace('-', '/') })}{#if (cPeriod === 'month' ? contribM : contribY)?.beforeRecords && (cPeriod === 'month' || cPeriod === 'year')} · {t('folio.beforeRecords')}{/if}</span>
         </div>
         <div class="contrib">
@@ -551,10 +613,10 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           <div class="divkpi">
             <div><div class="k">{t('folio.annualNet')}</div><div class="v num">¥{yenFull(dsum.now)}</div></div>
             <div><div class="k">{t('folio.yoy')}</div><div class={`v num ${toneOf(dsum.delta)}`}>{dsum.hasYearAgo || dsum.delta ? manYen(dsum.delta, true) : '—'} <span class="mute">{signPct(pct(dsum.delta, dsum.prev))}</span></div></div>
-            <div><div class="k">{t('folio.yieldYoc')}</div><div class="v num">{tot.value ? ((dsum.gross / tot.value) * 100).toFixed(2) : '—'}% / {tot.cost ? ((dsum.gross / tot.cost) * 100).toFixed(2) : '—'}%</div></div>
+            <div><div class="k">{t('folio.yieldYoc')}</div><div class="v num">{dy.yld == null ? '—' : dy.yld.toFixed(2)}% / {dy.yoc == null ? '—' : dy.yoc.toFixed(2)}%</div></div>
           </div>
         {/if}
-        <DivBars {months} sel={card === 'div' ? dm : -1} {brushed} />
+        <DivBars {months} sel={card === 'div' ? dm : -1} {brushed} onpick={(i) => pick('div', i)} />
         <div class="legend"><span><span class="dot" style:background="var(--f-bar)"></span>{t('folio.next12')}</span><span><span class="dot thin"></span>{t('folio.prevSame')}</span><span><span class="dot" style:background="var(--gold)"></span>{t('folio.nextMonth')}</span></div>
         {#if card === 'div'}<div class="keys">{#each [kk('← →', 'folio.k.month'), kk('Enter', 'folio.k.toTable')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>{/if}
       </section>
@@ -613,8 +675,8 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             <div class="stats row">
               <div class="stat"><span class="k">{t('folio.perMonth')}</span><span class="v num">¥{yenFull(dsum.perMonth)}</span></div>
               <div class="stat"><span class="k">{t('folio.gross')}</span><span class="v num">¥{yenFull(dsum.gross)}</span></div>
-              <div class="stat"><span class="k">{t('folio.yield')}</span><span class="v num">{tot.value ? ((dsum.gross / tot.value) * 100).toFixed(2) : '—'}%</span></div>
-              <div class="stat"><span class="k">{t('folio.yoc')}</span><span class="v num">{tot.cost ? ((dsum.gross / tot.cost) * 100).toFixed(2) : '—'}%</span></div>
+              <div class="stat"><span class="k">{t('folio.yield')}</span><span class="v num">{dy.yld == null ? '—' : dy.yld.toFixed(2)}%</span></div>
+              <div class="stat"><span class="k">{t('folio.yoc')}</span><span class="v num">{dy.yoc == null ? '—' : dy.yoc.toFixed(2)}%</span></div>
               <div class="stat" title={t('folio.nisaSavedTip')}><span class="k">{t('folio.nisaSaved')}</span><span class="v num">¥{yenFull(dsum.nisaSaved)}</span></div>
               <div class="stat"><span class="k">{t('folio.received')}</span><span class="v num">{received ? `¥${yenFull(received)}` : '—'}</span></div>
               <div class="stat"><span class="k">{t('folio.raisedCut')}</span><span class="v num"><span class="up">{dsum.raised}</span> · <span class="down">{dsum.cut}</span></span></div>
@@ -643,6 +705,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             onpick={(i) => pick('dtab', i)}
             onsort={(i) => applyView({ ...view, dsort: i })}
             ontoggle={(i) => {
+              card = 'dtab'
               const r = toggleOpen(tRows, i, open, undefined, dGroup)
               open = r.open
               drow = r.sel
@@ -880,7 +943,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 }
 .hero-sub {
   display: flex;
-  gap: 12px;
+  gap: 2px 12px;
   flex-wrap: wrap;
   font-size: var(--fs-2);
   color: var(--text-2);
@@ -993,6 +1056,32 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   background: var(--text-3);
 }
 /* 資産推移 */
+.hist-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -4px;
+}
+.toggle {
+  font: inherit;
+  font-size: var(--fs-1);
+  color: var(--text-3);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0 6px;
+  line-height: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.toggle:hover {
+  color: var(--text-2);
+}
+.toggle.on {
+  color: var(--text);
+  border-color: var(--focus);
+}
 .histhead {
   display: flex;
   align-items: baseline;

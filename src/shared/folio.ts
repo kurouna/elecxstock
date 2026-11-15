@@ -249,6 +249,7 @@ export function dpsBlocks(divs: Dividend[], asOf: JstDate, years = 5): DpsBlocks
     regimeChanged: lastYear > 0 && prevYear > 0 && lastYear !== prevYear,
     special,
     last: xs.filter((d) => d.date > y1),
+    prev: xs.filter((d) => d.date > y2 && d.date <= y1),
   }
 }
 /** 1 株配当の増配率（年率。古いほうから新しいほうへ。値が足りなければ null） */

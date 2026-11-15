@@ -22,7 +22,7 @@ let {
 } = $props()
 let w = $state(0)
 let h = $state(0)
-const uid = `h${Math.random().toString(36).slice(2, 8)}`
+const uid = $props.id()
 const real = $derived(points.filter((p) => p.src !== 'est'))
 const g = $derived(w > 20 && h > 20 && points.length ? histGeom(points, w, h) : null)
 const pg = $derived(w > 20 && h > 20 && pct && real.length ? pctGeom([twr, ...(bench ? [bench] : [])], real.length, w, h) : null)

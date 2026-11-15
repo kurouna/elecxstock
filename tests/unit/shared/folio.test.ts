@@ -297,6 +297,8 @@ describe('配当の分析（FR-PF7・§6.6）', () => {
     expect(b.dps).toEqual([20, 22, 24, 26, 28])
     expect(b.special).toBe(false)
     expect(b.last.map((d) => d.date)).toEqual(['2026-03-30', '2026-11-14'])
+    // 前の 1 年の権利落ち（前年同月の棒に使う）
+    expect(b.prev.map((d) => d.date)).toEqual(['2025-03-28', '2025-09-29'])
   })
   it('履歴の始まり（前の年に権利落ちが無い）は、ある年の回数で区切る', () => {
     const b = dpsBlocks(

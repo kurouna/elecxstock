@@ -507,6 +507,8 @@ export interface DpsBlocks {
   special: boolean
   /** 直近 1 年の権利落ち（月割り・リボンに使う） */
   last: Dividend[]
+  /** その前の 1 年の権利落ち（前年同月の棒に使う。今年無配になった銘柄も前年の分を出す） */
+  prev: Dividend[]
 }
 /** 配当の分析の 1 銘柄（§4.2・6.6） */
 export interface FolioDivRow extends DpsBlocks {
