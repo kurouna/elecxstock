@@ -1,6 +1,6 @@
 // chart-grid のタイルの描画（FR-G3, G8, G9）。30 枚を速く描くため、チャートライブラリではなく 2D Canvas に直接描く。
 import type { Bars, Timeframe } from '@shared/types'
-import { linesInRange, type YieldLine } from '@shared/yieldLines'
+import { linesInRange, stackLabels, type YieldLine } from '@shared/yieldLines'
 
 export interface TileOpts {
   tf: Timeframe
@@ -147,10 +147,17 @@ export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars |
       g.stroke()
     }
     g.setLineDash([])
-    // ラベルは右の目盛りの欄に、線の色の地で出す（チャートの軸のラベルと同じ形。最新の足に重ねない）
+    // ラベルは右の目盛りの欄に、線の色の地で出す（チャートの軸のラベルと同じ形。最新の足に重ねない）。
+    // 近い目標のラベルは重ならないようにずらす（高さ 13px。タイルの上下の端からはみ出さない）
     const panel = css('--panel')
-    for (const l of drawn) {
-      const yy = Math.round(yv(l.price))
+    const ys = stackLabels(
+      drawn.map((l) => yv(l.price)),
+      13,
+      7,
+      H - 7,
+    )
+    for (const [k, l] of drawn.entries()) {
+      const yy = Math.round(ys[k]!)
       const tw = g.measureText(l.label).width + 6
       g.fillStyle = col
       g.fillRect(W + 1, yy - 7, tw, 13)

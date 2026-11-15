@@ -162,9 +162,7 @@ $effect(() => {
  * 目盛りは広げない（遠い目標で値動きが潰れないように）。範囲の外の線は凡例の値で分かる。比較の表示（% 目盛り）では引かない
  */
 $effect(() => ensureMetrics([id]))
-const targets = $derived<YieldLine[]>(
-  cmp.length ? [] : yieldLines(metric(id), { yieldLine: app.settings.yieldLine, yieldTargets: app.settings.yieldTargets }),
-)
+const targets = $derived<YieldLine[]>(cmp.length ? [] : yieldLines(metric(id), app.settings))
 const targetsKey = $derived(targets.map((l) => `${l.label}:${l.price}`).join())
 function drawTargetLines() {
   if (!main) return
@@ -638,8 +636,10 @@ onMount(() => {
   .inactive .tfb {
     color: var(--text-3);
   }
+  /* 幅の狭いペインでは、出来高と目標利回りの今の株価からの差を省く（凡例の折り返しを減らす） */
   @container (max-width: 560px) {
-    .vol {
+    .vol,
+    .yl .dim {
       display: none;
     }
   }

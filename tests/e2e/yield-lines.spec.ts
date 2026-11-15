@@ -64,6 +64,16 @@ test.describe('目標利回りの線（FR-C12）', () => {
     await keys(page, 'Alt+ArrowRight', 'Alt+ArrowUp')
     await jump(page, '8951')
     await expect(chart.locator('.legend .yl')).toHaveCount(targets.length)
+    // 幅の狭いペイン（560px 以下。MTF の週足・月足など）の凡例は、今の株価からの差を省いて折り返しを減らす（出来高と同じ）
+    const legends = await page.locator('.pane').evaluateAll((ps) =>
+      ps.flatMap((p) => {
+        const d = p.querySelector('.legend .yl .dim')
+        return d ? [{ w: p.getBoundingClientRect().width, shown: getComputedStyle(d).display !== 'none' }] : []
+      }),
+    )
+    expect(legends.some((x) => x.w <= 560)).toBe(true)
+    expect(legends.some((x) => x.w > 560)).toBe(true)
+    for (const x of legends) expect(x.shown, `幅 ${x.w}`).toBe(x.w > 560)
 
     await tab(page, 'grid')
     const grid = page.locator('[data-widget="grid"]')
@@ -72,6 +82,18 @@ test.describe('目標利回りの線（FR-C12）', () => {
     await expect.poll(() => grid.locator('canvas[data-yield]:not([data-yield=""])').count()).toBeGreaterThan(0)
     const drawn = await grid.locator('canvas[data-yield]:not([data-yield=""])').first().getAttribute('data-yield')
     for (const l of drawn!.split(' ')) expect(targets.map((p) => `${p}%`)).toContain(l)
+  })
+
+  // 回帰（2026-11-16 のレビュー）: 欄に打ったまま Enter・Tab を押さずに Esc で閉じると、打った値が保存されなかった
+  test('欄に打ったまま Esc で設定を閉じても、打った目標を保存する', async ({ start }) => {
+    const { page } = await start({ settings: { yieldLine: true, yieldTargets: [4] } })
+    await keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'Tab', 'Tab', 'Tab')
+    const dlg = page.getByRole('dialog', { name: '設定' })
+    await expect(dlg.getByRole('textbox', { name: '目標利回り 2' })).toBeFocused()
+    await page.keyboard.type('6')
+    await keys(page, 'Escape')
+    await expect(dlg).toHaveCount(0)
+    await expect.poll(async () => (await rpc<{ settings: Settings }>(page, 'user.load')).settings.yieldTargets).toEqual([4, 6])
   })
 
   test('OFF のときは、グリッドのタイルにも描かない', async ({ start }) => {

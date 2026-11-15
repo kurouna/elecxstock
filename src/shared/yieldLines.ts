@@ -85,3 +85,19 @@ export function targetsFromInputs(texts: readonly string[]): { targets: number[]
 export function targetTexts(targets: readonly number[]): string[] {
   return Array.from({ length: YIELD_TARGETS_UI }, (_, i) => (targets[i] != null ? String(targets[i]) : ''))
 }
+
+/**
+ * グリッドのタイルの軸のラベルの高さ（中心）。近い目標のラベルが重ならないよう、高さの順に h ずつ離して下へずらし、
+ * 下の端（max）を越えたら下から積み上げて上へずらす。上の端（min）も越えない。返す並びは ys と同じ
+ */
+export function stackLabels(ys: readonly number[], h: number, min: number, max: number): number[] {
+  const order = ys.map((y, i) => ({ y: Math.min(max, Math.max(min, y)), i })).sort((a, b) => a.y - b.y)
+  for (let k = 1; k < order.length; k++) order[k]!.y = Math.max(order[k]!.y, order[k - 1]!.y + h)
+  for (let k = order.length - 1; k >= 0; k--) {
+    const limit = k === order.length - 1 ? max : order[k + 1]!.y - h
+    order[k]!.y = Math.max(min, Math.min(order[k]!.y, limit))
+  }
+  const out = new Array<number>(ys.length)
+  for (const o of order) out[o.i] = o.y
+  return out
+}

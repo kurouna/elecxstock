@@ -173,7 +173,7 @@ function schedule() {
   raf = requestAnimationFrame(() => {
     tiles?.querySelectorAll<HTMLCanvasElement>('canvas[data-id]').forEach((cv) => {
       const id = cv.dataset.id!
-      const yields = yieldLines(metric(id as InstrumentId), { yieldLine: app.settings.yieldLine, yieldTargets: app.settings.yieldTargets })
+      const yields = yieldLines(metric(id as InstrumentId), app.settings)
       const drawn = drawTile(cv, bars[id], full[id], { tf, scale, ma, hoverDate, yields, fmtPx: px, fmtPct: (v) => sgn(v, 0, '%') })
       cv.dataset.yield = drawn.join(' ')
     })

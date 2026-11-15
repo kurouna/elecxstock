@@ -4,6 +4,7 @@ import {
   linesInRange,
   normalizeTargets,
   parseYieldTarget,
+  stackLabels,
   targetsFromInputs,
   targetTexts,
   YIELD_TARGETS_UI,
@@ -66,6 +67,23 @@ describe('チャートに引く線（FR-C12）', () => {
     expect(linesInRange(ls, 3500, 6500).map((l) => l.label)).toEqual(['2%', '3%'])
     expect(linesInRange(ls, 3000, 4000).map((l) => l.label)).toEqual(['3%', '4%'])
     expect(linesInRange(ls, 7000, 8000)).toEqual([])
+  })
+})
+
+describe('グリッドのタイルの軸のラベル（FR-C12）', () => {
+  it('離れていれば線の高さのまま', () => {
+    expect(stackLabels([20, 60, 100], 13, 0, 200)).toEqual([20, 60, 100])
+  })
+  it('近い目標（3.5% と 3.8% など）のラベルは重ならないように、下のラベルを下へずらす（並びは変えない）', () => {
+    expect(stackLabels([50, 55], 13, 0, 200)).toEqual([50, 63])
+    expect(stackLabels([50, 52, 54], 13, 0, 200)).toEqual([50, 63, 76])
+  })
+  it('並びがばらばらでも、高さの順にずらして元の順で返す', () => {
+    expect(stackLabels([55, 50], 13, 0, 200)).toEqual([63, 50])
+  })
+  it('ラベルの中心は min〜max に収める。下の端を越えるときは下から積み上げて上へずらす', () => {
+    expect(stackLabels([190, 195], 13, 6, 193)).toEqual([180, 193])
+    expect(stackLabels([2, 3], 13, 6, 193)).toEqual([6, 19])
   })
 })
 
