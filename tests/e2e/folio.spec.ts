@@ -53,6 +53,8 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     const f = page.locator('[data-widget="folio"]')
     await expect(f).toHaveClass(/focused/)
     await expect(f.locator('.c-hero')).toContainText('評価額')
+    // TOPIX そのものは取れないので、比べているのは TOPIX 連動 ETF（1306）と分かるように出す（FR-U6）
+    await expect(f.locator('.c-hero')).toContainText('TOPIX ETF')
     await expect(f.locator('.c-hist .chart svg')).toBeVisible()
     await expect(f.locator('.c-alloc .tile').first()).toBeVisible()
     await expect(f.locator('.c-contrib .crow').first()).toBeVisible()

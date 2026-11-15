@@ -504,7 +504,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
         <div class="hero-sub">
           <span class={`num ${toneOf(tot.day)}`}>{yenFull(tot.day, true)}（{signPct(pct(tot.day, tot.value - tot.day), 2)}）</span>
           <span class="mute">{crossDay ? t('folio.prevDay') : t('folio.today')}</span>
-          {#if !crossDay}<span class="mute">{t('folio.n225')} <span class={`num ${toneOf(metric('IDX:N225')?.chgPct)}`}>{signPct(metric('IDX:N225')?.chgPct, 2)}</span> · TOPIX <span class={`num ${toneOf(metric('JP:1306')?.chgPct)}`}>{signPct(metric('JP:1306')?.chgPct, 2)}</span></span>{/if}
+          {#if !crossDay}<span class="mute">{t('folio.n225')} <span class={`num ${toneOf(metric('IDX:N225')?.chgPct)}`}>{signPct(metric('IDX:N225')?.chgPct, 2)}</span> · <span title="1306">{t('folio.topixEtf')}</span> <span class={`num ${toneOf(metric('JP:1306')?.chgPct)}`}>{signPct(metric('JP:1306')?.chgPct, 2)}</span></span>{/if}
         </div>
         {#if !crossDay && brief}<div class="brief">{briefText(brief)}</div>{/if}
         <div class="stats">
