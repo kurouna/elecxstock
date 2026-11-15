@@ -214,6 +214,28 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(info).toContainText(c2)
   })
 
+  // 回帰（2026-11-15 に利用者が見つけた不具合）: 損益寄与の行を押すと、操作キーの案内の行が出入りしてカードの高さが変わり、
+  // 資産構成のツリーマップが並び直していた
+  test('カードを Tab で選び替えても、カードとツリーマップの大きさ・タイルの並びは変わらない（FR-PF1）', async ({ start }) => {
+    const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    await expect(f.locator('.c-alloc .tile').first()).toBeVisible()
+    const measure = () =>
+      f.evaluate((el) => ({
+        cards: [...el.querySelectorAll('.grid > .card')].map((c) => Math.round(c.getBoundingClientRect().height)),
+        tm: el.querySelector('.c-alloc .tm')!.getBoundingClientRect().height,
+        tiles: [...el.querySelectorAll('.c-alloc .tile')].map((t) => t.getAttribute('title')).join('|'),
+      }))
+    const base = await measure()
+    for (const name of ['hist', 'alloc', 'contrib', 'div', 'events']) {
+      await keys(page, 'Tab')
+      await expect(f.locator(`.c-${name}`)).toHaveClass(/focus/)
+      if (name !== 'events') await expect(f.locator(`.c-${name} .keys`)).toBeVisible()
+      expect(await measure(), name).toEqual(base)
+    }
+  })
+
   // 回帰（2026-11-15 に利用者が見つけた見た目の不具合）: 1920 の画面（L の並び）で、口座で分けた配当の内訳の名前と年間配当の値が切れない
   test('配当の内訳の名前・年間配当の値と注記が切れない（L の並び）', async ({ start }) => {
     const { page } = await start({ user: { holdings: HOLD }, viewport: { width: 1920, height: 1040 } })

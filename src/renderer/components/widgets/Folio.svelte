@@ -566,7 +566,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             />
           {/if}
         </div>
-        {#if card === 'hist'}<div class="keys">{#each [kk('Alt+1〜6', 'folio.k.period'), kk('← →', 'folio.k.cross'), kk('P', 'folio.k.pct'), kk('B', 'folio.k.bench'), kk('E', 'folio.k.est')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>{/if}
+        <div class="keys" class:off={card !== 'hist'} aria-hidden={card !== 'hist'}>{#each [kk('Alt+1〜6', 'folio.k.period'), kk('← →', 'folio.k.cross'), kk('P', 'folio.k.pct'), kk('B', 'folio.k.bench'), kk('E', 'folio.k.est')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
 
       <!-- 資産構成 -->
@@ -585,7 +585,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           <span title={t('folio.effTip')}>{t('folio.eff')}<b class="num">{stats.effective.toFixed(1)}</b></span>
         </div>
         <AllocMap rows={shown} group={ALLOC_GROUPS[view.group]!} heat={view.heat} sel={tile} focused={card === 'alloc'} label={groupLabel} ontiles={(l) => (leaves = l)} onpick={(i) => pick('alloc', i)} />
-        {#if card === 'alloc'}<div class="keys">{#each [kk('G', 'folio.k.group'), kk('H', 'folio.k.heat'), kk('← → ↑ ↓', 'folio.k.tile'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>{/if}
+        <div class="keys" class:off={card !== 'alloc'} aria-hidden={card !== 'alloc'}>{#each [kk('G', 'folio.k.group'), kk('H', 'folio.k.heat'), kk('← → ↑ ↓', 'folio.k.tile'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
 
       <!-- 損益寄与 -->
@@ -611,7 +611,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             </div>
           {/each}
         </div>
-        {#if card === 'contrib'}<div class="keys">{#each [kk('T', 'folio.k.cperiod'), kk('↑ ↓ PgUp PgDn', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>{/if}
+        <div class="keys" class:off={card !== 'contrib'} aria-hidden={card !== 'contrib'}>{#each [kk('T', 'folio.k.cperiod'), kk('↑ ↓ PgUp PgDn', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
 
       <!-- 配当見込み -->
@@ -626,7 +626,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
         {/if}
         <DivBars {months} sel={card === 'div' ? dm : -1} {brushed} onpick={(i) => pick('div', i)} />
         <div class="legend"><span><span class="dot" style:background="var(--f-bar)"></span>{t('folio.next12')}</span><span><span class="dot thin"></span>{t('folio.prevSame')}</span><span><span class="dot" style:background="var(--gold)"></span>{t('folio.nextMonth')}</span></div>
-        {#if card === 'div'}<div class="keys">{#each [kk('← →', 'folio.k.month'), kk('Enter', 'folio.k.toTable')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>{/if}
+        <div class="keys" class:off={card !== 'div'} aria-hidden={card !== 'div'}>{#each [kk('← →', 'folio.k.month'), kk('Enter', 'folio.k.toTable')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
 
       <!-- 今後 30 日の予定 -->
@@ -662,7 +662,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
         <section class="card c-dshare" class:focus={card === 'dshare'} data-card="dshare">
           <h3>{t('folio.dshare')}<span class="right"><Seg items={DIV_GROUPS.map((g) => t(`folio.dg.${g}` as Key))} on={view.dgroup} label={segLabel('folio.k.group')} onpick={(i) => applyView({ ...view, dgroup: i })} /></span></h3>
           {#if dsum}<Donut groups={dGroups} total={dsum.now} sel={srow} focused={card === 'dshare'} {brushed} label={(g) => (dGroup === 'code' ? `${g.key} ${g.rows[0]?.name ?? ''}` : groupLabel(g.key))} unit={t(`folio.unit.${dGroup}` as Key)} onpick={(i) => pick('dshare', i)} />{/if}
-          {#if card === 'dshare'}<div class="keys">{#each [kk('G', 'folio.k.group'), kk('↑ ↓', 'folio.k.row')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>{/if}
+          <div class="keys" class:off={card !== 'dshare'} aria-hidden={card !== 'dshare'}>{#each [kk('G', 'folio.k.group'), kk('↑ ↓', 'folio.k.row')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
         </section>
         <section class="card c-dsum" data-card="dsum">
           <h3>{t('folio.annualNet')}<span class="right"><span class="chip">{t('folio.fc')}</span></span></h3>
@@ -720,7 +720,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
               remember()
             }}
           />
-          {#if card === 'dtab'}<div class="keys">{#each [kk('G', 'folio.k.group'), kk('S', 'folio.k.sort'), kk('→ ←', 'folio.k.open'), kk('↑ ↓ PgUp PgDn Home End', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>{/if}
+          <div class="keys" class:off={card !== 'dtab'} aria-hidden={card !== 'dtab'}>{#each [kk('G', 'folio.k.group'), kk('S', 'folio.k.sort'), kk('→ ←', 'folio.k.open'), kk('↑ ↓ PgUp PgDn Home End', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
         </section>
       </div>
     </section>
@@ -901,6 +901,10 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   font-size: var(--fs-1);
   color: var(--text-3);
   flex-wrap: wrap;
+}
+/* 選んでいないカードの案内は見えなくするだけにする（出し入れするとカードの高さが変わり、ツリーマップが並び直す） */
+.keys.off {
+  visibility: hidden;
 }
 .mute {
   color: var(--text-3);
