@@ -813,7 +813,6 @@ export class CoreService {
       return []
     }
   }
-  /** 保存したスクリーンを、Core が持つ★・ウォッチリスト・保有で走らせる（スクリーンのアラート。上位 N 件は使わない） */
   /** 保存したスクリーンを走らせる材料（銘柄・★・ウォッチリスト・保有）。スクリーンのアラートの判定では 1 回だけ作る */
   private screenContext(): Omit<ScreenInput, 'conditions'> {
     const lists = this.user.load('watchlists')

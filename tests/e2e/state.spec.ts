@@ -143,6 +143,8 @@ test.describe('状態の変化への追従: 保有（§8.1, FR-H4, FR-H6, FR-H7,
     await expect(tiles(grid)).toHaveCount(2)
     await expect.poll(async () => (await codes(wl))[0]).toBe('8058')
     await expect(weightOf('7203')).not.toHaveText(/^100(\.0+)?%$/)
+    // アラートの「いま」（保有の損益率）も今の保有で数え直す（Core の alerts.list は今の保有で数える）
+    await expect.poll(() => alertNow(page, '8058')).toMatch(/%$/)
 
     // 直す: 8058 を 1 株に（7203 が大きい側に戻る）
     await focusPane(page, pf)
@@ -163,6 +165,7 @@ test.describe('状態の変化への追従: 保有（§8.1, FR-H4, FR-H6, FR-H7,
     await expect(rows(scr)).toHaveCount(1)
     await expect(tiles(grid)).toHaveCount(1)
     await expect(weightOf('7203')).toHaveText(/^100(\.0+)?%$/)
+    await expect.poll(() => alertNow(page, '8058')).toBe('—') // 持っていない銘柄に戻る
   })
 
   test('保有の JSON の取り込みと元に戻すに、スクリーナーと保有割合の列が追従する（FR-H9）', async ({ start }) => {

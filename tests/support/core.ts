@@ -20,6 +20,8 @@ export interface TestCore {
    * svc.call を直接呼ぶと Core の中の値をそのまま共有するので、呼んだあとの変更が前の結果に映る
    */
   call: <M extends Method>(method: M, params: Params<M>) => Promise<Results[M]>
+  /** call と同じ経路で、窓（スロット）を指定して呼ぶ（フリー N の制限・自分の配置だけの保存を確かめるとき） */
+  callAs: <M extends Method>(slot: 'main' | 'free2' | 'free3' | 'free4', method: M, params: Params<M>) => Promise<Results[M]>
   dir: string
   events: CoreEvent[]
   /** Core のイベントを受ける（renderer の窓口が使う） */
@@ -70,12 +72,13 @@ export function makeCore(opts: { fresh?: boolean; dir?: string; provider?: Provi
     }
   }
   let seq = 0
-  const call = async <M extends Method>(method: M, params: Params<M>): Promise<Results[M]> => {
-    const { reply } = await dispatch(svc, { prioritize: () => {} }, 'main', { id: ++seq, method, params: structuredClone(params) })
+  const callAs = async <M extends Method>(slot: string, method: M, params: Params<M>): Promise<Results[M]> => {
+    const { reply } = await dispatch(svc, { prioritize: () => {} }, slot, { id: ++seq, method, params: structuredClone(params) })
     if ('error' in reply) throw reply.error
     return structuredClone(reply.result) as Results[M]
   }
-  return { svc, call, dir, events, onEvent: (f) => subs.push(f), idle, dispose }
+  const call = <M extends Method>(method: M, params: Params<M>) => callAs('main', method, params)
+  return { svc, call, callAs, dir, events, onEvent: (f) => subs.push(f), idle, dispose }
 }
 
 /** ジョブを始めて、終わるまで待つ */

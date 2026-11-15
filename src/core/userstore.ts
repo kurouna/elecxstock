@@ -2,15 +2,7 @@
 // 読み込み・検証に失敗したら、そのファイルを退避して知らせ、読み取り専用で起動する（空で上書きしない）。
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import {
-  alertSchema,
-  holdingSchema,
-  portfolioMetaSchema,
-  savedLayoutSchema,
-  screenSchema,
-  settingsSchema,
-  watchlistSchema,
-} from '@shared/api'
+import { alertSchema, savedLayoutSchema, screenSchema, settingsSchema, USER_FILE_SCHEMAS, watchlistSchema } from '@shared/api'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { SavedScreen, Watchlist } from '@shared/types'
 import { z } from 'zod'
@@ -60,16 +52,16 @@ export function defaultScreens(now = Date.now()): SavedScreen[] {
   ]
 }
 
+const S = USER_FILE_SCHEMAS
 const FILES = {
-  settings: { schema: settingsSchema, def: () => DEFAULT_SETTINGS },
-  watchlists: { schema: z.array(watchlistSchema), def: defaultWatchlists },
-  screens: { schema: z.array(screenSchema), def: () => defaultScreens() },
-  layout: { schema: z.unknown(), def: () => null },
-  layouts: { schema: z.array(savedLayoutSchema), def: () => [] },
-  holdings: { schema: z.array(holdingSchema), def: () => [] },
-  portfolioMeta: { schema: portfolioMetaSchema.nullable(), def: () => null },
-  /** アラートの定義（FR-AL10）。判定の状態と履歴は alerts.ts の AlertBook（世代なし） */
-  alerts: { schema: z.array(alertSchema).max(500), def: () => [] },
+  settings: { schema: S.settings, def: () => DEFAULT_SETTINGS },
+  watchlists: { schema: S.watchlists, def: defaultWatchlists },
+  screens: { schema: S.screens, def: () => defaultScreens() },
+  layout: { schema: S.layout, def: () => null },
+  layouts: { schema: S.layouts, def: () => [] },
+  holdings: { schema: S.holdings, def: () => [] },
+  portfolioMeta: { schema: S.portfolioMeta, def: () => null },
+  alerts: { schema: S.alerts, def: () => [] },
 } as const
 /** レイアウトは作業に追従して頻繁に保存されるので、世代は 10 分に 1 つだけ残す */
 const LAYOUT_GEN_MS = 10 * 60_000

@@ -84,6 +84,7 @@ export const screenSchema = z.object({
   created: z.number(),
   updated: z.number(),
 })
+
 export const settingsSchema = z.object({
   lang: z.enum(['ja', 'en']),
   candleStyle: z.enum(['jp', 'us']),
@@ -141,6 +142,22 @@ export const savedLayoutSchema = z.object({
   updated: z.number(),
 })
 
+/**
+ * 利用者のデータのファイル（data/user/<name>.json）ごとのスキーマ。Core の UserStore が読むときに検証し、通らなければ退避して
+ * 読み取り専用で起動する（FR-S12）。E2E のフィクスチャ（tests/e2e/support の writeUser）も同じスキーマで書く前に確かめる
+ */
+export const USER_FILE_SCHEMAS = {
+  settings: settingsSchema,
+  watchlists: z.array(watchlistSchema),
+  screens: z.array(screenSchema),
+  layout: z.unknown(),
+  layouts: z.array(savedLayoutSchema),
+  holdings: z.array(holdingSchema),
+  portfolioMeta: portfolioMetaSchema.nullable(),
+  /** アラートの定義（FR-AL10）。判定の状態と履歴は alerts.ts の AlertBook（世代なし） */
+  alerts: z.array(alertSchema).max(500),
+} as const
+
 /** メソッドごとの入力スキーマ。Core は受け取ったらまずここで検証する */
 export const PARAMS = {
   'app.info': z.object({}),
@@ -188,7 +205,8 @@ export const PARAMS = {
   }),
   'portfolio.undoImport': z.object({}),
   'portfolio.meta': z.object({}),
-  'user.saveWindowLayout': z.object({ slot: z.enum(['free2', 'free3', 'free4']), entry: z.unknown() }),
+  // フリー N の配置（レイアウトの木の 1 つ。読むときに renderer の normalizeEntry が形を直す）
+  'user.saveWindowLayout': z.object({ slot: z.enum(['free2', 'free3', 'free4']), entry: z.record(z.string(), z.unknown()) }),
   'watchlists.toggleItem': z.object({ list: z.string().max(40), id }),
   'portfolio.previewCsv': z.object({ text: z.string().max(20_000_000) }),
   'portfolio.applyCsv': z.object({ holdings: z.array(holdingSchema).max(5000), meta: portfolioMetaSchema }),

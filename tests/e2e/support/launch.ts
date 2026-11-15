@@ -3,7 +3,9 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'nod
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type ElectronApplication, _electron as electron, expect, type Page } from '@playwright/test'
+import { USER_FILE_SCHEMAS } from '../../../src/shared/api'
 import { TEST_NOW } from '../../../src/shared/clock'
+import { DEFAULT_SETTINGS } from '../../../src/shared/settings'
 import type { LayoutDoc, Node } from './layout'
 import { runDir, seedDir } from './paths'
 
@@ -38,7 +40,16 @@ export function readUser<T = unknown>(userData: string, name: UserFile): T {
   const raw = JSON.parse(readFileSync(userFile(userData, name), 'utf8'))
   return (raw && typeof raw === 'object' && 'data' in raw ? raw.data : raw) as T
 }
+/**
+ * 利用者の JSON を書く。Core が読むときと同じスキーマ（USER_FILE_SCHEMAS）で先に確かめる。通らないフィクスチャは、Core が黙って退避して
+ * 空・読み取り専用で起動し、分かりにくい落ち方をするため（設定は Core と同じく既定値に重ねてから確かめる）
+ */
 export function writeUser(userData: string, name: UserFile, data: unknown): void {
+  const schema = USER_FILE_SCHEMAS[name as keyof typeof USER_FILE_SCHEMAS]
+  if (schema) {
+    const r = schema.safeParse(name === 'settings' ? { ...DEFAULT_SETTINGS, ...(data as object) } : data)
+    if (!r.success) throw new Error(`writeUser(${name}): ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`)
+  }
   mkdirSync(join(userData, 'data', 'user'), { recursive: true })
   writeFileSync(userFile(userData, name), JSON.stringify({ version: 1, data }))
 }

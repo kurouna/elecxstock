@@ -19,11 +19,11 @@ describe('DB の移行（FR-S2, S10）', () => {
       const v = core.svc.db.raw.prepare('PRAGMA user_version').get() as { user_version: number }
       expect(v.user_version).toBe(5)
       expect(core.svc.db.meta('metricsStale')).toBe('1')
-      expect((await core.svc.call('metrics.get', { ids: ['JP:7203'] })).length).toBe(0) // 表を作り直した直後は空
+      expect((await core.call('metrics.get', { ids: ['JP:7203'] })).length).toBe(0) // 表を作り直した直後は空
       core.svc.start()
       for (let i = 0; i < 500 && core.svc.db.meta('metricsStale') !== '0'; i++) await new Promise((r) => setTimeout(r, 10))
       expect(core.svc.db.meta('metricsStale')).toBe('0')
-      const [m] = await core.svc.call('metrics.get', { ids: ['JP:7203'] })
+      const [m] = await core.call('metrics.get', { ids: ['JP:7203'] })
       expect(m?.close).toBeGreaterThan(0)
       expect(m && 'recordDay' in m).toBe(true)
     } finally {

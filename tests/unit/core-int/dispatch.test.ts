@@ -1,5 +1,6 @@
 // renderer からの要求の処理（§8.1, FR-W, NFR-A1）: 窓ごとの制限・zod の検証・利用者のデータの変更の通知。worker と同じ dispatch を通す
 import { dispatch } from '@core/dispatch'
+import { PARAMS } from '@shared/api'
 import { afterAll, describe, expect, it } from 'vitest'
 import { makeCore } from '../../support/core'
 
@@ -43,15 +44,30 @@ describe('フリー N は読むだけ（FR-W）', () => {
       expect((await call('free2', m, p)).reply, m).toMatchObject({ error: { code: 'invalid-params', message: 'main window only' } })
     expect((await call('main', 'alerts.remove', { id })).reply).toHaveProperty('result')
   })
-  it('窓の配置は自分の分だけ書ける', async () => {
-    const layout = { root: { kind: 'pane', id: 'p1', widget: 'chart', state: {} } }
-    expect((await call('free2', 'user.saveWindowLayout', { slot: 'free3', layout })).reply).toMatchObject({ error: { message: 'slot' } })
+  it('窓の配置は自分の分だけ書ける。配置の無い要求は検証で弾く', async () => {
+    const entry = { root: { kind: 'pane', id: 'p1', widget: 'chart', state: {} } }
+    expect((await call('free2', 'user.saveWindowLayout', { slot: 'free3', entry })).reply).toMatchObject({ error: { message: 'slot' } })
+    expect((await call('free2', 'user.saveWindowLayout', { slot: 'free2', entry })).reply).toHaveProperty('result')
+    const saved = (await core.call('user.load', {})).layout as { windows?: Record<string, unknown> } | null
+    expect(saved?.windows?.free2).toEqual(entry)
+    // 配置が無い・形が違う（1 枚目の保存と取り違えた layout キーなど）は、Core を呼ぶ前に弾く
+    expect((await call('free2', 'user.saveWindowLayout', { slot: 'free2', layout: entry })).reply).toMatchObject({
+      error: { code: 'invalid-params' },
+    })
+    expect((await call('free2', 'user.saveWindowLayout', { slot: 'free2', entry: 'x' })).reply).toMatchObject({
+      error: { code: 'invalid-params' },
+    })
+    // 弾くのは窓口の検証（zod）。Core の中の確かめに頼らない
+    const schema = PARAMS['user.saveWindowLayout']
+    expect(schema.safeParse({ slot: 'free2' }).success).toBe(false)
+    expect(schema.safeParse({ slot: 'free2', entry: 'x' }).success).toBe(false)
+    expect(schema.safeParse({ slot: 'free2', entry }).success).toBe(true)
   })
 })
 
 describe('利用者のデータの変更をほかの窓に知らせる（FR-W）', () => {
   it('★の切り替えは、どの窓から何を変えたかを添えて知らせる。読むだけのメソッドは知らせない', async () => {
-    const u = await core.svc.call('user.load', {})
+    const u = await core.call('user.load', {})
     const fav = u.watchlists.find((w) => w.builtin === 'favorites')!
     const r = await call('free2', 'watchlists.toggleItem', { list: fav.id, id: 'JP:8058' })
     expect(r.notice).toEqual({ event: 'user.changed', data: { kind: 'watchlists', from: 'free2', op: { list: fav.id, id: 'JP:8058' } } })
