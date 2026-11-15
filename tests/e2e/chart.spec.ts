@@ -60,8 +60,9 @@ test.describe('指標とツールチップ（FR-C6, FR-V13, FR-V14）', () => {
 })
 
 test.describe('表示する銘柄を変える（FR-L11, FR-DR7）', () => {
-  test('C キー: MTF のウォッチリストからも、表示する銘柄を変えられる', async ({ start }) => {
+  test('C キー: ウォッチリストからも、表示する銘柄を変えられる', async ({ start }) => {
     const { page } = await start()
+    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナーを置くタブ（MTF の左はスクリーナー 2 つ）
     await expect(page.locator('.pane.focused')).toHaveAttribute('data-widget', 'watchlist')
     await keys(page, 'c')
     await replaceSymbol(page, '8058')
@@ -70,6 +71,7 @@ test.describe('表示する銘柄を変える（FR-L11, FR-DR7）', () => {
 
   test('ウォッチリストの行を日足のチャートに落とすと、リンク色の同じチャートがその銘柄になる', async ({ start }) => {
     const { page } = await start({ user: { watchlists: watchlists({ favorites: ['7203', '8001'] }) } })
+    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナーを置くタブ（MTF の左はスクリーナー 2 つ）
     const src = page.locator('[data-pane-id]').first().locator('tbody tr[draggable="true"]', { hasText: '8001' })
     const chart = page.locator('[data-widget="chart"]').first()
     const a = (await src.boundingBox())!

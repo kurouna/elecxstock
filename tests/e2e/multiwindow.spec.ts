@@ -1,7 +1,7 @@
 // マルチモニタ（FR-L7, docs/design-multimonitor.md）: タブなしのフリー N。キーで開く・足す・送る・リンク・★・窓の移動・再起動・アラート。
 // OS の窓とフォーカスに頼るので、並列のあとの直列の project で回す
 import type { ElectronApplication, Page } from '@playwright/test'
-import { expect, jump, keys, readUser, test } from './support'
+import { expect, jump, keys, readUser, tab, test } from './support'
 
 /** userData に保存したフリー 2 の配置に出てくる銘柄（並びの順） */
 const savedFree2 = (userData: string) =>
@@ -65,11 +65,12 @@ test.describe('フリー N（FR-L7）', () => {
   test('キーで送る・★は 1 枚目に届く・リンク色を付けると 1 枚目の銘柄を追う・再起動で戻る', async ({ start }) => {
     const first = await start()
     const { app, page } = first
+    await tab(page, 'triple') // 1 枚目は、左の列にウォッチリスト（★）とチャートを置くタブ（MTF の左はスクリーナー 2 つ）
     const free = await openFree(app, page, '4 分割')
     const charts = free.locator('[data-widget="chart"]')
     await expect(charts).toHaveCount(4)
 
-    // 1 枚目の MTF（リンク 1）で 8306 を表示 → Ctrl+Alt+Enter でフリー 2 へ送る（フォーカス中のチャートが変わる）
+    // 1 枚目のトリプル（リンク 1）で 8306 を表示 → Ctrl+Alt+Enter でフリー 2 へ送る（フォーカス中のチャートが変わる）
     await charts.first().click({ position: { x: 200, y: 150 } })
     const mainChart = page.locator('[data-widget="chart"]').first()
     await mainChart.click({ position: { x: 300, y: 200 } })

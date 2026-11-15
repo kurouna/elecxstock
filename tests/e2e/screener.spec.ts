@@ -243,3 +243,21 @@ test.describe('スクリーンの一覧・★だけ表示（FR-SC12, FR-SC13, FR
     }
   })
 })
+
+test.describe('狭い一覧の列（FR-V12, FR-SC3）', () => {
+  test('スクリーナーのタブ（左の列が狭い）でも、コードと銘柄名が読め、右の列から隠す', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'screener')
+    const head = screener(page).locator('thead th')
+    await expect(head.nth(1)).toHaveText('コード')
+    await expect(head.nth(2)).toHaveText('銘柄名')
+    const name = screener(page).locator('tbody tr:not(.spacer)').first().locator('td').nth(2)
+    await expect(name).not.toBeEmpty()
+    expect((await name.boundingBox())!.width).toBeGreaterThanOrEqual(96)
+    // 右の列（既定の最後の「1年」）は隠れている。列を見せない分、全体の幅に収まる
+    await expect(head.filter({ hasText: '1年' })).toHaveCount(0)
+    const table = (await screener(page).locator('table.grid').boundingBox())!
+    const pane = (await screener(page).boundingBox())!
+    expect(table.width).toBeLessThanOrEqual(pane.width)
+  })
+})

@@ -5,7 +5,7 @@
 import type { Watchlist } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
-import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, resolveColumns, sortIds } from '../../lib/columns'
+import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
 import { registerPane } from '../../lib/panes'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import {
@@ -66,8 +66,8 @@ let col = $state(3)
 let scroller = $state<HTMLDivElement>()
 let width = $state(600)
 const allCols = $derived(resolveColumns(pane.state.cols as string[] | undefined, DEFAULT_COLUMNS.watchlist))
-// 幅の狭いペインでは売買代金の列を隠す（FR-V12）
-const cols = $derived(width < 470 ? allCols.filter((c) => c.id !== 'liq.turnover20') : allCols)
+// 幅の狭いペインでは右の列から隠し、コードと銘柄名を残す（FR-V12。スクリーナーと同じ）
+const cols = $derived(fitColumns(allCols, width))
 
 const rows = $derived.by(() => {
   void screenInputs() // 指標・保有の列で並べ替えているとき
@@ -250,7 +250,7 @@ onMount(() => {
         return true
       }
       if (e.code === 'KeyS' && !ctrl && !e.altKey) {
-        sortBy(cols[col]!.id)
+        sortBy(cols[Math.min(col, cols.length - 1)]!.id) // 狭くて列を隠したあとも、見えている列で並べ替える
         return true
       }
       if (e.code === 'KeyF' && ctrl && e.shiftKey) {

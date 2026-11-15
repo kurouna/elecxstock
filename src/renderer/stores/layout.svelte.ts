@@ -94,11 +94,12 @@ export const PRESET_FOCUS: Partial<Record<PresetId, WidgetId>> = { screener: 'sc
 export function presetEntry(id: PresetId): LayoutEntry {
   switch (id) {
     case 'mtf':
+      // 左の列はスクリーナー 2 つ（別々の条件で探して見比べる）。右は日足（上）と週足・月足（下）を同じ高さで
       return {
         root: R(
           [30, 70],
-          selectCol(1),
-          C([62, 38], P('chart', 1, { tf: 'D' }), R([50, 50], P('chart', 1, { tf: 'W' }), P('chart', 1, { tf: 'M' }))),
+          C([50, 50], P('screener', 1), P('screener', 1)),
+          C([50, 50], P('chart', 1, { tf: 'D' }), R([50, 50], P('chart', 1, { tf: 'W' }), P('chart', 1, { tf: 'M' }))),
         ),
         docks: {},
       }
@@ -106,9 +107,10 @@ export function presetEntry(id: PresetId): LayoutEntry {
       // グリッドはスクリーナーの結果を並べることが多いので、ドロワーはスクリーナーを前に出す
       return { root: P('grid', 1, { src: 'live' }), docks: { left: selectDock(1, 1) } }
     case 'screener':
-      // スクリーナーが主役なので、左の列はスクリーナーだけ（ウォッチリストは置かない）
+      // スクリーナーが主役なので、左の列はスクリーナーだけ（ウォッチリストは置かない）。結果の行を動かすと、
+      // となりの銘柄情報と右のチャート 2 枚（上下）が同じ銘柄を出す（リンク 1）
       return {
-        root: R([42, 58], P('screener', 1), C([58, 42], R([62, 38], P('chart', 1, { tf: 'D' }), P('chart', 1, { tf: 'W' })), P('info', 1))),
+        root: R([26, 26, 48], P('screener', 1), P('info', 1), C([50, 50], P('chart', 1, { tf: 'D' }), P('chart', 1, { tf: 'D' }))),
         docks: {},
       }
     case 'income':

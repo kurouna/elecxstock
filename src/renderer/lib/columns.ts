@@ -157,6 +157,23 @@ export function resolveColumns(ids: string[] | undefined, fallback: string[]): L
   return [...fixed, ...rest]
 }
 
+/** 銘柄名の列の最小の幅（px）。狭い一覧でも、コードと銘柄名は読めるように残す */
+export const NAME_MIN = 104
+/**
+ * 一覧の幅に収まる列（FR-V12）。★・コード・銘柄名（固定の列）は必ず残し、銘柄名に NAME_MIN を取ってから、
+ * 選んだ列を右から順に外す（左に置いた列ほど大事）。外した列も CSV の書き出し・並べ替えには使う
+ */
+export function fitColumns(cols: ListCol[], width: number): ListCol[] {
+  const need = (cs: ListCol[]) => cs.reduce((s, c) => s + (c.w ?? (c.id === 'name' ? NAME_MIN : 0)), 0)
+  const out = [...cols]
+  while (need(out) > width) {
+    const i = out.findLastIndex((c) => !c.fixed)
+    if (i < 0) break
+    out.splice(i, 1)
+  }
+  return out
+}
+
 /** 列の選択（Ctrl+Shift+C）。選んだ列の ID を順番どおりに返す */
 export async function chooseColumns(current: ListCol[]): Promise<string[] | null> {
   const on = new Set(current.map((c) => c.id))

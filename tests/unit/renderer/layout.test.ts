@@ -33,7 +33,7 @@ describe('レイアウト', () => {
     L.resetLayout()
     expect((L.layout.entry.root as { sizes: number[] }).sizes).toEqual([30, 70])
   })
-  it('サイズを戻すは木の位置でなく中身で比率を探す（左の列をドロワーに移したあとも日足は大きいまま）', () => {
+  it('サイズを戻すは木の位置でなく中身で比率を探す（左の列をドロワーに移したあとも、日足と週足・月足の区切りの比率に戻る）', () => {
     L.setPreset('mtf')
     L.resetLayout()
     const col = (L.layout.entry.root as { children: { kind: string }[] }).children[0]!
@@ -43,7 +43,7 @@ describe('レイアウト', () => {
     expect(root.dir).toBe('col')
     root.sizes = [20, 80]
     L.resetSizes()
-    expect(root.sizes).toEqual([62, 38])
+    expect(root.sizes).toEqual([50, 50])
     expect(L.sizesAtDefault()).toBe(true)
   })
   it('前の版の形（左の列がウォッチリストだけ）でも、いちばん似た区切りの比率に戻る', () => {
@@ -254,5 +254,43 @@ describe('フリー N（マルチモニタ）', () => {
     expect(d.entries.free.docks).toEqual({})
     // 形を選んで開いたら、前回の配置より形が勝つ
     expect(L.allPanes(L.freeDoc(saved, 'free2', 'empty').entries.free).map((p) => p.widget)).toEqual(['chart'])
+  })
+})
+
+describe('スクリーナーのタブの初期の並び（§6.4 Screener・FR-L5）', () => {
+  it('左から スクリーナー・銘柄情報・チャート 2 枚（上下）。すべてリンク 1', () => {
+    type N = { kind: string; widget?: string; dir?: string; sizes?: number[]; link?: number; state?: { tf?: string }; children?: N[] }
+    const root = L.presetEntry('screener').root as N
+    expect(root.dir).toBe('row')
+    expect(root.sizes).toEqual([26, 26, 48])
+    const [scr, info, charts] = root.children!
+    expect(scr!.widget).toBe('screener')
+    expect(info!.widget).toBe('info')
+    expect(charts!.dir).toBe('col')
+    expect(charts!.sizes).toEqual([50, 50])
+    expect(charts!.children!.map((c) => [c.widget, c.state?.tf])).toEqual([
+      ['chart', 'D'],
+      ['chart', 'D'],
+    ])
+    const panes = L.allPanes(L.presetEntry('screener'), false)
+    expect(panes.every((p) => p.link === 1)).toBe(true)
+    expect(L.PRESET_FOCUS.screener).toBe('screener')
+  })
+})
+
+describe('MTF のタブの初期の並び（§6.4 MTF・FR-L5）', () => {
+  it('左の列はスクリーナー 2 つ（上下）、右は日足（上）と週足・月足（下）を 1:1。すべてリンク 1', () => {
+    type N = { kind: string; widget?: string; dir?: string; sizes?: number[]; link?: number; state?: { tf?: string }; children?: N[] }
+    const root = L.presetEntry('mtf').root as N
+    expect(root.dir).toBe('row')
+    const [left, right] = root.children!
+    expect(left!.dir).toBe('col')
+    expect(left!.children!.map((c) => c.widget)).toEqual(['screener', 'screener'])
+    expect(right!.dir).toBe('col')
+    expect(right!.sizes).toEqual([50, 50])
+    const [day, lower] = right!.children!
+    expect([day!.widget, day!.state?.tf]).toEqual(['chart', 'D'])
+    expect(lower!.children!.map((c) => c.state?.tf)).toEqual(['W', 'M'])
+    expect(L.allPanes(L.presetEntry('mtf'), false).every((p) => p.link === 1)).toBe(true)
   })
 })

@@ -7,7 +7,7 @@ import type { Condition, InstrumentId, ScreenResult } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { fieldValueText } from '../../lib/alertText'
 import { prefetch } from '../../lib/barsCache'
-import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, resolveColumns, sortIds } from '../../lib/columns'
+import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
 import { keyOf, openInGrid } from '../../lib/commands'
 import { fmt } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
@@ -49,7 +49,10 @@ let col = $state(5)
 const extras = $derived(extrasOf(pane))
 const sort = $derived(extras.sort)
 const limit = $derived(extras.limit)
-const cols = $derived(resolveColumns(extras.columns, DEFAULT_COLUMNS.screener))
+const allCols = $derived(resolveColumns(extras.columns, DEFAULT_COLUMNS.screener))
+/** 一覧の幅（狭いと右の列から隠し、コードと銘柄名を残す。FR-V12） */
+let width = $state(600)
+const cols = $derived(fitColumns(allCols, width))
 let scroller = $state<HTMLDivElement>()
 let scrollTop = $state(0)
 let viewH = $state(400)
@@ -197,7 +200,7 @@ async function setLimit() {
   patchState(pane, { limit: Number.isFinite(n) && n > 0 ? Math.min(5000, n) : undefined })
 }
 async function pickColumns() {
-  const ids = await chooseColumns(cols)
+  const ids = await chooseColumns(allCols)
   if (ids) patchState(pane, { cols: ids })
 }
 function sortBy(k: string) {
@@ -278,13 +281,16 @@ function showValue(c: Condition): string {
 const opLabel = (op: string) => ({ '>=': '≥', '<=': '≤', '=': '=', in: '∈', notin: '∉' })[op] ?? op
 
 onMount(() => {
-  const ro = new ResizeObserver(() => (viewH = scroller?.clientHeight ?? 400))
+  const ro = new ResizeObserver(() => {
+    viewH = scroller?.clientHeight ?? 400
+    width = scroller?.clientWidth ?? 600
+  })
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
     // 「いまの銘柄」はリンク先のチャートが表示している銘柄（銘柄ジャンプのあとに Ctrl+D が前の行に効かないように）
     current: () => (pane.link ? linkSymbol(pane.link) : null) ?? rows[sel],
     selected: () => rows.slice(lo, hi + 1),
-    columns: () => ({ ids: rows, cols, name: scr ? screenName(scr) : 'screener' }),
+    columns: () => ({ ids: rows, cols: allCols, name: scr ? screenName(scr) : 'screener' }),
     run(action) {
       if (action === 'columns') void pickColumns()
       else if (action === 'limit') void setLimit()
@@ -404,7 +410,7 @@ onMount(() => {
         return true
       }
       if (e.code === 'KeyS' && !ctrl && !e.altKey) {
-        sortBy(cols[col]!.id)
+        sortBy(cols[Math.min(col, cols.length - 1)]!.id) // 狭くて列を隠したあとも、見えている列で並べ替える
         return true
       }
       if (k === 'Enter' && !ctrl) {

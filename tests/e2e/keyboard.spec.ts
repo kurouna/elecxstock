@@ -5,7 +5,8 @@ import { expect, jump, keys, tab, test, type } from './support'
 test.describe('一日の流れ（FR-KB8, FR-K2, FR-W4）', () => {
   test('銘柄ジャンプで★を付け、ウォッチリストをめくるとチャートが追従する', async ({ start }) => {
     const { page } = await start()
-    // 種から起動すると MTF のウォッチリストにフォーカスがある。チャートに移ってから銘柄ジャンプ → お気に入り
+    await tab(page, 'triple') // 左の列にウォッチリストとスクリーナーを置くタブ（MTF の左はスクリーナー 2 つ）
+    // トリプルのタブを開くとウォッチリストにフォーカスがある。チャートに移ってから銘柄ジャンプ → お気に入り
     await expect(page.locator('.pane.focused')).toHaveAttribute('data-widget', 'watchlist')
     await keys(page, 'Alt+ArrowRight')
     await expect(page.locator('.pane.focused')).toHaveAttribute('data-widget', 'chart')
@@ -20,13 +21,13 @@ test.describe('一日の流れ（FR-KB8, FR-K2, FR-W4）', () => {
     await keys(page, 'Alt+ArrowLeft', 'Alt+ArrowUp') // 左の列へ移り、上のウォッチリストへ
     await expect(page.locator('.pane.focused')).toHaveAttribute('data-widget', 'watchlist')
     await expect(page.locator('[data-pane-id]').first()).toContainText('94345')
-    await keys(page, 'Home', 'ArrowDown')
-    await expect(page.locator('[data-widget="chart"]').first()).toContainText('7203')
+    // 先頭の行（最初に★を付けた 8058）へめくると、最後に出していた 94345 からチャートが追従する
+    await keys(page, 'Home')
+    await expect(page.locator('[data-pane-id]').first().locator('tbody tr.sel')).toContainText('8058')
+    await expect(page.locator('[data-widget="chart"]').first()).toContainText('8058')
     await keys(page, 'w') // ウォッチリストにフォーカスがあるので週足キーは効かない（一覧のキー）
-    await expect(page.locator('[data-widget="chart"]').first().getByRole('button', { name: 'D', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    // チャートの凡例の時間軸は日足のまま（3 枚並べた狭いチャートでは D/W/M のボタンは ⋯ に入るので、凡例で見る）
+    await expect(page.locator('[data-widget="chart"]').first().locator('.legend .tfb')).toHaveText('D')
   })
 
   test('スクリーナーで条件を変え、2 行を選んでリストに足し、名前を付けて保存する（FR-SC12）', async ({ start }) => {

@@ -9,6 +9,7 @@ const noJapanese = async (l: Locator) => expect(await l.innerText()).not.toMatch
 test.describe('英語の画面（FR-N1, FR-N4, NFR-Q6）', () => {
   test('英語で起動し、銘柄ジャンプ → ★ → スクリーナー → 条件を足す → ショートカット・設定まで通す', async ({ start }) => {
     const { page } = await start({ lang: 'en' })
+    await tab(page, 'triple', 'en') // 左の列にウォッチリストとスクリーナーを置くタブ（MTF の左はスクリーナー 2 つ）
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
     await noJapanese(page.locator('.presets'))
     await expect(page.locator('footer')).toContainText('Idle')
