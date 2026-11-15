@@ -6,7 +6,7 @@
   <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/built%20with-Electron%2045-47848F?logo=electron" alt="Electron"></a>
   <a href="https://svelte.dev/"><img src="https://img.shields.io/badge/UI-Svelte%205-FF3E00?logo=svelte" alt="Svelte"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D6?logo=windows" alt="Windows">
-  <a href="https://x.com/elecxzy"><img src="https://img.shields.io/badge/X-elecxzy-black" alt="X"></a>
+  <a href="https://x.com/elecxstock"><img src="https://img.shields.io/badge/X-elecxstock-black" alt="X"></a>
   <a href="https://claude.com/claude-code"><img src="https://img.shields.io/badge/Created%20with-Claude%20Code-D97757?logo=claude" alt="Created with Claude Code"></a>
 </p>
 
