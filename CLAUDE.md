@@ -29,6 +29,8 @@ npm run package        # Windows のインストーラ（release/）
 npm run test:packaged  # パッケージした exe を CDP で一度起動して描画を確かめる
 LIVE=1 npm run contract  # 実際の Yahoo・JPX に対する契約テスト（ネットワークを使う）
 npm run gen:screenshots  # README 用のスクリーンショット（スタブのデータ）
+npm run gen:fields-doc   # docs/screener-fields.md（スクリーナーの項目の一覧）を指標の登録表から作る
+npm run demo:0.1.1     # 版ごとのデモ（録画は利用者が行う。下の「デモ」）
 npm run gen:icon       # build/icon.svg から PNG・ICO
 ```
 
@@ -115,6 +117,24 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
   `npx playwright test visual --update-snapshots` で基準画像を作り直し、差分を目で確かめてからコミットする。
 - 画面の振る舞いは E2E で、**キーボードだけで**確かめる。プロバイダはスタブ、時刻は `ELECXSTOCK_NOW`（基準日時）。固定の待ちを足さない。
 - E2E とスクリーンショットは `npm run build` のあとに動かす（out/ を起動する）。
+
+## デモ
+
+リリースの紹介動画のためのデモのスクリプト（`scripts/demo*.mjs`）。**録画は利用者がキャプチャアプリで行う**ので、スクリプトはアプリを動かして見せるところまで。
+
+- 版ごとに `scripts/demo-v<版>.mjs` を作り、package.json に `"demo:<版>"` を足す（例: `demo-v0.1.1.mjs` と `npm run demo:0.1.1`）。前の版から変わったところを、話題ごとに場面にする。初めての紹介は `scripts/demo.mjs`（`npm run demo`）。
+- 字幕・押したキー・タイトルと終わりの画面は `scripts/demo-kit.mjs` の `overlay`・`caption`・`card`・`press`・`shot` を使う（画面に重ねるだけで、アプリには入れない）。
+- 作り方:
+  1. 1 回目の起動で、初回の取り込みと架空のウォッチリスト・保有を入れて閉じる（録画しない）。2 回目の起動がデモ。
+  2. スタブのプロバイダ・使い捨ての userData・`ELECXSTOCK_NOW`（テストの基準日時）で起動する。日付や「あと N 日」が録り直しても同じになる。
+  3. 操作は**キーだけ**で進め、場面ごとに字幕で何をしているかを出す。待ちは固定の時間ではなく、出てくる要素を `waitFor` で待つ（遅い PC でもずれない）。
+  4. 最初と最後に、版と話題・「値はすべて架空」の注意を出す。左下にも架空の値の注意を出し続ける（`overlay` が出す）。
+- 環境変数: `DEMO_SIZE`（窓の中身の大きさ。既定は最大化）・`DEMO_WAIT`（タイトルを出してから始めるまでの秒数。録画を始める間）・
+  `DEMO_SPEED`（速さの倍率）・`DEMO_SHOTS=<フォルダ>`（場面ごとのスクリーンショット）・`DEMO_EXIT=1`（終わったら閉じる）。
+- **作ったら、録画の前に必ず通しで動かして確かめる**: `npm run build` のあと
+  `DEMO_SHOTS=<フォルダ> DEMO_EXIT=1 DEMO_WAIT=0 DEMO_SPEED=2 DEMO_SIZE=1600x960 node scripts/demo-v<版>.mjs` を実行し、場面ごとのスクリーンショットを見て、
+  字幕どおりの画面になっているか（ダイアログが開いた・値が変わった・ペインが変わった）を確かめる。選択肢のダイアログのように打っても絞り込めない画面は、↓ で送る。
+- 画面の作り（並び・文言・キー）を変えたら、デモのスクリプトも動くか確かめる（E2E には入っていない）。
 
 ## コミット
 
