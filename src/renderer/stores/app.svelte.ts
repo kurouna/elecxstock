@@ -217,6 +217,30 @@ export function ensureMetrics(ids: InstrumentId[]): void {
     }
   }, 16)
 }
+/**
+ * 取得の知らせ（data.updated をまとめたもの）を画面に映す: 手元の指標を新しい値で置き換えてから、dataVersion を上げる。
+ * 先に消さない（FR-S11。消すと新しい値が届くまで、並べ替えた一覧で値の無い銘柄が最後に回って行が跳ねる）。
+ * Core に指標が無くなった銘柄は消す。手元に無い銘柄は、表示するペインが ensureMetrics で取る
+ */
+export async function applyDataUpdated(ids: Set<InstrumentId> | '*'): Promise<void> {
+  const want = (ids === '*' ? [...app.metrics.keys()] : [...ids]).filter((id) => app.metrics.has(id))
+  if (want.length) {
+    try {
+      const rows = await bridge.call('metrics.get', { ids: want })
+      const got = new Set<InstrumentId>()
+      for (const r of rows) {
+        app.metrics.set(r.id, r)
+        got.add(r.id)
+      }
+      for (const id of want) if (!got.has(id)) app.metrics.delete(id)
+    } catch {
+      // 取れなかったら消して、表示するペインに取り直させる（前のやり方）
+      for (const id of want) app.metrics.delete(id)
+    }
+  }
+  app.updatedIds = ids
+  app.dataVersion++
+}
 export function metric(id: InstrumentId | null | undefined): MetricsRow | undefined {
   return id ? app.metrics.get(id) : undefined
 }

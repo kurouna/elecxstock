@@ -84,3 +84,33 @@ test.describe('表示する銘柄を変える（FR-L11, FR-DR7）', () => {
     await expect(chart.locator('.ph')).toContainText('8001')
   })
 })
+
+test.describe('表示の範囲（FR-C1）', () => {
+  test('← でずらした表示は、対数目盛りなど期間以外を変えても元に戻らない', async ({ start }) => {
+    const { page } = await start()
+    const chart = page.locator('[data-widget="chart"]').first()
+    await keys(page, 'Alt+ArrowRight', 'Alt+ArrowUp')
+    await expect(chart).toHaveClass(/focused/)
+    await expect(chart.locator('canvas').first()).toBeVisible()
+    // キャンバスの絵（描き終わるまで同じ絵が 2 回続くのを待つ）
+    const pic = () => chart.evaluate((el) => [...el.querySelectorAll('canvas')].map((c) => c.toDataURL()).join('|'))
+    const still = async () => {
+      let a = await pic()
+      for (let i = 0; i < 20; i++) {
+        await page.waitForTimeout(100)
+        const b = await pic()
+        if (a === b) return a
+        a = b
+      }
+      return a
+    }
+    const home = await still()
+    await keys(page, 'ArrowLeft', 'ArrowLeft', 'ArrowLeft')
+    const moved = await still()
+    expect(moved).not.toBe(home)
+    // 対数目盛りを入れて切る（期間は変えない）→ ずらした表示のまま
+    await keys(page, 'l')
+    await keys(page, 'l')
+    expect(await still()).toBe(moved)
+  })
+})

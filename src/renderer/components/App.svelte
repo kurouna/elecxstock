@@ -1,5 +1,6 @@
 <script lang="ts">
 import { addDays, isTradingDay, jstNow } from '@shared/calendar'
+import type { InstrumentId } from '@shared/types'
 import { onMount } from 'svelte'
 import { loadAlerts, notifyFired, toggleAlerts } from '../lib/alerts'
 import { clearBars } from '../lib/barsCache'
@@ -8,6 +9,7 @@ import { loadHoldings } from '../lib/portfolio'
 import { IS_FREE, SHAPE, SLOT } from '../lib/windowSlot'
 import {
   app,
+  applyDataUpdated,
   applySettingsToDom,
   bridge,
   flushListSaves,
@@ -59,10 +61,7 @@ function flushData() {
   flushTimer = null
   const ids = pending
   pending = new Set()
-  if (ids === '*') app.metrics.clear()
-  else for (const id of ids) app.metrics.delete(id)
-  app.updatedIds = ids
-  app.dataVersion++
+  void applyDataUpdated(ids as Set<InstrumentId> | '*')
 }
 
 // アラートの一覧（ポップアップ・チャートの点線）: 変わるたびに読み直す（どの窓でも。FR-AL9）

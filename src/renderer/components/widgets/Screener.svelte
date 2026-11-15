@@ -102,9 +102,11 @@ $effect(() => {
   sel = r.sel
   void tick().then(scrollSel)
 })
-// 別のスクリーンを開いたら先頭の行から
+// 別のスクリーンを開いたら先頭の行から。スクリーンの ID だけを見る（patchState は pane.state を丸ごと置き換えるので、
+// pane.state.screenId を直に読むと、条件・列・上位 N 件を変えただけでも走って先頭に戻ってしまう）
+const screenId = $derived(pane.state.screenId)
 $effect(() => {
-  void pane.state.screenId
+  void screenId
   untrack(() => {
     sel = 0
     anchor = -1

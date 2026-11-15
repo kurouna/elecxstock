@@ -76,6 +76,9 @@ let { pane }: { pane: PaneNode } = $props()
 
 // ---- 表示の状態（ペインに保存する） ----
 const view = $derived(viewOf(pane.state.folio))
+// 読み直しは値で見る（view は表示の設定を変えるたびに作り直すので、そのまま読むと分類・並べ替えを変えただけでも全部を読み直す）
+const est = $derived(view.est)
+const benchId = $derived(BENCHES[view.bench])
 function setView(v: FolioView) {
   pane.state = { ...pane.state, folio: v }
   saveLayout()
@@ -106,7 +109,6 @@ $effect(() => ensureMetrics(ids))
 let gen = 0
 async function loadAll() {
   const my = ++gen
-  const est = view.est
   const [s, m, y, d, a] = await Promise.all([
     rpc('folio.series', { est }),
     rpc('folio.contrib', { period: 'month' }),
@@ -127,20 +129,20 @@ $effect(() => {
   // 保有・市場データ・試算の切り替えで読み直す（まとめて 1 回）
   void app.holdings
   void app.dataVersion
-  void view.est
+  void est
   clearTimeout(timer)
   timer = setTimeout(() => void loadAll(), 60)
   return () => clearTimeout(timer)
 })
 $effect(() => {
-  const id = BENCHES[view.bench]
+  const id = benchId
   if (!id) {
     bench = []
     return
   }
   void rpc('bars.get', { id, tf: 'D', adjustment: 'split' }).then((b) => {
     // 素早く切り替えたとき、古い応答で新しいベンチマークを上書きしない
-    if (BENCHES[view.bench] === id) bench = b.time.map((d, i) => ({ d, c: b.close[i]! }))
+    if (benchId === id) bench = b.time.map((d, i) => ({ d, c: b.close[i]! }))
   })
 })
 

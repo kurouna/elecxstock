@@ -51,6 +51,9 @@ const adj = $derived(((S.adj as Adjustment) ?? 'split') as Adjustment)
 const ctype = $derived(((S.ctype as ChartType) ?? 'candle') as ChartType)
 const ind = $derived(new Set((S.ind as Indicator[] | undefined) ?? ['ma', 'vol', 'divs']))
 const cmp = $derived(((S.cmp as InstrumentId[] | undefined) ?? []).filter((x) => x !== id).slice(0, 5))
+// 作り直し・読み直しは中身で見る（pane.state が置き換わるたびに Set・配列は新しくなるので、そのまま読むと関係のない変更でも走る）
+const indKey = $derived([...ind].join())
+const cmpKey = $derived(cmp.join())
 const syncRange = $derived(!!S.syncRange)
 const periods = $derived(app.settings.maPeriods[tf])
 const MA_COLORS = ['--ma1', '--ma2', '--ma3']
@@ -92,7 +95,7 @@ $effect(() => {
   void id
   void tf
   void adj
-  void cmp.join()
+  void cmpKey
   void load()
 })
 // データの更新: 表示中（比較を含む）の銘柄が変わったときだけ読み直す（ほかの銘柄の取得では作り直さない）
@@ -106,7 +109,7 @@ $effect(() => {
 // 表示の設定が変わったら作り直す（指標の段の数が変わるため）
 $effect(() => {
   void ctype
-  void [...ind].join()
+  void indKey
   void periods.join()
   void app.settings.theme
   void app.settings.candleStyle
@@ -391,9 +394,11 @@ function resetView() {
   const n = bars.time.length
   chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - showCount(n)), to: n + 3 })
 }
-// 期間を変えたら、その期間が収まるように表示し直す
+// 期間を変えたら、その期間が収まるように表示し直す。期間の値だけを見る（patchState は pane.state を丸ごと置き換えるので、
+// pane.state.period を直に読むと、対数目盛り・調整・指標を変えただけでも走って、ずらした表示が戻ってしまう）
+const period = $derived(pane.state.period)
 $effect(() => {
-  void pane.state.period
+  void period
   untrack(() => resetView())
 })
 

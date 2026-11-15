@@ -1,7 +1,7 @@
 // スクリーナー（FR-SC1〜SC16, FR-FD1, FR-H6）: 条件を選ぶダイアログ・条件の編集・金額の単位・0 件・スクリーンの一覧・★だけ表示・ツールバー。
 // キーボードだけで操作する（重なりの確かめだけクリックする）。値はスタブ（架空）
 import type { Locator, Page } from '@playwright/test'
-import { expect, holdings, keys, rpc, tab, test, type } from './support'
+import { expect, freeTab, holdings, keys, pane, rpc, tab, test, type } from './support'
 
 const screener = (page: Page) => page.locator('[data-widget="screener"]')
 
@@ -302,8 +302,31 @@ test.describe('列挙の条件・条件の行と結果の行（FR-SC1, FR-SC10, 
     await expect(scr.locator('tbody tr.sel')).toHaveCount(1)
     await keys(page, 'Tab')
     await expect(scr.locator('.cond.focus')).toHaveCount(1)
-    await typeValue(page, '6')
+    // 利回りの下限を上げて、結果が減るが 0 件にはならない値を Core に聞いて選ぶ（0 件だと選べる行が無い。値はスタブの架空のデータで決まる）
+    const u = await rpc<{ screens: { id: string; conditions: { field: string; value: unknown }[] }[] }>(page, 'user.load')
+    const conds = u.screens.find((s) => s.id === 'high-yield')!.conditions
+    expect(conds[0]!.field).toBe('income.yield')
+    const count = async (v: number) =>
+      (
+        await rpc<{ ids: string[] }>(page, 'screener.run', {
+          conditions: [{ ...conds[0], value: v }, ...conds.slice(1)],
+          favorites: [],
+          watchlists: {},
+        })
+      ).ids.length
+    const n0 = await count(conds[0]!.value as number)
+    let v = 0
+    let n = 0
+    for (let x = 4; x <= 10 && !v; x += 0.5) {
+      n = await count(x)
+      if (n > 0 && n < n0) v = x
+    }
+    expect(v).toBeGreaterThan(0)
+    await typeValue(page, String(v))
+    // 絞り込んだ結果が描かれてから確かめる（打った直後は前の結果のままのため）
+    await expect(scr.locator('.num').filter({ hasText: '件' }).first()).toContainText(`${n} /`)
     await expect(scr.locator('tbody tr.sel')).toHaveCount(1)
+    await expect(scr.locator('tbody tr:not(.spacer)').nth(n - 1)).toHaveClass(/sel/)
     // 条件をすべて消す
     for (let i = 0; i < 10 && (await scr.locator('.cond').count()) > 0; i++) await keys(page, 'Delete')
     await expect(scr.locator('.cond')).toHaveCount(0)
@@ -312,6 +335,37 @@ test.describe('列挙の条件・条件の行と結果の行（FR-SC1, FR-SC10, 
     await expect(scr.locator('.num').filter({ hasText: '件' }).first()).toContainText(`${all.ids.length} /`)
     await keys(page, 'Tab', 'Home', 'ArrowDown')
     await expect(scr.locator('tbody tr:not(.spacer)').nth(1)).toHaveClass(/sel/)
+  })
+
+  test('条件を直しても、選んでいる行は先頭に戻らない（リンク色なしで、リンクから選び直さないとき。FR-SC3）', async ({ start }) => {
+    const { page } = await start({ layout: freeTab(pane('screener', { screenId: 'high-yield' }, 0)) })
+    const scr = screener(page)
+    await expect(scr).toHaveClass(/focused/)
+    await expect(scr.locator('tbody tr').first()).toBeVisible()
+    await keys(page, 'Home', 'ArrowDown', 'ArrowDown')
+    const sel = scr.locator('tbody tr.sel')
+    const code = ((await sel.locator('td').nth(1).textContent()) ?? '').trim()
+    expect(code).toMatch(/^\d{4}/)
+    // 利回りの下限を ← で下げる（結果は増えるだけで、選んでいる銘柄は残る）
+    await keys(page, 'Tab')
+    const cond = scr.locator('.cond.focus')
+    await expect(cond).toContainText('実績利回り')
+    const v0 = (await cond.locator('.v').textContent()) ?? ''
+    await keys(page, 'ArrowLeft')
+    await expect(cond.locator('.v')).not.toHaveText(v0)
+    const conds = await rpc<{ screens: { id: string; conditions: { value: unknown }[] }[] }>(page, 'user.load')
+    const base = conds.screens.find((s) => s.id === 'high-yield')!.conditions
+    const v1 = Number.parseFloat((await cond.locator('.v').textContent()) ?? '')
+    const n = (
+      await rpc<{ ids: string[] }>(page, 'screener.run', {
+        conditions: [{ ...base[0], value: v1 }, ...base.slice(1)],
+        favorites: [],
+        watchlists: {},
+      })
+    ).ids.length
+    await expect(scr.locator('.num').filter({ hasText: '件' }).first()).toContainText(`${n} /`)
+    await expect(sel).toHaveCount(1)
+    await expect(sel.locator('td').nth(1)).toHaveText(code)
   })
 
   test('結果の並びが変わっても、選んでいる銘柄から動かない（位置で覚えない。FR-SC3）', async ({ start }) => {
