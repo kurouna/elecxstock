@@ -11,6 +11,7 @@ import { keyOf, openInGrid } from '../../lib/commands'
 import { conditionValueText, moveCondition, newCondition, stepValue, valueChoices } from '../../lib/conditionEdit'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
+import { SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import {
   app,
@@ -91,10 +92,14 @@ const rows = $derived.by(() => {
 $effect(() => {
   bridge.prioritize(rows.slice(0, 40))
 })
-// 結果が減ったら、選んでいる行を最後の行に寄せ、見える位置まで送る（一覧が短くなると、スクロールの位置が描く範囲の外に残るため）
+// 結果が変わったら、選んでいた銘柄の行に移る（並びが入れ替わっても動かない）。消えたら同じ位置（短くなれば最後の行）に寄せ、
+// 見える位置まで送る（一覧が短くなると、スクロールの位置が描く範囲の外に残るため）
+const follow = new SelectionFollow<InstrumentId>()
 $effect(() => {
-  if (sel < rows.length) return
-  sel = Math.max(0, rows.length - 1)
+  const r = follow.sync(rows, sel, anchor)
+  if (r.anchor !== anchor) anchor = r.anchor
+  if (r.sel === sel) return
+  sel = r.sel
   void tick().then(scrollSel)
 })
 // 別のスクリーンを開いたら先頭の行から
@@ -103,6 +108,7 @@ $effect(() => {
   untrack(() => {
     sel = 0
     anchor = -1
+    follow.reset()
   })
 })
 const ROW = $derived(app.settings.density === 'compact' ? 20 : 24)
@@ -212,6 +218,7 @@ async function pickColumns() {
 function sortBy(k: string) {
   patchState(pane, { sort: { k, dir: sort.k === k ? (-sort.dir as 1 | -1) : -1 } })
   sel = 0
+  follow.reset()
 }
 /** 保有の記録が無いときは、保有の指標を出さない（FR-H6） */
 const available = (f: FieldDef) => !f.requires?.includes('holdings') || app.holdings.length > 0
@@ -279,6 +286,7 @@ onMount(() => {
       if (ctrl && e.shiftKey && !e.altKey && e.code === 'KeyF') {
         patchState(pane, { starOnly: !starOnly })
         sel = 0
+        follow.reset()
         return true
       }
       if (ctrl && !e.altKey && e.code === 'KeyS') {

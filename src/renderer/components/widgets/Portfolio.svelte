@@ -17,6 +17,7 @@ import {
   removeHolding,
   valuation,
 } from '../../lib/portfolio'
+import { SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, choiceDialog, codeOf, ensureMetrics, nameOf, t } from '../../stores/app.svelte'
 import { type PaneNode, setLinkSymbol } from '../../stores/layout.svelte'
@@ -70,8 +71,13 @@ const importedAt = $derived(
     ? new Date(meta.importedAt).toLocaleString(app.settings.lang === 'ja' ? 'ja-JP' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })
     : null,
 )
+// 保有を直す・取得で評価額が変わって並びが入れ替わっても、選んでいた保有（口座と銘柄）の行に移る。消えたら同じ位置（短くなれば最後）
+const follow = new SelectionFollow<HRow>((r) => `${r.h.account}:${r.h.code}`)
 $effect(() => {
-  if (sel >= items.length) sel = Math.max(0, items.length - 1)
+  const s = follow.sync(items, sel).sel
+  if (s === sel) return
+  sel = s
+  scrollSel()
 })
 const cur = $derived(items[sel]?.h)
 const idOf = (h: Holding) => `JP:${h.code}`

@@ -314,6 +314,24 @@ test.describe('列挙の条件・条件の行と結果の行（FR-SC1, FR-SC10, 
     await expect(scr.locator('tbody tr:not(.spacer)').nth(1)).toHaveClass(/sel/)
   })
 
+  test('結果の並びが変わっても、選んでいる銘柄から動かない（位置で覚えない。FR-SC3）', async ({ start }) => {
+    const { page } = await start()
+    const scr = await openScreener(page)
+    await keys(page, 'Home', 'ArrowDown')
+    const sel = scr.locator('tbody tr.sel')
+    const code = ((await sel.locator('td').nth(1).textContent()) ?? '').trim()
+    expect(code).toMatch(/^\d{4}/)
+    // 条件をすべて消すと、全銘柄に増えて並びが変わる
+    await keys(page, 'Tab')
+    for (let i = 0; i < 10 && (await scr.locator('.cond').count()) > 0; i++) await keys(page, 'Delete')
+    await expect(scr.locator('.cond')).toHaveCount(0)
+    const all = await rpc<{ ids: string[] }>(page, 'screener.run', { conditions: [], favorites: [], watchlists: {} })
+    await expect(scr.locator('.num').filter({ hasText: '件' }).first()).toContainText(`${all.ids.length} /`)
+    await expect(sel).toHaveCount(1)
+    await expect(sel.locator('td').nth(1)).toHaveText(code)
+    await expect(scr.locator('tbody tr:not(.spacer)').nth(1)).not.toHaveClass(/sel/)
+  })
+
   test('開いているスクリーンを一覧で消すと、残った最初のスクリーンを開く（「名前なし・変更あり」にならない）', async ({ start }) => {
     const { page } = await start()
     const scr = await openScreener(page)

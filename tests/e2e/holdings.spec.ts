@@ -1,6 +1,6 @@
 // 保有（FR-H7〜H11）: Insert で足す・E で直す・Delete で外す。銘柄の候補・グロースの銘柄・ツールバー。値はスタブ（架空）
 import type { Page } from '@playwright/test'
-import { expect, keys, rpc, tab, test, type } from './support'
+import { expect, holdings, keys, rpc, tab, test, type } from './support'
 
 const portfolio = (page: Page) => page.locator('[data-widget="portfolio"]')
 
@@ -55,6 +55,34 @@ test.describe('保有の記録（FR-H7）', () => {
     await expect(page.getByRole('alertdialog')).toContainText('7203')
     await keys(page, 'ArrowRight', 'Enter')
     await expect(pf.locator('tbody tr', { hasText: '7203' })).toHaveCount(0)
+  })
+
+  test('数量を直して並びが入れ替わっても、選んでいる保有から動かない（位置で覚えない）', async ({ start }) => {
+    const { page } = await start({
+      user: {
+        holdings: holdings([
+          { code: '7203', quantity: 100, avgCost: 2500 },
+          { code: '9433', quantity: 100, avgCost: 4000 },
+          { code: '2914', quantity: 100, avgCost: 3000 },
+        ]),
+      },
+    })
+    await tab(page, 'holdings')
+    const pf = portfolio(page)
+    await expect(pf).toHaveClass(/focused/)
+    await expect(pf.locator('tbody tr', { hasText: '2914' })).toBeVisible()
+    // 評価額の小さい最後の行を選び、数量を大きくして先頭に上げる
+    await keys(page, 'End')
+    const sel = pf.locator('tbody tr.sel')
+    const code = ((await sel.textContent()) ?? '').match(/\d{4}/)![0]
+    await keys(page, 'e')
+    const form = page.locator('.dialog.holding')
+    await form.locator('input[name="qty"]').fill('100000')
+    await keys(page, 'Enter')
+    await expect(form).toHaveCount(0)
+    await expect(sel).toHaveCount(1)
+    await expect(sel).toContainText(code)
+    await expect(sel).toContainText('100,000')
   })
 
   test('銘柄の候補: コードの一部で候補が出て Enter で選べる。候補を出しても下の欄が動かない。数量は右揃え', async ({ start }) => {

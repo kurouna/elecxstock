@@ -7,6 +7,7 @@ import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, type ListCol, resolveColumns, sortIds } from '../../lib/columns'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
+import { SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, bridge, isFav, t } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
@@ -50,8 +51,13 @@ const rows = $derived.by(() => {
     key.startsWith('price.chg') || key.startsWith('ret.') ? base.filter((x) => (app.metrics.get(x)?.turnover20 ?? 0) >= 1e8) : base
   return sortIds(liquid, COLUMN_BY_ID.get(key), dir).slice(0, N)
 })
+// 取得で値が変わったら、選んでいた銘柄の行に移る（順位が入れ替わっても動かない）。消えたら同じ位置（短くなれば最後）
+const follow = new SelectionFollow<InstrumentId>()
 $effect(() => {
-  if (sel >= rows.length) sel = Math.max(0, rows.length - 1)
+  const s = follow.sync(rows, sel).sel
+  if (s === sel) return
+  sel = s
+  queueMicrotask(() => scroller?.querySelector('tr.sel')?.scrollIntoView({ block: 'nearest' }))
 })
 function send() {
   const id = rows[sel]
@@ -83,11 +89,13 @@ onMount(() =>
         if (e.shiftKey) patchState(pane, { dir: -dir })
         else patchState(pane, { key: KEYS[(KEYS.indexOf(key) + 1) % KEYS.length] })
         sel = 0
+        follow.reset()
         return true
       }
       if (e.code === 'KeyG') {
         patchState(pane, { mk: (mk + (e.shiftKey ? MARKETS.length - 1 : 1)) % MARKETS.length })
         sel = 0
+        follow.reset()
         return true
       }
       if (k === 'Enter') {

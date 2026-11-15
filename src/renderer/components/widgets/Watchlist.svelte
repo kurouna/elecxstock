@@ -2,11 +2,12 @@
 // ウォッチリスト（§6.10, FR-FV2, §6.5.3）。↑↓ でめくると同じリンク色のチャートが追従する（FR-K2）。
 // 列は Ctrl+Shift+C で選ぶ（lib/columns.ts）。リストの作成・名前の変更・複製・削除・並べ替え（FR-W1）。
 
-import type { Watchlist } from '@shared/types'
+import type { InstrumentId, Watchlist } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
 import { registerPane } from '../../lib/panes'
+import { SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import {
   app,
@@ -84,8 +85,14 @@ $effect(() => {
   ensureMetrics(rows)
   bridge.prioritize(rows.slice(0, 60))
 })
+// 一覧が変わったら、選んでいた銘柄の行に移る（指標の並べ替えで並びが入れ替わっても動かない）。消えたら同じ位置（短くなれば最後）
+const follow = new SelectionFollow<InstrumentId>()
 $effect(() => {
-  if (sel >= rows.length) sel = Math.max(0, rows.length - 1)
+  const r = follow.sync(rows, sel, anchor)
+  if (r.anchor !== anchor) anchor = r.anchor
+  if (r.sel === sel) return
+  sel = r.sel
+  scrollSel()
 })
 
 function send(i = sel) {
@@ -99,6 +106,7 @@ function scrollSel() {
 function setList(id: string) {
   patchState(pane, { list: id })
   sel = 0
+  follow.reset()
   send(0)
 }
 async function newList() {
@@ -186,6 +194,7 @@ function sortBy(k: string) {
   if (!c?.sort || k === 'code') return patchState(pane, { sort: undefined })
   patchState(pane, { sort: { k, dir: sort?.k === k ? -sort.dir : -1 } })
   sel = 0
+  follow.reset()
 }
 async function pickColumns() {
   const ids = await chooseColumns(allCols)
@@ -260,6 +269,7 @@ onMount(() => {
       if (e.code === 'KeyF' && ctrl && e.shiftKey) {
         patchState(pane, { starOnly: !starOnly })
         sel = 0
+        follow.reset()
         return true
       }
       if (k === 'Enter') {
