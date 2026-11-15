@@ -106,6 +106,9 @@ export const settingsSchema = z.object({
   alertNotify: z.boolean(),
   /** 配当の目標（月あたり・円。0 は無し。FR-PF7） */
   divGoal: z.number().min(0).max(1e10),
+  /** 目標利回りの線（FR-C12）。目標は % で、設定の画面では 3 つまで（保存は広めに受ける） */
+  yieldLine: z.boolean(),
+  yieldTargets: z.array(z.number().min(0.1).max(30)).max(20),
   keymap: z.record(z.string().max(40), z.string().max(40)),
   recentFields: z.array(z.string().max(40)).max(12),
   maPeriods: z.object({ D: periods, W: periods, M: periods }),

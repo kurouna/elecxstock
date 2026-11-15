@@ -17,6 +17,8 @@ export const DEFAULT_SETTINGS: Settings = {
   checkUpdates: true,
   alertNotify: true,
   divGoal: 0,
+  yieldLine: false,
+  yieldTargets: [4],
   keymap: {},
   recentFields: [],
   maPeriods: { D: [5, 25, 75], W: [13, 26, 52], M: [12, 24, 60] },

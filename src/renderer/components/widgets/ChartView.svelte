@@ -2,6 +2,7 @@
 // チャートの本体（§7, FR-C1〜C9, FR-K3, K4）。chart と mtf-chart（1 ペインに日・週・月）が使う。
 // 指標・種類・調整などの表示はペインの状態（pane.state）に持ち、時間軸だけを呼ぶ側が渡す。
 import type { Adjustment, Bars, InstrumentId, Timeframe } from '@shared/types'
+import { type YieldLine, yieldLines } from '@shared/yieldLines'
 import {
   BarSeries,
   CandlestickSeries,
@@ -26,7 +27,7 @@ import { getBars } from '../../lib/barsCache'
 import { cls, px, sgn } from '../../lib/format'
 import { bollinger, ichimoku, macd, rsiSeries, type Series, sma, stochastic } from '../../lib/indicators'
 import { barsForPeriod } from '../../lib/periods'
-import { app, nameOf, t, touched } from '../../stores/app.svelte'
+import { app, ensureMetrics, metric, nameOf, t, touched } from '../../stores/app.svelte'
 import type { PaneNode } from '../../stores/layout.svelte'
 import { type ChartHandle, charts } from './chartSync'
 
@@ -70,6 +71,8 @@ let main: ISeriesApi<SeriesType> | null = null
 let markers: ISeriesMarkersPluginApi<Time> | null = null
 /** アラートの点線（FR-AL9） */
 let alertLines: IPriceLine[] = []
+/** 目標利回りの点線（FR-C12） */
+let targetLines: IPriceLine[] = []
 /** 凡例に出す値（指標の名前・色・値の配列） */
 let lines = $state<{ label: string; color: string; values: Series }[]>([])
 let token = 0
@@ -154,6 +157,34 @@ $effect(() => {
   untrack(drawAlertLines)
 })
 
+/**
+ * 目標利回りの線（FR-C12）: 配当利回りが目標の % になる株価に水平の点線を引く。目標の数だけ引く（設定の画面の上限に関係なく）。
+ * 目盛りは広げない（遠い目標で値動きが潰れないように）。範囲の外の線は凡例の値で分かる。比較の表示（% 目盛り）では引かない
+ */
+$effect(() => ensureMetrics([id]))
+const targets = $derived<YieldLine[]>(
+  cmp.length ? [] : yieldLines(metric(id), { yieldLine: app.settings.yieldLine, yieldTargets: app.settings.yieldTargets }),
+)
+const targetsKey = $derived(targets.map((l) => `${l.label}:${l.price}`).join())
+function drawTargetLines() {
+  if (!main) return
+  for (const l of targetLines) main.removePriceLine(l)
+  targetLines = targets.map((l) =>
+    main!.createPriceLine({
+      price: l.price,
+      color: css('--yield-line'),
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: l.label,
+    }),
+  )
+}
+$effect(() => {
+  void targetsKey
+  untrack(drawTargetLines)
+})
+
 const ld = (time: string[], v: Series) => v.flatMap((x, i) => (x == null || time[i] == null ? [] : [{ time: time[i] as Time, value: x }]))
 
 /** 一目の先行スパンは 26 本先まで描くので、足の間隔で先の日付を作る */
@@ -174,6 +205,7 @@ function build() {
   const keep = chart?.timeScale().getVisibleLogicalRange()
   chart?.remove()
   alertLines = []
+  targetLines = []
   const up = css('--up')
   const down = css('--down')
   chart = createChart(host, {
@@ -222,6 +254,7 @@ function build() {
     const base = b.close.at(-1) ?? 1000
     main.applyOptions({ priceFormat: { type: 'price', precision: base < 1000 ? 1 : 0, minMove: base < 1000 ? 0.1 : 1 } })
     drawAlertLines()
+    drawTargetLines()
     const tm = b.time as Time[]
     if (ctype === 'line') (main as ISeriesApi<'Line'>).setData(tm.map((time, i) => ({ time, value: b.close[i]! })))
     else
@@ -530,6 +563,9 @@ onMount(() => {
         {#each legend.vals as x, k (k)}
           <span style:color={x.color}><b>{x.label}</b> {x.v != null ? (Math.abs(x.v) < 200 && !x.label.startsWith('MA') && !x.label.startsWith('BB') ? x.v.toFixed(2) : px(x.v)) : '—'}</span>
         {/each}
+        {#each targets as y (y.pct)}
+          <span class="yl"><b>{t('chart.yieldTarget', { p: y.label })}</b> {px(y.price)}{#if y.gap != null} <span class="dim">({sgn(y.gap, 1, '%')})</span>{/if}</span>
+        {/each}
         {#if log && !cmp.length}<span class="badge">{t('chart.log')}</span>{/if}
         {#if cmp.length}<span class="badge">{t('chart.compare')}</span>{/if}
         {#if adj !== 'split'}<span class="badge">{t(adj === 'unadjusted' ? 'chart.unadjusted' : 'chart.total')}</span>{/if}
@@ -588,6 +624,12 @@ onMount(() => {
   .mas b {
     color: inherit;
     font-weight: 600;
+  }
+  .yl {
+    color: var(--yield-line);
+  }
+  .yl .dim {
+    color: var(--text-3);
   }
   .badge {
     font-family: var(--font);

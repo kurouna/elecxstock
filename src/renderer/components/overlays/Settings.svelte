@@ -1,6 +1,7 @@
 <script lang="ts">
-// 設定（Ctrl+,）: 一般・表示・データ（FR-S5〜S9, FR-D6）・キー・このアプリについて。↑↓ で項目、Tab で中へ。
+// 設定（Ctrl+,）: 一般・表示・チャート（FR-C12）・データ（FR-S5〜S9, FR-D6）・キー・このアプリについて。↑↓ で項目、Tab で中へ。
 import { CODE_RE } from '@shared/code'
+import { targetsFromInputs, targetTexts, YIELD_TARGETS_UI } from '@shared/yieldLines'
 import { onMount } from 'svelte'
 import { ACTIONS, checkUpdate, doResetAllLayouts, exportUser, importUser } from '../../lib/commands'
 import { dateTime } from '../../lib/format'
@@ -9,7 +10,7 @@ import { app, bridge, confirmDialog, loadInstruments, nameOf, promptDialog, rpc,
 import KeysSettings from './KeysSettings.svelte'
 
 let { tab = 'general' }: { tab?: string } = $props()
-const TABS = ['general', 'display', 'data', 'keys', 'about'] as const
+const TABS = ['general', 'display', 'chart', 'data', 'keys', 'about'] as const
 let cur = $state<string>('general')
 let notices = $state('')
 let nav = $state<HTMLElement>()
@@ -24,6 +25,14 @@ function navKey(e: KeyboardEvent) {
   const i = TABS.indexOf(cur as (typeof TABS)[number])
   cur = TABS[(i + (e.key === 'ArrowDown' ? 1 : -1) + TABS.length) % TABS.length]!
   queueMicrotask(() => nav?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus())
+}
+// 目標利回り（FR-C12）: 欄は打った順のまま。Enter か Tab（欄を離れたとき）で保存し、読めない欄は空に戻して知らせる
+let yt = $state(targetTexts(app.settings.yieldTargets))
+function commitYield() {
+  const r = targetsFromInputs(yt)
+  yt = r.texts
+  if (r.bad) toast(t('set.yieldTargetBad'))
+  saveSettings({ yieldTargets: r.targets })
 }
 async function setRetention(years: number) {
   const s = app.settings.retentionYears
@@ -89,7 +98,7 @@ async function importJpx() {
   <nav bind:this={nav} onkeydown={navKey}>
     <h3>{t('set.title')}</h3>
     {#each TABS as x (x)}
-      <button type="button" role="tab" aria-selected={cur === x} onclick={() => (cur = x)}>{t(`set.${x}` as Key)}</button>
+      <button type="button" role="tab" aria-selected={cur === x} tabindex={cur === x ? 0 : -1} onclick={() => (cur = x)}>{t(`set.${x}` as Key)}</button>
     {/each}
   </nav>
   <div class="body">
@@ -171,6 +180,21 @@ async function importJpx() {
         <!-- コマンドパレットの「すべてのタブのレイアウトを初期状態に戻す…」と同じ（確認してから。FR-L10） -->
         <span class="row"><button type="button" class="btn" onclick={() => void doResetAllLayouts()}>{t('set.resetAllLayouts')}</button></span>
       </div>
+    {:else if cur === 'chart'}
+      <div class="field">
+        <span>{t('set.yieldLine')}</span>
+        <span class="row"><button type="button" class="toggle" class:on={app.settings.yieldLine} aria-pressed={app.settings.yieldLine} aria-label={t('set.yieldLine')} onclick={() => saveSettings({ yieldLine: !app.settings.yieldLine })}><span class="box"></span></button></span>
+      </div>
+      <p class="muted small">{t('set.yieldLineHint')}</p>
+      <div class="field top">
+        <span>{t('set.yieldTargets')}</span>
+        <span class="yts">
+          {#each yt as _, i (i)}
+            <span class="row"><input class="yt num" type="text" inputmode="decimal" placeholder="—" aria-label={t('set.yieldTarget', { n: i + 1 })} disabled={!app.settings.yieldLine} bind:value={yt[i]} onchange={commitYield} /><span class="muted">%</span></span>
+          {/each}
+        </span>
+      </div>
+      <p class="muted small">{t('set.yieldTargetsHint', { n: YIELD_TARGETS_UI })}</p>
     {:else if cur === 'data'}
       <div class="stat">
         <div><b class="num">{Math.round((app.status?.dbBytes ?? 0) / 1048576).toLocaleString()} MB</b><span>{t('set.dbSize')}</span></div>
@@ -226,6 +250,15 @@ async function importJpx() {
 </div>
 
 <style>
+  .yts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+  }
+  .yt {
+    width: 64px;
+    text-align: right;
+  }
   .notices {
     max-height: 240px;
     overflow: auto;

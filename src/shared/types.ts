@@ -379,6 +379,10 @@ export interface Settings {
   maPeriods: { D: number[]; W: number[]; M: number[] }
   /** 配当の目標（月あたり・円。0 は無し） */
   divGoal: number
+  /** 目標利回りの線をチャートとグリッドのタイルに引く（FR-C12） */
+  yieldLine: boolean
+  /** 目標の利回り（%。設定の画面では 3 つまで。チャートは全部引く） */
+  yieldTargets: number[]
 }
 
 export type JobKind = 'universe' | 'initial' | 'daily' | 'refetch' | 'monthly' | 'reset' | 'retention'

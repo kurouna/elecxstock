@@ -3,6 +3,7 @@ import { addDays, jstNow } from '@shared/calendar'
 // チャートグリッド（§6.11）: 多数のチャートを並べ、時間軸・期間・表示を一括で操作し、売買候補に印を付ける。
 
 import type { Bars, Condition, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
+import { yieldLines } from '@shared/yieldLines'
 import { onMount } from 'svelte'
 import { addToListDialog, keyOf, setFocus } from '../../lib/commands'
 import { cls, fmt, px, sgn } from '../../lib/format'
@@ -160,6 +161,11 @@ $effect(() => {
   void rows
   void cols
   void app.settings.candleStyle
+  // 目標利回りの線（FR-C12）: 設定と指標（配当）が変わったら描き直す
+  void app.settings.yieldLine
+  void app.settings.yieldTargets
+  void app.dataVersion
+  void app.metrics.size
   schedule()
 })
 function schedule() {
@@ -167,7 +173,9 @@ function schedule() {
   raf = requestAnimationFrame(() => {
     tiles?.querySelectorAll<HTMLCanvasElement>('canvas[data-id]').forEach((cv) => {
       const id = cv.dataset.id!
-      drawTile(cv, bars[id], full[id], { tf, scale, ma, hoverDate, fmtPx: px, fmtPct: (v) => sgn(v, 0, '%') })
+      const yields = yieldLines(metric(id as InstrumentId), { yieldLine: app.settings.yieldLine, yieldTargets: app.settings.yieldTargets })
+      const drawn = drawTile(cv, bars[id], full[id], { tf, scale, ma, hoverDate, yields, fmtPx: px, fmtPct: (v) => sgn(v, 0, '%') })
+      cv.dataset.yield = drawn.join(' ')
     })
   })
 }

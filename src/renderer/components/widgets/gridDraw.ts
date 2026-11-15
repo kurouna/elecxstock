@@ -1,27 +1,31 @@
 // chart-grid のタイルの描画（FR-G3, G8, G9）。30 枚を速く描くため、チャートライブラリではなく 2D Canvas に直接描く。
 import type { Bars, Timeframe } from '@shared/types'
+import { linesInRange, type YieldLine } from '@shared/yieldLines'
 
 export interface TileOpts {
   tf: Timeframe
   scale: 0 | 1 | 2 // 通常・対数・比較%
   ma: boolean
   hoverDate: string | null
+  /** 目標利回りの線（FR-C12）。目盛りの範囲に入るものだけを描く */
+  yields?: YieldLine[]
   fmtPx: (v: number) => string
   fmtPct: (v: number) => string
 }
 const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
 const MA: Record<Timeframe, number[]> = { D: [25, 75], W: [13, 26], M: [12, 24] }
 
-export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars | undefined, o: TileOpts): void {
+/** タイルを描く。描いた目標利回りの線のラベルを返す（E2E が canvas の data-yield で確かめる） */
+export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars | undefined, o: TileOpts): string[] {
   const r = cv.getBoundingClientRect()
   const dpr = devicePixelRatio
-  if (!r.width || !r.height) return
+  if (!r.width || !r.height) return []
   cv.width = Math.round(r.width * dpr)
   cv.height = Math.round(r.height * dpr)
   const g = cv.getContext('2d')!
   g.setTransform(dpr, 0, 0, dpr, 0, 0)
   g.clearRect(0, 0, r.width, r.height)
-  if (!b || b.time.length < 2) return
+  if (!b || b.time.length < 2) return []
   const n = b.time.length
   const W = r.width - 48
   const H = r.height
@@ -127,6 +131,33 @@ export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars |
       })
     }
   }
+  // 目標利回りの線（FR-C12）: 比較% の目盛りでは引かない。範囲は広げず、入る線だけを点線とラベルで描く
+  const drawn = norm ? [] : linesInRange(o.yields ?? [], lo, hi)
+  if (drawn.length) {
+    const col = css('--yield-line')
+    g.strokeStyle = col
+    g.fillStyle = col
+    g.lineWidth = 1
+    g.setLineDash([4, 3])
+    for (const l of drawn) {
+      const yy = Math.round(yv(l.price)) + 0.5
+      g.beginPath()
+      g.moveTo(0, yy)
+      g.lineTo(W, yy)
+      g.stroke()
+    }
+    g.setLineDash([])
+    // ラベルは右の目盛りの欄に、線の色の地で出す（チャートの軸のラベルと同じ形。最新の足に重ねない）
+    const panel = css('--panel')
+    for (const l of drawn) {
+      const yy = Math.round(yv(l.price))
+      const tw = g.measureText(l.label).width + 6
+      g.fillStyle = col
+      g.fillRect(W + 1, yy - 7, tw, 13)
+      g.fillStyle = panel
+      g.fillText(l.label, W + 4, yy + 3)
+    }
+  }
   if (o.hoverDate) {
     let k = -1
     for (let i = 0; i < n; i++) {
@@ -151,4 +182,5 @@ export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars |
       )
     }
   }
+  return drawn.map((l) => l.label)
 }
