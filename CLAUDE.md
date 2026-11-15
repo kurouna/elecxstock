@@ -8,7 +8,7 @@ elecxstock は、日本株と J-REIT のデータを手元の PC に取り込み
 - 要求仕様: [docs/requirements.md](docs/requirements.md)（要求は `FR-` / `NFR-` の ID で参照する。P1 / P2 / P3）
 - 設計判断と実測値: [docs/decisions.md](docs/decisions.md)
 - 画面のモック: [docs/mock/](docs/mock/README.md)
-- P3 の設計: [docs/design-p3.md](docs/design-p3.md)・アラート: [docs/design-alerts.md](docs/design-alerts.md)
+- P3 の設計: [docs/design-p3.md](docs/design-p3.md)・アラート: [docs/design-alerts.md](docs/design-alerts.md)・ポートフォリオ: [docs/design-portfolio.md](docs/design-portfolio.md)・マルチモニタ: [docs/design-multimonitor.md](docs/design-multimonitor.md)
 - 保有の JSON の形式: [docs/holdings-format.md](docs/holdings-format.md)
 - **テストの作り（層・部品・きまり・手順）: [docs/testing.md](docs/testing.md)**（計画と経緯: [docs/test-plan.md](docs/test-plan.md)）
 
@@ -39,15 +39,15 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 
 ## 構成
 
-| 場所                                          | 役割                                                                                                                                                                                                                         |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/core/`                                   | Core。Electron の utilityProcess で動く純 TS（**`electron` を import しない**。NFR-A1、Biome で禁止）。SQLite（`node:sqlite`）・取得ジョブ・指標・スクリーナー・利用者データ・保有（`holdings.ts`）・アラート（`alerts.ts`） |
-| `src/core/providers/`                         | データ源。`yahoo.ts`（yahoo-finance2）・`jpx.ts`（上場銘柄一覧の xlsx）・`stub.ts`（テスト用）                                                                                                                               |
-| `src/shared/`                                 | 全プロセス共通の型・API の契約（`api.ts`: メソッド名と zod スキーマ）・指標の登録表（`fields.ts`）・営業日（`calendar.ts`）                                                                                                  |
-| `src/main/index.ts`                           | 薄い main。ウィンドウ（1 枚目 + フリー 2〜4）・安全策・Core の起動と、renderer と Core を窓ごとの MessagePort でつなぐ。窓をまたぐリンクのバス。位置の計算は `placement.ts`（純関数）                                        |
-| `src/preload/index.ts`                        | `window.elecxstock` だけを出す                                                                                                                                                                                               |
-| `src/renderer/`                               | Svelte 5 の画面。`stores/`（状態・レイアウト）、`lib/commands.ts`（アクションとキー操作）、`lib/columns.ts`（一覧の列）、`lib/chartMenu.ts`・`lib/indicators.ts`（チャート）、`components/widgets/`（ペイン）                |
-| `tests/unit` / `tests/e2e` / `tests/contract` | Vitest / Playwright（`_electron`）/ 実プロバイダ                                                                                                                                                                             |
+| 場所                                          | 役割                                                                                                                                                                                                                                                       |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/core/`                                   | Core。Electron の utilityProcess で動く純 TS（**`electron` を import しない**。NFR-A1、Biome で禁止）。SQLite（`node:sqlite`）・取得ジョブ・指標・スクリーナー・利用者データ・保有（`holdings.ts`）・アラート（`alerts.ts`）・資産推移の記録（`folio.ts`） |
+| `src/core/providers/`                         | データ源。`yahoo.ts`（yahoo-finance2）・`jpx.ts`（上場銘柄一覧の xlsx）・`stub.ts`（テスト用）                                                                                                                                                             |
+| `src/shared/`                                 | 全プロセス共通の型・API の契約（`api.ts`: メソッド名と zod スキーマ）・指標の登録表（`fields.ts`）・営業日（`calendar.ts`）                                                                                                                                |
+| `src/main/index.ts`                           | 薄い main。ウィンドウ（1 枚目 + フリー 2〜4）・安全策・Core の起動と、renderer と Core を窓ごとの MessagePort でつなぐ。窓をまたぐリンクのバス。位置の計算は `placement.ts`（純関数）                                                                      |
+| `src/preload/index.ts`                        | `window.elecxstock` だけを出す                                                                                                                                                                                                                             |
+| `src/renderer/`                               | Svelte 5 の画面。`stores/`（状態・レイアウト）、`lib/commands.ts`（アクションとキー操作）、`lib/columns.ts`（一覧の列）、`lib/chartMenu.ts`・`lib/indicators.ts`（チャート）、`components/widgets/`（ペイン）                                              |
+| `tests/unit` / `tests/e2e` / `tests/contract` | Vitest / Playwright（`_electron`）/ 実プロバイダ                                                                                                                                                                                                           |
 
 ## 守ること
 
@@ -82,6 +82,16 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
   ★・ウォッチリスト・保有・スクリーンを書くメソッドを足したら、`service.ts` の `SCREEN_REBASE` にも足す（スクリーンのアラートが
   利用者の操作で鳴らないように基準を取り直す）。通知の文言は 1 枚目の renderer が作る（Core は文言を持たない）。
 - **保有の計算（移動平均法・分割の調整）は Core の `holdings.ts`**。保有の JSON の形式を変えたら `docs/holdings-format.md` も直す。
+- **設定の項目を足すときは 3 か所**: `src/shared/types.ts` の `Settings`・`src/shared/api.ts` の `settingsSchema`・`src/shared/settings.ts` の `DEFAULT_SETTINGS`。
+  読み込みは既定値との浅いマージなので、入れ子にせず平たい項目にする（保存済みの設定ファイルを読めなくしない）。画面は `overlays/Settings.svelte` のタブ
+  （一般・表示・チャート・データ・キー・このアプリについて）。打った値の読み取り・検証は `src/shared/` の関数にする（例: `yieldLines.ts` の `targetsFromInputs`）。
+- **チャートの水平線**（アラートのしきい値・目標利回り FR-C12）は `ChartView.svelte` の `createPriceLine` で、作り直し（`build()`）のたびに引き直す。
+  グリッドのタイルは Lightweight Charts ではなく `gridDraw.ts`（2D Canvas）なので、チャートに線や印を足したらタイルにも要るか考える。目標利回りの株価は `src/shared/yieldLines.ts`。
+- **一覧の選択は行の位置ではなく中身（銘柄などのキー）で持つ**（`lib/selection.ts` の `SelectionFollow`）。取得で値が変わって並びが入れ替わっても、選んだ銘柄から
+  動かさない。並べ替え・一覧の切り替えのように先頭へ戻すときだけ `reset()`。取得の知らせの指標は `stores/app.svelte.ts` の `applyDataUpdated` で、新しい値が届いてから置き換える（先に消さない）。
+- **`patchState` は `pane.state` を丸ごと置き換える**。`$effect` で `pane.state.X` や、毎回作り直す `Set`・配列を直に読むと、関係のない変更でも走る
+  （選択や表示の範囲が戻る）。`$derived` で値や中身のキー（`[...set].join()` など）にしてから読む。
+- **選んだときだけ出す行（キーの案内など）は出し入れせず、場所を取ったまま見えなくする**（`visibility: hidden`）。カードの高さが変わると、ツリーマップなどが並び直す。
 - **レイアウトの木の変更は `stores/layout.svelte.ts` の関数で行う**。ディスクから読んだ木は `normalizeDoc` を通す。
 - **文言は `lib/i18n.ts` の `ja` と `en` の両方に足す**（キーの一致は単体テストが確かめる）。
 - **色・文字・余白は `app.css` のトークン（CSS 変数）から取る**。陽線・陰線は `--up` / `--down`（日本式が既定）。
@@ -116,13 +126,18 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 - 見た目の回帰（`tests/e2e/visual.spec.ts`）はダイアログの要素を基準画像と比べる。意図して見た目を変えたら
   `npx playwright test visual --update-snapshots` で基準画像を作り直し、差分を目で確かめてからコミットする。
 - 画面の振る舞いは E2E で、**キーボードだけで**確かめる。プロバイダはスタブ、時刻は `ELECXSTOCK_NOW`（基準日時）。固定の待ちを足さない。
-- E2E とスクリーンショットは `npm run build` のあとに動かす（out/ を起動する）。
+- E2E とスクリーンショットは `npm run build` のあとに動かす（out/ を起動する）。E2E を流している間に `npm run build` しない（ビルドが src/ より古いと E2E は始まらない）。
+- キャンバスの中（チャートの線・タイル）は読めないので、凡例の文字か、描いたものを出す `data-*`（グリッドのタイルの `canvas[data-yield]`）で確かめる。
+  スタブには境界を試す銘柄がある（8002 は無配に転じた・1605 は上場 12 か月未満。`stub.ts` の `EDGE`）。
+- マウスの位置に頼らない。CI のマシンでは実際のカーソルが窓の上にあると十字線や hover の値が変わるので、`ci.yml` で E2E の前にカーソルを窓の外へ動かし、
+  `tests/e2e/support/launch.ts` も窓が出てからテストのマウスを角へ置いている。
 
 ## デモ
 
 リリースの紹介動画のためのデモのスクリプト（`scripts/demo*.mjs`）。**録画は利用者がキャプチャアプリで行う**ので、スクリプトはアプリを動かして見せるところまで。
 
 - 版ごとに `scripts/demo-v<版>.mjs` を作り、package.json に `"demo:<版>"` を足す（例: `demo-v0.1.1.mjs` と `npm run demo:0.1.1`）。前の版から変わったところを、話題ごとに場面にする。初めての紹介は `scripts/demo.mjs`（`npm run demo`）。
+- ポートフォリオの架空の保有と資産推移は `scripts/folio-fixture.mjs`（デモとスクリーンショットが共有する。ポートフォリオだけ撮り直すのは `node scripts/gen-screenshots.mjs folio`）。
 - 字幕・押したキー・タイトルと終わりの画面は `scripts/demo-kit.mjs` の `overlay`・`caption`・`card`・`press`・`shot` を使う（画面に重ねるだけで、アプリには入れない）。
 - 作り方:
   1. 1 回目の起動で、初回の取り込みと架空のウォッチリスト・保有を入れて閉じる（録画しない）。2 回目の起動がデモ。
