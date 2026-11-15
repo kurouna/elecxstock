@@ -279,13 +279,14 @@ describe('スクリーナーのタブの初期の並び（§6.4 Screener・FR-L5
 })
 
 describe('MTF のタブの初期の並び（§6.4 MTF・FR-L5）', () => {
-  it('左の列はスクリーナー 2 つ（上下）、右は日足（上）と週足・月足（下）を 1:1。すべてリンク 1', () => {
+  it('左の列はウォッチリスト（上・お気に入り）とスクリーナー（下）、右は日足（上）と週足・月足（下）を 1:1。すべてリンク 1', () => {
     type N = { kind: string; widget?: string; dir?: string; sizes?: number[]; link?: number; state?: { tf?: string }; children?: N[] }
     const root = L.presetEntry('mtf').root as N
     expect(root.dir).toBe('row')
     const [left, right] = root.children!
     expect(left!.dir).toBe('col')
-    expect(left!.children!.map((c) => c.widget)).toEqual(['screener', 'screener'])
+    expect(left!.children!.map((c) => c.widget)).toEqual(['watchlist', 'screener'])
+    expect((left!.children![0] as { state?: { list?: string } }).state?.list).toBe('favorites')
     expect(right!.dir).toBe('col')
     expect(right!.sizes).toEqual([50, 50])
     const [day, lower] = right!.children!

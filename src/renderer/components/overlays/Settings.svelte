@@ -2,7 +2,7 @@
 // 設定（Ctrl+,）: 一般・表示・データ（FR-S5〜S9, FR-D6）・キー・このアプリについて。↑↓ で項目、Tab で中へ。
 import { CODE_RE } from '@shared/code'
 import { onMount } from 'svelte'
-import { ACTIONS, checkUpdate, exportUser, importUser } from '../../lib/commands'
+import { ACTIONS, checkUpdate, doResetAllLayouts, exportUser, importUser } from '../../lib/commands'
 import { dateTime } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { app, bridge, confirmDialog, loadInstruments, nameOf, promptDialog, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
@@ -165,6 +165,11 @@ async function importJpx() {
       <div class="field">
         <span title={t('set.focusAlwaysHint')}>{t('set.focusAlways')}</span>
         <button type="button" class="toggle" class:on={app.settings.focusAlways} aria-label={t('set.focusAlways')} onclick={() => saveSettings({ focusAlways: !app.settings.focusAlways })}><span class="box"></span></button>
+      </div>
+      <div class="field">
+        <span>{t('set.layout')}</span>
+        <!-- コマンドパレットの「すべてのタブのレイアウトを初期状態に戻す…」と同じ（確認してから。FR-L10） -->
+        <span class="row"><button type="button" class="btn" onclick={() => void doResetAllLayouts()}>{t('set.resetAllLayouts')}</button></span>
       </div>
     {:else if cur === 'data'}
       <div class="stat">

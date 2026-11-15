@@ -94,11 +94,11 @@ export const PRESET_FOCUS: Partial<Record<PresetId, WidgetId>> = { screener: 'sc
 export function presetEntry(id: PresetId): LayoutEntry {
   switch (id) {
     case 'mtf':
-      // 左の列はスクリーナー 2 つ（別々の条件で探して見比べる）。右は日足（上）と週足・月足（下）を同じ高さで
+      // 左の列はウォッチリスト（お気に入り）とスクリーナー。右は日足（上）と週足・月足（下）を同じ高さで
       return {
         root: R(
           [30, 70],
-          C([50, 50], P('screener', 1), P('screener', 1)),
+          selectCol(1),
           C([50, 50], P('chart', 1, { tf: 'D' }), R([50, 50], P('chart', 1, { tf: 'W' }), P('chart', 1, { tf: 'M' }))),
         ),
         docks: {},

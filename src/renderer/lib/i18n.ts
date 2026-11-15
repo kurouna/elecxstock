@@ -343,6 +343,8 @@ export const ja = {
   'layout.resetAllBody':
     '8 つのタブすべてのペインの並び・区切り線・ドロワー・グリッドの銘柄と設定が、プリセットの初期状態に戻ります。ウォッチリスト・スクリーン・保有、名前を付けて保存したレイアウト、フリー 2〜4 の窓の配置は変わりません。',
   'layout.resetAllDone': 'すべてのタブのレイアウトを初期状態に戻しました',
+  'set.layout': 'レイアウト',
+  'set.resetAllLayouts': 'すべてのタブのレイアウトを初期状態に戻す',
   'layout.resetDone': '「{tab}」のレイアウトを初期状態に戻しました',
   'layout.noDrawer': 'このレイアウトにはドロワーがありません',
   'link.set': 'リンク: {n}',
@@ -1171,6 +1173,8 @@ export const en: Record<Key, string> = {
   'layout.resetAllBody':
     'The panes, dividers, drawers and the grid’s symbols and settings of all eight tabs return to their presets. Watchlists, screens, holdings, saved layouts and the free windows 2–4 are not changed.',
   'layout.resetAllDone': 'All tab layouts reset to presets',
+  'set.layout': 'Layout',
+  'set.resetAllLayouts': 'Reset all tab layouts to presets',
   'layout.resetDone': '“{tab}” layout reset to preset',
   'layout.noDrawer': 'No drawer in this layout',
   'link.set': 'Link: {n}',

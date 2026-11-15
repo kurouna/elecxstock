@@ -422,10 +422,38 @@ test.describe('すべてのタブのレイアウトを初期状態に戻す（FR
     await expect(page.locator('.toasts')).toContainText('すべてのタブのレイアウトを初期状態に戻しました')
     await expect(page.locator('.presets [aria-current="true"]')).toContainText('フリー')
     await tab(page, 'mtf')
-    await expect(page.locator('[data-widget="screener"]')).toHaveCount(2)
+    await expect(page.locator('[data-widget="watchlist"]')).toHaveCount(1)
+    await expect(page.locator('[data-widget="screener"]')).toHaveCount(1)
     await expect(page.locator('[data-widget="chart"]')).toHaveCount(3)
     await tab(page, 'screener')
     await expect(page.locator('[data-widget="info"]')).toHaveCount(1)
     await expect(page.locator('[data-widget="chart"]')).toHaveCount(2)
+  })
+})
+
+test.describe('設定の「表示」から、すべてのタブのレイアウトを初期状態に戻す（FR-L10）', () => {
+  test('ボタンを押して確認すると、崩したタブが初期の並びに戻る', async ({ start }) => {
+    const one = (doc: LayoutDoc) => {
+      doc.entries.mtf = { root: pane('chart', { tf: 'D' }), docks: {} }
+      doc.active = 'free'
+    }
+    const { page } = await start({ layout: one })
+    await keys(page, 'Control+Comma')
+    const set = page.getByRole('dialog', { name: '設定' })
+    await keys(page, 'ArrowDown') // 表示
+    await expect(set).toContainText('テーマ')
+    const btn = set.getByRole('button', { name: 'すべてのタブのレイアウトを初期状態に戻す' })
+    await btn.focus()
+    await keys(page, 'Enter')
+    const dlg = page.getByRole('alertdialog')
+    await expect(dlg).toContainText('すべてのタブ')
+    await keys(page, 'ArrowRight', 'Enter')
+    await expect(page.locator('.toasts')).toContainText('すべてのタブのレイアウトを初期状態に戻しました')
+    await keys(page, 'Escape')
+    await expect(set).toHaveCount(0)
+    await tab(page, 'mtf')
+    await expect(page.locator('[data-widget="watchlist"]')).toHaveCount(1)
+    await expect(page.locator('[data-widget="screener"]')).toHaveCount(1)
+    await expect(page.locator('[data-widget="chart"]')).toHaveCount(3)
   })
 })
