@@ -117,6 +117,9 @@ export async function launch(opts: LaunchOpts = {}): Promise<Launched> {
   })
   const page = await app.firstWindow()
   if (opts.viewport !== null) await page.setViewportSize(opts.viewport ?? { width: 1600, height: 960 }).catch(() => {})
+  // マウスを窓の左上の角に置く。CI のマシンでは実際のカーソルが窓の上にあることがあり、チャートに十字線が出たり、
+  // 資産推移の十字線の日がカーソルの位置に変わったりして、キーだけの操作の結果がずれる
+  await page.mouse.move(0, 0).catch(() => {})
   return { app, page, userData }
 }
 
