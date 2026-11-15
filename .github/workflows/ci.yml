@@ -40,6 +40,15 @@ jobs:
       - run: npm run build
       # 同梱 OSS のライセンス（ビルドが作る out/THIRD_PARTY_NOTICES.txt を読む。NFR-CI4）
       - run: node scripts/check-licenses.mjs
+      # 実際のカーソルを画面の右下の角へ（窓は画面の中央に出るので、カーソルが窓の上にあるとチャートの十字線・
+      # 資産推移の十字線の日がカーソルに引っぱられ、キーだけの操作の結果がずれる。テストの仕組みのマウスでは OS のカーソルは動かない）
+      - name: Park the real mouse cursor
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          [System.Windows.Forms.Cursor]::Position = [System.Drawing.Point]::new($b.Right - 1, $b.Bottom - 1)
+          [System.Windows.Forms.Cursor]::Position
       - name: E2E (stub provider, fixed clock, keyboard only)
         run: npx playwright test
       - name: Package and smoke-test the installer build

@@ -118,7 +118,11 @@ export async function launch(opts: LaunchOpts = {}): Promise<Launched> {
   const page = await app.firstWindow()
   if (opts.viewport !== null) await page.setViewportSize(opts.viewport ?? { width: 1600, height: 960 }).catch(() => {})
   // マウスを窓の左上の角に置く。CI のマシンでは実際のカーソルが窓の上にあることがあり、チャートに十字線が出たり、
-  // 資産推移の十字線の日がカーソルの位置に変わったりして、キーだけの操作の結果がずれる
+  // 資産推移の十字線の日がカーソルの位置に変わったりして、キーだけの操作の結果がずれる（CI は実際のカーソルも窓の外へ動かす。ci.yml）。
+  // 窓は ready-to-show で出る（show: false）。出たときに OS が実際のカーソルの位置で mousemove を送るので、出てから置く
+  await expect
+    .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((w) => w.isVisible())), { timeout: 20_000 })
+    .toBe(true)
   await page.mouse.move(0, 0).catch(() => {})
   return { app, page, userData }
 }
