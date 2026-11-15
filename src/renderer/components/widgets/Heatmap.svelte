@@ -6,6 +6,7 @@ import { onMount } from 'svelte'
 import { fmt, money, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
+import { SelectionFollow } from '../../lib/selection'
 import { neighbor, type Placed, squarify } from '../../lib/treemap'
 import { app, bridge, inst, isFav, nameOf, t } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
@@ -80,8 +81,11 @@ const cells = $derived.by((): Cell[] => {
   return [...by].map(([s, e]) => ({ key: s, label: secName(s), cap: e.cap, ret: e.n ? e.w / e.n : null }))
 })
 const placed = $derived<Placed<Cell>[]>(squarify(cells, (c) => c.cap, { x: 0, y: 0, w: W, h: H }))
+// 取得で時価総額が変わってタイルの並びが入れ替わっても、選んでいたタイル（業種・銘柄）から動かない。消えたら最後に寄せる
+const follow = new SelectionFollow<Placed<Cell>>((p) => p.item.key)
 $effect(() => {
-  if (sel >= placed.length) sel = 0
+  const s = follow.sync(placed, sel).sel
+  if (s !== sel) sel = s
 })
 /** 色: 上昇は --up、下落は --down、期間の幅で濃さを決める */
 function color(r: number | null): string {
@@ -97,12 +101,14 @@ function enter(i = sel) {
   else {
     patchState(pane, { sector: p.item.key })
     sel = 0
+    follow.reset()
   }
 }
 function back() {
   if (!sector) return false
   const s = sector
   patchState(pane, { sector: null })
+  follow.reset()
   queueMicrotask(
     () =>
       (sel = Math.max(

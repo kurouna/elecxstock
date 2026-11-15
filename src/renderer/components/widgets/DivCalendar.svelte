@@ -5,6 +5,7 @@ import type { InstrumentId } from '@shared/types'
 import { onMount } from 'svelte'
 import { fmt } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
+import { SelectionFollow } from '../../lib/selection'
 import { app, ensureMetrics, isFav, metric, nameOf, t } from '../../stores/app.svelte'
 import { type PaneNode, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -28,6 +29,12 @@ const months = $derived(
       .sort((a, b) => (metric(b)?.yieldTrailing ?? 0) - (metric(a)?.yieldTrailing ?? 0)),
   ),
 )
+// 取得で利回りが変わって月の中の並びが入れ替わっても、選んでいた銘柄から動かない。消えたら最後の行に寄せる
+const follow = new SelectionFollow<InstrumentId>()
+$effect(() => {
+  const s = follow.sync(months[mi] ?? [], ri).sel
+  if (s !== ri) ri = s
+})
 const label = (m: number) => (app.settings.lang === 'ja' ? `${m}月` : new Date(2026, m - 1, 1).toLocaleString('en', { month: 'short' }))
 function send(id: InstrumentId | undefined) {
   if (id) setLinkSymbol(pane.link, id)
@@ -46,6 +53,7 @@ onMount(() =>
         }
         mi = m
         ri = 0
+        follow.reset()
         send(months[mi]![0])
         return true
       }
@@ -73,7 +81,7 @@ onMount(() =>
     <div class="m" class:cur={i === mi}>
       <h5><span>{label(i + 1)}</span><span class="num muted">{list.length}</span></h5>
       {#each list as id, r (id)}
-        <button type="button" class="row" class:sel={i === mi && r === ri} onclick={() => { mi = i; ri = r; send(id) }}>
+        <button type="button" class="row" class:sel={i === mi && r === ri} onclick={() => { mi = i; ri = r; follow.reset(); send(id) }}>
           <span class="nm">{#if isFav(id)}<span class="star on">★</span> {/if}{nameOf(id)}</span><span class="num">{metric(id)?.yieldTrailing != null ? `${fmt(metric(id)?.yieldTrailing)}%` : '—'}</span>
         </button>
       {/each}

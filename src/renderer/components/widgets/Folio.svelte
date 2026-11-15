@@ -261,7 +261,10 @@ $effect(() => {
   const s0 = reselect(shareList, srowKey, (x) => x.key, srow)
   if (s0 !== srow) srow = s0
 })
-/** 今選んでいる行の銘柄を覚える（行を動かした・押したとき） */
+/**
+ * 今選んでいる行の銘柄を覚える（行を動かした・押した・分類を開閉した・表示を切り替えたとき）。位置だけを変えて覚え直さないと、
+ * 上の reselect が前に覚えた銘柄の行へ戻してしまう。一覧（tRows など）は $derived なので、状態を変えた直後に読めば新しい並び
+ */
 function remember(): void {
   crowKey = cRows[crow]?.code ?? null
   evKey = events[ev] ? evKeyOf(events[ev]!) : null
@@ -403,6 +406,7 @@ function key(e: KeyboardEvent): boolean {
     const r = toggleOpen(tRows, drow, open, c === 'ArrowRight', dGroup)
     open = r.open
     drow = r.sel
+    remember()
     return true
   }
   if (card && LIST_CARDS.includes(card)) {
@@ -422,6 +426,7 @@ function key(e: KeyboardEvent): boolean {
       const r = toggleOpen(tRows, drow, open, undefined, dGroup)
       open = r.open
       drow = r.sel
+      remember()
       return true
     }
     if (card === 'div') {
@@ -463,6 +468,7 @@ function applyView(v: FolioView): void {
   if (v.dsort !== view.dsort) drow = 0
   if (v.pct !== view.pct || v.period !== view.period) cross = -1
   setView(v)
+  remember()
 }
 const segLabel = (k: Key) => t(k)
 onMount(() => registerPane(pane.id, { key, current, selected: () => (current() ? [current()!] : []) }))
@@ -711,6 +717,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
               const r = toggleOpen(tRows, i, open, undefined, dGroup)
               open = r.open
               drow = r.sel
+              remember()
             }}
           />
           {#if card === 'dtab'}<div class="keys">{#each [kk('G', 'folio.k.group'), kk('S', 'folio.k.sort'), kk('→ ←', 'folio.k.open'), kk('↑ ↓ PgUp PgDn Home End', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>{/if}

@@ -145,6 +145,34 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(f.locator('.nav button.on')).toHaveText(/概要/)
   })
 
+  test('配当の表: 銘柄を選んだあと、分類の行を押して開く・並べ替えると、選んでいる行は前の銘柄に戻らない（FR-PF7）', async ({ start }) => {
+    const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    await expect(f.locator('.c-dsum')).toBeVisible()
+    await keys(page, 'PageDown', 'Shift+Tab')
+    const tb = f.locator('.c-dtab')
+    await expect(tb).toHaveClass(/focus/)
+    // 業種に分け、最初の分類を開いて中の銘柄を選ぶ
+    await keys(page, 'g')
+    await expect(tb.locator('tr.g').nth(1)).toBeVisible()
+    await keys(page, 'Home', 'ArrowRight', 'ArrowDown')
+    await expect(tb.locator('tr.child.sel')).toHaveCount(1)
+    // 2 つ目の分類の行を押して開く → 選んでいるのはその分類の行
+    const g2 = tb.locator('tr.g').nth(1)
+    const name = ((await g2.locator('td').first().textContent()) ?? '').trim().replace(/^[▶▼]/, '') // 開閉の印は除く
+    await g2.click()
+    await expect(tb.locator('tr.g.open')).toHaveCount(2)
+    await expect(tb.locator('tr.sel')).toHaveCount(1)
+    await expect(tb.locator('tr.sel')).toHaveClass(/\bg\b/)
+    await expect(tb.locator('tr.sel td').first()).toContainText(name)
+    // 中の銘柄を選び直してから S で並べ替える → 先頭の行から
+    await keys(page, 'ArrowDown')
+    await expect(tb.locator('tr.child.sel')).toHaveCount(1)
+    await keys(page, 's')
+    await expect(tb.locator('tbody tr').first()).toHaveClass(/sel/)
+  })
+
   test('資産構成・損益寄与・予定・配当の表の銘柄を押すと、同じリンク色のチャートと銘柄情報に出る。キーで選んでも追従する（FR-PF6）', async ({
     start,
   }) => {

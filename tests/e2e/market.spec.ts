@@ -46,6 +46,36 @@ test.describe('配当カレンダー（§6.4 インカム）', () => {
     const month = cal.locator('.m').nth(mi)
     await expect(month.locator('.row')).toHaveCount(Number(counts[mi]))
   })
+
+  test('選んでいる最後の銘柄を★から外して月の銘柄が減っても、選んでいる行は最後の行に残る', async ({ start }) => {
+    const codes = ['7203', '8058', '8306', '9434', '8053', '8766', '5401', '6501', '7974', '4063']
+    const { page } = await start({ user: { watchlists: watchlists({ favorites: codes }) } })
+    await tab(page, 'income')
+    const cal = page.locator('[data-widget="divcal"]')
+    await expect.poll(async () => Math.max(...(await cal.locator('.m h5 .num').allTextContents()).map(Number))).toBeGreaterThan(1)
+    const counts = (await cal.locator('.m h5 .num').allTextContents()).map(Number)
+    const mi = counts.findIndex((c) => c > 1)
+    await focusPane(page, cal)
+    for (
+      let i = 0;
+      i < 12 &&
+      !(await cal
+        .locator('.m')
+        .nth(mi)
+        .evaluate((el) => el.classList.contains('cur')));
+      i++
+    )
+      await keys(page, 'ArrowRight')
+    const month = cal.locator('.m').nth(mi)
+    await expect(month).toHaveClass(/cur/)
+    // ↑ で最後の行へ回り、Ctrl+D で★から外す（ほかのリストに無いので月から消える）
+    await keys(page, 'ArrowUp')
+    await expect(month.locator('.row').last()).toHaveClass(/sel/)
+    await keys(page, 'Control+d')
+    await expect(month.locator('.row')).toHaveCount(counts[mi]! - 1)
+    await expect(month.locator('.row.sel')).toHaveCount(1)
+    await expect(month.locator('.row').last()).toHaveClass(/sel/)
+  })
 })
 
 test.describe('マーケットの指数のチャート（§6.3 market-overview・§6.5.6・FR-G3）', () => {
