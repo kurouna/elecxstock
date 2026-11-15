@@ -351,7 +351,7 @@ test.describe('銘柄を見える場所に出す・リンク色（FR-K1）', () 
     await page.waitForTimeout(300) // 送らないことを確かめる（送る場合は 100ms 以内。FR-K2）
     expect(await sym()).toBe(before)
     // 付け直すと、また送る
-    await keys(page, 'Control+Digit1', 'ArrowDown')
+    await keys(page, 'Control+Digit2', 'ArrowDown')
     await expect.poll(sym).not.toBe(before)
     await expect.poll(followsSel).toBe(true)
   })

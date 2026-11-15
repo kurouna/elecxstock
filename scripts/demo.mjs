@@ -480,9 +480,9 @@ if (MULTI) {
   })
   await overlay(w)
   await sleep(1500)
-  // フリー 2 の左上のチャート（開いたときにフォーカスがある）をリンク 1 にする → 1 枚目で選んだ銘柄を追う
-  await caption(w, 'Ctrl+1 でリンク色を付けると、1 枚目で選んだ銘柄にチャートが追従します')
-  await press(w, 'Control+Digit1')
+  // フリー 2 の左上のチャート（開いたときにフォーカスがある）をリンク 2（探して見比べるタブの色）にする → 1 枚目で選んだ銘柄を追う
+  await caption(w, 'Ctrl+2 でリンク色を付けると、1 枚目で選んだ銘柄にチャートが追従します')
+  await press(w, 'Control+Digit2')
   await sleep(1200)
   await caption(w, '')
   await page.bringToFront()

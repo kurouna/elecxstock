@@ -197,7 +197,7 @@ describe('フリーのレイアウトとペインごとの銘柄（FR-L11）', (
   })
   it('リンク色のあるペインはグループの銘柄を共有する', () => {
     L.layout.doc = L.defaultDoc()
-    const [a, b] = L.allPanes(L.layout.entry, false).filter((p) => p.link === 1)
+    const [a, b] = L.allPanes(L.layout.entry, false).filter((p) => p.link === L.MAIN_LINK)
     L.setPaneSymbol(a!, 'JP:2914')
     expect(L.paneSymbol(b!)).toBe('JP:2914')
   })
@@ -258,7 +258,7 @@ describe('フリー N（マルチモニタ）', () => {
 })
 
 describe('スクリーナーのタブの初期の並び（§6.4 Screener・FR-L5）', () => {
-  it('左から スクリーナー・銘柄情報・チャート 2 枚（上下）。すべてリンク 1', () => {
+  it('左から スクリーナー・銘柄情報・チャート 2 枚（上下）。すべてリンク 2', () => {
     type N = { kind: string; widget?: string; dir?: string; sizes?: number[]; link?: number; state?: { tf?: string }; children?: N[] }
     const root = L.presetEntry('screener').root as N
     expect(root.dir).toBe('row')
@@ -273,13 +273,13 @@ describe('スクリーナーのタブの初期の並び（§6.4 Screener・FR-L5
       ['chart', 'D'],
     ])
     const panes = L.allPanes(L.presetEntry('screener'), false)
-    expect(panes.every((p) => p.link === 1)).toBe(true)
+    expect(panes.every((p) => p.link === 2)).toBe(true)
     expect(L.PRESET_FOCUS.screener).toBe('screener')
   })
 })
 
 describe('MTF のタブの初期の並び（§6.4 MTF・FR-L5）', () => {
-  it('左の列はウォッチリスト（上・お気に入り）とスクリーナー（下）、右は日足（上）と週足・月足（下）を 1:1。すべてリンク 1', () => {
+  it('左の列はウォッチリスト（上・お気に入り）とスクリーナー（下）、右は日足（上）と週足・月足（下）を 1:1。すべてリンク 2', () => {
     type N = { kind: string; widget?: string; dir?: string; sizes?: number[]; link?: number; state?: { tf?: string }; children?: N[] }
     const root = L.presetEntry('mtf').root as N
     expect(root.dir).toBe('row')
@@ -292,7 +292,7 @@ describe('MTF のタブの初期の並び（§6.4 MTF・FR-L5）', () => {
     const [day, lower] = right!.children!
     expect([day!.widget, day!.state?.tf]).toEqual(['chart', 'D'])
     expect(lower!.children!.map((c) => c.state?.tf)).toEqual(['W', 'M'])
-    expect(L.allPanes(L.presetEntry('mtf'), false).every((p) => p.link === 1)).toBe(true)
+    expect(L.allPanes(L.presetEntry('mtf'), false).every((p) => p.link === 2)).toBe(true)
   })
 })
 
@@ -316,5 +316,35 @@ describe('すべてのタブのレイアウトを初期状態に戻す（FR-L10�
     for (const id of L.PRESET_IDS) expect(shape(L.layout.doc.entries[id]), id).toEqual(shape(L.presetEntry(id)))
     expect(L.layout.doc.active).toBe('screener')
     expect(L.layout.doc.links['1']).toBe('JP:7203')
+  })
+})
+
+describe('リンク色の初期値はタブの並び（§6.4・FR-K1）', () => {
+  // 色の番号はタブの並び（Ctrl+Shift+1〜8）で初めて出てくる順。探して見比べるタブ（スクリーナー・グリッド・MTF・トリプル・フリー）は
+  // 同じ色を共有し、スクリーナーで選んだ銘柄が MTF などのチャートにも出る
+  const links = (id: Parameters<typeof L.presetEntry>[0]) => {
+    const e = L.presetEntry(id)
+    const ps = [...L.allPanes(e, false), ...(e.docks.left?.panes ?? [])]
+    return [...new Set(ps.map((p) => p.link).filter((n) => n > 0))]
+  }
+  it('マーケット 1・探して見比べるタブ 2・配当 3・保有 4', () => {
+    expect(L.PRESET_IDS.map((id) => [id, links(id)])).toEqual([
+      ['market', [1]],
+      ['screener', [2]],
+      ['grid', [2]],
+      ['mtf', [2]],
+      ['triple', [2]],
+      ['income', [3]],
+      ['holdings', [4]],
+      ['free', [2]],
+    ])
+  })
+  it('色の番号はタブの並びで初めて出てくる順（Ctrl+Shift+1・2 はタブの番号と同じ）', () => {
+    const seen: number[] = []
+    for (const id of L.PRESET_IDS) for (const n of links(id)) if (!seen.includes(n)) seen.push(n)
+    expect(seen).toEqual([1, 2, 3, 4])
+  })
+  it('各色の最初の銘柄は、前の割り当てでそのタブに出ていた銘柄のまま', () => {
+    expect(L.defaultDoc().links).toEqual({ '1': 'JP:8306', '2': 'JP:7203', '3': 'JP:2914', '4': 'JP:8951', '5': 'JP:3462' })
   })
 })

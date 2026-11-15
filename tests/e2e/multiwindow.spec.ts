@@ -70,7 +70,7 @@ test.describe('フリー N（FR-L7）', () => {
     const charts = free.locator('[data-widget="chart"]')
     await expect(charts).toHaveCount(4)
 
-    // 1 枚目のトリプル（リンク 1）で 8306 を表示 → Ctrl+Alt+Enter でフリー 2 へ送る（フォーカス中のチャートが変わる）
+    // 1 枚目のトリプル（リンク 2）で 8306 を表示 → Ctrl+Alt+Enter でフリー 2 へ送る（フォーカス中のチャートが変わる）
     await charts.first().click({ position: { x: 200, y: 150 } })
     const mainChart = page.locator('[data-widget="chart"]').first()
     await mainChart.click({ position: { x: 300, y: 200 } })
@@ -87,7 +87,7 @@ test.describe('フリー N（FR-L7）', () => {
 
     // フリー 2 の 2 枚目のチャートにリンク色 1 を付けると、1 枚目で選んだ銘柄を追う（R3）
     await charts.nth(1).click({ position: { x: 200, y: 150 } })
-    await keys(free, 'Control+Digit1')
+    await keys(free, 'Control+Digit2')
     await mainChart.click({ position: { x: 300, y: 200 } })
     await jump(page, '9432')
     await expect(charts.nth(1)).toContainText('9432')

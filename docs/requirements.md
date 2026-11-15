@@ -389,14 +389,16 @@ type LinkGroup = 'red' | 'green' | 'blue' | 'yellow' | 'purple'
 
 | キー         | 名前            | 構成                                                                                                                                                                                                                               |
 | ------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ctrl+Shift+1 | **Market**      | 左の列: watchlist・ranking / 右: heatmap + chart（上）、market-overview（下）（リンク 4）                                                                                                                                          |
-| Ctrl+Shift+2 | **Screener**    | 左から screener だけの列（ウォッチリストは置かない） / symbol-info / chart 2 枚（上下。どちらも日足）。幅は 26 : 26 : 48、すべてリンク 1。開くと screener にフォーカス                                                             |
+| Ctrl+Shift+1 | **Market**      | 左の列: watchlist・ranking / 右: heatmap + chart（上）、market-overview（下）（リンク 1）                                                                                                                                          |
+| Ctrl+Shift+2 | **Screener**    | 左から screener だけの列（ウォッチリストは置かない） / symbol-info / chart 2 枚（上下。どちらも日足）。幅は 26 : 26 : 48、すべてリンク 2。開くと screener にフォーカス                                                             |
 | Ctrl+Shift+3 | **Grid**        | **左ドロワー（自動で隠れる）に watchlist・screener**（screener を前に）、本体は chart-grid（4×3）。左に chart + symbol-info を置かず、画面のほぼ全部をチャートに使う                                                               |
-| Ctrl+Shift+4 | **MTF**（既定） | 左の列: watchlist（上）・screener（下） / 右: 日足（上）と週足・月足（下）の chart 3 枚。右の上下は 1:1。すべてリンク 1                                                                                                            |
+| Ctrl+Shift+4 | **MTF**（既定） | 左の列: watchlist（上）・screener（下） / 右: 日足（上）と週足・月足（下）の chart 3 枚。右の上下は 1:1。すべてリンク 2                                                                                                            |
 | Ctrl+Shift+5 | **Triple**      | 左の列: watchlist・screener / 右: 日・週・月を横 3 列 + 下に symbol-info                                                                                                                                                           |
 | Ctrl+Shift+6 | **Income**      | 左の列: watchlist（高配当）・dividend-calendar / 右: 月足 + symbol-info（リンク 3）                                                                                                                                                |
-| Ctrl+Shift+7 | **保有**        | 左: portfolio（列が多いので広め） / 右: 日足の chart + symbol-info（リンク 2）。開くと portfolio にフォーカス（FR-H11）                                                                                                            |
-| Ctrl+Shift+8 | **Free**        | 分割を重ねて自由に並べる（初期は 2 列: 左に chart 1 枚（リンク 1）、右に chart 3 枚（リンク色なし））。左のドロワー（自動で隠れる）に watchlist・screener（リンク 1）。リンク色の無い chart は、それぞれ自分の銘柄を持つ（FR-L11） |
+| Ctrl+Shift+7 | **保有**        | 左: portfolio（列が多いので広め） / 右: 日足の chart + symbol-info（リンク 4）。開くと portfolio にフォーカス（FR-H11）                                                                                                            |
+| Ctrl+Shift+8 | **Free**        | 分割を重ねて自由に並べる（初期は 2 列: 左に chart 1 枚（リンク 2）、右に chart 3 枚（リンク色なし））。左のドロワー（自動で隠れる）に watchlist・screener（リンク 2）。リンク色の無い chart は、それぞれ自分の銘柄を持つ（FR-L11） |
+
+リンク色の初期値は、タブの並び（Ctrl+Shift+1〜8）で初めて出てくる順に振る: Market 1・探して見比べるタブ（Screener・Grid・MTF・Triple・Free）2・Income 3・保有 4。探して見比べるタブは同じ色を共有し、screener で選んだ銘柄が MTF などのチャートにも出る（FR-K1）。変えるのはプリセットの初期値だけで、保存したレイアウトのリンク色は変えない
 
 画面のイメージ（MTF）:
 

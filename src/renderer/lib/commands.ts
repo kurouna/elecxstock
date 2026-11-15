@@ -33,6 +33,7 @@ import {
   findPane,
   inDock,
   layout,
+  MAIN_LINK,
   moveFromDock,
   moveToDock,
   moveToEdge,
@@ -97,7 +98,7 @@ export function focusedSymbol(): InstrumentId | null {
   const fromApi = paneApi(app.focus)?.current?.()
   if (fromApi) return fromApi
   if (p?.link) return layout.doc.links[String(p.link)] ?? null
-  return layout.doc.links['1'] ?? null
+  return layout.doc.links[String(MAIN_LINK)] ?? null
 }
 
 /** フォーカス中のペインがウォッチリストなら、表示しているリスト（銘柄ジャンプ・コマンドバーの Ctrl+Enter で足す先） */

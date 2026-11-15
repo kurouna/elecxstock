@@ -144,7 +144,7 @@ await session('ja', [
     },
   ],
   [
-    // 2 枚のモニタに並べたところ（1 枚目 + フリー 2 を撮って 1 枚の絵にまとめる）。フリー 2 の 2 枚目のチャートはリンク 1 で 1 枚目の銘柄を追う
+    // 2 枚のモニタに並べたところ（1 枚目 + フリー 2 を撮って 1 枚の絵にまとめる）。フリー 2 の 2 枚目のチャートはリンク 2 で 1 枚目の銘柄を追う
     'multi',
     async ({ k, type, page, app }) => {
       await k('Control+Shift+Digit4')
@@ -161,7 +161,7 @@ await session('ja', [
       const charts = w.locator('[data-widget="chart"]')
       await charts.first().locator('canvas').first().waitFor()
       await charts.nth(1).click({ position: { x: 200, y: 150 } })
-      await w.keyboard.press('Control+Digit1')
+      await w.keyboard.press('Control+Digit2')
       await page.bringToFront()
       await page
         .locator('[data-widget="chart"]')

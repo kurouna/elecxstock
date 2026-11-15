@@ -69,7 +69,18 @@ export interface LayoutDoc {
 
 let uid = 0
 const nid = () => `n${Date.now().toString(36)}${(++uid).toString(36)}`
-const P = (widget: WidgetId, link = 1, state: Record<string, unknown> = {}): PaneNode => ({ kind: 'pane', id: nid(), widget, link, state })
+/**
+ * リンク色の初期値はタブの並び（Ctrl+Shift+1〜8）で初めて出てくる順: マーケット 1・探して見比べるタブ 2・配当 3・保有 4。
+ * 探して見比べるタブ（スクリーナー・グリッド・MTF・トリプル・フリー）は同じ色を共有し、スクリーナーで選んだ銘柄が MTF などのチャートにも出る
+ */
+export const MAIN_LINK = 2
+const P = (widget: WidgetId, link = MAIN_LINK, state: Record<string, unknown> = {}): PaneNode => ({
+  kind: 'pane',
+  id: nid(),
+  widget,
+  link,
+  state,
+})
 const R = (sizes: number[], ...children: LNode[]): SplitNode => ({ kind: 'split', id: nid(), dir: 'row', sizes, children })
 const C = (sizes: number[], ...children: LNode[]): SplitNode => ({ kind: 'split', id: nid(), dir: 'col', sizes, children })
 
@@ -98,19 +109,28 @@ export function presetEntry(id: PresetId): LayoutEntry {
       return {
         root: R(
           [30, 70],
-          selectCol(1),
-          C([50, 50], P('chart', 1, { tf: 'D' }), R([50, 50], P('chart', 1, { tf: 'W' }), P('chart', 1, { tf: 'M' }))),
+          selectCol(MAIN_LINK),
+          C(
+            [50, 50],
+            P('chart', MAIN_LINK, { tf: 'D' }),
+            R([50, 50], P('chart', MAIN_LINK, { tf: 'W' }), P('chart', MAIN_LINK, { tf: 'M' })),
+          ),
         ),
         docks: {},
       }
     case 'grid':
       // グリッドはスクリーナーの結果を並べることが多いので、ドロワーはスクリーナーを前に出す
-      return { root: P('grid', 1, { src: 'live' }), docks: { left: selectDock(1, 1) } }
+      return { root: P('grid', MAIN_LINK, { src: 'live' }), docks: { left: selectDock(MAIN_LINK, 1) } }
     case 'screener':
       // スクリーナーが主役なので、左の列はスクリーナーだけ（ウォッチリストは置かない）。結果の行を動かすと、
-      // となりの銘柄情報と右のチャート 2 枚（上下）が同じ銘柄を出す（リンク 1）
+      // となりの銘柄情報と右のチャート 2 枚（上下）が同じ銘柄を出す（リンク 2）
       return {
-        root: R([26, 26, 48], P('screener', 1), P('info', 1), C([50, 50], P('chart', 1, { tf: 'D' }), P('chart', 1, { tf: 'D' }))),
+        root: R(
+          [26, 26, 48],
+          P('screener', MAIN_LINK),
+          P('info', MAIN_LINK),
+          C([50, 50], P('chart', MAIN_LINK, { tf: 'D' }), P('chart', MAIN_LINK, { tf: 'D' })),
+        ),
         docks: {},
       }
     case 'income':
@@ -127,8 +147,12 @@ export function presetEntry(id: PresetId): LayoutEntry {
       return {
         root: R(
           [30, 70],
-          selectCol(1),
-          C([64, 36], R([34, 33, 33], P('chart', 1, { tf: 'D' }), P('chart', 1, { tf: 'W' }), P('chart', 1, { tf: 'M' })), P('info', 1)),
+          selectCol(MAIN_LINK),
+          C(
+            [64, 36],
+            R([34, 33, 33], P('chart', MAIN_LINK, { tf: 'D' }), P('chart', MAIN_LINK, { tf: 'W' }), P('chart', MAIN_LINK, { tf: 'M' })),
+            P('info', MAIN_LINK),
+          ),
         ),
         docks: {},
       }
@@ -137,18 +161,18 @@ export function presetEntry(id: PresetId): LayoutEntry {
       return {
         root: R(
           [30, 70],
-          selectCol(4, P('ranking', 4), [40, 60]),
-          C([64, 36], R([60, 40], P('heatmap', 4), P('chart', 4, { tf: 'D' })), P('market', 4)),
+          selectCol(1, P('ranking', 1), [40, 60]),
+          C([64, 36], R([60, 40], P('heatmap', 1), P('chart', 1, { tf: 'D' })), P('market', 1)),
         ),
         docks: {},
       }
     case 'free':
       // §6.4 フリー: 分割を重ねて自由に並べる。リンク色の無いチャートは、それぞれ自分の銘柄を持つ（FR-L11）。
-      // 左のドロワーにウォッチリスト・スクリーナー（リンク 1）。左の大きいチャートはリンク 1 で一覧の選択に従い、右の 3 枚は独立
+      // 左のドロワーにウォッチリスト・スクリーナー（リンク 2）。左の大きいチャートはリンク 2 で一覧の選択に従い、右の 3 枚は独立
       return {
         root: R(
           [50, 50],
-          P('chart', 1, { tf: 'D' }),
+          P('chart', MAIN_LINK, { tf: 'D' }),
           C(
             [34, 33, 33],
             P('chart', 0, { tf: 'D', sym: 'JP:8306' }),
@@ -156,12 +180,12 @@ export function presetEntry(id: PresetId): LayoutEntry {
             P('chart', 0, { tf: 'D', sym: 'JP:9434' }),
           ),
         ),
-        docks: { left: selectDock(1, 0) },
+        docks: { left: selectDock(MAIN_LINK, 0) },
       }
     case 'holdings':
-      // §6.4 保有（FR-H11）: 左に保有の一覧（このタブの一覧。列が多いので広め）、右にチャートと銘柄情報（リンク 2）
+      // §6.4 保有（FR-H11）: 左に保有の一覧（このタブの一覧。列が多いので広め）、右にチャートと銘柄情報（リンク 4）
       return {
-        root: R([58, 42], P('portfolio', 2), C([60, 40], P('chart', 2, { tf: 'D' }), P('info', 2))),
+        root: R([58, 42], P('portfolio', 4), C([60, 40], P('chart', 4, { tf: 'D' }), P('info', 4))),
         docks: {},
       }
   }
@@ -171,7 +195,7 @@ export function defaultDoc(): LayoutDoc {
     version: 1,
     active: 'mtf',
     entries: Object.fromEntries(PRESET_IDS.map((p) => [p, presetEntry(p)])) as Record<PresetId, LayoutEntry>,
-    links: { '1': 'JP:7203', '2': 'JP:8951', '3': 'JP:2914', '4': 'JP:8306', '5': 'JP:3462' },
+    links: { '1': 'JP:8306', '2': 'JP:7203', '3': 'JP:2914', '4': 'JP:8951', '5': 'JP:3462' },
   }
 }
 const fixDock = (fixNode: (n: unknown) => LNode | null, d: Dock | undefined): Dock | undefined => {
@@ -204,7 +228,7 @@ export function normalizeDoc(raw: unknown): LayoutDoc {
         kind: 'pane',
         id,
         widget: x.widget,
-        link: Number.isInteger(x.link) && x.link >= 0 && x.link <= 5 ? x.link : 1,
+        link: Number.isInteger(x.link) && x.link >= 0 && x.link <= 5 ? x.link : MAIN_LINK,
         state: x.state && typeof x.state === 'object' ? x.state : {},
       }
     }
