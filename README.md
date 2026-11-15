@@ -47,8 +47,8 @@
   最低投資金額は株式を 100 株、J-REIT を 1 口として終値から計算します。ETF・ETN などは売買の単位が分からないため出しません（欠損）。
 - **銘柄情報**: 値段と 52 週の高値・安値の中での位置、移動平均からの乖離、主な指標（利回り・PER・PBR・時価総額・売買代金・最低投資金額）、決算発表と権利付最終日までの日数、配当の推移（年ごと・回ごと、5 年の増配率、連続増配・非減配）、利回りの 5 年の範囲、値動き（値段と配当込み）と最大下落率、保有していれば評価損益と取得利回り。
 - **ウォッチリスト**: 複数のリスト、お気に入り（★）、並べ替え・複製、複数選択、列の選択、CSV の書き出しとコードの一覧の取り込み、JSON での書き出し・取り込み。
-- **保有（ポートフォリオ）**: 保有タブ（Ctrl+Shift+7）で銘柄・口座区分（NISA 成長投資枠・つみたて投資枠・旧 NISA・特定・一般）・数量・平均取得単価を足す・直す・外すか、楽天証券の保有商品の CSV を取り込みます（取り込むと CSV の内容に置き換わります。国内株式）。評価額・評価損益・前日比・年間配当の見込み・取得利回りを口座区分ごと・合計で見られます。JSON で書き出し・取り込み（[形式](docs/holdings-format.md)）。
-- **ポートフォリオのダッシュボード**: ポートフォリオのタブ（Ctrl+Shift+9）で、評価額・資産推移（評価額と取得額の間を含み損益の色で塗る）・資産構成（業種・17 業種・口座・種別のツリーマップ、景気敏感とディフェンシブ）・損益寄与（今日・今月・今年・取得来）・配当見込み・今後 30 日の予定を 1 枚で見られます。下の段は配当の分析（年間配当と前年比、増配・買い増し・新規・売却に分けた増減要因、分類ごとのドーナツと表）。資産の推移は日々の更新のたびに自動で記録します（[設計](docs/design-portfolio.md)）。
+- **保有**: 保有タブ（Ctrl+Shift+7）で銘柄・口座区分（NISA 成長投資枠・つみたて投資枠・旧 NISA・特定・一般）・数量・平均取得単価を足す・直す・外すか、楽天証券の保有商品の CSV を取り込みます（取り込むと CSV の内容に置き換わります。国内株式）。評価額・評価損益・前日比・年間配当の見込み・取得利回りを口座区分ごと・合計で見られます。JSON で書き出し・取り込み（[形式](docs/holdings-format.md)）。
+- **ポートフォリオのダッシュボード**: ポートフォリオのタブ（Ctrl+Shift+9）で、評価額・資産推移（評価額と取得額の間を含み損益の色で塗る）・資産構成（業種・17 業種・口座・種別のツリーマップ、景気敏感とディフェンシブ）・損益寄与（今日・今月・今年・取得来）・配当見込み・今後 30 日の予定を 1 枚で見られます。資産推移は % 表示で時間加重の収益率を出し、日経平均・TOPIX 連動 ETF（1306）と比べられます。← → で日を動かすと、評価額・資産構成・損益寄与がその日の値になります。項目を選ぶと、同じリンク色のチャートと銘柄情報に出ます。下の段は配当の分析（年間配当と前年比、増配・買い増し・新規・売却に分けた増減要因、分類ごとのドーナツと表）。資産の推移は日々の更新のたびに自動で記録します（[設計](docs/design-portfolio.md)）。
 - **アラート**: 銘柄に条件（終値 ≤ 17,500、実績利回り ≥ 5%、終値 ≤ 75 日移動平均、保有の損益率など。最大 3 つの「かつ」）を付けるか、保存したスクリーンに新しく入った銘柄を知らせます。取得のジョブの終わりに判定し、トースト・Windows の通知・トップバーのベルで知らせます。分割があってもしきい値を換算して比べ、チャートにしきい値の点線を引きます。Ctrl+Alt+A で作り、Ctrl+Alt+L の一覧と履歴から銘柄を開けます。外部への送信（メールなど）はしません。
 - **マーケット**: 33 業種のヒートマップ（面積 = 時価総額、色 = 騰落率）、ランキング、指数・指数連動 ETF の小さなチャート。
 - **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、9 つのプリセット（マーケット・スクリーナー・グリッド・MTF・トリプル・インカム・保有・フリー・ポートフォリオ）、名前を付けて保存したレイアウト、サイズのリセット、レイアウトを初期状態に戻す（このタブ・すべてのタブ）。ペインの種類は Ctrl+Shift+N で変えられます（チャートをスクリーナーや銘柄情報にする など）。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。
@@ -58,22 +58,24 @@
 - **日々の更新**: 大引け後に自動で更新します。銘柄ごとに取らず一括気配でまとめて取り、日足の取得は分割の疑い・取りこぼし・定期の照合に絞ります。ウォッチリストと保有の銘柄を先に更新し、最後に取りこぼしを 1 回だけ確かめます。
 - 新しい版の通知、市場データの DB のバックアップ、日足の CSV 書き出し。
 
-|                                             |                                                |
-| ------------------------------------------- | ---------------------------------------------- |
-| ![Grid](docs/screenshots/grid.png)          | ![Screener](docs/screenshots/screener.png)     |
-| チャートグリッド                            | スクリーナー                                   |
-| ![Income](docs/screenshots/income.png)      | ![Command bar](docs/screenshots/palette.png)   |
-| インカム（配当カレンダー）                  | コマンドバー（Ctrl+K）                         |
-| ![Drawer](docs/screenshots/grid-drawer.png) | ![Help](docs/screenshots/help.png)             |
-| ドロワー（Ctrl+B）                          | ショートカット一覧（F1）                       |
-| ![Market](docs/screenshots/market.png)      | ![Light](docs/screenshots/light.png)           |
-| マーケット（ヒートマップ・ランキング）      | ライトテーマ                                   |
-| ![Alerts](docs/screenshots/alerts.png)      | ![Alert line](docs/screenshots/alert-line.png) |
-| アラート（Ctrl+Alt+L）                      | チャートのアラートの点線                       |
-| ![Free window](docs/screenshots/free.png)   | ![Field picker](docs/screenshots/fields.png)   |
-| フリーのウィンドウ（2 枚目のモニタ）        | スクリーナーの条件を選ぶ（Insert）             |
-| ![Pane type](docs/screenshots/widget.png)   | ![Triple](docs/screenshots/triple.png)         |
-| ペインの種類を変える（Ctrl+Shift+N）        | トリプル（日足・週足・月足と銘柄情報）         |
+|                                             |                                                        |
+| ------------------------------------------- | ------------------------------------------------------ |
+| ![Portfolio](docs/screenshots/folio.png)    | ![Portfolio dividends](docs/screenshots/folio-div.png) |
+| ポートフォリオ（Ctrl+Shift+9）              | ポートフォリオの配当の分析（PgDn）                     |
+| ![Grid](docs/screenshots/grid.png)          | ![Screener](docs/screenshots/screener.png)             |
+| チャートグリッド                            | スクリーナー                                           |
+| ![Income](docs/screenshots/income.png)      | ![Command bar](docs/screenshots/palette.png)           |
+| インカム（配当カレンダー）                  | コマンドバー（Ctrl+K）                                 |
+| ![Drawer](docs/screenshots/grid-drawer.png) | ![Help](docs/screenshots/help.png)                     |
+| ドロワー（Ctrl+B）                          | ショートカット一覧（F1）                               |
+| ![Market](docs/screenshots/market.png)      | ![Light](docs/screenshots/light.png)                   |
+| マーケット（ヒートマップ・ランキング）      | ライトテーマ                                           |
+| ![Alerts](docs/screenshots/alerts.png)      | ![Alert line](docs/screenshots/alert-line.png)         |
+| アラート（Ctrl+Alt+L）                      | チャートのアラートの点線                               |
+| ![Free window](docs/screenshots/free.png)   | ![Field picker](docs/screenshots/fields.png)           |
+| フリーのウィンドウ（2 枚目のモニタ）        | スクリーナーの条件を選ぶ（Insert）                     |
+| ![Pane type](docs/screenshots/widget.png)   | ![Triple](docs/screenshots/triple.png)                 |
+| ペインの種類を変える（Ctrl+Shift+N）        | トリプル（日足・週足・月足と銘柄情報）                 |
 
 ![Multiple monitors](docs/screenshots/multi.png)
 
@@ -126,6 +128,7 @@ npm run verify     # lint・型検査・単体テスト
 npm run build && npx playwright test   # E2E（スタブのデータ・キーボードだけで操作）
 npm run package    # Windows のインストーラ（release/）
 npm run demo       # 紹介動画用のデモ（架空のデータ・キー操作で自動で進む）
+npm run demo:0.1.2 # 版ごとのデモ（0.1.2: ポートフォリオのタブ）
 ```
 
 ネットワークを使わずに動かすときは `ELECXSTOCK_PROVIDER=stub` を付けます。
@@ -164,10 +167,11 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
   Minimum investment is the close × 100 shares for stocks and × 1 unit for J-REITs. It is not shown for ETFs, ETNs and others, whose trading unit is unknown.
 - **Symbol info**: price and its place in the 52-week range, deviation from moving averages, key figures (yield, P/E, P/B, market cap, turnover, minimum investment), days to earnings and to the last cum-rights day, dividend history (per year or per payout, 5-year growth, growth and no-cut streaks), the 5-year yield range, returns (price and total return) and max drawdown, and your P/L and yield on cost if you hold it.
 - **Watchlists**: multiple lists, favorites (★), sorting, duplicate, multi-select, columns, CSV export and code-list import, JSON export/import.
-- **Portfolio**: add, edit or remove holdings by symbol, account type (NISA growth / tsumitate / old NISA, specified, general), quantity and average cost, or import the Rakuten Securities holdings CSV (domestic stocks; the import replaces the holdings). See value, P/L, day change, expected annual dividends and yield on cost by account and in total; JSON export/import ([format](docs/holdings-format.md)).
+- **Holdings**: on the Holdings tab (Ctrl+Shift+7), add, edit or remove holdings by symbol, account type (NISA growth / tsumitate / old NISA, specified, general), quantity and average cost, or import the Rakuten Securities holdings CSV (domestic stocks; the import replaces the holdings). See value, P/L, day change, expected annual dividends and yield on cost by account and in total; JSON export/import ([format](docs/holdings-format.md)).
+- **Portfolio dashboard**: the Portfolio tab (Ctrl+Shift+9) shows market value, the asset history (filled between value and cost in the color of unrealized P/L), allocation (a treemap by sector, TOPIX-17 sector, account or kind, with cyclical vs defensive), contribution (today, this month, this year, since purchase), the dividend outlook and the next 30 days of events on one page. The history is recorded automatically with every daily update; switch it to % for an approximate time-weighted return and compare it with the Nikkei 225 or the TOPIX ETF (1306), and move the day with ← → to see that day's allocation and contribution. The lower section analyzes dividends: annual amount and year-on-year change, a waterfall of raises, cuts, new, added and sold, and a breakdown donut and table. Selecting an item shows it on the chart and symbol info with the same link color ([design, Japanese](docs/design-portfolio.md)).
 - **Alerts**: put conditions on a symbol (close ≤ 17,500, trailing yield ≥ 5%, close ≤ 75-day MA, P/L of a holding and so on; up to three, all must hold), or get notified of symbols that newly match a saved screen. Alerts are evaluated when a fetch job ends and shown as a toast, a Windows notification and a badge on the bell. Price thresholds are converted across stock splits, and drawn as dashed lines on charts. Create with Ctrl+Alt+A; open the list and history with Ctrl+Alt+L. Nothing is sent outside the app (no e-mail).
 - **Market**: sector heatmap, rankings and index mini-charts.
-- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, eight presets (Market, Screener, Grid, MTF, Triple, Income, Holdings and Free, where each unlinked chart keeps its own symbol), named layouts, size reset, and resetting the layout of this tab or all tabs. Change a pane into another kind with Ctrl+Shift+N (e.g. a chart into a screener or symbol info). Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
+- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, nine presets (Market, Screener, Grid, MTF, Triple, Income, Holdings, Free, where each unlinked chart keeps its own symbol, and Portfolio), named layouts, size reset, and resetting the layout of this tab or all tabs. Change a pane into another kind with Ctrl+Shift+N (e.g. a chart into a screener or symbol info). Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
 - **Multiple monitors**: open up to three tabless Free windows with Ctrl+Alt+N or the title-bar button (chart grid, four charts, or MTF + symbol info) to line up charts on a second monitor. Drag symbols from the main window's lists or send them with Ctrl+Alt+Enter; linked charts follow the symbol picked in the main window. Layout, position and text size are remembered per window and reopened at the next start.
 - **Dividend calendar**, fetch jobs with progress and pause.
 - **Japanese / English** UI, dark / light themes, candle colors (Japanese or Western) and remappable keys.
@@ -175,6 +179,11 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 - New-version notice, database backup, daily-bar CSV export.
 
 ![Grid (English)](docs/screenshots/grid-en.png)
+
+|                                          |                                                        |
+| ---------------------------------------- | ------------------------------------------------------ |
+| ![Portfolio](docs/screenshots/folio.png) | ![Portfolio dividends](docs/screenshots/folio-div.png) |
+| Portfolio tab (Japanese UI)              | Dividend analysis (Japanese UI)                        |
 
 (Prices, yields, dividends and other values in the screenshots are fictitious, generated at random for testing. Company names and codes are real, but the values shown have nothing to do with actual market data. No real market data is used.)
 

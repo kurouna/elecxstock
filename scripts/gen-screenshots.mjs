@@ -1,9 +1,10 @@
 // README 用のスクリーンショット（docs/screenshots/）。スタブのプロバイダ（架空の値）で起動し、キー操作で各画面を開いて撮る。
-// 使い方: npm run build && node scripts/gen-screenshots.mjs
+// 使い方: npm run build && node scripts/gen-screenshots.mjs [folio]（名前を付けるとその分だけ撮る。いまは folio だけ）
 import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from '@playwright/test'
+import { HOLD, history, writeHistory } from './folio-fixture.mjs'
 
 const out = join(process.cwd(), 'docs', 'screenshots')
 mkdirSync(out, { recursive: true })
@@ -61,6 +62,60 @@ async function session(lang, shots) {
     if (target !== page) await target.close()
   }
   await app.close()
+}
+
+/**
+ * ポートフォリオのタブ（概要と配当の分析）。保有と資産推移の記録が要るので、別に起動する: 1 回目で初回の取り込みと架空の保有を入れ、
+ * 閉じてから架空の記録（約 1 年半）を書き、2 回目で撮る（デモ scripts/demo-v0.1.2.mjs と同じ架空のデータ）
+ */
+async function folioSession() {
+  const userData = mkdtempSync(join(tmpdir(), 'elecxstock-shot-'))
+  const env = { ...process.env, ELECXSTOCK_PROVIDER: 'stub', ELECXSTOCK_USER_DATA: userData, ELECXSTOCK_NOW: NOW }
+  const idle = (page) =>
+    page
+      .locator('footer')
+      .getByText(/待機|Idle/)
+      .waitFor({ timeout: 120_000 })
+  const call = (page, m, p = {}) => page.evaluate(([m, p]) => window.elecxstock.call(m, p), [m, p])
+  let app = await electron.launch({ args: ['.'], env })
+  let page = await app.firstWindow()
+  await page.getByRole('dialog').waitFor()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await idle(page)
+  await call(page, 'portfolio.save', { holdings: HOLD })
+  await idle(page)
+  const today = (await call(page, 'folio.series', {})).points.at(-1)
+  await app.close()
+  writeHistory(userData, history(today ? today.value / today.cost : 1.05, NOW.slice(0, 10)))
+  app = await electron.launch({ args: ['.'], env })
+  page = await app.firstWindow()
+  await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows()[0]
+    w.unmaximize()
+    w.setContentSize(1680, 1000)
+  })
+  await idle(page)
+  const folio = page.locator('[data-widget="folio"]')
+  const snap = async (name) => {
+    await wait(1200)
+    await page.evaluate(() => document.querySelectorAll('.toasts .toast').forEach((t) => t.remove()))
+    await page.screenshot({ path: join(out, `${name}.png`) })
+    console.log('shot', name)
+  }
+  await page.keyboard.press('Control+Shift+Digit9')
+  await folio.locator('.c-hist svg').first().waitFor()
+  await snap('folio')
+  await page.keyboard.press('PageDown')
+  await folio.locator('.c-dwf').waitFor()
+  await snap('folio-div')
+  await app.close()
+}
+
+const only = process.argv.slice(2)
+if (only.includes('folio')) {
+  await folioSession()
+  process.exit(0)
 }
 
 await session('ja', [
@@ -209,3 +264,4 @@ await session('ja', [
   ],
 ])
 await session('en', [['grid-en', async ({ k }) => k('Control+Shift+Digit3', 'n', 'Alt+Digit3')]])
+await folioSession()
