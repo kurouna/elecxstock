@@ -7,6 +7,8 @@ export interface ElecxstockBridge {
   prioritize(ids: string[]): void
   /** テストの時刻のずれ（ms。ELECXSTOCK_NOW のスタブのときだけ）。renderer の入口で Date をずらす */
   clockOffset?: number
+  /** 起動の最初のテーマ（保存した設定から main が読む）。renderer の入口で html に当て、最初の描画からその色にする */
+  initialTheme?: 'light' | 'dark'
   openExternal(url: string): Promise<boolean>
   saveText(name: string, text: string): Promise<boolean>
   openFile(kind: 'json' | 'xlsx' | 'text' | 'csv'): Promise<string | Uint8Array | null>

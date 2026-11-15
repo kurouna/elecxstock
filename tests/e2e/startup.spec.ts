@@ -53,3 +53,20 @@ test.describe('種からの起動（§3.1）', () => {
     await expect(page.locator('.presets [aria-current="true"]')).toContainText('MTF')
   })
 })
+
+test.describe('起動の最初の色（NFR-Q3, FR-V8）', () => {
+  test('ライトテーマで保存していれば、窓の地とページの最初の描画からライトの色で出る（一度黒くならない）', async ({ start }) => {
+    const { app, page } = await start({ settings: { theme: 'light' } })
+    // main は窓を作る前に保存した設定を読み、preload が renderer に渡す（設定を Core から読むより前に当てる）
+    expect(await page.evaluate(() => (window as unknown as { elecxstock: { initialTheme?: string } }).elecxstock.initialTheme)).toBe(
+      'light',
+    )
+    const bg = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBackgroundColor())
+    expect(bg.toLowerCase()).toBe('#e9ecf0')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  })
+  test('ダーク（既定）なら、これまでどおり暗い色で出る', async ({ start }) => {
+    const { page } = await start()
+    expect(await page.evaluate(() => (window as unknown as { elecxstock: { initialTheme?: string } }).elecxstock.initialTheme)).toBe('dark')
+  })
+})

@@ -8,10 +8,15 @@ import { _electron as electron } from '@playwright/test'
 const out = join(process.cwd(), 'docs', 'screenshots')
 mkdirSync(out, { recursive: true })
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+/** 撮る日時（テストの基準日時と同じ。平日の大引けのあと。撮り直しても日付が変わらない） */
+const NOW = '2026-11-13T18:00:00+09:00'
 
 async function session(lang, shots) {
   const userData = mkdtempSync(join(tmpdir(), 'elecxstock-shot-'))
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, ELECXSTOCK_PROVIDER: 'stub', ELECXSTOCK_USER_DATA: userData } })
+  const app = await electron.launch({
+    args: ['.'],
+    env: { ...process.env, ELECXSTOCK_PROVIDER: 'stub', ELECXSTOCK_USER_DATA: userData, ELECXSTOCK_NOW: NOW },
+  })
   const page = await app.firstWindow()
   await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows()[0]
@@ -60,12 +65,26 @@ async function session(lang, shots) {
 
 await session('ja', [
   ['mtf', async ({ k }) => k('Alt+ArrowLeft', 'Home', 'ArrowDown')],
-  ['grid', async ({ k }) => k('Control+Shift+Digit3', 'w', 'Alt+Digit4', 'Space', 'ArrowRight', 'ArrowRight', 'Space')],
+  // ペインの種類を変える（Ctrl+Shift+N。フォーカス中のペインを別の種類にする）
+  ['widget', async ({ k }) => k('Alt+ArrowRight', 'Control+Shift+KeyN')],
+  ['grid', async ({ k }) => k('Escape', 'Control+Shift+Digit3', 'w', 'Alt+Digit4', 'Space', 'ArrowRight', 'ArrowRight', 'Space')],
   ['grid-drawer', async ({ k }) => k('Control+b')],
   ['screener', async ({ k }) => k('Escape', 'Control+Shift+Digit2', 'ArrowDown', 'ArrowDown')],
   // 条件を選ぶダイアログ（FR-SC17）
   ['fields', async ({ k }) => k('Insert')],
-  ['income', async ({ k }) => k('Escape', 'Control+Shift+Digit6')],
+  [
+    'income',
+    async ({ k, type, page }) => {
+      // 高配当のリスト（このタブのウォッチリスト）に、J-REIT・5 桁の優先株などを銘柄ジャンプの Ctrl+Enter で足す
+      await k('Escape', 'Control+Shift+Digit6')
+      for (const c of ['8951', '3462', '8963', '3281', '94345', '2914', '8058', '9434']) {
+        await type(c)
+        await page.locator('.dialog.jump .it.sel').getByText(c).waitFor()
+        await k('Control+Enter')
+      }
+      await k('Escape', 'Home')
+    },
+  ],
   ['triple', async ({ k }) => k('Control+Shift+Digit5')],
   [
     'palette',
@@ -76,7 +95,15 @@ await session('ja', [
   ],
   ['help', async ({ k }) => k('Escape', 'F1')],
   ['settings', async ({ k }) => k('Escape', 'Control+Comma', 'ArrowDown', 'ArrowDown')],
-  ['market', async ({ k }) => k('Escape', 'Control+Shift+Digit1', 'Alt+ArrowRight', 'ArrowRight')],
+  [
+    'market',
+    async ({ k, page }) => {
+      await k('Escape', 'Control+Shift+Digit1', 'Alt+ArrowRight', 'ArrowRight')
+      // 指数の ETF（1306・1343）はタブを開いたときに取得の対象に足すので、取れて描くまで待つ
+      await page.locator('[data-widget="market"] .tile').last().getByText('1343').waitFor()
+      await page.waitForFunction(() => !document.querySelector('[data-widget="market"] .state'), null, { timeout: 30_000 })
+    },
+  ],
   [
     // アラート（FR-AL1・AL2・AL9）: 銘柄のアラートを 2 つ（1 つは成立中）とスクリーンのアラートを作り、チャートの点線を撮る
     'alert-line',

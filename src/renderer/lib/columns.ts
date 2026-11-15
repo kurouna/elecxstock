@@ -3,8 +3,8 @@
 import { heldFrom } from '@shared/alerts'
 import { jstNow } from '@shared/calendar'
 import { type ComputeContext, computeValue, heldStats } from '@shared/compute'
-import { FIELDS, type FieldDef, perShare, usable } from '@shared/fields'
-import type { InstrumentId, MetricsRow } from '@shared/types'
+import { FIELDS, type FieldDef, KIND_CHOICES, perShare, usable } from '@shared/fields'
+import type { Instrument, InstrumentId, MetricsRow } from '@shared/types'
 import { app, checklistDialog, ensureMetrics, inst, metric, t } from '../stores/app.svelte'
 import { cls, date, fmt, money, px, sgn } from './format'
 import type { Key } from './i18n'
@@ -157,6 +157,15 @@ export function resolveColumns(ids: string[] | undefined, fallback: string[]): L
   return [...fixed, ...rest]
 }
 
+/**
+ * 銘柄名の横の種別の札（J-REIT・ETF・優先株など。株式には付けない）。区分の列を出していれば、REIT・ETF は区分の列が同じことを
+ * 示すので付けない（優先株は区分が「プライム」なので付ける）
+ */
+export function kindTag(ins: Pick<Instrument, 'kind'> | undefined, cols: ListCol[], lang: 'ja' | 'en'): string | null {
+  if (!ins || ins.kind === 'stock' || ins.kind === 'index') return null
+  if ((ins.kind === 'reit' || ins.kind === 'etf') && cols.some((c) => c.id === 'mkt')) return null
+  return KIND_CHOICES.find((k) => k.value === ins.kind)?.label[lang] ?? null
+}
 /** 銘柄名の列の最小の幅（px）。狭い一覧でも、コードと銘柄名は読めるように残す */
 export const NAME_MIN = 104
 /**

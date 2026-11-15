@@ -101,6 +101,8 @@ const api: ElecxstockBridge = {
     return () => void ipcRenderer.off('alerts:open', f)
   },
   platform: process.platform,
+  // 起動の最初のテーマ（main が保存した設定から読んで渡す。renderer が最初に描く前に当てる）
+  initialTheme: process.argv.includes('--elecxstock-theme=light') ? 'light' : 'dark',
   // テストの時刻（main が ELECXSTOCK_NOW のときだけ渡す）
   clockOffset:
     Number(process.argv.find((a) => a.startsWith('--elecxstock-clock-offset='))?.slice('--elecxstock-clock-offset='.length)) || undefined,

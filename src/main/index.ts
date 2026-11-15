@@ -8,6 +8,7 @@ import { readFile } from 'node:fs/promises'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { jstNow } from '@shared/calendar'
+import { savedTheme, THEME_COLORS } from '@shared/settings'
 import {
   app,
   BrowserWindow,
@@ -205,8 +206,19 @@ const slotOf = (wc: WebContents): Slot | null => {
 }
 const winOf = (e: Electron.IpcMainInvokeEvent): BrowserWindow | null => BrowserWindow.fromWebContents(e.sender)
 
+/** 保存した設定のテーマ（窓を作る前に読む。起動の最初からその色で出す。NFR-Q3） */
+function startTheme(): keyof typeof THEME_COLORS {
+  try {
+    return savedTheme(readFileSync(join(app.getPath('userData'), 'data', 'user', 'settings.json'), 'utf8'))
+  } catch {
+    return savedTheme(null)
+  }
+}
+
 async function createWindow(slot: Slot, shape?: string): Promise<void> {
   const free = slot !== 'main'
+  const theme = startTheme()
+  const colors = THEME_COLORS[theme]
   const p = place(displays(), primary(), state, slot, free ? { width: 1400, height: 900 } : { width: 1600, height: 960 })
   const win = new BrowserWindow({
     x: p.bounds.x,
@@ -217,10 +229,10 @@ async function createWindow(slot: Slot, shape?: string): Promise<void> {
     minWidth: free ? 480 : 1100,
     minHeight: free ? 360 : 700,
     show: false,
-    backgroundColor: '#0b0d10',
+    backgroundColor: colors.background,
     title: free ? `elecxstock — ${slot.replace('free', 'フリー ')}` : 'elecxstock',
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#101318', symbolColor: '#a3adb9', height: 36 },
+    titleBarOverlay: { color: colors.titleBar, symbolColor: colors.symbol, height: 36 },
     icon: join(here, '../../build/icon.png'), // 窓のアイコン（インストーラ・exe は build/icon.ico）
     webPreferences: {
       preload: join(here, '../preload/index.cjs'),
@@ -231,7 +243,8 @@ async function createWindow(slot: Slot, shape?: string): Promise<void> {
       spellcheck: false,
       devTools,
       backgroundThrottling: false,
-      ...(clockOffset != null ? { additionalArguments: [`--elecxstock-clock-offset=${clockOffset}`] } : {}),
+      // 最初のテーマ（renderer が最初に描く前に当てる）と、テストの時刻（スタブのときだけ）
+      additionalArguments: [`--elecxstock-theme=${theme}`, ...(clockOffset != null ? [`--elecxstock-clock-offset=${clockOffset}`] : [])],
     },
   })
   const w: Win = { win, loaded: false, ready: false }
@@ -369,8 +382,9 @@ ipcMain.handle('app:setChrome', (e, theme: unknown, scale: unknown) => {
   const light = theme === 'light'
   const z = typeof scale === 'number' && scale >= 0.8 && scale <= 1.5 ? scale : 1
   try {
-    win.setTitleBarOverlay({ color: light ? '#ffffff' : '#101318', symbolColor: light ? '#4a5562' : '#a3adb9', height: Math.round(36 * z) })
-    win.setBackgroundColor(light ? '#e9ecf0' : '#0b0d10')
+    const c = THEME_COLORS[light ? 'light' : 'dark']
+    win.setTitleBarOverlay({ color: c.titleBar, symbolColor: c.symbol, height: Math.round(36 * z) })
+    win.setBackgroundColor(c.background)
   } catch {
     /* titleBarOverlay の無い環境 */
   }

@@ -1,4 +1,5 @@
 import './clock' // ほかのモジュールより先に時刻をそろえる（テストのときだけ）
+import './theme-init' // 最初の描画からテーマの色にする
 import '@fontsource-variable/noto-sans-jp/wght.css'
 import '@fontsource/noto-sans-mono/latin-400.css'
 import '@fontsource/noto-sans-mono/latin-500.css'

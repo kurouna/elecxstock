@@ -1,13 +1,13 @@
 <script lang="ts">
 // 一覧の 1 行のセル（列は lib/columns.ts）。値が変わったセルは一瞬だけ背景を光らせる（FR-V6）。
 import type { InstrumentId } from '@shared/types'
-import type { ListCol } from '../../lib/columns'
-import type { Key } from '../../lib/i18n'
-import { codeOf, inst, isFav, metric, nameOf, t, toggleFav } from '../../stores/app.svelte'
+import { kindTag, type ListCol } from '../../lib/columns'
+import { app, codeOf, inst, isFav, metric, nameOf, t, toggleFav } from '../../stores/app.svelte'
 
 let { id, cols }: { id: InstrumentId; cols: ListCol[] } = $props()
 const ins = $derived(inst(id))
 const m = $derived(metric(id))
+const kind = $derived(kindTag(ins, cols, app.settings.lang))
 let prev: number | null | undefined
 let flash = $state<'' | 'up' | 'down'>('')
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -29,7 +29,7 @@ $effect(() => {
     <td class="l code">{codeOf(id)}</td>
   {:else if c.id === 'name'}
     <td class="l name">
-      {nameOf(id)}{#if ins && ins.kind !== 'stock'}<span class="tag">{t(`mkt.${ins.market}` as Key)}</span>{/if}
+      {nameOf(id)}{#if kind}<span class="tag">{kind}</span>{/if}
       {#if ins?.status === 'delisted'}<span class="tag warn" title={t('list.delistedHint')}>{t('list.delisted')}</span>{/if}
       {#if m?.anomaly || m?.gapSuspect}<span class="tag warn" title={t('list.anomalyHint')}>!</span>{/if}
     </td>

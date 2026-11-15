@@ -43,15 +43,16 @@
 - **ユニバース**: 東証プライムと J-REIT を自動で取得します。スタンダード・グロース・ETF などは、コマンドバーやウォッチリストから追加でき、ウォッチリストや保有に入れた銘柄も取得します。5 桁の優先株・種類株（例: 94345）にも対応しています。
 - **チャート**: 日足・週足・月足、ローソク足／バー／ライン、移動平均（期間を変えられる）、出来高、ボリンジャーバンド・一目均衡表・RSI・MACD・ストキャスティクス、配当落ち日・分割の印、他銘柄との比較（%）、対数軸、分割調整／未調整／配当込み、キーボードの十字線。日・週・月を 1 ペインに並べるマルチ時間軸も。
 - **チャートグリッド**: 2×2 から 6×5 まで、多数のチャートを並べて、時間軸・期間・並べ替え・比較（期間の始点を 100%）を一度に切り替えます。売買候補に印を付けて、まとめてウォッチリストに入れられます。タイルの銘柄は C で差し替え、1〜9 で足し、Delete で外せます。
-- **スクリーナー**: 利回り・配当性向・連続増配年数・配当の増配率・権利確定月・PER・PBR・ROE・EPS・BPS・時価総額・売買代金・最低投資金額・騰落率（年初来・配当込みも）・移動平均乖離・52 週と年初来の高値・安値からの位置・ゴールデンクロスからの日数・RSI・ボラティリティ・ベータ・最大下落率・決算発表や権利付最終日までの日数・保有割合・取得利回り・市場区分・33 業種・種別・お気に入り・ウォッチリストなど 58 項目で絞り込みます。項目は分類ごとに並んだダイアログから選び、打って絞り込めます（ⓘ で説明）。「かつ／または」、相対条件（終値 ≥ 75 日移動平均）、上位 N 件、列の選択、CSV 書き出し。名前を付けて保存できます（例:「高配当銘柄」）。
+- **スクリーナー**: 利回り・配当性向・連続増配年数・配当の増配率・権利確定月・PER・PBR・ROE・EPS・BPS・時価総額・売買代金・最低投資金額・騰落率（年初来・配当込みも）・移動平均乖離・52 週と年初来の高値・安値からの位置・ゴールデンクロスからの日数・RSI・ボラティリティ・ベータ・最大下落率・決算発表や権利付最終日までの日数・保有割合・取得利回り・市場区分・33 業種・種別・お気に入り・ウォッチリストなど 58 項目で絞り込みます。項目は分類ごとに並んだダイアログから選び、打って絞り込めます（ⓘ で説明）。「かつ／または」、相対条件（終値 ≥ 75 日移動平均）、上位 N 件、列の選択、CSV 書き出し。名前を付けて保存できます（例:「高配当銘柄」）。項目の一覧と説明は [docs/screener-fields.md](docs/screener-fields.md)。
   最低投資金額は株式を 100 株、J-REIT を 1 口として終値から計算します。ETF・ETN などは売買の単位が分からないため出しません（欠損）。
+- **銘柄情報**: 値段と 52 週の高値・安値の中での位置、移動平均からの乖離、主な指標（利回り・PER・PBR・時価総額・売買代金・最低投資金額）、決算発表と権利付最終日までの日数、配当の推移（年ごと・回ごと、5 年の増配率、連続増配・非減配）、利回りの 5 年の範囲、値動き（値段と配当込み）と最大下落率、保有していれば評価損益と取得利回り。
 - **ウォッチリスト**: 複数のリスト、お気に入り（★）、並べ替え・複製、複数選択、列の選択、CSV の書き出しとコードの一覧の取り込み、JSON での書き出し・取り込み。
 - **保有（ポートフォリオ）**: 保有タブ（Ctrl+Shift+7）で銘柄・口座区分（NISA 成長投資枠・つみたて投資枠・旧 NISA・特定・一般）・数量・平均取得単価を足す・直す・外すか、楽天証券の保有商品の CSV を取り込みます（取り込むと CSV の内容に置き換わります。国内株式）。評価額・評価損益・前日比・年間配当の見込み・取得利回りを口座区分ごと・合計で見られます。JSON で書き出し・取り込み（[形式](docs/holdings-format.md)）。
 - **アラート**: 銘柄に条件（終値 ≤ 17,500、実績利回り ≥ 5%、終値 ≤ 75 日移動平均、保有の損益率など。最大 3 つの「かつ」）を付けるか、保存したスクリーンに新しく入った銘柄を知らせます。取得のジョブの終わりに判定し、トースト・Windows の通知・トップバーのベルで知らせます。分割があってもしきい値を換算して比べ、チャートにしきい値の点線を引きます。Ctrl+Alt+A で作り、Ctrl+Alt+L の一覧と履歴から銘柄を開けます。外部への送信（メールなど）はしません。
 - **マーケット**: 33 業種のヒートマップ（面積 = 時価総額、色 = 騰落率）、ランキング、指数・指数連動 ETF の小さなチャート。
-- **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、8 つのプリセット（マーケット・スクリーナー・グリッド・MTF・トリプル・インカム・保有・フリー）、名前を付けて保存したレイアウト、サイズのリセット。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。
+- **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、8 つのプリセット（マーケット・スクリーナー・グリッド・MTF・トリプル・インカム・保有・フリー）、名前を付けて保存したレイアウト、サイズのリセット、レイアウトを初期状態に戻す（このタブ・すべてのタブ）。ペインの種類は Ctrl+Shift+N で変えられます（チャートをスクリーナーや銘柄情報にする など）。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。
 - **マルチモニタ**: Ctrl+Alt+N（またはタイトルバーのボタン）でタブなしの「フリー」のウィンドウを最大 3 枚開き（チャートグリッド・4 分割・MTF + 銘柄情報）、2 枚目のモニタにチャートを並べられます。銘柄は 1 枚目の一覧からのドラッグか Ctrl+Alt+Enter で送ります。リンク色を付けたチャートは 1 枚目で選んだ銘柄を追います。並び・位置・文字の大きさは窓ごとに覚え、次の起動で開き直します。
-- **配当カレンダー**、銘柄情報、取得ジョブの進捗と一時停止。
+- **配当カレンダー**、取得ジョブの進捗と一時停止。
 - **日本語／英語**の表示、ダーク／ライトのテーマ、陽線・陰線の色（日本式／欧米式）、キーの割り当ての変更。
 - **日々の更新**: 大引け後に自動で更新します。銘柄ごとに取らず一括気配でまとめて取り、日足の取得は分割の疑い・取りこぼし・定期の照合に絞ります。ウォッチリストと保有の銘柄を先に更新し、最後に取りこぼしを 1 回だけ確かめます。
 - 新しい版の通知、市場データの DB のバックアップ、日足の CSV 書き出し。
@@ -70,6 +71,8 @@
 | アラート（Ctrl+Alt+L）                      | チャートのアラートの点線                       |
 | ![Free window](docs/screenshots/free.png)   | ![Field picker](docs/screenshots/fields.png)   |
 | フリーのウィンドウ（2 枚目のモニタ）        | スクリーナーの条件を選ぶ（Insert）             |
+| ![Pane type](docs/screenshots/widget.png)   | ![Triple](docs/screenshots/triple.png)         |
+| ペインの種類を変える（Ctrl+Shift+N）        | トリプル（日足・週足・月足と銘柄情報）         |
 
 ![Multiple monitors](docs/screenshots/multi.png)
 
@@ -102,6 +105,7 @@
 | お気に入り / リストに追加                    | Ctrl+D / Ctrl+Shift+A                        |
 | 日足 / 週足 / 月足・チャートの指標           | D / W / M・I                                 |
 | 列の選択（一覧）                             | Ctrl+Shift+C                                 |
+| ペインの種類を変える                         | Ctrl+Shift+N                                 |
 | チャート / グリッドのタイルの銘柄を変える    | C                                            |
 | データの更新                                 | F5                                           |
 | アラートを作る / 一覧と履歴                  | Ctrl+Alt+A / Ctrl+Alt+L                      |
@@ -155,15 +159,16 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 - **Universe**: TSE Prime and J-REITs are fetched automatically. Standard, Growth, ETFs and others can be added from the command bar or a watchlist, and symbols in your watchlists and holdings are fetched too. Five-character codes for preferred and class shares (e.g. 94345) are supported.
 - **Charts**: daily / weekly / monthly, candles / bars / line, configurable moving averages, volume, Bollinger Bands, Ichimoku, RSI, MACD, stochastics, dividend and split markers, comparison (%), log scale, split-adjusted / unadjusted / total-return prices, keyboard crosshair, and a multi-timeframe pane.
 - **Chart grid**: 2×2 up to 6×5 tiles; switch timeframe, period, sort order and compare mode (rebased to 100%) for all tiles at once. Mark candidates and send them to a watchlist. Replace a tile's symbol with C.
-- **Screener**: 58 fields, including yield, payout, dividend streaks and growth, record month, P/E, P/B, ROE, EPS, BPS, market cap, turnover, minimum investment, returns (year-to-date and total return too), MA deviation, position against the 52-week and year-to-date high and low, days since a golden cross, RSI, volatility, beta, max drawdown, days to earnings and to the last cum-rights day, portfolio weight, yield on cost, market, TSE 33 sectors, type, favorites and watchlists. Pick fields from a dialog grouped by category, with type-to-filter and ⓘ descriptions. And/or groups, relative conditions, top N, column chooser, CSV. Save screens by name.
+- **Screener**: 58 fields, including yield, payout, dividend streaks and growth, record month, P/E, P/B, ROE, EPS, BPS, market cap, turnover, minimum investment, returns (year-to-date and total return too), MA deviation, position against the 52-week and year-to-date high and low, days since a golden cross, RSI, volatility, beta, max drawdown, days to earnings and to the last cum-rights day, portfolio weight, yield on cost, market, TSE 33 sectors, type, favorites and watchlists. Pick fields from a dialog grouped by category, with type-to-filter and ⓘ descriptions. And/or groups, relative conditions, top N, column chooser, CSV. Save screens by name. All fields are listed in [docs/screener-fields.md](docs/screener-fields.md).
   Minimum investment is the close × 100 shares for stocks and × 1 unit for J-REITs. It is not shown for ETFs, ETNs and others, whose trading unit is unknown.
+- **Symbol info**: price and its place in the 52-week range, deviation from moving averages, key figures (yield, P/E, P/B, market cap, turnover, minimum investment), days to earnings and to the last cum-rights day, dividend history (per year or per payout, 5-year growth, growth and no-cut streaks), the 5-year yield range, returns (price and total return) and max drawdown, and your P/L and yield on cost if you hold it.
 - **Watchlists**: multiple lists, favorites (★), sorting, duplicate, multi-select, columns, CSV export and code-list import, JSON export/import.
 - **Portfolio**: add, edit or remove holdings by symbol, account type (NISA growth / tsumitate / old NISA, specified, general), quantity and average cost, or import the Rakuten Securities holdings CSV (domestic stocks; the import replaces the holdings). See value, P/L, day change, expected annual dividends and yield on cost by account and in total; JSON export/import ([format](docs/holdings-format.md)).
 - **Alerts**: put conditions on a symbol (close ≤ 17,500, trailing yield ≥ 5%, close ≤ 75-day MA, P/L of a holding and so on; up to three, all must hold), or get notified of symbols that newly match a saved screen. Alerts are evaluated when a fetch job ends and shown as a toast, a Windows notification and a badge on the bell. Price thresholds are converted across stock splits, and drawn as dashed lines on charts. Create with Ctrl+Alt+A; open the list and history with Ctrl+Alt+L. Nothing is sent outside the app (no e-mail).
 - **Market**: sector heatmap, rankings and index mini-charts.
-- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, eight presets (Market, Screener, Grid, MTF, Triple, Income, Holdings and Free, where each unlinked chart keeps its own symbol), named layouts, size reset. Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
+- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, eight presets (Market, Screener, Grid, MTF, Triple, Income, Holdings and Free, where each unlinked chart keeps its own symbol), named layouts, size reset, and resetting the layout of this tab or all tabs. Change a pane into another kind with Ctrl+Shift+N (e.g. a chart into a screener or symbol info). Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
 - **Multiple monitors**: open up to three tabless Free windows with Ctrl+Alt+N or the title-bar button (chart grid, four charts, or MTF + symbol info) to line up charts on a second monitor. Drag symbols from the main window's lists or send them with Ctrl+Alt+Enter; linked charts follow the symbol picked in the main window. Layout, position and text size are remembered per window and reopened at the next start.
-- **Dividend calendar**, symbol info, fetch jobs with progress and pause.
+- **Dividend calendar**, fetch jobs with progress and pause.
 - **Japanese / English** UI, dark / light themes, candle colors (Japanese or Western) and remappable keys.
 - **Daily update** after the close: quotes are fetched in bulk instead of per symbol, and daily bars are fetched only for suspected splits, missed days and a rotating check. Symbols in your watchlists and holdings are updated first, and one final pass re-fetches anything missed.
 - New-version notice, database backup, daily-bar CSV export.
