@@ -24,6 +24,8 @@ export interface WindowStateV2 {
   open: string[]
   /** スロットごとの表示倍率（このウィンドウの文字の大きさ、R2） */
   zoom?: Record<string, number>
+  /** 通知領域にしまったときの案内（Windows の通知）を出した（FR-BG2。一度だけ出す） */
+  trayHint?: boolean
 }
 
 /** ディスプレイの組み合わせの印（並び順に依らない） */
@@ -84,6 +86,7 @@ export function parseState(raw: unknown, displays: DisplayLike[]): WindowStateV2
       topo: o.topo as WindowStateV2['topo'],
       open: Array.isArray(o.open) ? (o.open as unknown[]).filter((x): x is string => typeof x === 'string' && /^free[2-4]$/.test(x)) : [],
       ...(o.zoom && typeof o.zoom === 'object' ? { zoom: o.zoom as Record<string, number> } : {}),
+      ...(o.trayHint === true ? { trayHint: true } : {}),
     }
   }
   if (typeof o.width === 'number' && typeof o.height === 'number') {

@@ -1,6 +1,7 @@
 <script lang="ts">
 // 設定（Ctrl+,）: 一般・表示・チャート（FR-C12）・データ（FR-S5〜S9, FR-D6）・キー・このアプリについて。↑↓ で項目、Tab で中へ。
 import { LWC_NOTICE, TRADINGVIEW_URL } from '@shared/attribution'
+import { type LoginState, loginView } from '@shared/background'
 import { CODE_RE } from '@shared/code'
 import { targetsFromInputs, targetTexts, YIELD_TARGETS_UI } from '@shared/yieldLines'
 import { onMount } from 'svelte'
@@ -26,6 +27,23 @@ function navKey(e: KeyboardEvent) {
   const i = TABS.indexOf(cur as (typeof TABS)[number])
   cur = TABS[(i + (e.key === 'ArrowDown' ? 1 : -1) + TABS.length) % TABS.length]!
   queueMicrotask(() => nav?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus())
+}
+// サインイン時の起動（FR-BG6・BG7）: 正は Windows の登録なので、開くたびに main に聞く
+let login = $state<LoginState | null>(null)
+const bgView = $derived(loginView(login, { readOnly: app.readOnly }))
+void window.elecxstock
+  .loginItem()
+  .then((s) => {
+    if (s) login = s
+  })
+  .catch(() => {})
+function setLogin(on: boolean, hidden: boolean) {
+  void window.elecxstock
+    .setLoginItem(on, hidden)
+    .then((s) => {
+      if (s) login = s
+    })
+    .catch(() => {})
 }
 // 目標利回り（FR-C12）: 欄は打った順のまま。Enter か Tab（欄を離れたとき）で保存し、読めない欄は空に戻して知らせる
 let yt = $state(targetTexts(app.settings.yieldTargets))
@@ -133,6 +151,19 @@ async function importJpx() {
       <div class="field">
         <span>{t('set.alertNotify')}</span>
         <span class="row"><button type="button" class="toggle" class:on={app.settings.alertNotify} aria-label={t('set.alertNotify')} onclick={() => saveSettings({ alertNotify: !app.settings.alertNotify })}><span class="box"></span></button></span>
+      </div>
+      <!-- 常駐と自動起動（FR-BG1・BG6・BG7）。押せるか・注意は loginView が決める -->
+      <div class="field">
+        <span>{t('set.closeToTray')}</span>
+        <span class="row"><button type="button" class="toggle" class:on={app.settings.closeToTray} aria-pressed={app.settings.closeToTray} aria-label={t('set.closeToTray')} disabled={bgView.closeToTray.disabled} onclick={() => saveSettings({ closeToTray: !app.settings.closeToTray })}><span class="box"></span></button><span class="muted small">{t('set.closeToTrayHint')}</span></span>
+      </div>
+      <div class="field">
+        <span>{t('set.loginStart')}</span>
+        <span class="row"><button type="button" class="toggle" class:on={bgView.login.on} aria-pressed={bgView.login.on} aria-label={t('set.loginStart')} disabled={bgView.login.disabled} onclick={() => setLogin(!bgView.login.on, !!login?.hidden)}><span class="box"></span></button>{#if bgView.login.note}<span class="muted small">{t(bgView.login.note === 'dev' ? 'set.loginStartDev' : 'set.loginStartDisabled')}</span>{/if}</span>
+      </div>
+      <div class="field">
+        <span>{t('set.startHidden')}</span>
+        <span class="row"><button type="button" class="toggle" class:on={bgView.hidden.on} aria-pressed={bgView.hidden.on} aria-label={t('set.startHidden')} disabled={bgView.hidden.disabled} onclick={() => setLogin(true, !bgView.hidden.on)}><span class="box"></span></button><span class="muted small">{t('set.startHiddenHint')}</span></span>
       </div>
       <div class="field">
         <span>{t('set.checkUpdates')}</span>

@@ -10,6 +10,8 @@ files:
   - out/**
   - "!out/THIRD_PARTY_NOTICES.txt"
   - build/icon.png
+  # 通知領域のアイコン（16px を含む。FR-BG5）
+  - build/icon.ico
   - package.json
 # 同梱 OSS の一覧とアプリのライセンスを、実行ファイルの横に置く（§10）
 extraFiles:

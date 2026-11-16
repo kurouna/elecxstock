@@ -74,6 +74,26 @@ export interface LaunchOpts {
   user?: Partial<Record<UserFile, unknown>>
   /** 窓の大きさ（既定 1600×960） */
   viewport?: { width: number; height: number } | null
+  /** アプリへの引数（--hidden など） */
+  args?: string[]
+  /** 足す環境変数（ELECXSTOCK_BACKGROUND_STUB など） */
+  env?: Record<string, string>
+  /** 窓を出さずに起動する（--hidden）。窓が見えるのを待たない */
+  hidden?: boolean
+}
+
+/** テストの起動の環境変数: 外の ELECXSTOCK_* は落とし、スタブのプロバイダ・基準日時・userData を付ける（二度目の起動も同じものを使う） */
+export function launchEnv(userData: string, extra: Record<string, string> = {}, now: string = TEST_NOW): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(process.env)) if (v != null && !k.startsWith('ELECXSTOCK_')) env[k] = v
+  return {
+    ...env,
+    ELECXSTOCK_PROVIDER: 'stub',
+    ELECXSTOCK_NOW: now,
+    ELECXSTOCK_USER_DATA: userData,
+    ELECXSTOCK_DEVTOOLS: '1',
+    ...extra,
+  }
 }
 
 export interface Launched {
@@ -111,20 +131,13 @@ export async function launch(opts: LaunchOpts = {}): Promise<Launched> {
     writeUser(userData, 'layout', doc)
   }
   for (const [name, data] of Object.entries(opts.user ?? {})) writeUser(userData, name as UserFile, data)
-  const env: Record<string, string> = {}
-  for (const [k, v] of Object.entries(process.env)) if (v != null && !k.startsWith('ELECXSTOCK_')) env[k] = v
   const app = await electron.launch({
-    args: [...CHROMIUM_ARGS, '.'],
+    args: [...CHROMIUM_ARGS, '.', ...(opts.args ?? [])],
     cwd: ROOT,
-    env: {
-      ...env,
-      ELECXSTOCK_PROVIDER: 'stub',
-      ELECXSTOCK_NOW: opts.now ?? TEST_NOW,
-      ELECXSTOCK_USER_DATA: userData,
-      ELECXSTOCK_DEVTOOLS: '1',
-    },
+    env: launchEnv(userData, opts.env, opts.now),
   })
   const page = await app.firstWindow()
+  if (opts.hidden) return { app, page, userData }
   if (opts.viewport !== null) await page.setViewportSize(opts.viewport ?? { width: 1600, height: 960 }).catch(() => {})
   // マウスを窓の左上の角に置く。CI のマシンでは実際のカーソルが窓の上にあることがあり、チャートに十字線が出たり、
   // 資産推移の十字線の日がカーソルの位置に変わったりして、キーだけの操作の結果がずれる（CI は実際のカーソルも窓の外へ動かす。ci.yml）。

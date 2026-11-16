@@ -3,10 +3,22 @@
 // 窓ごとに Core へのポートを渡し、位置はディスプレイの組み合わせごとに覚える（placement.ts）。
 // テストの時刻（スタブのときだけ）を最初にそろえる。Core は環境変数で、renderer は preload への引数で同じずれにする
 import './clock-init'
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { launchAction, savedBackground, secondInstance, startHiddenNow } from '@shared/background'
 import { jstNow } from '@shared/calendar'
 import { savedTheme, THEME_COLORS } from '@shared/settings'
 import {
@@ -27,6 +39,7 @@ import {
   type WebContents,
 } from 'electron'
 import { appUserModelId } from './appId'
+import { createBackground } from './background'
 import { clockOffset } from './clock-init'
 import { type DisplayLike, type Placement, parseState, place, remember, type WindowStateV2 } from './placement'
 import { freeShapeArg } from './shapes'
@@ -42,7 +55,11 @@ app.setAppUserModelId(appUserModelId(app.isPackaged))
 // 画面は file:// ではなく独自プロトコルで読み込む（NFR-S3）
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }])
 
-if (!app.requestSingleInstanceLock()) app.quit()
+// 単一起動（FR-BG8）: 何のための起動か（--quit・--hidden）を additionalData で 1 つ目に渡す（second-instance の argv は並びが変わることがある）。
+// 2 つ目と、動いているものが無いときの --quit（インストーラが送る）は、窓も Core も作らずにすぐ終える
+const launch = launchAction(process.argv)
+const primaryInstance = app.requestSingleInstanceLock({ action: launch }) && launch !== 'quit'
+if (!primaryInstance) app.exit(0)
 
 // ---------------------------------------------------------------- log（NFR-O1, Q11）: userData/logs に日付ごと。30 日より古いものは消す
 const logDir = () => join(app.getPath('userData'), 'data', 'logs')
@@ -117,14 +134,25 @@ function loadState(): void {
 function saveState(): void {
   try {
     mkdirSync(app.getPath('userData'), { recursive: true })
-    writeFileSync(stateFile(), JSON.stringify(state))
+    // 一時ファイルに書いてから置き換える（シャットダウンで途中で切れても window.json を壊さない。FR-BG4）
+    const text = JSON.stringify(state)
+    try {
+      writeFileSync(`${stateFile()}.tmp`, text)
+      renameSync(`${stateFile()}.tmp`, stateFile())
+    } catch {
+      // 置き換えに失敗した（ウイルス対策ソフトがつかんでいるなど）ときは、じかに書く
+      writeFileSync(stateFile(), text)
+    }
   } catch {
     /* ignore */
   }
 }
-/** 窓の今の位置を、今のディスプレイの組み合わせの記録として残す */
+/**
+ * 窓の今の位置を、今のディスプレイの組み合わせの記録として残す。通知領域にしまうために隠した窓（隠して起動した窓を含む）は記録しない:
+ * 最大化などの値が当てにならず、しまうときに記録した値が正しい（FR-BG4）。最小化した窓は記録する（isVisible() は偽になるので使わない）
+ */
 function rememberWin(slot: Slot, w: BrowserWindow): void {
-  if (w.isDestroyed()) return
+  if (w.isDestroyed() || background.hidden(slot)) return
   const p: Placement = { bounds: w.getNormalBounds(), maximized: w.isMaximized(), fullScreen: w.isFullScreen() }
   state = remember(state, displays(), slot, p)
 }
@@ -209,15 +237,59 @@ const slotOf = (wc: WebContents): Slot | null => {
 const winOf = (e: Electron.IpcMainInvokeEvent): BrowserWindow | null => BrowserWindow.fromWebContents(e.sender)
 
 /** 保存した設定のテーマ（窓を作る前に読む。起動の最初からその色で出す。NFR-Q3） */
-function startTheme(): keyof typeof THEME_COLORS {
+/** 保存した設定のファイル（Core が一時ファイルから置き換えて書くので、書きかけは読まない）。無ければ null */
+function settingsText(): string | null {
   try {
-    return savedTheme(readFileSync(join(app.getPath('userData'), 'data', 'user', 'settings.json'), 'utf8'))
+    return readFileSync(join(app.getPath('userData'), 'data', 'user', 'settings.json'), 'utf8')
   } catch {
-    return savedTheme(null)
+    return null
   }
 }
+function startTheme(): keyof typeof THEME_COLORS {
+  return savedTheme(settingsText())
+}
 
-async function createWindow(slot: Slot, shape?: string): Promise<void> {
+// ---------------------------------------------------------------- 常駐と自動起動（docs/design-background.md）
+const background = createBackground({
+  windows: () => [...wins].map(([slot, w]) => ({ slot, win: w.win })),
+  remember: (slot, win) => rememberWin(slot as Slot, win),
+  saveState,
+  flush: () => void flushWindows(),
+  settings: () => savedBackground(settingsText()),
+  quitting: () => quitting,
+  hintShown: () => !!state.trayHint,
+  markHint: () => {
+    state = { ...state, trayHint: true }
+    saveState()
+  },
+  openSettings: () => {
+    const w = wins.get('main')?.win
+    if (w && !w.isDestroyed()) w.webContents.send('app:openSettings')
+  },
+  quit: () => requestQuit(),
+  icon: join(here, '../../build/icon.ico'),
+})
+/** Windows のシャットダウン・サインアウト: before-quit が来ないので、位置を書き、Core に止めるよう頼む（待てない。窓の数だけ来るので 1 回だけ） */
+let sessionEnded = false
+let sessionFlushed = false
+function onQuerySessionEnd(): void {
+  if (sessionFlushed) return
+  sessionFlushed = true
+  void flushWindows()
+}
+function onSessionEnd(): void {
+  if (sessionEnded) return
+  sessionEnded = true
+  // 終了の途中なら、開いていたフリー N は before-quit が記録済み（閉じかけの窓を外さない）
+  if (!quitting) state = { ...state, open: FREE_SLOTS.filter((s) => wins.has(s)) }
+  quitting = true
+  for (const [s, w] of wins) rememberWin(s, w.win)
+  saveState()
+  core?.postMessage({ type: 'shutdown' })
+}
+
+/** hidden: サインインで隠して起動した（FR-BG7）。窓を出さず、最大化・全画面は出すときに当てる（maximize() は隠れた窓も出してしまう） */
+async function createWindow(slot: Slot, shape?: string, hidden = false): Promise<void> {
   const free = slot !== 'main'
   const theme = startTheme()
   const colors = THEME_COLORS[theme]
@@ -254,17 +326,28 @@ async function createWindow(slot: Slot, shape?: string): Promise<void> {
   if (free) lastFree = slot
   // 倍率の違うモニタでは、作るときの大きさが崩れることがある: 位置を決めてから大きさをもう一度当てる（§5）
   win.setBounds(p.bounds)
-  if (p.maximized) win.maximize()
-  if (p.fullScreen) win.setFullScreen(true)
-  win.once('ready-to-show', () => win.show())
+  background.attach(slot, win, hidden ? { maximized: p.maximized, fullScreen: p.fullScreen } : undefined)
+  if (!hidden) {
+    if (p.maximized) win.maximize()
+    if (p.fullScreen) win.setFullScreen(true)
+    win.once('ready-to-show', () => win.show())
+  }
   win.on('focus', () => {
     activeSlot = slot
     if (free) lastFree = slot
   })
-  win.on('close', () => {
+  win.on('close', (e) => {
+    // 閉じても通知領域に残す設定なら、閉じずにすべての窓をしまう（FR-BG1・BG2。位置はしまうときに記録する）
+    if (background.closing(slot)) {
+      e.preventDefault()
+      return
+    }
     rememberWin(slot, win)
     saveState()
   })
+  // Windows のシャットダウン・サインアウト（FR-BG4）: 止めずに保存の流し込みを始め、終わるときに位置を書いて Core に止めるよう頼む
+  win.on('query-session-end', onQuerySessionEnd)
+  win.on('session-end', onSessionEnd)
   win.on('closed', () => {
     wins.delete(slot)
     pendingSend.delete(slot)
@@ -460,11 +543,10 @@ ipcMain.handle('app:notify', (e, title: unknown, body: unknown) => {
   n.on('close', () => notes.delete(n))
   n.on('click', () => {
     notes.delete(n)
+    // しまっている窓も出す（FR-AL5・FR-BG3）
     const w = wins.get('main')?.win
     if (!w || w.isDestroyed()) return
-    if (w.isMinimized()) w.restore()
-    w.show()
-    w.focus()
+    background.reveal()
     w.webContents.send('alerts:open')
   })
   n.show()
@@ -515,9 +597,16 @@ ipcMain.handle('win:zoom', (e, step: unknown) => {
 })
 /** アプリを終える（Ctrl+Shift+Q。どの窓から押しても全部を閉じる） */
 ipcMain.handle('app:quit', (e) => {
-  if (fromApp(e)) app.quit()
+  if (fromApp(e)) requestQuit()
   return true
 })
+/**
+ * 利用者・インストーラが頼んだ終了（Ctrl+Shift+Q・トレイの「終了」・二度目の起動の --quit）。終了の途中なら何もしない:
+ * もう一度 app.quit() を呼ぶと、before-quit が保存の流し込みを待たずに Core の停止へ進む（FR-BG4）
+ */
+function requestQuit(): void {
+  if (!quitting) app.quit()
+}
 // ---------------------------------------------------------------- bus（R3: ウィンドウをまたぐリンク）
 // 番号を付けて送り元以外の窓へ配り、最後の値を覚えて、あとから開いた窓・読み込み直した窓に渡す
 let busSeq = 0
@@ -559,18 +648,25 @@ ipcMain.handle('win:ready', (e) => {
   return list
 })
 
+// ---------------------------------------------------------------- サインイン時の起動（FR-BG6・BG7。正は Windows の登録で、毎回読み直す）
+ipcMain.handle('app:loginItem', (e) => (fromApp(e) ? background.loginItem() : null))
+ipcMain.handle('app:setLoginItem', (e, on: unknown, hidden: unknown) => {
+  if (!fromApp(e) || typeof on !== 'boolean' || typeof hidden !== 'boolean') return null
+  return background.setLoginItem(on, hidden)
+})
+
 // ---------------------------------------------------------------- app
-app.on('second-instance', () => {
-  const w = wins.get('main')?.win
-  if (w) {
-    if (w.isMinimized()) w.restore()
-    w.focus()
-  }
+// 二度目の起動（FR-BG8）: --quit は保存を終えて終わる・--hidden（サインイン時の起動）は何もしない・それ以外はしまった窓も出して前に出す
+app.on('second-instance', (_e, _argv, _cwd, data) => {
+  const a = secondInstance(data, quitting)
+  if (a === 'quit') requestQuit()
+  else if (a === 'reveal') background.reveal()
 })
 app.on('web-contents-created', (_e, wc) => {
   wc.on('will-attach-webview', (ev) => ev.preventDefault())
 })
-app.whenReady().then(async () => {
+if (primaryInstance) app.whenReady().then(start)
+async function start(): Promise<void> {
   Menu.setApplicationMenu(null)
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false)) // 権限の要求はすべて拒否
   session.defaultSession.setPermissionCheckHandler(() => false)
@@ -579,9 +675,12 @@ app.whenReady().then(async () => {
   log(`start ${__APP_VERSION__} ${process.platform} electron ${process.versions.electron}`)
   loadState()
   startCore()
-  await createWindow('main')
+  // サインインで「通知領域に入れておく」起動（FR-BG7）: 初回が済んでいれば窓を出さずにトレイだけ出す
+  const hidden = startHiddenNow(launch, savedBackground(settingsText()))
+  if (hidden) background.putAway(false)
+  await createWindow('main', undefined, hidden)
   // 前回の終了時に開いていたフリー N を開き直す
-  for (const s of state.open) if (isSlot(s) && s !== 'main') await createWindow(s)
+  for (const s of state.open) if (isSlot(s) && s !== 'main') await createWindow(s, undefined, background.stowed())
   // ディスプレイが外れたら、その画面にあった窓は全画面を解いて主ディスプレイへ（この位置は記録しない）
   screen.on('display-removed', () => {
     for (const w of wins.values()) {
@@ -595,7 +694,7 @@ app.whenReady().then(async () => {
       }
     }
   })
-})
+}
 // 閉じるとき: 開いている窓の位置を残し、Core に止めるよう頼み、取得中の項目を止めて DB を閉じるのを待つ（続きは次の起動で再開。FR-F1）。
 // 応答が無ければ 4 秒で強制終了する（項目の書き込みはトランザクションなので、途中で切っても半端な状態は残らない）
 let coreStopped = false

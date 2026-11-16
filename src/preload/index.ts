@@ -1,6 +1,7 @@
 // preload: renderer に出すのは window.elecxstock だけ（NFR-A2）。Core とは main から受け取った MessagePort で話す。
 
 import type { CoreError, EventName, Events, Method, Params, Results } from '@shared/api'
+import type { LoginState } from '@shared/background'
 import type { ElecxstockBridge } from '@shared/bridge'
 import { contextBridge, ipcRenderer } from 'electron'
 
@@ -100,6 +101,13 @@ const api: ElecxstockBridge = {
     const f = () => cb()
     ipcRenderer.on('alerts:open', f)
     return () => void ipcRenderer.off('alerts:open', f)
+  },
+  loginItem: () => ipcRenderer.invoke('app:loginItem') as Promise<LoginState | null>,
+  setLoginItem: (on: boolean, hidden: boolean) => ipcRenderer.invoke('app:setLoginItem', on, hidden) as Promise<LoginState | null>,
+  onOpenSettings: (cb: () => void) => {
+    const f = () => cb()
+    ipcRenderer.on('app:openSettings', f)
+    return () => void ipcRenderer.off('app:openSettings', f)
   },
   platform: process.platform,
   // 起動の最初のテーマ（main が保存した設定から読んで渡す。renderer が最初に描く前に当てる）

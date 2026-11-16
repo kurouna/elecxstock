@@ -1,4 +1,5 @@
 import type { EventName, Events, Method, Params, Results } from './api'
+import type { LoginState } from './background'
 
 /** preload が renderer に出す唯一の口（window.elecxstock。NFR-A2） */
 export interface ElecxstockBridge {
@@ -46,5 +47,12 @@ export interface ElecxstockBridge {
   /** Windows の通知を出す（アラート。FR-AL5。1 枚目だけ）。押されたら 1 枚目を前に出して onAlertsOpen を呼ぶ */
   notify(title: string, body: string): Promise<boolean>
   onAlertsOpen(cb: () => void): () => void
+  // ---- 常駐と自動起動（docs/design-background.md）
+  /** サインイン時の起動の状態（正は Windows の登録。毎回読む） */
+  loginItem(): Promise<LoginState | null>
+  /** サインイン時の起動を登録・解除する（hidden は通知領域に入れておく）。登録したあとの状態を返す */
+  setLoginItem(on: boolean, hidden: boolean): Promise<LoginState | null>
+  /** トレイのメニューの「設定」（1 枚目に届く） */
+  onOpenSettings(cb: () => void): () => void
   platform: string
 }

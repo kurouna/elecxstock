@@ -111,6 +111,8 @@ export const settingsSchema = z.object({
   yieldTargets: z.array(z.number().min(0.1).max(30)).max(20),
   /** チャートの画像の保存（FR-C11。既定 OFF のオプトイン） */
   chartSave: z.boolean(),
+  /** 閉じても通知領域に残す（FR-BG1） */
+  closeToTray: z.boolean(),
   keymap: z.record(z.string().max(40), z.string().max(40)),
   recentFields: z.array(z.string().max(40)).max(12),
   maPeriods: z.object({ D: periods, W: periods, M: periods }),

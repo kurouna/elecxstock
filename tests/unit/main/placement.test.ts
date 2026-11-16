@@ -46,4 +46,9 @@ describe('placement', () => {
     expect(parseState('x', docked)).toEqual({ version: 2, topo: {}, open: [] })
     expect(parseState({ version: 2, topo: {}, open: ['free2', 'evil', 'free9'] }, docked).open).toEqual(['free2'])
   })
+  it('通知領域の案内を出したか（trayHint。FR-BG2）を残す。真でない値は落とす', () => {
+    expect(parseState({ version: 2, topo: {}, open: [], trayHint: true }, docked).trayHint).toBe(true)
+    expect(parseState({ version: 2, topo: {}, open: [], trayHint: 'yes' }, docked)).toEqual({ version: 2, topo: {}, open: [] })
+    expect(parseState({ version: 2, topo: {}, open: [] }, docked)).not.toHaveProperty('trayHint')
+  })
 })

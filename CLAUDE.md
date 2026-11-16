@@ -8,7 +8,7 @@ elecxstock は、日本株と J-REIT のデータを手元の PC に取り込み
 - 要求仕様: [docs/requirements.md](docs/requirements.md)（要求は `FR-` / `NFR-` の ID で参照する。P1 / P2 / P3）
 - 設計判断と実測値: [docs/decisions.md](docs/decisions.md)
 - 画面のモック: [docs/mock/](docs/mock/README.md)
-- P3 の設計: [docs/design-p3.md](docs/design-p3.md)・アラート: [docs/design-alerts.md](docs/design-alerts.md)・ポートフォリオ: [docs/design-portfolio.md](docs/design-portfolio.md)・マルチモニタ: [docs/design-multimonitor.md](docs/design-multimonitor.md)・マイレイアウト: [docs/design-mylayouts.md](docs/design-mylayouts.md)
+- P3 の設計: [docs/design-p3.md](docs/design-p3.md)・アラート: [docs/design-alerts.md](docs/design-alerts.md)・ポートフォリオ: [docs/design-portfolio.md](docs/design-portfolio.md)・マルチモニタ: [docs/design-multimonitor.md](docs/design-multimonitor.md)・マイレイアウト: [docs/design-mylayouts.md](docs/design-mylayouts.md)・常駐と自動起動: [docs/design-background.md](docs/design-background.md)
 - 保有の JSON の形式: [docs/holdings-format.md](docs/holdings-format.md)
 - **テストの作り（層・部品・きまり・手順）: [docs/testing.md](docs/testing.md)**（計画と経緯: [docs/test-plan.md](docs/test-plan.md)）
 
@@ -36,6 +36,7 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 
 開発中にネットワークを使わずに動かすときは `ELECXSTOCK_PROVIDER=stub`（架空の値）、データの置き場所を分けるときは
 `ELECXSTOCK_USER_DATA=<フォルダ>` を付ける。時刻を固定するときは `ELECXSTOCK_NOW=2026-11-13T18:00:00+09:00`（スタブのときだけ効く。テストの基準日時）。
+サインイン時の起動は開発版では登録されない（electron.exe を登録してしまうため）。確かめるときは `npm run package` の `release/win-unpacked/elecxstock.exe` を使う（`--hidden`・`--quit` も付けられる）。
 
 ## 構成
 
@@ -44,7 +45,7 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 | `src/core/`                                   | Core。Electron の utilityProcess で動く純 TS（**`electron` を import しない**。NFR-A1、Biome で禁止）。SQLite（`node:sqlite`）・取得ジョブ・指標・スクリーナー・利用者データ・保有（`holdings.ts`）・アラート（`alerts.ts`）・資産推移の記録（`folio.ts`） |
 | `src/core/providers/`                         | データ源。`yahoo.ts`（yahoo-finance2）・`jpx.ts`（上場銘柄一覧の xlsx）・`stub.ts`（テスト用）                                                                                                                                                             |
 | `src/shared/`                                 | 全プロセス共通の型・API の契約（`api.ts`: メソッド名と zod スキーマ）・指標の登録表（`fields.ts`）・営業日（`calendar.ts`）                                                                                                                                |
-| `src/main/index.ts`                           | 薄い main。ウィンドウ（1 枚目 + フリー 2〜4）・安全策・Core の起動と、renderer と Core を窓ごとの MessagePort でつなぐ。窓をまたぐリンクのバス。位置の計算は `placement.ts`（純関数）                                                                      |
+| `src/main/index.ts`                           | 薄い main。ウィンドウ（1 枚目 + フリー 2〜4）・安全策・Core の起動と、renderer と Core を窓ごとの MessagePort でつなぐ。窓をまたぐリンクのバス。位置の計算は `placement.ts`（純関数）。常駐（通知領域）・サインイン時の起動は `background.ts`              |
 | `src/preload/index.ts`                        | `window.elecxstock` だけを出す                                                                                                                                                                                                                             |
 | `src/renderer/`                               | Svelte 5 の画面。`stores/`（状態・レイアウト）、`lib/commands.ts`（アクションとキー操作）、`lib/columns.ts`（一覧の列）、`lib/chartMenu.ts`・`lib/indicators.ts`（チャート）、`components/widgets/`（ペイン）                                              |
 | `tests/unit` / `tests/e2e` / `tests/contract` | Vitest / Playwright（`_electron`）/ 実プロバイダ                                                                                                                                                                                                           |
@@ -107,6 +108,11 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
   （★・◆は Core の `watchlists.toggleItem`、アラートは新しく作ることだけ `alerts.save`）。Core は利用者のデータを変えたら `user.changed` を全窓に配るので、利用者のデータを書く
   メソッドを足したら `src/core/changes.ts` の `CHANGES` にも足す。フリー N のレイアウトは `user.saveWindowLayout` で自分の分だけ保存する。
   フリー N で使えない操作を足したら `blockedInFree` に足す。
+- **常駐と自動起動**（[docs/design-background.md](docs/design-background.md)）: 判断は `src/shared/background.ts` の純粋な関数、実行（窓の出し入れ・トレイ・
+  サインイン時の起動）は `src/main/background.ts`。main は `closeToTray` を settings.json から判断のたびに読む（renderer から設定を送らない）。サインイン時の起動と
+  「通知領域に入れておく」は settings.json に持たず、Windows の Run キーが正。**窓を戻す処理は `background.reveal()` だけを通す**（トレイ・二度目の起動・通知のクリック）。
+  隠れている窓の位置は記録しない（`rememberWin`）。窓を前に出す経路や、終了の流れ（`before-quit`）を足したら、しまっている窓と `quitting` を考える。
+  E2E は `ELECXSTOCK_BACKGROUND_STUB=1`（`globalThis.__elecxstockBackground`）で、実際のタスクバー・レジストリに触れない。
 - **elecxstock-cli**（[kurouna/elecxstock-cli](https://github.com/kurouna/elecxstock-cli)。このアプリのデータをターミナルで読むだけの CUI）は、
   このリポジトリをサブモジュールとしてタグに固定して使う。次を変えたら、elecxstock-cli も直す必要が出ることがある（リリースのノートに書き、
   elecxstock-cli 側でサブモジュールのタグと `DB_VERSION` を上げて突き合わせのテストを通す）:

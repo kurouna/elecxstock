@@ -4,7 +4,7 @@ import type { InstrumentId } from '@shared/types'
 import { onMount } from 'svelte'
 import { loadAlerts, notifyFired, toggleAlerts } from '../lib/alerts'
 import { clearBars } from '../lib/barsCache'
-import { checkUpdate, handleKey, sendSymbol, startUpdate } from '../lib/commands'
+import { checkUpdate, handleKey, runAction, sendSymbol, startUpdate } from '../lib/commands'
 import { noticeFreeOpened } from '../lib/pages'
 import { loadHoldings } from '../lib/portfolio'
 import { IS_FREE, SHAPE, SLOT } from '../lib/windowSlot'
@@ -136,6 +136,8 @@ onMount(() => {
     window.elecxstock.onBus((m) => onBus(m)),
     // Windows の通知を押した（1 枚目を前に出して、アラートの履歴を開く。FR-AL5）
     window.elecxstock.onAlertsOpen(() => toggleAlerts('history')),
+    // トレイのメニューの「設定」（FR-BG5。1 枚目だけに届く）。Ctrl+, と同じアクションを通す
+    window.elecxstock.onOpenSettings(() => runAction('settings')),
     window.elecxstock.onReceive((ids) => {
       if (!app.ready) return
       for (const id of ids) sendSymbol(id)

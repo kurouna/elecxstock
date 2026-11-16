@@ -58,6 +58,7 @@
 - **配当カレンダー**、取得ジョブの進捗と一時停止。
 - **日本語／英語**の表示、ダーク／ライトのテーマ、陽線・陰線の色（日本式／欧米式）、キーの割り当ての変更。
 - **日々の更新**: 大引け後に自動で更新します。銘柄ごとに取らず一括気配でまとめて取り、日足の取得は分割の疑い・取りこぼし・定期の照合に絞ります。ウォッチリストと保有の銘柄を先に更新し、最後に取りこぼしを 1 回だけ確かめます。
+- **常駐と自動起動**（どれも既定でオフ）: 閉じても通知領域で動かし続け、窓を出していなくても自動の更新とアラートを続けます。Windows へのサインインで起動し、窓を出さずに通知領域に入れておくこともできます。終了は Ctrl+Shift+Q か、通知領域のアイコンのメニューから。
 - 新しい版の通知、市場データの DB のバックアップ、日足の CSV 書き出し。
 
 |                                             |                                                        |
@@ -187,6 +188,7 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 - **Dividend calendar**, fetch jobs with progress and pause.
 - **Japanese / English** UI, dark / light themes, candle colors (Japanese or Western) and remappable keys.
 - **Daily update** after the close: quotes are fetched in bulk instead of per symbol, and daily bars are fetched only for suspected splits, missed days and a rotating check. Symbols in your watchlists and holdings are updated first, and one final pass re-fetches anything missed.
+- **Keep running and start at sign-in** (all off by default): closing the window can keep elecxstock running in the notification area, so automatic updates and alerts go on without a window. It can also start when you sign in to Windows, optionally without showing the window. Quit with Ctrl+Shift+Q or from the icon menu.
 - New-version notice, database backup, daily-bar CSV export.
 
 ![Grid (English)](docs/screenshots/grid-en.png)

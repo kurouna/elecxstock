@@ -392,6 +392,8 @@ export interface Settings {
   yieldTargets: number[]
   /** チャートを画像（PNG）で保存できるようにする（FR-C11。既定 OFF。ON にして初めて見出しのボタン・S キー・「⋯」の項目が出る） */
   chartSave: boolean
+  /** 1 枚目の × で終わらず、すべての窓を隠して通知領域で動き続ける（FR-BG1。docs/design-background.md） */
+  closeToTray: boolean
 }
 
 export type JobKind = 'universe' | 'initial' | 'daily' | 'refetch' | 'monthly' | 'reset' | 'retention'
