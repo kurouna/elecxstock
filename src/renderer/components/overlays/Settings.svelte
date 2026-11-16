@@ -142,7 +142,8 @@ async function importJpx() {
           {#if app.update}<button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(app.update!.url)}>{t('update.available', { v: app.update.version })}</button>{/if}
         </span>
       </div>
-      <!-- 取得対象に足した銘柄の管理（FR-U3 の専用の画面） -->
+      <!-- 取得対象に足した銘柄の管理（FR-U3 の専用の画面）。説明と 1 つのまとまり -->
+      <div class="grp">
       <div class="field top">
         <span>{t('set.userInstruments')}</span>
         <span class="chips">
@@ -153,6 +154,7 @@ async function importJpx() {
         </span>
       </div>
       <p class="muted small">{t('set.userInstrumentsHint')}</p>
+      </div>
     {:else if cur === 'display'}
       <div class="field">
         <span>{t('set.candle')}</span>
@@ -182,6 +184,8 @@ async function importJpx() {
         <span class="row"><button type="button" class="btn" onclick={() => void doResetAllLayouts()}>{t('set.resetAllLayouts')}</button></span>
       </div>
     {:else if cur === 'chart'}
+      <!-- 目標利回りの線（ON/OFF・説明・目標・説明）で 1 つのまとまり -->
+      <div class="grp">
       <div class="field">
         <span>{t('set.yieldLine')}</span>
         <span class="row"><button type="button" class="toggle" class:on={app.settings.yieldLine} aria-pressed={app.settings.yieldLine} aria-label={t('set.yieldLine')} onclick={() => saveSettings({ yieldLine: !app.settings.yieldLine })}><span class="box"></span></button></span>
@@ -196,11 +200,14 @@ async function importJpx() {
         </span>
       </div>
       <p class="muted small">{t('set.yieldTargetsHint', { n: YIELD_TARGETS_UI })}</p>
+      </div>
+      <div class="grp">
       <div class="field">
         <span>{t('set.chartSave')}</span>
         <span class="row"><button type="button" class="toggle" class:on={app.settings.chartSave} aria-pressed={app.settings.chartSave} aria-label={t('set.chartSave')} onclick={() => saveSettings({ chartSave: !app.settings.chartSave })}><span class="box"></span></button></span>
       </div>
       <p class="muted small">{t('set.chartSaveHint')}</p>
+      </div>
     {:else if cur === 'data'}
       <div class="stat">
         <div><b class="num">{Math.round((app.status?.dbBytes ?? 0) / 1048576).toLocaleString()} MB</b><span>{t('set.dbSize')}</span></div>
@@ -218,10 +225,12 @@ async function importJpx() {
         </span>
       </div>
       <div class="field"><span>{t('set.universe')}</span><span class="num dim">{dateTime(app.status?.universeUpdated)} <button type="button" class="chip" onclick={() => rpc('jobs.start', { kind: 'universe' })}>{t('act.universe')}</button></span></div>
+      <div class="grp">
       <div class="actions left">
         <button type="button" class="btn danger" onclick={reset}>{t('set.reset')}</button>
         <button type="button" class="btn" onclick={importJpx}>{t('set.importJpx')}</button>
       </div>
+      <p class="muted small">{t('set.dataNote')}</p>
       <div class="actions left">
         <button type="button" class="btn" onclick={() => ACTIONS.find((a) => a.id === 'backupDb')?.run()}>{t('act.backupDb')}</button>
         <button type="button" class="btn" onclick={() => window.elecxstock.openLogs()}>{t('act.openLogs')}</button>
@@ -230,7 +239,7 @@ async function importJpx() {
         <button type="button" class="btn" onclick={exportUser}>{t('set.exportUser')}</button>
         <button type="button" class="btn" onclick={importUser}>{t('set.importUser')}</button>
       </div>
-      <p class="muted small">{t('set.dataNote')}</p>
+      </div>
     {:else if cur === 'keys'}
       <KeysSettings />
     {:else}
@@ -253,7 +262,7 @@ async function importJpx() {
         <button type="button" class="link-btn" onclick={async () => (notices = notices ? '' : (await window.elecxstock.notices()) || '—')}>{notices ? t('common.close') : t('set.showNotices')}</button>
       </div>
       {#if notices}<pre class="notices" tabindex="-1">{notices}</pre>{/if}
-      <p class="dim">{t('set.disclaimer')}</p>
+      <div class="grp"><p class="dim">{t('set.disclaimer')}</p></div>
     {/if}
   </div>
 </div>
@@ -316,8 +325,23 @@ async function importJpx() {
     grid-template-columns: 190px 1fr;
     align-items: center;
     min-height: 36px;
-    border-bottom: 1px solid var(--line);
     gap: var(--s-3);
+  }
+  /* 区切りの線: 項目（.field）・まとまり（.grp。項目とその説明）の間にだけ引く。説明の上や、最後の項目の下には引かない */
+  .body > :is(.field, .grp) + :is(.field, .grp) {
+    border-top: 1px solid var(--line);
+  }
+  .grp > p {
+    margin: 0 0 var(--s-2);
+  }
+  /* ボタンの段の説明（データの「全データを削除して取り直す」）はボタンのすぐ下に、詰めすぎずに置く */
+  .grp > .actions + p {
+    margin-top: var(--s-2);
+    margin-bottom: var(--s-3);
+  }
+  /* まとまりが説明から始まるとき（このアプリについての注意書き）は線から離す */
+  .grp > p:first-child {
+    margin-top: var(--s-3);
   }
   .field > span:first-child {
     color: var(--text-2);
