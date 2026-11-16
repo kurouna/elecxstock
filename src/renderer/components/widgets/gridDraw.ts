@@ -2,6 +2,19 @@
 import type { Bars, Timeframe } from '@shared/types'
 import { linesInRange, stackLabels, type YieldLine } from '@shared/yieldLines'
 
+/** 右の目盛りの幅。描画もポインタも canvas の getBoundingClientRect の px（表示倍率が掛かった px）で数える（FR-V10） */
+export const TILE_PAD_R = 48
+/** i 本目の足の真ん中の x（rectW は getBoundingClientRect の幅） */
+export const tileX = (i: number, rectW: number, n: number): number => {
+  const step = (rectW - TILE_PAD_R) / n
+  return i * step + step / 2
+}
+/** ポインタの x（canvas の左端から。getBoundingClientRect の px）にある足。CSS の px に直さない（描画と同じ px で割る） */
+export function tileIndexAt(px: number, rectW: number, n: number): number {
+  if (n < 1) return 0
+  return Math.max(0, Math.min(n - 1, Math.floor((px / Math.max(1, rectW - TILE_PAD_R)) * n)))
+}
+
 export interface TileOpts {
   tf: Timeframe
   scale: 0 | 1 | 2 // 通常・対数・比較%
@@ -27,7 +40,7 @@ export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars |
   g.clearRect(0, 0, r.width, r.height)
   if (!b || b.time.length < 2) return []
   const n = b.time.length
-  const W = r.width - 48
+  const W = r.width - TILE_PAD_R
   const H = r.height
   const top = 6
   const volH = Math.round(H * 0.16)
@@ -56,7 +69,7 @@ export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars |
   const y = (v: number) => top + ((f(hi) - f(val(v))) / (f(hi) - f(lo))) * ph
   const yv = (v: number) => top + ((f(hi) - f(v)) / (f(hi) - f(lo))) * ph
   const step = W / n
-  const x = (i: number) => i * step + step / 2
+  const x = (i: number) => tileX(i, r.width, n)
   g.font = `10px ${css('--mono')}`
   // 目盛り: 対数のときは対数の空間で等分する
   for (let k = 0; k <= 3; k++) {

@@ -34,7 +34,7 @@ import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.sv
 import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import PeriodPicker from '../PeriodPicker.svelte'
-import { drawTile } from './gridDraw'
+import { drawTile, tileIndexAt } from './gridDraw'
 
 let { pane }: { pane: PaneNode } = $props()
 const GRIDS: [number, number][] = [
@@ -512,7 +512,8 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
         const cv = (e.currentTarget as HTMLElement).querySelector('canvas')!
         const rc = cv.getBoundingClientRect()
         if (!b || !b.time.length) return
-        const k = Math.max(0, Math.min(b.time.length - 1, Math.floor(((e.clientX - rc.left) / (rc.width - 48)) * b.time.length)))
+        // 描画（gridDraw）と同じ getBoundingClientRect の px のまま足を選ぶ（CSS の px に直すと倍率でずれる）
+        const k = tileIndexAt(e.clientX - rc.left, rc.width, b.time.length)
         hoverDate = b.time[k]!
       }}
       onmouseleave={() => (hoverDate = null)}
