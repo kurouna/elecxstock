@@ -72,7 +72,6 @@ async function focusPane(widget, n = 0) {
 }
 const board = page.locator('[data-widget="board"]')
 const breadth = page.locator('[data-widget="breadth"]')
-const chart = page.locator('[data-widget="chart"]').first()
 const folio = page.locator('[data-widget="folio"]')
 /** Tab でカードを巡り、name のカードを選ぶ */
 async function cardTo(name) {
