@@ -113,6 +113,10 @@ export interface MetricsRow {
   /** 配当込みの騰落率（チャートの「配当込み」と同じ） */
   tr1y: number | null
   tr3y: number | null
+  /** 最新の足の売買代金（終値 × 出来高）と、52 週の新高値・新安値（1 / 0。FR-BR5） */
+  turnover: number | null
+  newHi52: number | null
+  newLo52: number | null
   /** 次の決算発表・権利付最終日（1970-01-01 からの日数） */
   earningsDay: number | null
   rightsDay: number | null

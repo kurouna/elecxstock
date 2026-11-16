@@ -53,6 +53,9 @@ const MIGRATIONS: string[] = [
   // v5: 権利確定日の日（権利付最終日が過ぎても次を出す）
   `DROP TABLE metrics; ${metricsTable()}
    INSERT INTO meta(key, value) VALUES('metricsStale', '1') ON CONFLICT(key) DO UPDATE SET value = '1';`,
+  // v6: 最新の足の売買代金と 52 週の新高値・新安値（騰落のペイン。FR-BR5）
+  `DROP TABLE metrics; ${metricsTable()}
+   INSERT INTO meta(key, value) VALUES('metricsStale', '1') ON CONFLICT(key) DO UPDATE SET value = '1';`,
 ]
 
 /** metrics 表（FR-S10）。列は登録表の METRIC_COLUMNS から作る。列を足したら MIGRATIONS に作り直しを足す */

@@ -109,6 +109,9 @@ export function computeMetrics(
     retYtd: null,
     tr1y: null,
     tr3y: null,
+    turnover: null,
+    newHi52: null,
+    newLo52: null,
     earningsDay: null,
     rightsDay: null,
     recordDay: null,
@@ -126,6 +129,10 @@ export function computeMetrics(
   const yieldTrailing = longEnough && close > 0 ? (div12 / close) * 100 : null
   const win = bars.slice(-NEED.hi52)
   const hi52 = bars.length >= NEED.hi52 ? Math.max(...win.map((b) => b.h)) : null
+  // 52 週の新高値・新安値（FR-BR5）: 最新の足の高値・安値が、その前の 52 週（NEED.hi52 本）を上回る・下回るか
+  const before = bars.length > NEED.hi52 ? bars.slice(-NEED.hi52 - 1, -1) : null
+  const newHi52 = before ? (last.h > Math.max(...before.map((b) => b.h)) ? 1 : 0) : null
+  const newLo52 = before ? (last.l < Math.min(...before.map((b) => b.l)) ? 1 : 0) : null
   const lo52 = bars.length >= NEED.hi52 ? Math.min(...win.map((b) => b.l)) : null
   const t20 = bars.slice(-NEED.turnover)
   const turnover20 = bars.length >= NEED.turnover ? t20.reduce((s, b) => s + b.c * b.v, 0) / NEED.turnover : null
@@ -162,6 +169,9 @@ export function computeMetrics(
     per,
     pbr,
     turnover20,
+    turnover: last.v > 0 ? close * last.v : null,
+    newHi52,
+    newLo52,
     hi52,
     lo52,
     fromHi52: hi52 ? (close / hi52 - 1) * 100 : null,

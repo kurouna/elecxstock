@@ -18,6 +18,7 @@ export type WidgetId =
   | 'ranking'
   | 'market'
   | 'board'
+  | 'breadth'
   | 'folio'
 export const WIDGETS: WidgetId[] = [
   'chart',
@@ -32,6 +33,7 @@ export const WIDGETS: WidgetId[] = [
   'heatmap',
   'ranking',
   'board',
+  'breadth',
   'market',
   'jobs',
 ]
@@ -162,12 +164,12 @@ export function presetEntry(id: PresetId): LayoutEntry {
       }
     case 'market':
       // §6.4 Market（P2）: 左の列にマーケット一覧（ウォッチリストの代わり。FR-L12, FR-MB5）とランキング（このタブの一覧）、
-      // 右に heatmap・チャート・market-overview
+      // 右に heatmap・チャート、下に market-overview と騰落（FR-BR1）
       return {
         root: R(
           [30, 70],
           C([40, 60], P('board', 1), P('ranking', 1)),
-          C([64, 36], R([60, 40], P('heatmap', 1), P('chart', 1, { tf: 'D' })), P('market', 1)),
+          C([64, 36], R([60, 40], P('heatmap', 1), P('chart', 1, { tf: 'D' })), R([55, 45], P('market', 1), P('breadth', 1))),
         ),
         docks: {},
       }

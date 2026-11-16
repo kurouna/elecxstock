@@ -148,3 +148,40 @@ test.describe('マーケット一覧（FR-MB1, FR-MB2, FR-MB4, FR-MB5）', () =>
     await expect(board.locator('th', { hasText: '▲' })).toHaveCount(1)
   })
 })
+
+test.describe('騰落（FR-BR1, FR-BR2, FR-BR3, FR-BR4）', () => {
+  test('市場と業種別をタブで切り替え、業種の中の銘柄でチャートが追従し、Esc で戻る（キーだけ）', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'market')
+    const br = page.locator('[data-widget="breadth"]')
+    await expect(br).toBeVisible()
+    // 市場: プライムと J-REIT の 2 行。基準日を出す（FR-BR2）
+    await expect(br.getByRole('tab', { selected: true })).toContainText('市場')
+    await expect(br.locator('tbody tr')).toHaveCount(2)
+    await expect(br.locator('tbody tr').first()).toContainText('プライム')
+    await expect(br.locator('.filter')).toContainText('基準日')
+    await focusPane(page, br)
+    // G で業種別へ。既定は 1日（前日比）の高い順（FR-BR3）
+    await keys(page, 'KeyG')
+    await expect(br.getByRole('tab', { selected: true })).toContainText('業種別')
+    await expect.poll(() => br.locator('tbody tr').count()).toBeGreaterThan(3)
+    await expect(br.locator('th', { hasText: '▼' })).toContainText('前日比')
+    // 2 行目の業種の中へ（FR-BR4）
+    await keys(page, 'Home', 'ArrowDown')
+    const sector = (await br.locator('tbody tr.sel').getAttribute('data-key'))!
+    await keys(page, 'Enter')
+    await expect(br).toContainText(`› ${sector}`)
+    const rows = br.locator('tbody tr[data-id]')
+    await expect.poll(() => rows.count()).toBeGreaterThan(0)
+    // ↓ でめくると、同じリンク色のチャートがその銘柄になる
+    await keys(page, 'ArrowDown')
+    const id = (await br.locator('tbody tr.sel').getAttribute('data-id'))!
+    await expect(page.locator('[data-widget="chart"]').first().locator('.sym .code')).toHaveText(id.slice(3))
+    // Esc で戻ると、入った業種の行を選んでいる
+    await keys(page, 'Escape')
+    await expect(br.locator('tbody tr.sel')).toHaveAttribute('data-key', sector)
+    // Ctrl+PageDown で市場へ戻る（タブは 2 つで回る）
+    await keys(page, 'Control+PageDown')
+    await expect(br.getByRole('tab', { selected: true })).toContainText('市場')
+  })
+})

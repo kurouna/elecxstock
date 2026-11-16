@@ -9,7 +9,8 @@ export interface PaneApi {
   receive?: (id: InstrumentId) => boolean
   selected?: () => InstrumentId[]
   /** 一覧のペイン: 今の行と列（CSV の書き出し・取り直しに使う） */
-  columns?: () => { ids: InstrumentId[]; cols: ListCol[]; name: string }
+  /** 一覧の中身（CSV の書き出し・一覧の取り直し）。一覧でない表示のときは null */
+  columns?: () => { ids: InstrumentId[]; cols: ListCol[]; name: string } | null
   /** コマンドバーから呼ぶ、ペインごとの操作（例: 'duplicate'・'columns'）。扱えたら true */
   run?: (action: string) => boolean
 }

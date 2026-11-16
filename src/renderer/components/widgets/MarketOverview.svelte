@@ -37,7 +37,8 @@ function draw() {
       scale: 0,
       ma: true,
       hoverDate: null,
-      fmtPx: (v) => px(v, priceDigits(id)),
+      // 目盛りは 1,000 以上なら整数（日経平均の小数 2 桁で幅を取らない）
+      fmtPx: (v) => px(v, Math.abs(v) >= 1000 ? 0 : priceDigits(id)),
       fmtPct: (v) => sgn(v, 0, '%'),
     })
   }

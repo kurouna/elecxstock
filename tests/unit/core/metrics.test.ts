@@ -138,3 +138,23 @@ describe('直近の日足だけで指標を作る（METRIC_BARS）', () => {
     expect(full.divNoCutYears).not.toBeNull()
   })
 })
+
+describe('最新の足の売買代金と 52 週の新高値・新安値（FR-BR5）', () => {
+  // 評価日を固定: 2026-11-13（値はすべて架空）
+  const base = days('2025-06-02', '2026-11-12', () => 1000)
+  const withLast = (h: number, l: number, v = 2000) => [...base, { d: '2026-11-13', o: 1000, h, l, c: 1000, v }]
+  it('売買代金は終値 × 出来高。出来高 0 は欠損', () => {
+    expect(computeMetrics('JP:1', withLast(1010, 990), [], [], null, '2026-11-13').turnover).toBe(2_000_000)
+    expect(computeMetrics('JP:1', withLast(1010, 990, 0), [], [], null, '2026-11-13').turnover).toBeNull()
+  })
+  it('高値が前の 52 週の高値を上回れば新高値、同じなら新高値ではない', () => {
+    // 前の足の高値はすべて 1010
+    expect(computeMetrics('JP:1', withLast(1011, 990), [], [], null, '2026-11-13')).toMatchObject({ newHi52: 1, newLo52: 0 })
+    expect(computeMetrics('JP:1', withLast(1010, 990), [], [], null, '2026-11-13')).toMatchObject({ newHi52: 0, newLo52: 0 })
+    expect(computeMetrics('JP:1', withLast(1000, 980), [], [], null, '2026-11-13')).toMatchObject({ newHi52: 0, newLo52: 1 })
+  })
+  it('前の 52 週の日足が足りなければ欠損', () => {
+    const short = days('2026-03-02', '2026-11-13', () => 1000)
+    expect(computeMetrics('JP:1', short, [], [], null, '2026-11-13')).toMatchObject({ newHi52: null, newLo52: null })
+  })
+})

@@ -937,5 +937,9 @@ export const METRIC_COLUMNS = [
   'rightsDay',
   /** 権利確定日の日（0 = 月末、1〜31 = その日）。権利付最終日が過ぎたら実行時に次を出す */
   'recordDay',
+  /** 最新の足の売買代金（円）と、52 週の高値・安値を更新したか（1 / 0）。騰落のペインの集計に使う（FR-BR5）。スクリーナーの項目には無い */
+  'turnover',
+  'newHi52',
+  'newLo52',
 ] as const
 export type MetricColumn = (typeof METRIC_COLUMNS)[number]

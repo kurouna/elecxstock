@@ -154,6 +154,8 @@ export const DEFAULT_COLUMNS = {
   screener: ['star', 'code', 'name', 'mkt', 'price.close', 'income.yield', 'value.per', 'value.pbr', 'liq.turnover20', 'ret.1y'],
   /** マーケット一覧（FR-MB2）。★は列の選択で外せないが、一覧のペインが出さない */
   board: ['code', 'name', 'price.close', 'price.chgPct', 'ret.1m', 'ret.ytd', 'tech.fromHi52', 'asOf'],
+  /** 騰落の中の銘柄の一覧（FR-BR4） */
+  breadth: ['star', 'code', 'name', 'price.close', 'price.chgPct', 'ret.1m', 'ret.ytd', 'liq.turnover20'],
 }
 
 /** ペインの状態などに保存した列の ID から、使える列を並べる（知らない ID は捨て、固定の列は必ず先頭に置く） */
