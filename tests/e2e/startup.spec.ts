@@ -3,11 +3,15 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, jobsDone, keys, rpc, test } from './support'
 
-test.describe('初回起動（FR-F1, FR-S1）', () => {
+test.describe('初回起動（FR-F1, FR-S1, FR-FR1）', () => {
   test('空の userData: 同意 → 取得を始める → 初回取得が終わる', async ({ launch }) => {
     const { page } = await launch({ fresh: true })
     const dlg = page.getByRole('dialog', { name: /elecxstock/ })
     await expect(dlg).toBeVisible()
+    // 免責（投資助言ではない・非公式のデータ）を示してから同意を求める（FR-FR1）
+    await expect(dlg).toContainText('投資助言を目的としたものではありません')
+    await expect(dlg).toContainText('Yahoo Finance（非公式）')
+    await expect(dlg.getByRole('button', { name: '同意して次へ' })).toBeVisible()
     await keys(page, 'Enter') // 同意
     await expect(dlg).toContainText('TradingView')
     // Lightweight Charts の NOTICE の 2 行（§10）

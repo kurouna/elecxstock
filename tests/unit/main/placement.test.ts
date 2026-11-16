@@ -12,7 +12,7 @@ const external = d(1920, 0, 2560, 1440)
 const docked = [laptop, external]
 const size = { width: 1280, height: 800 }
 
-describe('placement', () => {
+describe('ウィンドウの位置の記憶と、外れたモニタからの戻し（NFR-Q8）', () => {
   it('組み合わせの印は並び順に依らない', () => {
     expect(topologyOf([laptop, external])).toBe(topologyOf([external, laptop]))
     expect(topologyOf([laptop])).not.toBe(topologyOf(docked))
