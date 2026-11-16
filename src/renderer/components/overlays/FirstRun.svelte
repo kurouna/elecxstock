@@ -1,5 +1,6 @@
 <script lang="ts">
 // 初回起動（§6.13 FR-FR1〜FR4）: 免責の同意 → 取得の確認（対象・保存期間・リクエスト数と時間の見積もり）→ 取得の開始。
+import { LWC_NOTICE, TRADINGVIEW_URL } from '@shared/attribution'
 import { onMount } from 'svelte'
 import { app, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
 
@@ -59,7 +60,10 @@ async function importJpx() {
       <button type="button" class="btn" onclick={later}>{t('first.later')}</button>
       <button type="button" class="btn primary" bind:this={first} onclick={start}>{t('first.start')}</button>
     </div>
-    <p class="credit"><button type="button" class="credit-link" onclick={() => window.elecxstock.openExternal('https://www.tradingview.com/')}>{t('set.attribution')}</button></p>
+    <p class="credit">
+      <button type="button" class="credit-link" onclick={() => window.elecxstock.openExternal(TRADINGVIEW_URL)}>{LWC_NOTICE[0]}</button><br />
+      <span class="credit-note">{LWC_NOTICE[1]}</span>
+    </p>
   {/if}
 </div>
 
@@ -111,6 +115,10 @@ async function importJpx() {
     font-size: var(--fs-1);
     color: var(--text-3);
     cursor: pointer;
+  }
+  .credit-note {
+    font-size: var(--fs-1);
+    color: var(--text-3);
   }
   .credit-link:hover {
     color: var(--text-2);

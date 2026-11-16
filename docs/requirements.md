@@ -984,7 +984,7 @@ interface ElecxstockApi {
 ## 10. 公開・ライセンス・注意書き
 
 - **ライセンスは MIT**。リポジトリに `LICENSE`、同梱 OSS の一覧（`NOTICES`、ビルド時に生成）を置き、アプリ内の「このアプリについて」から見られるようにする。
-- Lightweight Charts の帰属表示（ロゴまたは TradingView へのリンク）は、チャートの隅のロゴを出さず（自前で描くグリッドのタイルとそろえる）、初回の確認ダイアログの下部と「このアプリについて」に TradingView へのリンクとして出す。
+- Lightweight Charts の帰属表示（ロゴまたは TradingView へのリンク）は、チャートの隅のロゴを出さず（自前で描くグリッドのタイルとそろえる）、初回の確認ダイアログの下部と「このアプリについて」に、上流の NOTICE の 2 行（`TradingView Lightweight Charts™` と `Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/`）をそのまま出し、1 行目を TradingView へのリンクにする。README のライセンスの節にも同じ 2 行を載せる。npm のパッケージには NOTICE が入っていないので、`scripts/notices/lightweight-charts.NOTICE` に置き、`THIRD_PARTY_NOTICES.txt` にライセンスの本文と並べて入れる（Apache-2.0 §4(d)）。
 - 画面（初回起動時の確認・設定の「このアプリについて」）に「**投資助言ではない・データは非公式で遅延や誤りがあり得る**」旨を日英で出す。
 - README（日英）に、Yahoo Finance の非公式 API を利用していること・個人利用の範囲で使うこと・取得データを再配布しないことを明記する。
 - 特定の金融端末製品の名称・配色・ロゴ・画面構成をなぞらない（§6.7 のデザインの独自性）。

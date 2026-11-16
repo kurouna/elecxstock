@@ -141,6 +141,9 @@ Electron 45・Svelte 5・TypeScript・SQLite（`node:sqlite`）・Lightweight Ch
 [MIT](LICENSE)。同梱している OSS のライセンスは、インストール先の `THIRD_PARTY_NOTICES.txt` と、アプリの「設定 > このアプリについて」で見られます。
 チャートは TradingView の [Lightweight Charts](https://www.tradingview.com/lightweight-charts/)（Apache-2.0）を使っています。
 
+> TradingView Lightweight Charts™<br>
+> Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/
+
 ---
 
 ## English
@@ -211,3 +214,6 @@ Set `ELECXSTOCK_PROVIDER=stub` to run without the network. See [docs/requirement
 
 [MIT](LICENSE). Licenses of bundled open-source software are in `THIRD_PARTY_NOTICES.txt` next to the executable and in Settings > About.
 Charts by TradingView [Lightweight Charts](https://www.tradingview.com/lightweight-charts/) (Apache-2.0).
+
+> TradingView Lightweight Charts™<br>
+> Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/

@@ -10,6 +10,8 @@ test.describe('初回起動（FR-F1, FR-S1）', () => {
     await expect(dlg).toBeVisible()
     await keys(page, 'Enter') // 同意
     await expect(dlg).toContainText('TradingView')
+    // Lightweight Charts の NOTICE の 2 行（§10）
+    await expect(dlg).toContainText('Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/')
     await keys(page, 'Enter') // 取得を始める
     await jobsDone(page)
     await expect(page.locator('footer')).toContainText(/待機/)

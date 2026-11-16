@@ -1,5 +1,6 @@
 <script lang="ts">
 // 設定（Ctrl+,）: 一般・表示・チャート（FR-C12）・データ（FR-S5〜S9, FR-D6）・キー・このアプリについて。↑↓ で項目、Tab で中へ。
+import { LWC_NOTICE, TRADINGVIEW_URL } from '@shared/attribution'
 import { CODE_RE } from '@shared/code'
 import { targetsFromInputs, targetTexts, YIELD_TARGETS_UI } from '@shared/yieldLines'
 import { onMount } from 'svelte'
@@ -233,7 +234,10 @@ async function importJpx() {
       <div class="field"><span>{t('set.dataLabel')}</span><span>{app.info?.provider === 'stub' ? t('set.dataSourceStub') : t('set.dataSource')}</span></div>
       <div class="field">
         <span>{t('set.chartsLabel')}</span>
-        <button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal('https://www.tradingview.com/')}>{t('set.attribution')}</button>
+        <span class="notice">
+          <button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(TRADINGVIEW_URL)}>{LWC_NOTICE[0]}</button>
+          <span class="dim">{LWC_NOTICE[1]}</span>
+        </span>
       </div>
       <div class="field">
         <span>GitHub</span>
@@ -364,6 +368,11 @@ async function importJpx() {
   }
   .small {
     font-size: var(--fs-1);
+  }
+  .notice {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
   }
   .link-btn {
     background: none;

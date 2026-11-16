@@ -35,6 +35,9 @@ function add(name) {
   out.push(`${name} ${p.version} — ${typeof p.license === 'string' ? p.license : JSON.stringify(p.license)}`)
   out.push('-'.repeat(40))
   out.push(lic ? readFileSync(lic, 'utf8').trim() : '(license text not found in package)')
+  // Apache-2.0 §4(d): NOTICE があれば中身も入れる。パッケージに入っていないもの（lightweight-charts）は scripts/notices/<名前>.NOTICE に上流のまま置く
+  const notice = [join(dir, 'NOTICE'), join(root, 'scripts', 'notices', `${name.replace('/', '__')}.NOTICE`)].find((f) => existsSync(f))
+  if (notice) out.push('', 'NOTICE:', readFileSync(notice, 'utf8').trim())
   out.push('', '')
   // バンドルに入る推移的な依存は bundled に並べる（yahoo-finance2 の MCP 用の依存は入らない）
 }

@@ -86,6 +86,12 @@ test.describe('一日の流れ（FR-KB8, FR-K2, FR-W4）', () => {
     await keys(page, 'Control+Comma')
     await expect(page.getByRole('dialog', { name: '設定' })).toBeVisible()
     await keys(page, 'ArrowDown', 'ArrowDown')
+    // このアプリについて（最後のタブ。↑ で先頭から回る）: Lightweight Charts の NOTICE の 2 行（§10）
+    await keys(page, 'ArrowUp', 'ArrowUp', 'ArrowUp')
+    await expect(page.getByRole('dialog', { name: '設定' })).toContainText('TradingView Lightweight Charts™')
+    await expect(page.getByRole('dialog', { name: '設定' })).toContainText(
+      'Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/',
+    )
     await keys(page, 'Escape')
     await expect(page.getByRole('dialog', { name: '設定' })).toHaveCount(0)
   })
