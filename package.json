@@ -53,10 +53,10 @@
     "test:packaged": "node scripts/packaged-smoke.mjs"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.7",
+    "@biomejs/biome": "2.6.8",
     "@fontsource-variable/noto-sans-jp": "5.3.1",
     "@fontsource/noto-sans-mono": "5.3.0",
-    "@playwright/test": "1.65.0",
+    "@playwright/test": "1.65.1",
     "@resvg/resvg-js": "2.6.2",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@types/node": "24.19.2",
