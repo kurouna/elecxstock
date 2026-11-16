@@ -38,6 +38,8 @@ export const INDICATORS: Indicator[] = ['ma', 'vol', 'volma', 'bb', 'ichimoku', 
 export type ChartType = 'candle' | 'bar' | 'line'
 export interface ChartViewApi {
   key: (e: KeyboardEvent) => boolean
+  /** 画像の保存（FR-C11）: 今の表示を描いたキャンバス（十字線は入れない）と、見えている期間 */
+  snapshot: () => { canvas: HTMLCanvasElement; from?: string; to?: string } | null
 }
 
 let {
@@ -499,6 +501,11 @@ onMount(() => {
   charts.add(handle)
   build()
   onApi?.({
+    snapshot() {
+      if (!chart || !bars?.time.length) return null
+      const r = chart.timeScale().getVisibleRange()
+      return { canvas: chart.takeScreenshot(true, false), from: r?.from as string | undefined, to: r?.to as string | undefined }
+    },
     key(e) {
       if (e.ctrlKey || e.altKey || e.metaKey) return false
       const c = e.code

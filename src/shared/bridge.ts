@@ -11,6 +11,8 @@ export interface ElecxstockBridge {
   initialTheme?: 'light' | 'dark'
   openExternal(url: string): Promise<boolean>
   saveText(name: string, text: string): Promise<boolean>
+  /** チャートの画像（PNG のバイト列）を保存ダイアログで選んだ場所へ書く（FR-C11） */
+  savePng(name: string, bytes: Uint8Array): Promise<boolean>
   openFile(kind: 'json' | 'xlsx' | 'text' | 'csv'): Promise<string | Uint8Array | null>
   /** data/backups の DB のバックアップを、選んだ場所へ写す */
   exportBackup(file: string): Promise<boolean>

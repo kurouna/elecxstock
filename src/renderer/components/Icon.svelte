@@ -21,6 +21,8 @@ const PATHS = {
   info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 11v6M12 7.5v.5',
   /** 新しいウィンドウ: 窓と右上の + */
   newWindow: 'M14 5H4v14h14v-6M4 9h10M19 3v6M16 6h6',
+  /** 画像の保存（FR-C11）: 額と山 */
+  image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15.5 9h.01',
   resetSize: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M9 9l-5-5M15 9l5-5M9 15l-5 5M15 15l5 5',
 } as const
 export type IconName = keyof typeof PATHS

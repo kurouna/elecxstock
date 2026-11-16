@@ -376,6 +376,20 @@ ipcMain.handle('app:saveText', async (e, name: unknown, text: unknown) => {
   writeFileSync(r.filePath, text)
   return true
 })
+// チャートの画像（FR-C11）。renderer が描いた PNG のバイト列を、選んだ場所へ書く。PNG の印で始まらないものは書かない
+const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+ipcMain.handle('app:savePng', async (e, name: unknown, bytes: unknown) => {
+  const win = winOf(e)
+  if (!fromApp(e) || typeof name !== 'string' || !(bytes instanceof Uint8Array) || !win) return false
+  if (bytes.length > 64 * 1024 * 1024 || PNG_SIG.some((b, i) => bytes[i] !== b)) return false
+  const r = await dialog.showSaveDialog(win, {
+    defaultPath: name.replace(/[\\/:*?"<>|]/g, '_'),
+    filters: [{ name: 'PNG', extensions: ['png'] }],
+  })
+  if (r.canceled || !r.filePath) return false
+  writeFileSync(r.filePath, bytes)
+  return true
+})
 // ウィンドウの枠（最小化・最大化・閉じるのボタン）の色と高さを、テーマと表示倍率に合わせる（FR-V8）。送り元の窓に効かせる
 ipcMain.handle('app:setChrome', (e, theme: unknown, scale: unknown) => {
   const win = winOf(e)

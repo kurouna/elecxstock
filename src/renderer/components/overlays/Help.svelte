@@ -87,6 +87,7 @@ const G = $derived([
       [ja ? 'ズーム / 既定に戻す' : 'Zoom / reset', '+ − / 0'],
       [ja ? '時間方向のスクロール' : 'Scroll in time', '← → (Shift)'],
       [ja ? 'キーボード十字線' : 'Keyboard crosshair', 'X → ← →'],
+      [ja ? '画像で保存（設定 > チャートで ON のとき）' : 'Save as image (when on in Settings > Charts)', 'S'],
       [ja ? 'マルチ時間軸: 段の移動 / 並べ方' : 'Multi-timeframe: row / arrangement', 'Tab / V'],
     ],
   },

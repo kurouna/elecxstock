@@ -105,13 +105,14 @@ export async function pickPeriod(pane: PaneNode): Promise<void> {
   const v = Number(c)
   patchState(pane, { period: v < 0 ? undefined : v })
 }
-/** チャートの見出しの「⋯」に足す項目（狭いと隠れる表示期間・指標） */
-export function chartMore(pane: PaneNode): MoreItem[] {
+/** チャートの見出しの「⋯」に足す項目（狭いと隠れる表示期間・指標・画像の保存）。画像の保存は設定で ON のときだけ（FR-C11） */
+export function chartMore(pane: PaneNode, saveImage?: () => void): MoreItem[] {
   const pi = pane.state.period as number | undefined
   const p = pi == null ? undefined : PERIODS[pi]
   return [
     { id: 'period', label: t('period.label'), hint: p ? t(p.key) : t('period.default'), run: () => void pickPeriod(pane) },
     { id: 'ind', label: t('chart.indTip'), hint: 'I', run: () => void chartMenu(pane) },
+    ...(app.settings.chartSave && saveImage ? [{ id: 'saveImage', label: t('chart.saveImage'), hint: 'S', run: saveImage }] : []),
   ]
 }
 

@@ -387,6 +387,8 @@ export interface Settings {
   yieldLine: boolean
   /** 目標の利回り（%。設定の画面では 3 つまで。チャートは全部引く） */
   yieldTargets: number[]
+  /** チャートを画像（PNG）で保存できるようにする（FR-C11。既定 OFF。ON にして初めて見出しのボタン・S キー・「⋯」の項目が出る） */
+  chartSave: boolean
 }
 
 export type JobKind = 'universe' | 'initial' | 'daily' | 'refetch' | 'monthly' | 'reset' | 'retention'

@@ -42,6 +42,7 @@
 
 - **ユニバース**: 東証プライムと J-REIT を自動で取得します。スタンダード・グロース・ETF などは、コマンドバーやウォッチリストから追加でき、ウォッチリストや保有に入れた銘柄も取得します。5 桁の優先株・種類株（例: 94345）にも対応しています。
 - **チャート**: 日足・週足・月足、ローソク足／バー／ライン、移動平均（期間を変えられる）、出来高、ボリンジャーバンド・一目均衡表・RSI・MACD・ストキャスティクス、配当落ち日・分割の印、他銘柄との比較（%）、対数軸、分割調整／未調整／配当込み、キーボードの十字線。日・週・月を 1 ペインに並べるマルチ時間軸も。
+  「設定 > チャート」で ON にすると、チャートを画像（PNG）で保存できます（既定は OFF。データは Yahoo Finance のものなので、保存した画像は個人で使う範囲にとどめ、公開・再配布しないでください）。
 - **チャートグリッド**: 2×2 から 6×5 まで、多数のチャートを並べて、時間軸・期間・並べ替え・比較（期間の始点を 100%）を一度に切り替えます。売買候補に印を付けて、まとめてウォッチリストに入れられます。タイルの銘柄は C で差し替え、1〜9 で足し、Delete で外せます。
 - **スクリーナー**: 利回り・配当性向・連続増配年数・配当の増配率・権利確定月・PER・PBR・ROE・EPS・BPS・時価総額・売買代金・最低投資金額・騰落率（年初来・配当込みも）・移動平均乖離・52 週と年初来の高値・安値からの位置・ゴールデンクロスからの日数・RSI・ボラティリティ・ベータ・最大下落率・決算発表や権利付最終日までの日数・保有割合・取得利回り・市場区分・33 業種・種別・お気に入り・ウォッチリストなど 58 項目で絞り込みます。項目は分類ごとに並んだダイアログから選び、打って絞り込めます（ⓘ で説明）。「かつ／または」、相対条件（終値 ≥ 75 日移動平均）、上位 N 件、列の選択、CSV 書き出し。名前を付けて保存できます（例:「高配当銘柄」）。項目の一覧と説明は [docs/screener-fields.md](docs/screener-fields.md)。
   最低投資金額は株式を 100 株、J-REIT を 1 口として終値から計算します。ETF・ETN などは売買の単位が分からないため出しません（欠損）。
@@ -166,6 +167,7 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 
 - **Universe**: TSE Prime and J-REITs are fetched automatically. Standard, Growth, ETFs and others can be added from the command bar or a watchlist, and symbols in your watchlists and holdings are fetched too. Five-character codes for preferred and class shares (e.g. 94345) are supported.
 - **Charts**: daily / weekly / monthly, candles / bars / line, configurable moving averages, volume, Bollinger Bands, Ichimoku, RSI, MACD, stochastics, dividend and split markers, comparison (%), log scale, split-adjusted / unadjusted / total-return prices, keyboard crosshair, and a multi-timeframe pane.
+  Turn on "Save chart images" in Settings > Charts to save a chart as a PNG (off by default; the data comes from Yahoo Finance, so keep saved images for personal use and do not publish or redistribute them).
 - **Chart grid**: 2×2 up to 6×5 tiles; switch timeframe, period, sort order and compare mode (rebased to 100%) for all tiles at once. Mark candidates and send them to a watchlist. Replace a tile's symbol with C.
 - **Screener**: 58 fields, including yield, payout, dividend streaks and growth, record month, P/E, P/B, ROE, EPS, BPS, market cap, turnover, minimum investment, returns (year-to-date and total return too), MA deviation, position against the 52-week and year-to-date high and low, days since a golden cross, RSI, volatility, beta, max drawdown, days to earnings and to the last cum-rights day, portfolio weight, yield on cost, market, TSE 33 sectors, type, favorites and watchlists. Pick fields from a dialog grouped by category, with type-to-filter and ⓘ descriptions. And/or groups, relative conditions, top N, column chooser, CSV. Save screens by name. All fields are listed in [docs/screener-fields.md](docs/screener-fields.md).
   Minimum investment is the close × 100 shares for stocks and × 1 unit for J-REITs. It is not shown for ETFs, ETNs and others, whose trading unit is unknown.

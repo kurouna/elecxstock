@@ -63,6 +63,7 @@ const api: ElecxstockBridge = {
   },
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url) as Promise<boolean>,
   saveText: (name: string, text: string) => ipcRenderer.invoke('app:saveText', name, text) as Promise<boolean>,
+  savePng: (name: string, bytes: Uint8Array) => ipcRenderer.invoke('app:savePng', name, bytes) as Promise<boolean>,
   notices: () => ipcRenderer.invoke('app:notices') as Promise<string>,
   openFile: (kind: 'json' | 'xlsx' | 'text' | 'csv') => ipcRenderer.invoke('app:openFile', kind) as Promise<string | Uint8Array | null>,
   exportBackup: (file: string) => ipcRenderer.invoke('app:exportBackup', file) as Promise<boolean>,

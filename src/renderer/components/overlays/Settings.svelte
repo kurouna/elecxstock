@@ -196,6 +196,11 @@ async function importJpx() {
         </span>
       </div>
       <p class="muted small">{t('set.yieldTargetsHint', { n: YIELD_TARGETS_UI })}</p>
+      <div class="field">
+        <span>{t('set.chartSave')}</span>
+        <span class="row"><button type="button" class="toggle" class:on={app.settings.chartSave} aria-pressed={app.settings.chartSave} aria-label={t('set.chartSave')} onclick={() => saveSettings({ chartSave: !app.settings.chartSave })}><span class="box"></span></button></span>
+      </div>
+      <p class="muted small">{t('set.chartSaveHint')}</p>
     {:else if cur === 'data'}
       <div class="stat">
         <div><b class="num">{Math.round((app.status?.dbBytes ?? 0) / 1048576).toLocaleString()} MB</b><span>{t('set.dbSize')}</span></div>

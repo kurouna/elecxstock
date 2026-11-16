@@ -133,9 +133,12 @@ interface Formula {
 
 ## 7. チャートの PNG 書き出し・コピー（FR-C11）
 
-- `IChartApi.takeScreenshot()` で Canvas を得て、凡例（HTML）は Canvas に描き足してから PNG にする。
-- 保存は main の IPC `app:savePng`（`saveText` と同じく保存ダイアログを main が出す。renderer から任意のパスには書かせない）。コピーは `clipboard.writeImage`（main）。
-- キー: チャートで `Ctrl+Shift+P`（保存）・`Ctrl+Shift+Y`（コピー）。アクションの登録表に足す（FR-KB6 で変えられる）。
+実装は保存だけ（コピーは持たない）。データは Yahoo Finance のもので、画像の公開は再配布にあたり得るため、**設定の「チャート」で ON にしたときだけ**使える（`Settings.chartSave`、既定 OFF）。
+
+- `IChartApi.takeScreenshot(true, false)`（プリミティブは入れ、十字線は入れない）で Canvas を得る（`ChartView` の `snapshot()`）。凡例（HTML）は入らないので、
+  「コード 銘柄名 · 時間軸」と見えている期間の 1 行を上に描き足してから PNG にする（`lib/chartImage.ts`）。
+- 保存は main の IPC `app:savePng`（`saveText` と同じく保存ダイアログを main が出す。renderer から任意のパスには書かせない。PNG の印で始まらないものは書かない）。
+- 入口: チャートの見出しのボタン（指標の右。狭いと表示期間より先に隠し、「⋯」の「画像を保存」に残る）と、チャートのペインの単キー **S**。OFF のときはどれも出さず、S も効かない。
 
 ---
 

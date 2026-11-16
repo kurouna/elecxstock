@@ -299,6 +299,11 @@ export const ja = {
   'set.yieldTargets': '目標利回り（%）',
   'set.yieldTarget': '目標利回り {n}',
   'set.yieldTargetsHint': '{n} つまで。0.1〜30 の小数で打ち、Enter か Tab で決めます。空にするとその線を消します',
+  'set.chartSave': 'チャートの画像の保存',
+  'set.chartSaveHint':
+    'ON にすると、チャートの見出しに画像（PNG）の保存のボタンが出て、S キーでも保存できます。データは Yahoo Finance のものです。保存した画像は個人で使う範囲にとどめ、公開・再配布しないでください',
+  'chart.saveImage': '画像を保存',
+  'chart.imageSaved': 'チャートの画像を保存しました',
   'set.yieldTargetBad': '目標利回りは 0.1〜30 の数で打ちます',
   'set.data': 'データ',
   'set.keys': 'キー',
@@ -1400,6 +1405,11 @@ export const en: Record<Key, string> = {
   'set.yieldTargets': 'Target yields (%)',
   'set.yieldTarget': 'Target yield {n}',
   'set.yieldTargetsHint': 'Up to {n}. Type a number from 0.1 to 30 and press Enter or Tab; leave empty to remove the line',
+  'set.chartSave': 'Save chart images',
+  'set.chartSaveHint':
+    'When on, chart headers show a button to save the chart as a PNG image, and S saves it too. The data comes from Yahoo Finance: keep saved images for personal use and do not publish or redistribute them',
+  'chart.saveImage': 'Save image',
+  'chart.imageSaved': 'Chart image saved',
   'set.yieldTargetBad': 'Type a target yield from 0.1 to 30',
   'set.data': 'Data',
   'set.keys': 'Keys',
