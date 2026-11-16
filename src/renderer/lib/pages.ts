@@ -79,6 +79,21 @@ export function deletePress(pending: string | null, cmd: MenuCommand | null, row
   if (!isDelete || !target) return { pending: null, remove: false }
   return pending === target ? { pending: null, remove: true } : { pending: target, remove: false }
 }
+/**
+ * メニューを ▾ の下に、右端をそろえて出す位置（CSS の px）。`anchor` は getBoundingClientRect の値で、文字の大きさ（ルートの zoom）が
+ * 掛かっているので割り戻す。`menuWidth`（offsetWidth）は掛かっていない。窓からはみ出さないように左右を詰める
+ */
+export function menuPosition(
+  anchor: { right: number; bottom: number },
+  menuWidth: number,
+  viewportWidth: number,
+  zoom: number,
+): { left: number; top: number } {
+  const z = zoom > 0 ? zoom : 1
+  const right = anchor.right / z
+  const vw = viewportWidth / z
+  return { left: Math.max(4, Math.min(right - menuWidth, vw - menuWidth - 4)), top: anchor.bottom / z + 2 }
+}
 /** 新しいページの初期の形（§3.4。選ぶ順）と、その名前・説明（フリー N の初期の形と同じ言葉） */
 export const PAGE_SHAPES: readonly [shape: string, label: Key, hint: Key][] = [
   ['preset:free', 'lay.shape.free', 'lay.shape.freeHint'],

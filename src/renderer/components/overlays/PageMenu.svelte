@@ -11,6 +11,7 @@ import {
   type MenuCommand,
   type MenuRow,
   menuKey,
+  menuPosition,
   menuRows,
   menuTarget,
   nameOfPage,
@@ -91,9 +92,13 @@ onMount(() => {
   // タブの ▾ の下に出す（無ければフリーのタブ、それも無ければ上の真ん中）
   const a = document.querySelector('[data-page-menu]') ?? document.querySelector('[data-preset="free"]')
   const r = a?.getBoundingClientRect()
-  const w = box?.offsetWidth ?? 320
-  if (r?.width) pos = { left: Math.max(4, Math.min(r.right - w, window.innerWidth - w - 4)), top: r.bottom + 2 }
+  if (r?.width) pos = menuPosition(r, box?.offsetWidth ?? 320, window.innerWidth, Number(document.documentElement.style.zoom) || 1)
   box?.focus()
+})
+// キーで選んだ行が、スクロールの外に出ないようにする（ページが多いとメニューは縦に流れる）
+$effect(() => {
+  void sel
+  queueMicrotask(() => box?.querySelector('.it.sel')?.scrollIntoView({ block: 'nearest' }))
 })
 const label: Record<Exclude<MenuRow['kind'], 'page'>, () => string> = {
   new: () => `＋ ${t('lay.new')}`,

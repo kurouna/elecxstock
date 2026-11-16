@@ -523,3 +523,37 @@ test.describe('設定の「表示」から、すべてのタブのレイアウ�
     await expect(page.locator('[data-widget="chart"]')).toHaveCount(3)
   })
 })
+
+test.describe('マイレイアウトのメニューの位置とスクロール（FR-L14, FR-V）', () => {
+  const pages = Array.from({ length: 30 }, (_, i) => ({
+    id: `p${i}`,
+    name: { ja: `ページ ${i + 1}`, en: `Page ${i + 1}` },
+    entry: { root: { kind: 'pane', id: `c${i}`, widget: 'chart', link: 0, state: { tf: 'D' } }, docks: {} },
+    links: {},
+    created: 1,
+    updated: 1,
+  }))
+  test('文字の大きさ 150% でも ▾ の下に出し、ページが多いと選んだ行が見えるようにスクロールする', async ({ start }) => {
+    const { page } = await start({ settings: { uiScale: 1.5 }, user: { layouts: pages }, viewport: { width: 1600, height: 700 } })
+    await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe('1.5')
+    await keys(page, 'Control+Shift+l')
+    const menu = page.locator('.page-menu')
+    await expect(menu).toBeVisible()
+    const btn = (await page.locator('[data-page-menu]').boundingBox())!
+    const box = (await menu.boundingBox())!
+    expect(Math.abs(box.x + box.width - (btn.x + btn.width))).toBeLessThan(2)
+    expect(box.y - (btn.y + btn.height)).toBeGreaterThanOrEqual(0)
+    expect(box.y - (btn.y + btn.height)).toBeLessThan(6)
+    // 末尾（削除の行）へ動くと、その行がメニューの中に見える
+    await keys(page, 'End')
+    const sel = menu.locator('.it.sel')
+    await expect(sel).toContainText('削除')
+    await expect
+      .poll(async () => {
+        const s = (await sel.boundingBox())!
+        const m = (await menu.boundingBox())!
+        return s.y >= m.y && s.y + s.height <= m.y + m.height + 1
+      })
+      .toBe(true)
+  })
+})

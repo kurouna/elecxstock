@@ -531,3 +531,16 @@ describe('レビューの修正（FR-L14）', () => {
     expect(calls.map((c) => c.method)).toContain('user.saveLayouts')
   })
 })
+
+describe('メニューの位置（FR-L14 §3.1, FR-V 文字の大きさ）', () => {
+  it('▾ の下に右端をそろえ、文字の大きさ（zoom）を割り戻し、窓からはみ出さない', async () => {
+    const { menuPosition } = await import('../../../src/renderer/lib/pages')
+    expect(menuPosition({ right: 877, bottom: 35 }, 320, 1600, 1)).toEqual({ left: 557, top: 37 })
+    // 150%: 画面の座標 877.5 / 53 は CSS では 585 / 35.33
+    const z = menuPosition({ right: 877.5, bottom: 53 }, 320, 1600, 1.5)
+    expect(z.left).toBeCloseTo(585 - 320)
+    expect(z.top).toBeCloseTo(53 / 1.5 + 2)
+    expect(menuPosition({ right: 200, bottom: 35 }, 320, 1600, 1).left).toBe(4) // 左にはみ出さない
+    expect(menuPosition({ right: 1600, bottom: 35 }, 320, 1000, 1).left).toBe(1000 - 320 - 4) // 右にはみ出さない
+  })
+})
