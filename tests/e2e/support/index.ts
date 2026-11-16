@@ -32,3 +32,4 @@ export const test = base.extend<{ launch: Launch; start: Launch }>({
     })
   },
 })
+export * from './titlebar'

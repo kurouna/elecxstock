@@ -1,7 +1,7 @@
 // マルチモニタ（FR-L7, docs/design-multimonitor.md）: タブなしのフリー N。キーで開く・足す・送る・リンク・★・窓の移動・再起動・アラート。
 // OS の窓とフォーカスに頼るので、並列のあとの直列の project で回す
 import type { ElectronApplication, Page } from '@playwright/test'
-import { expect, jump, keys, readUser, tab, test } from './support'
+import { expect, expectDraggableTitleBar, jump, keys, pane, readUser, resizeWindow, tab, test } from './support'
 
 /** userData に保存したフリー 2 の配置に出てくる銘柄（並びの順） */
 const savedFree2 = (userData: string) =>
@@ -186,5 +186,20 @@ test.describe('フリー N（FR-L7）', () => {
     await expect.poll(() => drawn.count()).toBeGreaterThan(0)
     await toggle()
     await expect(drawn).toHaveCount(0)
+  })
+})
+
+test.describe('フリー N のタイトルバー（FR-L7, FR-L13）', () => {
+  test('最小の幅（480px）でも窓の名前を残し、検索欄の左右と閉じるボタンの左にドラッグできる場所が残る', async ({ start }) => {
+    const { app } = await start({ viewport: null, freeWindows: { free2: pane('chart', { tf: 'D', sym: 'JP:8058' }, 0) } })
+    await expect.poll(() => app.windows().length, { timeout: 20_000 }).toBe(2)
+    const free = app.windows().find((x) => x.url().includes('w=free2'))!
+    await expect(free.locator('.wname')).toBeVisible({ timeout: 20_000 })
+    for (const width of [1400, 760, 480]) {
+      await resizeWindow(app, free, width, 600)
+      const m = await expectDraggableTitleBar(free, `フリー 2 / ${width}px`)
+      expect(m.regions.wname).toBe('drag')
+      expect(await free.locator('.wname').evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+    }
   })
 })

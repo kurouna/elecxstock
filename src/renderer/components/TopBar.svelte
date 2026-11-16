@@ -3,6 +3,7 @@ import { isMarketOpen, isTradingDay, jstNow } from '@shared/calendar'
 import { onMount } from 'svelte'
 import { doResetSizes, keyOf, runAction } from '../lib/commands'
 import type { Key } from '../lib/i18n'
+import { captionInset } from '../lib/titleBar'
 import { freeNo, IS_FREE, SLOT } from '../lib/windowSlot'
 import { app, t } from '../stores/app.svelte'
 import { layout, PRESET_IDS, setPreset, sizesAtDefault } from '../stores/layout.svelte'
@@ -21,9 +22,30 @@ onMount(() => {
   const id = setInterval(tick, 1000)
   return () => clearInterval(id)
 })
+
+// 右端に空ける幅（最小化・最大化・閉じるボタンの分。FR-L13）。窓から読み、文字の大きさ（ルートの zoom）が変わったら読み直す
+let caption = $state<number | null>(null)
+onMount(() => {
+  type Wco = EventTarget & { visible: boolean; getTitlebarAreaRect(): DOMRect }
+  const wco = (navigator as Navigator & { windowControlsOverlay?: Wco }).windowControlsOverlay
+  const root = document.documentElement
+  const update = () => {
+    caption = captionInset(window.innerWidth, wco?.visible ? wco.getTitlebarAreaRect() : null, Number(root.style.zoom) || 1)
+  }
+  update()
+  wco?.addEventListener('geometrychange', update)
+  window.addEventListener('resize', update)
+  const mo = new MutationObserver(update)
+  mo.observe(root, { attributes: true, attributeFilter: ['style'] })
+  return () => {
+    wco?.removeEventListener('geometrychange', update)
+    window.removeEventListener('resize', update)
+    mo.disconnect()
+  }
+})
 </script>
 
-<header class="top">
+<header class="top" class:free={IS_FREE} style:--caption-w={caption == null ? null : `${caption}px`}>
   <div class="brand">
     <span class="logo" aria-hidden="true">E</span><span class="name">elecxstock</span>
   </div>
@@ -32,24 +54,27 @@ onMount(() => {
   {:else}
   <nav class="presets" aria-label={t('a11y.layouts')}>
     {#each PRESET_IDS as p, i (p)}
-      <button type="button" aria-current={layout.doc.active === p} onclick={() => setPreset(p)} title={`Ctrl+Shift+${i + 1}`}>
-        <span>{t(`preset.${p}` as Key)}</span><kbd class="keycap">{i + 1}</kbd>
+      <button type="button" aria-current={layout.doc.active === p} onclick={() => setPreset(p)} title={`${t(`preset.${p}` as Key)} (Ctrl+Shift+${i + 1})`}>
+        <span class="lbl">{t(`preset.${p}` as Key)}</span><kbd class="keycap">{i + 1}</kbd>
       </button>
     {/each}
   </nav>
   {/if}
+  <!-- 検索欄の左右は窓のドラッグに使う（縮まない。FR-L13） -->
+  <div class="drag-gap" aria-hidden="true"></div>
   <button type="button" class="cmd" onclick={() => (app.overlay = { kind: 'palette' })}>
     <span class="ic">›</span><span class="ph">{t('top.search')}</span><kbd>Ctrl+K</kbd>
   </button>
+  <div class="drag-gap" aria-hidden="true"></div>
   <div class="right">
     {#if !IS_FREE}
     <!-- アラート（Ctrl+Alt+L と同じ。未読があれば数の札。FR-AL8） -->
     <button type="button" class="ibtn bell" onclick={() => runAction('alerts')} aria-label={t('act.alerts')} title={t('al.bellTip', { key: keyOf('alerts') })}><Icon name="bell" />{#if app.alertsUnread}<span class="unread num">{app.alertsUnread > 99 ? '99+' : app.alertsUnread}</span>{/if}</button>
     {/if}
     <!-- 2 枚目以降のモニタ用のフリーのウィンドウを開く（Ctrl+Alt+N と同じ。初期の形を選ぶ） -->
-    <button type="button" class="ibtn" onclick={() => runAction('newWindow')} aria-label={t('act.newWindow')} title={`${t('act.newWindow')} (${keyOf('newWindow')})`}><Icon name="newWindow" /></button>
+    <button type="button" class="ibtn opt" onclick={() => runAction('newWindow')} aria-label={t('act.newWindow')} title={`${t('act.newWindow')} (${keyOf('newWindow')})`}><Icon name="newWindow" /></button>
     <!-- 押しても変わらないとき（既定のまま・最大化中）は押せない -->
-    <button type="button" class="ibtn" onclick={doResetSizes} disabled={!!app.maximized || sizesAtDefault()} aria-label={t('top.resetSizes')} title={`${t('top.resetSizes')}${app.maximized ? ` — ${t('top.resetSizesMax')}` : sizesAtDefault() ? ` — ${t('top.resetSizesNone')}` : ` (${keyOf('resetSizes')})`}`}><Icon name="resetSize" /></button>
+    <button type="button" class="ibtn opt" onclick={doResetSizes} disabled={!!app.maximized || sizesAtDefault()} aria-label={t('top.resetSizes')} title={`${t('top.resetSizes')}${app.maximized ? ` — ${t('top.resetSizesMax')}` : sizesAtDefault() ? ` — ${t('top.resetSizesNone')}` : ` (${keyOf('resetSizes')})`}`}><Icon name="resetSize" /></button>
     <span class="pill" class:open={market === 'open'}>{t(market === 'open' ? 'market.open' : market === 'holiday' ? 'market.holiday' : 'market.closed')}</span>
     <span class="clock num">{clock} JST</span>
     {#if !IS_FREE}
@@ -89,15 +114,23 @@ onMount(() => {
     align-items: center;
     gap: var(--s-3);
     padding: 0 var(--s-2);
-    padding-right: 150px; /* ウィンドウの最小化・最大化・閉じるボタン（titleBarOverlay）の分 */
+    /* 最小化・最大化・閉じるボタン（titleBarOverlay。幅は窓から読む）と、その左の常にドラッグできる場所（FR-L13） */
+    padding-right: calc(var(--caption-w, 138px) + 40px);
     background: var(--panel);
     border-bottom: 1px solid var(--line);
     -webkit-app-region: drag;
     min-width: 0;
+    /* 狭いときに省くものは、窓ではなくトップバーの中身の幅で決める（文字の大きさ・閉じるボタンの幅によらない） */
+    container: top / inline-size;
   }
-  .top button,
-  .top .right {
+  /* 押せるものだけをドラッグから外す。取引時間の表示・時計・ロゴ・窓の名前・空きはドラッグできる（FR-L13） */
+  .top button {
     -webkit-app-region: no-drag;
+  }
+  /* 検索欄の左右。gap と合わせて 48px より狭くならない */
+  .drag-gap {
+    flex: 1 0 24px;
+    align-self: stretch;
   }
   .brand {
     display: flex;
@@ -164,10 +197,9 @@ onMount(() => {
     border-color: var(--text-3);
   }
   .cmd {
-    flex: 1;
+    flex: 0 1 520px; /* 空きは左右のドラッグの場所に回し、足りないときはまず検索欄が縮む */
     min-width: 28px; /* 狭い窓では「›」だけ残して縮む（窓の名前・ボタンを押し出さない） */
-    max-width: 520px;
-    margin: 0 auto;
+    container: cmd / inline-size;
     height: 24px;
     display: flex;
     align-items: center;
@@ -225,15 +257,56 @@ onMount(() => {
     background: var(--hover);
     color: var(--text);
   }
-  /* 狭い窓（2 枚目のモニタの片隅など）: 窓の名前とボタンを残し、ロゴの文字・時計・キーの表示から省く */
-  @media (max-width: 899px) {
-    .cmd kbd {
+  /* 狭いとき（FR-L13）: 検索欄が縮み、それでも足りなければ 時計 → タブの名前（キーの数字とツールチップは残す）→ ロゴの文字・取引時間の表示
+     → 新しいウィンドウ・サイズを戻すのボタン（キーとコマンドバーで使える）の順に省く。窓の名前とタブは省かない */
+  @container cmd (max-width: 199px) {
+    kbd {
       display: none;
     }
   }
-  @media (max-width: 759px) {
-    .name,
-    .clock {
+  @container top (max-width: 1479px) {
+    .top:not(.free) .clock {
+      display: none;
+    }
+  }
+  @container top (max-width: 1319px) {
+    .presets button {
+      padding: 0 8px;
+    }
+    .presets .lbl {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+  @container top (max-width: 759px) {
+    .top:not(.free) .name,
+    .top:not(.free) .pill {
+      display: none;
+    }
+  }
+  @container top (max-width: 599px) {
+    .top:not(.free) .opt {
+      display: none;
+    }
+  }
+  /* フリー N（タブなし）: 窓の名前とボタンを残し、時計 → ロゴの文字・取引時間の表示 → ボタンの順に省く */
+  @container top (max-width: 659px) {
+    .top.free .clock {
+      display: none;
+    }
+  }
+  @container top (max-width: 479px) {
+    .top.free .name,
+    .top.free .pill {
+      display: none;
+    }
+  }
+  @container top (max-width: 299px) {
+    .top.free .opt {
       display: none;
     }
   }
