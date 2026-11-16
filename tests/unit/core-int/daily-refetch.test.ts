@@ -35,6 +35,8 @@ describe('日足の取り直しの幅（FR-D1）', () => {
     const old = db.get<{ d: string }>('SELECT MAX(d) d FROM daily_bars WHERE id = ? AND d < ?', ID, addDays(from, -5))!.d
     db.run('UPDATE daily_bars SET c = c * 1.002 WHERE id = ? AND d IN (?, ?)', ID, last, old)
     const tampered = db.get<{ c: number }>('SELECT c FROM daily_bars WHERE id = ? AND d = ?', ID, old)!.c
+    // 最終取得日は実時刻（ms）。準備の取得と同じ時刻にならないよう、前の値を過去にしておく（Windows の CI は時計の刻みが粗く、同じ値になって落ちた）
+    db.run("UPDATE fetch_state SET last_daily = '2000-01-01T00:00:00.000Z' WHERE id = ?", ID)
     const fetchedBefore = db.get<{ last_daily: string }>('SELECT last_daily FROM fetch_state WHERE id = ?', ID)!.last_daily
     asked.length = 0
 
