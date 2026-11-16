@@ -2,7 +2,8 @@
 // 資産構成のツリーマップ（FR-PF5）: 面積は評価額、色は含み損益率か前日比の 5 段（控えめに混ぜる）。分類の見出しは中立の帯。
 // 小さいタイルは銘柄コードだけ。口座で分けたときは左の帯で口座を示す（面は塗らない）
 import { type AllocGroup, allocTiles, heatBg as bg, type FRow, signPct, type Tile, tileInk } from '../../../lib/folio'
-import { app } from '../../../stores/app.svelte'
+import { tileTip } from '../../../lib/folioTips'
+import { app, t as tr } from '../../../stores/app.svelte'
 
 let {
   rows,
@@ -30,6 +31,7 @@ const tiles = $derived(w > 10 && h > 10 ? allocTiles(rows, group, heat, w, h) : 
 const leaves = $derived(tiles.filter((x) => !x.group))
 $effect(() => ontiles(leaves))
 const light = $derived(app.settings.theme === 'light')
+const total = $derived(rows.reduce((s, r) => s + r.value, 0))
 const share = (t: Tile) => t.item.rows.reduce((s, r) => s + r.value, 0) / (rows.reduce((s, r) => s + r.value, 0) || 1)
 </script>
 
@@ -51,7 +53,7 @@ const share = (t: Tile) => t.item.rows.reduce((s, r) => s + r.value, 0) / (rows.
         style:height={`${t.h}px`}
         style:background={bg(t.step)}
         style:color={tileInk(t.step, light)}
-        title={`${r.code} ${r.name} ${signPct(t.metric)}`}
+        title={tileTip(t, total, tr)}
         onclick={() => onpick(i)}
         role="button"
         tabindex="-1"
@@ -85,7 +87,8 @@ const share = (t: Tile) => t.item.rows.reduce((s, r) => s + r.value, 0) / (rows.
     left 320ms ease,
     top 320ms ease,
     width 320ms ease,
-    height 320ms ease;
+    height 320ms ease,
+    filter var(--motion);
 }
 :global(:root[data-reduce-motion='true']) .tile {
   transition: none;
@@ -94,7 +97,8 @@ const share = (t: Tile) => t.item.rows.reduce((s, r) => s + r.value, 0) / (rows.
   cursor: pointer;
 }
 .tile:hover {
-  filter: brightness(1.12);
+  filter: brightness(1.15);
+  z-index: 1;
 }
 .tile.sel {
   box-shadow: inset 0 0 0 2px var(--focus);

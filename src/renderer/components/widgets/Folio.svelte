@@ -56,6 +56,7 @@ import {
   yenFull,
 } from '../../lib/folio'
 import { briefText, groupLabel } from '../../lib/folioText'
+import { contribTip, divStepTip } from '../../lib/folioTips'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { periodOfKey } from '../../lib/periods'
@@ -606,7 +607,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           {#each cRows as r, i (r.code)}
             {#if i === zeroAt && i > 0}<div class="zero">0</div>{/if}
             <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-            <div class="crow" class:sel={card === 'contrib' && i === crow} class:dim={dim(r.code)} class:sold={!!r.soldOn} title={r.soldOn ? t('folio.soldTip', { d: r.soldOn }) : ''} onclick={() => pick('contrib', i)}>
+            <div class="crow" class:sel={card === 'contrib' && i === crow} class:dim={dim(r.code)} class:sold={!!r.soldOn} title={contribTip(r, t)} onclick={() => pick('contrib', i)}>
               <span class="nm"><span class="mute num">{r.code}</span> {r.name}{#if r.soldOn}<span class="tag">{t('folio.fx.sold')}</span>{/if}</span>
               <span class="track"><span class="b" class:upb={r.price >= 0} class:downb={r.price < 0} style:left={`${cBars[i]!.pl}%`} style:width={`${cBars[i]!.pw}%`}></span>{#if r.div}<span class="b goldb" style:left={`${cBars[i]!.dl}%`} style:width={`${cBars[i]!.dw}%`}></span>{/if}</span>
               <span class={`val num ${toneOf(r.v)}`}>{manYen(r.v, true)}</span>
@@ -663,7 +664,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
       <div class="dgrid">
         <section class="card c-dshare" class:focus={card === 'dshare'} data-card="dshare">
           <h3>{t('folio.dshare')}<span class="right"><Seg items={DIV_GROUPS.map((g) => t(`folio.dg.${g}` as Key))} on={view.dgroup} label={segLabel('folio.k.group')} onpick={(i) => applyView({ ...view, dgroup: i })} /></span></h3>
-          {#if dsum}<Donut groups={dGroups} total={dsum.now} sel={srow} focused={card === 'dshare'} {brushed} label={(g) => (dGroup === 'code' ? `${g.key} ${g.rows[0]?.name ?? ''}` : groupLabel(g.key))} unit={t(`folio.unit.${dGroup}` as Key)} onpick={(i) => pick('dshare', i)} />{/if}
+          {#if dsum}<Donut groups={dGroups} total={dsum.now} sel={srow} focused={card === 'dshare'} {brushed} label={(g) => (dGroup === 'code' ? `${g.key} ${g.rows[0]?.name ?? ''}` : groupLabel(g.key))} unit={t(`folio.unit.${dGroup}` as Key)} byCode={dGroup === 'code'} onpick={(i) => pick('dshare', i)} />{/if}
           <div class="keys" class:off={card !== 'dshare'} aria-hidden={card !== 'dshare'}>{#each [kk('G', 'folio.k.group'), kk('↑ ↓', 'folio.k.row')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
         </section>
         <section class="card c-dsum" data-card="dsum">
@@ -699,7 +700,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
         </section>
         <section class="card c-dwf" data-card="dwf">
           <h3>{t('folio.dwf')}<span class="right mute small">{t('folio.dwfNote')}</span></h3>
-          {#if dsum}<Waterfall steps={divBridgeSteps(dsum)} label={(k) => t(`folio.dwf.${k}` as Key)} minH={170} />{/if}
+          {#if dsum}<Waterfall steps={divBridgeSteps(dsum)} label={(k) => t(`folio.dwf.${k}` as Key)} detail={(b) => divStepTip(b.key, b.v, dRows, t)} minH={170} />{/if}
           <div class="note">{t('folio.dwfDef')}</div>
         </section>
         <section class="card c-dtab" class:focus={card === 'dtab'} data-card="dtab">
