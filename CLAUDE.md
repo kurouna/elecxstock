@@ -106,6 +106,11 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
   （★・◆は Core の `watchlists.toggleItem`、アラートは新しく作ることだけ `alerts.save`）。Core は利用者のデータを変えたら `user.changed` を全窓に配るので、利用者のデータを書く
   メソッドを足したら `src/core/changes.ts` の `CHANGES` にも足す。フリー N のレイアウトは `user.saveWindowLayout` で自分の分だけ保存する。
   フリー N で使えない操作を足したら `blockedInFree` に足す。
+- **elecxstock-cli**（[kurouna/elecxstock-cli](https://github.com/kurouna/elecxstock-cli)。このアプリのデータをターミナルで読むだけの CUI）は、
+  このリポジトリをサブモジュールとしてタグに固定して使う。次を変えたら、elecxstock-cli も直す必要が出ることがある（リリースのノートに書き、
+  elecxstock-cli 側でサブモジュールのタグと `DB_VERSION` を上げて突き合わせのテストを通す）:
+  DB の表・列・移行（`user_version`。`metrics` の列を含む）、利用者のデータの JSON の形（`USER_FILE_SCHEMAS`・`STORE_VERSION`）、データの置き場所、
+  `Repo` の読むメソッド、`CoreService` の材料の組み立て（`folioMarket`・保有・`alertViews`・スクリーナーの入力・`bars`）、`src/renderer/lib/folio.ts` の純粋な関数。
 
 ## テスト
 
