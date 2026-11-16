@@ -1,7 +1,7 @@
 <script lang="ts">
 // 配当見込みの月の棒（FR-PF7）: 今後 12 か月（権利落ちの月に積む）。左隣の細い棒が前年同月、来月は金色。
 // 下のリボンは権利月の銘柄の点。月を選ぶと点が金色になり、下にその月の銘柄と額を並べる
-import { manYen, yenFull } from '../../../lib/folio'
+import { manYen, monthTip, yenFull } from '../../../lib/folio'
 import { t } from '../../../stores/app.svelte'
 
 type Month = { m: number; now: number; prev: number; codes: { code: string; name: string; amt: number }[] }
@@ -27,13 +27,11 @@ const cur = $derived(sel >= 0 ? months[sel] : undefined)
         {@const cx = (w / 12) * (i + 0.5)}
         {@const bw = Math.min(24, (w / 12) * 0.5)}
         {#if x.prev}<rect x={cx - bw / 2 - 6} y={h - B - yh(x.prev)} width="4" height={yh(x.prev)} rx="1" class="prev" />{/if}
-        <rect x={cx - bw / 2} y={h - B - yh(x.now)} width={bw} height={yh(x.now)} rx="1.5" class:next={i === 1} class="bar">
-          <title>{t('folio.monthAmt', { m: x.m, now: yenFull(x.now), prev: yenFull(x.prev) })}</title>
-        </rect>
+        <rect x={cx - bw / 2} y={h - B - yh(x.now)} width={bw} height={yh(x.now)} rx="1.5" class:next={i === 1} class="bar" />
         {#if x.now && (x.now === top || i === 1)}<text x={cx} y={h - B - Math.max(yh(x.now), yh(x.prev)) - 4} class="lab">{manYen(x.now)}</text>{/if}
         <text x={cx} y={h - 3} class="ax" class:on={i === 1}>{t('folio.month', { m: x.m })}</text>
         <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-        <rect x={(w / 12) * i} y="0" width={w / 12} height={h} class="hit" onclick={() => onpick(i)} />
+        <rect x={(w / 12) * i} y="0" width={w / 12} height={h} class="hit" data-month={x.m} onclick={() => onpick(i)}><title>{monthTip(x, t)}</title></rect>
       {/each}
     </svg>
   {/if}

@@ -33,6 +33,7 @@ import {
   importedNote,
   lastTone,
   manYen,
+  monthTip,
   moveRow,
   nextCard,
   niceTicks,
@@ -571,6 +572,22 @@ describe('十字線の日の数・口座をまたぐ取得単価・無配にな�
   it('記録だけの保有の JSON を取り込んだら、その日数を知らせる', () => {
     expect(importedNote(0, 120)).toEqual({ key: 'hold.importedHistory', n: 120 })
     expect(importedNote(3, 120)).toEqual({ key: 'hold.imported', n: 3 })
+  })
+  it('配当見込みの月の棒のツールチップ: 合計・前年同月と銘柄の内訳。多ければ残りをまとめ、無ければその旨', () => {
+    const tr = (k: string, v?: Record<string, string | number>) => `${k}${v ? JSON.stringify(v) : ''}`
+    const codes = [
+      { code: 'A', name: 'あ', amt: 3000 },
+      { code: 'B', name: 'い', amt: 2000 },
+      { code: 'C', name: 'う', amt: 1000 },
+    ]
+    expect(monthTip({ m: 3, now: 6000, prev: 5000, codes }, tr, 2).split('\n')).toEqual([
+      'folio.monthAmt{"m":3,"now":"6,000","prev":"5,000"}',
+      'A あ  ¥3,000',
+      'B い  ¥2,000',
+      'folio.monthMore{"n":1,"amt":"1,000"}',
+    ])
+    expect(monthTip({ m: 3, now: 6000, prev: 0, codes }, tr).split('\n')).toHaveLength(4)
+    expect(monthTip({ m: 4, now: 0, prev: 0, codes: [] }, tr).split('\n')[1]).toBe('folio.noRights')
   })
   it('CSV を取り込んだ日時は日本時間で出す（PC の時刻帯によらない）。無い・読めないときは null', () => {
     expect(importedAtText('2026-11-12T16:30:00.000Z', 'ja')).toBe('2026/11/13 1:30')

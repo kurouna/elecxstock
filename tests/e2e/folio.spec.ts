@@ -278,6 +278,10 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(f.locator('.c-div')).toHaveClass(/focus/)
     await expect(cells.nth(pickedMonth)).toHaveClass(/sel/)
     const code = (await f.locator('.c-div .mlist .num').first().textContent())!.trim()
+    // 月の棒のツールチップに、その月の合計と銘柄の内訳が出る
+    const tip = await f.locator('.c-div .bars .hit title').nth(pickedMonth).textContent()
+    expect(tip).toContain('前年同月')
+    expect(tip).toContain(code)
     await keys(page, 'Enter')
     await expect(f.locator('.c-dtab')).toHaveClass(/focus/)
     await expect(f.locator('.c-dtab tr.sel')).toContainText(code)

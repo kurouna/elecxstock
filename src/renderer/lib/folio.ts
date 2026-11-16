@@ -746,6 +746,20 @@ export function divMonths(
     return { m, now, prev, codes: codes.sort((a, b) => b.amt - a.amt) }
   })
 }
+type DivMonth = ReturnType<typeof divMonths>[number]
+/** 配当見込みの月の棒のツールチップ: 月の合計と前年同月、その月の銘柄の内訳（額の大きい順に max 件。残りはまとめる） */
+export function monthTip(
+  x: DivMonth,
+  tr: (k: 'folio.monthAmt' | 'folio.monthMore' | 'folio.noRights', v?: Record<string, string | number>) => string,
+  max = 10,
+): string {
+  const head = tr('folio.monthAmt', { m: x.m, now: yenFull(x.now), prev: yenFull(x.prev) })
+  if (!x.codes.length) return `${head}\n${tr('folio.noRights')}`
+  const lines = x.codes.slice(0, max).map((c) => `${c.code} ${c.name}  ¥${yenFull(c.amt)}`)
+  const rest = x.codes.slice(max)
+  if (rest.length) lines.push(tr('folio.monthMore', { n: rest.length, amt: yenFull(rest.reduce((s, c) => s + c.amt, 0)) }))
+  return [head, ...lines].join('\n')
+}
 export interface DivGroupRow {
   key: string
   rows: DivRow[]
