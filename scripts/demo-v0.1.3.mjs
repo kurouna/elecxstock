@@ -1,6 +1,7 @@
 // v0.1.2 → v0.1.3 の変わったところのデモ（録画は利用者がキャプチャアプリで行う）。スタブのプロバイダ（架空の値）で起動し、
 // キー操作だけで場面を進める。画面の下に字幕、右下に押したキーを重ねて出す（録画のときだけ。アプリには入れない）。
-// 話題: マーケットのタブ（新しい並び・マーケット一覧（指数・為替・金利・商品・暗号資産）・騰落（市場・業種別、中へ入って戻る））と
+// 話題: マーケットのタブ（新しい並び・マーケット一覧（指数・為替・金利・商品・暗号資産）・騰落（市場・業種別、中へ入って戻る））、
+// チャートの目標利回りの線（設定の「チャート」で ON にして目標を打つ → チャートの点線と凡例・グリッドのタイル）と
 // ポートフォリオのタブの手直し（TOPIX ETF の表示・カードを選び替えても大きさが変わらない）
 //
 // 使い方: npm run build && npm run demo:0.1.3
@@ -75,6 +76,7 @@ async function focusPane(widget, n = 0) {
 }
 const board = page.locator('[data-widget="board"]')
 const breadth = page.locator('[data-widget="breadth"]')
+const chart = page.locator('[data-widget="chart"]').first()
 const folio = page.locator('[data-widget="folio"]')
 /** Tab でカードを巡り、name のカードを選ぶ */
 async function cardTo(name) {
@@ -91,7 +93,7 @@ await page.evaluate(() => document.querySelectorAll('.toasts .toast').forEach((t
 await card(page, [
   'elecxstock 0.1.3',
   'マーケットのタブが新しくなりました',
-  'マーケット一覧（指数・為替・金利・商品・暗号資産）・騰落（市場・業種別）・ポートフォリオの手直し',
+  'マーケット一覧（指数・為替・金利・商品・暗号資産）・騰落（市場・業種別）・目標利回りの線',
   '※ 画面は開発中のものです。株価・指数・保有などの値はすべて架空のデモデータです',
 ])
 console.log(`${WAIT} 秒後に始めます。いまのうちに録画を始めてください`)
@@ -163,7 +165,50 @@ await breadth.locator('tbody tr.sel[data-key]').waitFor()
 await sleep(3000)
 await shot(page, 'breadth-back')
 
-// 4. ポートフォリオのタブ（Ctrl+Shift+9）の手直し
+// 4. 目標利回りの線: インカムのタブのチャートで、設定の「チャート」から ON にして目標を打つ
+await press(page, 'Control+Shift+Digit6')
+await focusPane('chart')
+await caption(page, 'インカムのタブ。チャートに J-REIT の日本ビルファンドを出します（コードを打つと銘柄ジャンプ）')
+await press(page, 'Digit8', 'Digit9', 'Digit5', 'Digit1')
+await page.locator('.dialog.jump .it.sel').waitFor()
+await sleep(900)
+await press(page, 'Enter')
+await chart.locator('.legend').waitFor()
+await sleep(1800)
+await caption(page, '設定（Ctrl+,）の「チャート」で目標利回りの線を ON にし、目標の利回りを 3 つまで打ちます')
+await press(page, 'Control+Comma')
+const dlg = page.getByRole('dialog', { name: '設定' })
+await dlg.waitFor()
+await sleep(900)
+await press(page, 'ArrowDown', 'ArrowDown')
+await sleep(900)
+await press(page, 'Tab')
+await sleep(700)
+await press(page, 'Space')
+await sleep(1200)
+await press(page, 'Tab', 'Control+a')
+for (const [i, v] of ['3.5', '4.5', '5.5'].entries()) {
+  if (i) await press(page, 'Tab')
+  await page.keyboard.type(v, { delay: 160 / SPEED })
+  await sleep(700)
+}
+await press(page, 'Enter')
+await sleep(1500)
+await shot(page, 'yield-settings')
+await press(page, 'Escape')
+await dlg.waitFor({ state: 'detached' })
+await chart.locator('.legend .yl').first().waitFor()
+await caption(page, '過去 12 か月の配当 ÷ 目標利回りの株価に点線。凡例に目標の株価と、今の株価からの差を出します')
+await sleep(4500)
+await shot(page, 'yield-chart')
+// グリッドのタイルにも（目盛りの範囲に入る線だけ）
+await press(page, 'Control+Shift+Digit3')
+await page.locator('[data-widget="grid"] canvas[data-yield]:not([data-yield=""])').first().waitFor()
+await caption(page, 'グリッドのタイルにも引きます（目盛りの範囲に入る線だけ）。並べたまま目標の株価と見比べられます')
+await sleep(4500)
+await shot(page, 'yield-grid')
+
+// 5. ポートフォリオのタブ（Ctrl+Shift+9）の手直し
 await press(page, 'Control+Shift+Digit9')
 await folio.locator('.c-hero').waitFor()
 await folio.locator('.c-hist svg').first().waitFor()
@@ -178,10 +223,10 @@ await sleep(1500)
 await shot(page, 'folio-cards')
 await caption(page, '')
 
-// 5. 終わりの画面
+// 6. 終わりの画面
 await card(page, [
   'elecxstock 0.1.3',
-  'マーケット一覧・騰落・ポートフォリオの手直し',
+  'マーケット一覧・騰落・目標利回りの線・ポートフォリオの手直し',
   '無料・オープンソース（MIT） ・ Windows ・ github.com/kurouna/elecxstock',
   'チャート: TradingView Lightweight Charts™（Apache-2.0）',
   '※ 画面は開発中のものです。動画の株価・指数・保有などの値はすべて架空のデモデータです',
