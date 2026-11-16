@@ -145,6 +145,10 @@ Electron 45・Svelte 5・TypeScript・SQLite（`node:sqlite`）・Lightweight Ch
 > TradingView Lightweight Charts™<br>
 > Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/
 
+### 関連
+
+[elecxstock-cli](https://github.com/kurouna/elecxstock-cli) は、elecxstock が取り込んだデータをターミナルで `top` のように眺める、読み取り専用の CUI です（Windows の単一実行ファイル）。
+
 ---
 
 ## English
@@ -219,3 +223,7 @@ Charts by TradingView [Lightweight Charts](https://www.tradingview.com/lightweig
 
 > TradingView Lightweight Charts™<br>
 > Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/
+
+### Related
+
+[elecxstock-cli](https://github.com/kurouna/elecxstock-cli) is a read-only, `top`-like terminal UI for the data elecxstock keeps on your PC (a single Windows executable).
