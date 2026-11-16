@@ -1,10 +1,10 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createStubProvider } from '@core/providers/stub'
 import { CoreService } from '@core/service'
 import { UserStore } from '@core/userstore'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { makeCore } from '../../support/core'
 
 const core = makeCore()
@@ -183,6 +183,29 @@ describe('利用者のデータの保護（FR-S12）', () => {
       )
     expect(existsSync(join(d, 'watchlists.json'))).toBe(true)
     expect(readdirSync(join(d, 'backups')).filter((f) => /^watchlists\.\d+\.json$/.test(f)).length).toBeLessThanOrEqual(10)
+    rmSync(d, { recursive: true, force: true })
+  })
+  it('同じミリ秒に続けて保存しても、前の世代を上書きしない（新しい順のまま）', () => {
+    const d = mkdtempSync(join(tmpdir(), 'elecxstock-user-'))
+    const s = new UserStore(d)
+    const w = s.load('watchlists')
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
+    try {
+      for (let i = 0; i < 4; i++)
+        s.save(
+          'watchlists',
+          w.map((x) => ({ ...x, items: [`JP:${1000 + i}`] })),
+        )
+    } finally {
+      now.mockRestore()
+    }
+    const gens = s.generations('watchlists')
+    expect(gens).toHaveLength(3) // ファイルができてからの 3 回
+    // 新しい世代ほど新しい中身（1 つ前の保存の中身）を持つ
+    const items = gens.map(
+      (f) => JSON.parse(readFileSync(join(d, 'backups', f), 'utf8')).data.find((x: { items: string[] }) => x.items.length).items[0],
+    )
+    expect(items).toEqual(['JP:1002', 'JP:1001', 'JP:1000'])
     rmSync(d, { recursive: true, force: true })
   })
 })

@@ -215,7 +215,11 @@ export class UserStore {
     const throttled = !opts.generation && thin && Date.now() - (this.lastGen.get(n) ?? 0) < LAYOUT_GEN_MS
     if (existsSync(p) && !throttled) {
       this.lastGen.set(n, Date.now())
-      const b = join(this.dir, 'backups', `${n}.${Date.now()}.json`)
+      // 同じミリ秒に続けて保存すると名前が重なるので、空いている番号までずらす（形は変えない。新しいほど大きい番号）
+      const last = this.generations(n)[0]
+      let t = Math.max(Date.now(), last ? Number(last.slice(n.length + 1, -5)) + 1 : 0)
+      while (existsSync(join(this.dir, 'backups', `${n}.${t}.json`))) t++
+      const b = join(this.dir, 'backups', `${n}.${t}.json`)
       try {
         writeFileSync(b, readFileSync(p))
         const old = readdirSync(join(this.dir, 'backups'))
