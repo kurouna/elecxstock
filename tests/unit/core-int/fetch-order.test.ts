@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createStubProvider } from '@core/providers/stub'
 import { CoreService } from '@core/service'
+import { REF_INDEX_ROWS } from '@shared/markets'
 import { afterAll, describe, expect, it } from 'vitest'
 
 const dir = mkdtempSync(join(tmpdir(), 'elecxstock-order-'))
@@ -56,15 +57,23 @@ describe('日々の更新の順番（FR-F8, FR-F9）', () => {
     await idle()
     const order = calls.flat()
     expect(order.length).toBeGreaterThan(10)
+    // 日経平均が最初、続いてマーケット一覧の参照の行（FR-U6）、そのあとウォッチリストと保有
+    const n = REF_INDEX_ROWS.length
     expect(order[0]).toBe('^N225')
-    expect(new Set(order.slice(1, 4))).toEqual(new Set(['9434.T', '8951.T', '9432.T']))
+    expect(new Set(order.slice(0, n))).toEqual(new Set(REF_INDEX_ROWS.map((x) => x.yahoo)))
+    expect(new Set(order.slice(n, n + 3))).toEqual(new Set(['9434.T', '8951.T', '9432.T']))
     // 残りはこれまでどおりコード順で、すべて 1 回ずつ
     expect(new Set(order).size).toBe(order.length)
     // 気配のあとの日足の取り直し（ここでは日足が無いので全期間）も、その銘柄の分は次のバッチより先に
-    const q3 = log.indexOf('Q', log.indexOf('Q', log.indexOf('Q') + 1) + 1) // 3 つめのバッチ
+    // ウォッチリストの銘柄を含むバッチの次のバッチ
+    const qs = log.flatMap((x, i) => (x === 'Q' ? [i] : []))
+    const b = calls.findIndex((c) => c.includes('9434.T') || c.includes('8951.T'))
+    const last = calls.findLastIndex((c) => c.includes('9434.T') || c.includes('8951.T'))
+    const next = qs[last + 1] ?? log.length
+    expect(b).toBeGreaterThan(0)
     for (const s of ['9434.T', '8951.T']) {
       expect(log.indexOf(`H:${s}`)).toBeGreaterThan(0)
-      expect(log.indexOf(`H:${s}`)).toBeLessThan(q3)
+      expect(log.indexOf(`H:${s}`)).toBeLessThan(next)
     }
   })
 })

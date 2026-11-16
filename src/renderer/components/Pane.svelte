@@ -12,6 +12,7 @@ import DivCalendar from './widgets/DivCalendar.svelte'
 import Folio from './widgets/Folio.svelte'
 import Heatmap from './widgets/Heatmap.svelte'
 import Jobs from './widgets/Jobs.svelte'
+import MarketBoard from './widgets/MarketBoard.svelte'
 import MarketOverview from './widgets/MarketOverview.svelte'
 import MtfChart from './widgets/MtfChart.svelte'
 import Portfolio from './widgets/Portfolio.svelte'
@@ -86,6 +87,8 @@ function onerror(e: unknown) {
       <Heatmap {pane} />
     {:else if pane.widget === 'ranking'}
       <Ranking {pane} />
+    {:else if pane.widget === 'board'}
+      <MarketBoard {pane} />
     {:else if pane.widget === 'market'}
       <MarketOverview {pane} />
     {:else if pane.widget === 'jobs'}

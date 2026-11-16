@@ -1,5 +1,6 @@
 // 取得ジョブ（§3.2）: 永続化されたキュー（FR-F1）、レート制御（F2）、失敗の分類とバックオフ（F3）、
 // 進捗の通知（F4）、表示中の銘柄を先に（F8）、日々の更新方式（F9）、分割の検知と取り直し（FR-D3, S11）。
+import { isExternal } from '@shared/markets'
 import type { InstrumentId, InstrumentKind, JobKind, JobProgress, JstDate } from '@shared/types'
 import { addDays, addYears, CLOSE_MINUTES, isTradingDay, jstNow, lastClosedSession, prevTradingDay, toJstDate } from './calendar'
 import { computeMetrics, METRIC_BARS } from './metrics'
@@ -49,6 +50,9 @@ interface JobRow {
  * 項目: 'U' ユニバース / 'Q:<n>' 一括気配のバッチ / 'R:<id>,<id>…' 銘柄を指定した気配 / 'H:<id>:<from>' 日足 /
  * 'F:<id>' 全期間取り直し / 'M:<id>' 月次系列 / 'X' 指標の再計算 / 'C' 取りこぼしの確認（初回・日々の更新の最後に 1 回）
  */
+/** 参照の行（指数・為替など。市場 I）。気配の取り直し・日足の取りこぼしの確認の対象にしない */
+const isIndex = (id: InstrumentId) => id.startsWith('IDX:')
+
 export class JobRunner {
   private running = false
   /** 閉じる途中（新しいジョブ・項目を始めない） */
@@ -103,6 +107,9 @@ export class JobRunner {
       nowIso(),
     )
     const id = db.get<{ id: number }>('SELECT last_insert_rowid() id')!.id
+    // 積んだらすぐ知らせる（最初の項目が終わるまで、状態の帯が「待機中」のままにならないように）
+    const row = db.get<JobRow>('SELECT * FROM jobs WHERE id = ?', id)
+    if (row) this.h.emitProgress(this.progressOf(row))
     this.kick()
     return Number(id)
   }
@@ -284,6 +291,8 @@ export class JobRunner {
           lastEmit = Date.now()
           this.h.emitProgress(this.progressOf({ ...j, items: JSON.stringify(items) }))
         }
+        // 項目のあとで処理を譲る。通信の間隔が 0 のプロバイダ（スタブ）でも、ジョブの途中で画面からの呼び出しに答える
+        await new Promise<void>((r) => setImmediate(r))
       }
       this.currentId = null
       if (itemsDirty) db.run(`UPDATE jobs SET items = ? WHERE id = ?`, JSON.stringify(items), j.id)
@@ -404,7 +413,7 @@ export class JobRunner {
    */
   private fetchOrder(): { id: string; yahoo: string }[] {
     const first = this.h.listed()
-    const rank = (s: { id: string; yahoo: string }) => (s.yahoo.startsWith('^') ? 0 : first.has(s.id) ? 1 : 2)
+    const rank = (s: { id: string; yahoo: string }) => (isIndex(s.id) ? 0 : first.has(s.id) ? 1 : 2)
     return [...this.h.repo.fetchSet()].sort((a, b) => rank(a) - rank(b))
   }
 
@@ -417,14 +426,14 @@ export class JobRunner {
     const fetched = repo.quoteFetched()
     const set = this.fetchOrder()
     const since = this.jobSince
-    const noQuote = set.filter((s) => !s.yahoo.startsWith('^') && !((fetched.get(s.id) ?? '') >= since)).map((s) => s.id)
+    const noQuote = set.filter((s) => !isIndex(s.id) && !((fetched.get(s.id) ?? '') >= since)).map((s) => s.id)
     const size = this.h.provider.quoteBatchSize
     const out: string[] = []
     for (let i = 0; i < noQuote.length; i += size) out.push(`R:${noQuote.slice(i, i + size).join(',')}`)
     const skip = new Set(noQuote) // 気配を取り直す銘柄は、その結果で日足の取り直しが決まる
     const lim = prevTradingDay(lastClosedSession())
     for (const s of set) {
-      if (skip.has(s.id) || s.yahoo.startsWith('^')) continue
+      if (skip.has(s.id) || isIndex(s.id)) continue
       const last = repo.lastDaily(s.id, false)
       if (!last) out.push(`F:${s.id}`)
       else if (last.d < lim) out.push(`H:${s.id}:${addDays(last.d, -10)}`)
@@ -460,6 +469,11 @@ export class JobRunner {
         const last = repo.lastDaily(p.id, false) // 仮の足も含めた最終日（仮の足を取りこぼしと数えない）
         if (!last) {
           extra.push(`F:${p.id}`)
+          continue
+        }
+        // 海外の行（FR-MB3）: 東証の営業日・大引けで判断せず、毎回 10 日前から取り直す（時差・海外の休日・24 時間の市場）
+        if (isExternal(p.id)) {
+          extra.push(`H:${p.id}:${addDays(last.d, -10)}`)
           continue
         }
         // 仮の足: 気配の時刻が大引け以降のときだけ（FR-D8）
@@ -536,7 +550,10 @@ export class JobRunner {
     if (!full) {
       // 重ね取り区間で保存済みの終値と食い違えば、分割・併合を疑って全期間を取り直す
       let mismatch = false
+      // 海外の行の最後の足は、前に取ったときに取引の途中だったことがある（24 時間の市場・時差）。食い違いの照合から外す（FR-MB3）
+      const open = isExternal(id) ? (repo.lastDaily(id, false)?.d ?? null) : null
       for (const b of r.bars.slice(0, 10)) {
+        if (open && b.d >= open) continue
         const c = repo.closeOn(id, b.d)
         if (c && Math.abs(b.c / c - 1) > 0.005) mismatch = true
       }

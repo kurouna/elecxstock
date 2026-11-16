@@ -12,6 +12,7 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from '@playwright/test'
+import { waitIdle } from './wait-idle.mjs'
 
 const SPEED = Number(process.env.DEMO_SPEED ?? 1) || 1
 const WAIT = Number(process.env.DEMO_WAIT ?? 8)
@@ -33,10 +34,7 @@ const call = (page, method, params = {}) => page.evaluate(([m, p]) => window.ele
   await page.getByRole('dialog').waitFor()
   await page.keyboard.press('Enter')
   await page.keyboard.press('Enter')
-  await page
-    .locator('footer')
-    .getByText(/待機|Idle/)
-    .waitFor({ timeout: 120_000 })
+  await waitIdle(page, 120_000)
   const u = await call(page, 'user.load')
   const fav = ['JP:8058', 'JP:7203', 'JP:8306', 'JP:9434', 'JP:94345', 'JP:8951', 'JP:3462', 'JP:8963', 'JP:2914', 'JP:8766']
   // 高配当のリスト（インカムのタブ）: J-REIT と 5 桁の優先株
@@ -61,20 +59,14 @@ const call = (page, method, params = {}) => page.evaluate(([m, p]) => window.ele
       { code: '94345', account: 'nisa_growth', quantity: 300, avgCost: 4100 },
     ],
   })
-  await page
-    .locator('footer')
-    .getByText(/待機|Idle/)
-    .waitFor({ timeout: 120_000 })
+  await waitIdle(page, 120_000)
   await app.close()
 }
 
 // ---------------------------------------------------------------- 2 回目: デモ
 const app = await electron.launch({ args: ['.'], env })
 const page = await app.firstWindow()
-await page
-  .locator('footer')
-  .getByText(/待機|Idle/)
-  .waitFor({ timeout: 120_000 })
+await waitIdle(page, 120_000)
 await app.evaluate(({ BrowserWindow }, size) => {
   const w = BrowserWindow.getAllWindows()[0]
   if (size === 'max') w.maximize()

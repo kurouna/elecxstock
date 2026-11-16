@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from '@playwright/test'
+import { waitIdle } from './wait-idle.mjs'
 
 const out = join(process.cwd(), ...(process.argv[2] ? [process.argv[2]] : ['docs', 'mock', 'info-before']))
 mkdirSync(out, { recursive: true })
@@ -19,10 +20,7 @@ const k = async (...keys) => {
 }
 await page.getByRole('dialog').waitFor()
 await k('Enter', 'Enter')
-await page
-  .locator('footer')
-  .getByText(/待機|Idle/)
-  .waitFor({ timeout: 60_000 })
+await waitIdle(page, 60_000)
 // 保有を 1 つ入れて、保有の欄も出す
 await k('Control+Shift+Digit7', 'Insert')
 for (const ch of '8058') await k(`Digit${ch}`)

@@ -115,6 +115,7 @@ const G = $derived([
       [ja ? 'ヒートマップ: 移動 / 業種の中へ / 戻る' : 'Heatmap: move / drill in / back', 'Arrows / Enter / Esc'],
       [ja ? 'ヒートマップ: 期間' : 'Heatmap: period', 'P'],
       [ja ? 'ランキング: 指標 / 上位・下位 / 市場' : 'Ranking: metric / top-bottom / market', 'S / Shift+S / G'],
+      [ja ? 'マーケット一覧: 区分 / 並べ替え / 列' : 'Market board: group / sort / columns', 'G, Ctrl+PgDn / ← → S / Ctrl+Shift+C'],
       [
         ja ? 'マーケット: 銘柄を足す / 外す / 時間軸 / 表示期間' : 'Market: add / remove / timeframe / period',
         '1–9 / Delete / D W M / Alt+1–6',
@@ -169,6 +170,7 @@ const ctx = $derived(
       info: 'general',
       heatmap: 'market',
       ranking: 'market',
+      board: 'market',
       market: 'market',
       portfolio: 'market',
     } as Record<string, string>

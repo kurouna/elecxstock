@@ -1,6 +1,8 @@
 <script lang="ts">
 // チャートの本体（§7, FR-C1〜C9, FR-K3, K4）。chart と mtf-chart（1 ペインに日・週・月）が使う。
 // 指標・種類・調整などの表示はペインの状態（pane.state）に持ち、時間軸だけを呼ぶ側が渡す。
+
+import { priceDigits } from '@shared/markets'
 import type { Adjustment, Bars, InstrumentId, Timeframe } from '@shared/types'
 import { type YieldLine, yieldLines } from '@shared/yieldLines'
 import {
@@ -47,6 +49,8 @@ let {
 }: { pane: PaneNode; id: InstrumentId; tf: Timeframe; active?: boolean; onApi?: (api: ChartViewApi) => void } = $props()
 
 const S = $derived(pane.state as Record<string, unknown>)
+/** 凡例の価格の桁（マーケット一覧の行だけ。FR-MB2） */
+const pdg = $derived(priceDigits(id))
 const log = $derived(!!S.log)
 const adj = $derived(((S.adj as Adjustment) ?? 'split') as Adjustment)
 const ctype = $derived(((S.ctype as ChartType) ?? 'candle') as ChartType)
@@ -250,7 +254,9 @@ function build() {
     })
   if (b) {
     const base = b.close.at(-1) ?? 1000
-    main.applyOptions({ priceFormat: { type: 'price', precision: base < 1000 ? 1 : 0, minMove: base < 1000 ? 0.1 : 1 } })
+    // マーケット一覧の行（ドル/円・米10年など）は登録表の桁（FR-MB2）
+    const pd = priceDigits(id) ?? (base < 1000 ? 1 : 0)
+    main.applyOptions({ priceFormat: { type: 'price', precision: pd, minMove: 10 ** -pd } })
     drawAlertLines()
     drawTargetLines()
     const tm = b.time as Time[]
@@ -550,7 +556,7 @@ onMount(() => {
       <div class="ohlc">
         <span class="tfb">{tf}</span>
         <span>{legend.date.replaceAll('-', '/')}</span>
-        <span>O <b>{px(legend.o)}</b></span><span>H <b>{px(legend.h)}</b></span><span>L <b>{px(legend.l)}</b></span><span>C <b>{px(legend.c)}</b></span>
+        <span>O <b>{px(legend.o, pdg)}</b></span><span>H <b>{px(legend.h, pdg)}</b></span><span>L <b>{px(legend.l, pdg)}</b></span><span>C <b>{px(legend.c, pdg)}</b></span>
         <span class={cls(legend.chg)}>{sgn(legend.chg, 2, '%')}</span>
         <span class="vol">V <b>{Math.round(legend.v).toLocaleString()}</b></span>
         {#if legend.prov}<span class="badge">{t('chart.provisional')}</span>{/if}

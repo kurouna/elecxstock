@@ -527,6 +527,12 @@ table.grid {
 .grid td.name {
   font-family: var(--font);
 }
+/* マーケット一覧の連動 ETF の正式な名前（FR-U6） */
+.grid td.name .sub {
+  color: var(--text-3);
+  font-size: var(--fs-1);
+  margin-left: 6px;
+}
 .grid td.code {
   color: var(--text-2);
 }

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from '@playwright/test'
 import { HOLD, history, writeHistory } from './folio-fixture.mjs'
+import { waitIdle } from './wait-idle.mjs'
 
 const out = join(process.cwd(), 'docs', 'screenshots')
 mkdirSync(out, { recursive: true })
@@ -35,10 +36,7 @@ async function session(lang, shots) {
   }
   await page.getByRole('dialog').waitFor()
   await k('Enter', 'Enter')
-  await page
-    .locator('footer')
-    .getByText(/待機|Idle/)
-    .waitFor({ timeout: 60_000 })
+  await waitIdle(page, 60_000)
   if (lang === 'en') {
     await k('Control+k')
     await page.keyboard.type('English')
@@ -71,11 +69,7 @@ async function session(lang, shots) {
 async function folioSession() {
   const userData = mkdtempSync(join(tmpdir(), 'elecxstock-shot-'))
   const env = { ...process.env, ELECXSTOCK_PROVIDER: 'stub', ELECXSTOCK_USER_DATA: userData, ELECXSTOCK_NOW: NOW }
-  const idle = (page) =>
-    page
-      .locator('footer')
-      .getByText(/待機|Idle/)
-      .waitFor({ timeout: 120_000 })
+  const idle = (page) => waitIdle(page, 120_000)
   const call = (page, m, p = {}) => page.evaluate(([m, p]) => window.elecxstock.call(m, p), [m, p])
   let app = await electron.launch({ args: ['.'], env })
   let page = await app.firstWindow()
@@ -154,8 +148,9 @@ await session('ja', [
     'market',
     async ({ k, page }) => {
       await k('Escape', 'Control+Shift+Digit1', 'Alt+ArrowRight', 'ArrowRight')
-      // 指数の ETF（1306・1343）はタブを開いたときに取得の対象に足すので、取れて描くまで待つ
-      await page.locator('[data-widget="market"] .tile').last().getByText('1343').waitFor()
+      // マーケット一覧（左上）と、下の指数のタイル（最後はドル/円）が描けるまで待つ
+      await page.locator('[data-widget="board"] tbody tr').first().waitFor()
+      await page.locator('[data-widget="market"] .tile').last().getByText('USDJPY').waitFor()
       await page.waitForFunction(() => !document.querySelector('[data-widget="market"] .state'), null, { timeout: 30_000 })
     },
   ],

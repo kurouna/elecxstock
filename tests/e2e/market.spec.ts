@@ -106,3 +106,45 @@ test.describe('マーケットの指数のチャート（§6.3 market-overview�
     await expect(second.page.locator('[data-widget="market"] select.period')).toHaveValue('2')
   })
 })
+
+test.describe('マーケット一覧（FR-MB1, FR-MB2, FR-MB4, FR-MB5）', () => {
+  test('マーケットのタブの左上にあり、区分・並べ替え・チャートの追従をキーだけで操作できる', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'market')
+    const board = page.locator('[data-widget="board"]')
+    // ウォッチリストの代わりに左の列の上に置く（FR-MB5）
+    await expect(board).toBeVisible()
+    await expect(page.locator('[data-widget="watchlist"]')).toHaveCount(0)
+    const rows = board.locator('tbody tr')
+    await expect(rows).toHaveCount(20)
+    await expect(board.getByRole('tab', { selected: true })).toContainText('全て')
+    // 連動 ETF は表示名に「連動ETF」と ETF の名前を出す（FR-U6）
+    await expect(board.locator('tr[data-id="JP:1306"] td.name')).toContainText('TOPIX 連動ETF')
+    await expect(board.locator('tr[data-id="JP:1306"] td.name .sub')).toContainText('NEXT FUNDS')
+    await focusPane(page, board)
+    // ↓ でめくると、同じリンク色のチャートがその行になる（FR-MB4）
+    await keys(page, 'Home', 'ArrowDown')
+    const chart = page.locator('[data-widget="chart"]').first()
+    await expect(chart.locator('.sym .code')).toHaveText('1306')
+    // G で区分を次へ（日本）、Ctrl+PageDown でも次へ（米国）、Shift+G で戻る
+    await keys(page, 'KeyG')
+    await expect(board.getByRole('tab', { selected: true })).toContainText('日本')
+    await expect(rows).toHaveCount(6)
+    await keys(page, 'Control+PageDown')
+    await expect(board.getByRole('tab', { selected: true })).toContainText('米国')
+    await expect(rows).toHaveCount(5)
+    await expect(chart.locator('.sym .code')).toHaveText('DJI')
+    await keys(page, 'Shift+KeyG')
+    await expect(board.getByRole('tab', { selected: true })).toContainText('日本')
+    // 為替・金利: 価格は登録表の桁（ドル/円は 3 桁。FR-MB2）
+    await keys(page, 'KeyG', 'KeyG', 'KeyG')
+    await expect(board.getByRole('tab', { selected: true })).toContainText('為替・金利')
+    const close = board.locator('tr[data-id="IDX:USDJPY"] td').nth(2)
+    await expect(close).toHaveText(/^\d{3}\.\d{3}$/)
+    // ← → と S で並べ替える（前日比の列で 2 回押すと逆順）
+    await keys(page, 'ArrowRight', 'KeyS')
+    await expect(board.locator('th', { hasText: '▼' })).toHaveCount(1)
+    await keys(page, 'KeyS')
+    await expect(board.locator('th', { hasText: '▲' })).toHaveCount(1)
+  })
+})

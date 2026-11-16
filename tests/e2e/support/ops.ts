@@ -65,6 +65,21 @@ export const rpc = <T = unknown>(page: Page, method: string, params: unknown = {
     [method, params] as const,
   ) as Promise<T>
 
+/**
+ * ジョブがすべて終わるまで待つ（1 つ以上あって、どれも終わっている）。状態の帯の「待機中」は、ジョブを積む前にも出るので使わない
+ */
+export async function jobsDone(page: Page, timeout = 20_000): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const js = await rpc<{ status: string }[]>(page, 'jobs.list')
+        return js.length > 0 && js.every((j) => j.status === 'done' || j.status === 'failed' || j.status === 'cancelled')
+      },
+      { timeout },
+    )
+    .toBe(true)
+}
+
 export type HoldingIn = { code: string; account?: string; quantity: number; avgCost: number }
 /**
  * 保有の記録（holdings.json の中身）。起動の前に書く（launch の user.holdings）。

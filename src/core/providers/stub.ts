@@ -66,6 +66,20 @@ const U: Seed[] = [
   ['1306', 'NEXT FUNDS TOPIX連動型上場投信', 'NEXT FUNDS TOPIX Exchange Traded Fund', 'E', 'etf', '', '', 3107, 2.6, [3]],
   // マーケットのペインの既定（東証 REIT 指数の ETF）。値は架空
   ['1343', 'NEXT FUNDS 東証REIT指数連動型上場投信', 'NEXT FUNDS REIT INDEX ETF', 'E', 'etf', '', '', 2010, 3.9, [2, 5, 8, 11]],
+  // マーケット一覧の連動 ETF（FR-U6）。値は架空
+  [
+    '1591',
+    'NEXT FUNDS JPX日経インデックス400連動型上場投信',
+    'NEXT FUNDS JPX-Nikkei Index 400 Exchange Traded Fund',
+    'E',
+    'etf',
+    '',
+    '',
+    28150,
+    1.9,
+    [7],
+  ],
+  ['2516', '東証グロース250ETF', 'TSE Growth 250 ETF', 'E', 'etf', '', '', 640, 0, []],
   [
     '9282',
     'いちごグリーンインフラ投資法人',
@@ -155,6 +169,62 @@ function series(code: string) {
   return out
 }
 
+/**
+ * マーケット一覧の海外の行（FR-MB1）の架空の系列。記号は実在、水準・値動きは実際と無関係。
+ * 東証の休日にも動く（平日はすべて取引日。暗号資産は毎日）ので、東証の営業日で判断しないこと（FR-MB3）を試せる
+ */
+const EXT: Record<string, { base: number; vol: number; digits: number; volume: boolean; daily?: boolean }> = {
+  'NIY=F': { base: 41000, vol: 0.013, digits: 0, volume: true },
+  '^DJI': { base: 40000, vol: 0.01, digits: 2, volume: true },
+  '^GSPC': { base: 5500, vol: 0.01, digits: 2, volume: true },
+  '^IXIC': { base: 17000, vol: 0.013, digits: 2, volume: true },
+  '^SOX': { base: 5000, vol: 0.02, digits: 2, volume: false },
+  '^VIX': { base: 18, vol: 0.05, digits: 2, volume: false },
+  '^HSI': { base: 21000, vol: 0.013, digits: 2, volume: true },
+  '000001.SS': { base: 3200, vol: 0.01, digits: 2, volume: true },
+  'JPY=X': { base: 148.5, vol: 0.004, digits: 3, volume: false },
+  'EURJPY=X': { base: 161.2, vol: 0.004, digits: 3, volume: false },
+  '^TNX': { base: 4.15, vol: 0.015, digits: 3, volume: false },
+  'CL=F': { base: 72, vol: 0.02, digits: 2, volume: true },
+  'GC=F': { base: 2400, vol: 0.009, digits: 1, volume: true },
+  'SI=F': { base: 29.5, vol: 0.016, digits: 3, volume: true },
+  'BTC-JPY': { base: 9_800_000, vol: 0.03, digits: 0, volume: true, daily: true },
+}
+const extCache = new Map<string, RawBar[]>()
+function ext(symbol: string): RawBar[] {
+  const key = `${symbol}@${lastClosedSession()}`
+  const hit = extCache.get(key)
+  if (hit) return hit
+  const e = EXT[symbol]!
+  const r = rng(symbol)
+  const end = lastClosedSession()
+  const days: string[] = []
+  for (let d = '2000-01-03'; d <= end; d = addDays(d, 1)) {
+    const wd = new Date(`${d}T00:00:00Z`).getUTCDay()
+    if (e.daily || (wd !== 0 && wd !== 6)) days.push(d)
+  }
+  const f = 10 ** e.digits
+  const rd = (x: number) => Math.round(x * f) / f
+  // 最新の値は基準の ±10%（きりのよい数にしない）
+  let c = e.base * (0.9 + r() * 0.2)
+  const arr: RawBar[] = []
+  for (let i = days.length - 1; i >= 0; i--) {
+    const o = c * (1 + (r() - 0.5) * e.vol * 0.5)
+    arr.push({
+      d: days[i]!,
+      o: rd(o),
+      h: rd(Math.max(o, c) * (1 + r() * e.vol * 0.4)),
+      l: rd(Math.min(o, c) * (1 - r() * e.vol * 0.4)),
+      c: rd(c),
+      v: e.volume ? Math.round(1e5 * (0.5 + r())) : 0,
+    })
+    c = c / (1 + (r() - 0.49) * e.vol * 2)
+  }
+  const bars = arr.reverse()
+  extCache.set(key, bars)
+  return bars
+}
+
 export function createStubProvider(): Provider {
   return {
     id: 'stub',
@@ -164,6 +234,10 @@ export function createStubProvider(): Provider {
     jitterMs: 0,
     toSymbol: (code, kind) => (kind === 'index' ? `^${code}` : `${code}.T`),
     async fetchHistory(symbol, { from, interval }): Promise<HistoryResult> {
+      if (EXT[symbol]) {
+        const bars = ext(symbol).filter((b) => b.d >= from)
+        return { bars: interval === '1mo' ? monthly(bars) : bars, dividends: [], splits: [] }
+      }
       const code = symbol.replace(/\.T$/, '').replace(/^\^/, '')
       if (code === 'N225') return idx(from, interval)
       const s = series(code)
@@ -173,7 +247,30 @@ export function createStubProvider(): Provider {
     },
     async fetchQuotes(symbols): Promise<ProviderQuote[]> {
       const { minutes } = jstNow()
-      return symbols.flatMap((sym) => {
+      return symbols.flatMap((sym): ProviderQuote[] => {
+        if (EXT[sym]) {
+          const b = ext(sym)
+          const last = b.at(-1)!
+          return [
+            {
+              symbol: sym,
+              time: Date.parse(`${last.d}T06:30:00Z`),
+              price: last.c,
+              open: last.o,
+              high: last.h,
+              low: last.l,
+              volume: last.v,
+              prevClose: b.at(-2)!.c,
+              per: null,
+              pbr: null,
+              marketCap: null,
+              shares: null,
+              bps: null,
+              eps: null,
+              nameEn: null,
+            },
+          ]
+        }
         const code = sym.replace(/\.T$/, '').replace(/^\^/, '')
         const s = BY.get(code)
         if (!s && code !== 'N225') return []

@@ -1,8 +1,9 @@
 // アクションの登録表（FR-KB1）とキー操作（§6.5）。メニュー・ボタン・ショートカット・コマンドバーは同じアクションを呼ぶ。
 // キーは物理キー（KeyboardEvent.code）で判定し、日本語 IME の変換中は無視する（FR-KB5）。
 // 登録表のキーは設定で変えられる（FR-KB6。settings.keymap が上書き）。ペインの中の単キーは各ペインが持つ。
-import { addDays, jstNow, lastClosedSession } from '@shared/calendar'
+import { addDays, jstNow } from '@shared/calendar'
 import { CODE_RE } from '@shared/code'
+import { isUpToDate } from '@shared/freshness'
 import type { InstrumentId, Watchlist } from '@shared/types'
 import {
   app,
@@ -257,17 +258,13 @@ export async function startUpdate(force = false): Promise<void> {
     return
   }
   const last = app.status?.lastUpdate
-  if (!force && app.status?.withBars && last && upToDate(last)) {
+  // 最新の判定は src/shared/freshness.ts（未取得の銘柄・東証の大引け・海外の終値。FR-F10, FR-MB3）
+  if (!force && last && isUpToDate(last, app.status)) {
     toast(t('update.upToDate', { at: dateTime(last) }), { label: t('update.anyway'), run: () => void startUpdate(true) })
     return
   }
   await rpc('jobs.start', { kind: app.status?.withBars ? 'daily' : 'initial' })
   toast(t('update.started'))
-}
-/** 最後の更新が、いちばん新しい取引日の大引け（15:30）より後なら最新 */
-function upToDate(lastIso: string): boolean {
-  const session = lastClosedSession()
-  return Date.parse(lastIso) >= Date.parse(`${session}T15:30:00+09:00`)
 }
 /** 銘柄を指定した取り直し（FR-S7）: 選んだ銘柄（複数選択を含む） */
 export async function refetchSelected(): Promise<void> {

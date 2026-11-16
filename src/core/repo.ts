@@ -1,5 +1,6 @@
 // DB の読み書き（リポジトリ層）。SQL はここに閉じ込める。
 import { METRIC_COLUMNS } from '@shared/fields'
+import { REF_ETF_IDS, REF_INDEX_ROWS, refCode } from '@shared/markets'
 import type { Dividend, Instrument, InstrumentId, InstrumentKind, JstDate, Market, MetricsRow, Quote, Split } from '@shared/types'
 import { toJstDate } from './calendar'
 import type { Db } from './db'
@@ -8,6 +9,8 @@ import type { DayBar } from './series'
 
 export const N225: InstrumentId = 'IDX:N225'
 export const idOf = (code: string) => `JP:${code}`
+/** 取得の対象の条件（SQL）。プライム・J-REIT・参照の行（市場 I）・利用者の追加・連動 ETF（FR-U1〜U3, U6）。ETF の ID は登録表の定数 */
+const TRACKED = `market IN ('P', 'R', 'I') OR user_added = 1 OR id IN (${REF_ETF_IDS.map((x) => `'${x}'`).join(', ')})`
 
 interface InstRow {
   id: string
@@ -81,14 +84,31 @@ export class Repo {
           delisted++
         }
       }
-      this.db.run(
-        `INSERT INTO instruments(id, code, name_ja, name_en, market, kind, status, yahoo, updated)
-         VALUES(?, 'N225', '日経平均株価', 'Nikkei 225', 'I', 'index', 'active', '^N225', ?) ON CONFLICT(id) DO NOTHING`,
-        N225,
-        now,
-      )
+      this.putRefs(now)
     })
     return { added, delisted }
+  }
+  ensureRefs(now: string): void {
+    this.db.tx(() => this.putRefs(now))
+  }
+  /**
+   * 参照の行（指数・為替・金利・商品・暗号資産。FR-U6, FR-MB3）を銘柄の表に入れる。Core の起動のたびとユニバースの取り込みで呼ぶ
+   * （既存の利用者もユニバースの更新を待たずに入る）。あれば記号・市場・種別を登録表に合わせる。名前は入れるときだけ
+   */
+  private putRefs(now: string): void {
+    for (const r of REF_INDEX_ROWS) {
+      this.db.run(
+        `INSERT INTO instruments(id, code, name_ja, name_en, market, kind, status, yahoo, updated)
+         VALUES(?, ?, ?, ?, 'I', 'index', 'active', ?, ?)
+         ON CONFLICT(id) DO UPDATE SET yahoo = excluded.yahoo, market = 'I', kind = 'index', status = 'active'`,
+        r.id,
+        refCode(r.id),
+        r.id === N225 ? '日経平均株価' : r.name.ja,
+        r.name.en,
+        r.yahoo,
+        now,
+      )
+    }
   }
   setUserAdded(codes: string[]): void {
     const set = new Set(codes.map((c) => idOf(c.toUpperCase())))
@@ -97,11 +117,11 @@ export class Repo {
       for (const id of set) this.db.run('UPDATE instruments SET user_added = 1 WHERE id = ?', id)
     })
   }
-  /** 取得する銘柄: プライム・J-REIT と利用者の追加、指数（FR-U1〜U3）。廃止銘柄は取らない（FR-U8） */
+  /** 取得する銘柄: プライム・J-REIT と利用者の追加、参照の行と連動 ETF（FR-U1〜U3, U6）。廃止銘柄は取らない（FR-U8） */
   fetchSet(): { id: string; yahoo: string; kind: InstrumentKind }[] {
     return this.db.all<{ id: string; yahoo: string; kind: InstrumentKind }>(
-      `SELECT id, yahoo, kind FROM instruments WHERE status = 'active' AND (market IN ('P', 'R', 'I') OR user_added = 1) ORDER BY
-         CASE WHEN market = 'I' THEN 0 ELSE 1 END, code`,
+      `SELECT id, yahoo, kind FROM instruments WHERE status = 'active' AND (${TRACKED}) ORDER BY
+         CASE WHEN id = 'IDX:N225' THEN 0 WHEN market = 'I' THEN 1 ELSE 2 END, code`,
     )
   }
   /** 種別だけ（指標の再計算。全列を読まない） */
@@ -128,9 +148,7 @@ export class Repo {
   /** 取得対象と、データを持っている銘柄（スクリーニングと一覧の対象） */
   universe(): Instrument[] {
     return this.db
-      .all<InstRow>(
-        `SELECT * FROM instruments WHERE (status = 'active' AND (market IN ('P', 'R', 'I') OR user_added = 1)) OR id IN (SELECT id FROM metrics) ORDER BY code`,
-      )
+      .all<InstRow>(`SELECT * FROM instruments WHERE (status = 'active' AND (${TRACKED})) OR id IN (SELECT id FROM metrics) ORDER BY code`)
       .map(toInst)
   }
   search(q: string, limit: number): Instrument[] {
@@ -151,9 +169,7 @@ export class Repo {
       .map(toInst)
   }
   counts(): { instruments: number; withBars: number } {
-    const a = this.db.get<{ n: number }>(
-      `SELECT COUNT(*) n FROM instruments WHERE status = 'active' AND (market IN ('P','R','I') OR user_added = 1)`,
-    )!.n
+    const a = this.db.get<{ n: number }>(`SELECT COUNT(*) n FROM instruments WHERE status = 'active' AND (${TRACKED})`)!.n
     const b = this.db.get<{ n: number }>('SELECT COUNT(*) n FROM fetch_state WHERE last_full IS NOT NULL')!.n
     return { instruments: Number(a), withBars: Number(b) }
   }

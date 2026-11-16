@@ -7,9 +7,10 @@ export function fmt(v: number | null | undefined, digits = 2): string {
   return v.toLocaleString(loc(), { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 /** 価格: 1,000 未満は小数 1 桁、それ以上は整数（分割調整後の端数も揃える） */
-export function px(v: number | null | undefined): string {
+/** 価格。桁を渡さなければ 1,000 未満は小数 1 桁、それ以上は整数。マーケット一覧の行は登録表の桁（FR-MB2。priceDigits） */
+export function px(v: number | null | undefined, digits?: number): string {
   if (v == null || !Number.isFinite(v)) return '—'
-  const d = Math.abs(v) < 1000 ? 1 : 0
+  const d = digits ?? (Math.abs(v) < 1000 ? 1 : 0)
   return v.toLocaleString(loc(), { minimumFractionDigits: d, maximumFractionDigits: d })
 }
 export function sgn(v: number | null | undefined, digits = 2, suffix = ''): string {

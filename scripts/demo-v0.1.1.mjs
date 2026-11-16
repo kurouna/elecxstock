@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from '@playwright/test'
 import { call, caption, card, overlay, press, SIZE, SPEED, shot, sleep, typeCode, WAIT } from './demo-kit.mjs'
+import { waitIdle } from './wait-idle.mjs'
 
 const userData = mkdtempSync(join(tmpdir(), 'elecxstock-demo-'))
 // 日時を固定する（平日の大引けのあと。決算発表・権利付最終日までの日数が録り直しても同じになる）
@@ -23,11 +24,7 @@ const env = {
   ELECXSTOCK_USER_DATA: userData,
   ELECXSTOCK_NOW: '2026-11-13T18:00:00+09:00',
 }
-const idle = (page) =>
-  page
-    .locator('footer')
-    .getByText(/待機|Idle/)
-    .waitFor({ timeout: 120_000 })
+const idle = (page) => waitIdle(page, 120_000)
 
 // ---------------------------------------------------------------- 1 回目: 初回の取り込みと、架空のウォッチリスト・保有を入れる（録画しない）
 {

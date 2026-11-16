@@ -4,6 +4,7 @@ import { heldFrom } from '@shared/alerts'
 import { jstNow } from '@shared/calendar'
 import { type ComputeContext, computeValue, heldStats } from '@shared/compute'
 import { FIELDS, type FieldDef, KIND_CHOICES, perShare, usable } from '@shared/fields'
+import { priceDigits } from '@shared/markets'
 import type { Instrument, InstrumentId, MetricsRow } from '@shared/types'
 import { app, checklistDialog, ensureMetrics, inst, metric, t } from '../stores/app.svelte'
 import { cls, date, fmt, money, px, sgn } from './format'
@@ -43,12 +44,13 @@ function computeContext(): ComputeContext {
 
 const mv = (id: InstrumentId, col: string) => (metric(id) as unknown as Record<string, number | null> | undefined)?.[col] ?? null
 
-function fieldCell(f: FieldDef, v: number | null): Cell {
+/** digits: 価格の桁（マーケット一覧の行。FR-MB2） */
+function fieldCell(f: FieldDef, v: number | null, digits?: number): Cell {
   if (v == null) return { t: '—' }
   switch (f.type) {
     case 'money': {
       // 1 株あたりの金額（価格・EPS・BPS・1株配当）は円、それ以外（時価総額・売買代金・最低投資金額）は万・億・兆
-      if (perShare(f)) return { t: px(v) }
+      if (perShare(f)) return { t: px(v, digits) }
       const m = money(v)
       return { t: m.n, u: m.u }
     }
@@ -72,6 +74,9 @@ const SHORT: Record<string, Key> = {
   'value.per': 'col.per',
   'value.pbr': 'col.pbr',
   'ret.1y': 'col.ret1y',
+  'ret.1m': 'col.ret1m',
+  'ret.ytd': 'col.ytd',
+  'tech.fromHi52': 'col.fromHi52',
 }
 
 export const COLUMNS: ListCol[] = [
@@ -106,7 +111,7 @@ export const COLUMNS: ListCol[] = [
       label: () => (SHORT[f.id] ? t(SHORT[f.id]!) : f.label[app.settings.lang]),
       w: widthOf(f),
       sort: (id) => mv(id, (f.source as { column: string }).column),
-      cell: (id) => fieldCell(f, mv(id, (f.source as { column: string }).column)),
+      cell: (id) => fieldCell(f, mv(id, (f.source as { column: string }).column), priceDigits(id)),
     }),
   ),
   // 実行時に計算する指標（予定までの日数・保有）。スクリーナーと同じ関数で数える（src/shared/compute.ts）
@@ -147,6 +152,8 @@ for (const [old, id] of [
 export const DEFAULT_COLUMNS = {
   watchlist: ['star', 'code', 'name', 'price.close', 'price.chgPct', 'income.yield', 'liq.turnover20'],
   screener: ['star', 'code', 'name', 'mkt', 'price.close', 'income.yield', 'value.per', 'value.pbr', 'liq.turnover20', 'ret.1y'],
+  /** マーケット一覧（FR-MB2）。★は列の選択で外せないが、一覧のペインが出さない */
+  board: ['code', 'name', 'price.close', 'price.chgPct', 'ret.1m', 'ret.ytd', 'tech.fromHi52', 'asOf'],
 }
 
 /** ペインの状態などに保存した列の ID から、使える列を並べる（知らない ID は捨て、固定の列は必ず先頭に置く） */

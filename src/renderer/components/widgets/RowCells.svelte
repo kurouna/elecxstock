@@ -1,10 +1,13 @@
 <script lang="ts">
 // 一覧の 1 行のセル（列は lib/columns.ts）。値が変わったセルは一瞬だけ背景を光らせる（FR-V6）。
+import { refOf } from '@shared/markets'
 import type { InstrumentId } from '@shared/types'
 import { kindTag, type ListCol } from '../../lib/columns'
 import { app, codeOf, inst, isFav, metric, nameOf, t, toggleFav } from '../../stores/app.svelte'
 
-let { id, cols }: { id: InstrumentId; cols: ListCol[] } = $props()
+/** refName: マーケット一覧の表示名を出す（連動 ETF は ETF の名前を添える。FR-U6） */
+let { id, cols, refName = false }: { id: InstrumentId; cols: ListCol[]; refName?: boolean } = $props()
+const ref = $derived(refName ? refOf(id) : undefined)
 const ins = $derived(inst(id))
 const m = $derived(metric(id))
 const kind = $derived(kindTag(ins, cols, app.settings.lang))
@@ -28,8 +31,8 @@ $effect(() => {
   {:else if c.id === 'code'}
     <td class="l code">{codeOf(id)}</td>
   {:else if c.id === 'name'}
-    <td class="l name">
-      {nameOf(id)}{#if kind}<span class="tag">{kind}</span>{/if}
+    <td class="l name" title={ref && id.startsWith('JP:') ? `${ref.name[app.settings.lang]} ${nameOf(id)}` : undefined}>
+      {#if ref}{ref.name[app.settings.lang]}{#if id.startsWith('JP:')}<span class="sub">{nameOf(id)}</span>{/if}{:else}{nameOf(id)}{#if kind}<span class="tag">{kind}</span>{/if}{/if}
       {#if ins?.status === 'delisted'}<span class="tag warn" title={t('list.delistedHint')}>{t('list.delisted')}</span>{/if}
       {#if m?.anomaly || m?.gapSuspect}<span class="tag warn" title={t('list.anomalyHint')}>!</span>{/if}
     </td>

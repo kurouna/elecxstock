@@ -1,20 +1,21 @@
 <script lang="ts">
 // market-overview（§6.3, FR-U6）: 指数・指数連動 ETF の小さなチャート群。
-// 既定は日経平均（^N225）・TOPIX 連動 ETF（1306）・東証 REIT 指数連動 ETF（1343）。TOPIX そのものは Yahoo で取れない。
+// 既定は日経平均・TOPIX 連動 ETF（1306。TOPIX そのものは Yahoo で取れない）・NYダウ・ドル/円（マーケット一覧の行。FR-U6）。
 // 1〜9 で銘柄を足し、Delete で外す。D/W/M で時間軸、Alt+1〜6 で表示期間（チャートと同じ）、矢印で選び、Enter でリンクグループへ。
+import { priceDigits } from '@shared/markets'
 import type { Bars, InstrumentId, Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
 import { cls, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import { marketBars, periodOfKey } from '../../lib/periods'
-import { app, bridge, codeOf, inst, nameOf, rpc, t, toast } from '../../stores/app.svelte'
+import { app, bridge, codeOf, nameOf, t, toast } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import PeriodPicker from '../PeriodPicker.svelte'
 import { drawTile } from './gridDraw'
 
 let { pane }: { pane: PaneNode } = $props()
-const DEFAULT = ['IDX:N225', 'JP:1306', 'JP:1343']
+const DEFAULT = ['IDX:N225', 'JP:1306', 'IDX:DJI', 'IDX:USDJPY']
 const ids = $derived((pane.state.ids as InstrumentId[] | undefined) ?? DEFAULT)
 const tf = $derived(((pane.state.tf as Timeframe) ?? 'D') as Timeframe)
 /** 表示期間（PERIODS の位置）。無ければ時間軸ごとの既定の本数 */
@@ -31,7 +32,14 @@ async function load() {
 function draw() {
   for (const cv of host?.querySelectorAll<HTMLCanvasElement>('canvas') ?? []) {
     const id = cv.dataset.id!
-    drawTile(cv, bars[id], bars[id], { tf, scale: 0, ma: true, hoverDate: null, fmtPx: px, fmtPct: (v) => sgn(v, 0, '%') })
+    drawTile(cv, bars[id], bars[id], {
+      tf,
+      scale: 0,
+      ma: true,
+      hoverDate: null,
+      fmtPx: (v) => px(v, priceDigits(id)),
+      fmtPct: (v) => sgn(v, 0, '%'),
+    })
   }
 }
 $effect(() => {
@@ -49,14 +57,7 @@ const ret = (id: InstrumentId) => {
 const send = () => ids[sel] && setLinkSymbol(pane.link, ids[sel]!)
 
 onMount(() => {
-  // 1306・1343 はプライム・REIT ではないので、取得の対象に足す（FR-U3, U6）
-  for (const id of DEFAULT.filter((x) => x.startsWith('JP:'))) {
-    const i = inst(id)
-    if (!i || (!i.userAdded && i.market !== 'P' && i.market !== 'R'))
-      void rpc('instruments.addUser', { code: id.slice(3) })
-        .then((x) => x && app.instruments.set(x.id, x))
-        .catch(() => {})
-  }
+  // 連動 ETF（1306 など）は Core が取得の対象に入れる（FR-U6）。利用者の追加にはしない
   const ro = new ResizeObserver(() => draw())
   if (host) ro.observe(host)
   const off = registerPane(pane.id, {
@@ -120,7 +121,7 @@ onMount(() => {
     <div class="tile" class:sel={i === sel} onclick={() => { sel = i; send() }}>
       <div class="h">
         <span class="c">{codeOf(id)}</span><span class="n">{nameOf(id)}</span>
-        <span class="p num">{px(b?.close.at(-1))}</span><span class={`r num ${cls(r)}`}>{sgn(r, 2, '%')}</span>
+        <span class="p num">{px(b?.close.at(-1), priceDigits(id))}</span><span class={`r num ${cls(r)}`}>{sgn(r, 2, '%')}</span>
       </div>
       {#if b && !b.time.length}<div class="state small">{t('chart.noData')}</div>{/if}
       <canvas data-id={id}></canvas>

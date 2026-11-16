@@ -59,7 +59,19 @@ export default async function globalSetup(): Promise<void> {
     await page.keyboard.press('Enter') // 同意
     await expect(page.getByRole('dialog').first()).toContainText('TradingView')
     await page.keyboard.press('Enter') // 取得を始める
-    await expect(page.locator('footer')).toContainText(/待機/, { timeout: 60_000 })
+    // 状態の帯の「待機中」はジョブを積む前にも出るので、ジョブが終わったことを Core に聞いて待つ
+    await expect
+      .poll(
+        async () => {
+          const js = (await page.evaluate(() =>
+            (window as unknown as { elecxstock: { call: (m: string, p: unknown) => Promise<unknown> } }).elecxstock.call('jobs.list', {}),
+          )) as { status: string }[]
+          return js.length > 0 && js.every((j) => j.status === 'done' || j.status === 'failed' || j.status === 'cancelled')
+        },
+        { timeout: 60_000 },
+      )
+      .toBe(true)
+    await expect(page.locator('footer')).toContainText(/待機/)
     const st = (await page.evaluate(() =>
       (window as unknown as { elecxstock: { call: (m: string, p: unknown) => Promise<unknown> } }).elecxstock.call('data.status', {}),
     )) as { instruments: number; withBars: number }

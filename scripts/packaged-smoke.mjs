@@ -4,6 +4,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { chromium } from '@playwright/test'
+import { waitIdle } from './wait-idle.mjs'
 
 const exe = process.argv[2] ?? 'release/win-unpacked/elecxstock.exe'
 const userData = mkdtempSync(join(tmpdir(), 'elecxstock-pkg-'))
@@ -27,10 +28,7 @@ try {
   await page.getByRole('dialog').waitFor({ timeout: 20_000 })
   await page.keyboard.press('Enter')
   await page.keyboard.press('Enter')
-  await page
-    .locator('footer')
-    .getByText(/待機|Idle/)
-    .waitFor({ timeout: 60_000 })
+  await waitIdle(page, 60_000)
   await page.waitForTimeout(1500)
   await page.screenshot({ path: 'test-results/packaged.png' })
   console.log('url', page.url(), 'title', await page.title())

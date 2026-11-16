@@ -1,7 +1,7 @@
 // 起動（§6.13 初回起動・FR-F1 中断と再開）。空の userData から始めるのはこのファイルだけ
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, keys, rpc, test } from './support'
+import { expect, jobsDone, keys, rpc, test } from './support'
 
 test.describe('初回起動（FR-F1, FR-S1）', () => {
   test('空の userData: 同意 → 取得を始める → 初回取得が終わる', async ({ launch }) => {
@@ -11,7 +11,8 @@ test.describe('初回起動（FR-F1, FR-S1）', () => {
     await keys(page, 'Enter') // 同意
     await expect(dlg).toContainText('TradingView')
     await keys(page, 'Enter') // 取得を始める
-    await expect(page.locator('footer')).toContainText(/待機/, { timeout: 20_000 })
+    await jobsDone(page)
+    await expect(page.locator('footer')).toContainText(/待機/)
     const st = await rpc<{ instruments: number; withBars: number }>(page, 'data.status')
     expect(st.instruments).toBeGreaterThan(0)
     expect(st.withBars).toBe(st.instruments)
@@ -35,7 +36,8 @@ test.describe('初回起動（FR-F1, FR-S1）', () => {
 
     const { page } = await launch({ userData: first.userData })
     // 同意は済んでいるので初回のダイアログは出ず、取得の続きが終わる
-    await expect(page.locator('footer')).toContainText(/待機/, { timeout: 20_000 })
+    await jobsDone(page)
+    await expect(page.locator('footer')).toContainText(/待機/)
     await expect(page.getByRole('dialog', { name: /elecxstock/ })).toHaveCount(0)
     await expect
       .poll(async () => (await rpc<{ kind: string; status: string }[]>(page, 'jobs.list')).filter((j) => j.kind === 'initial'))

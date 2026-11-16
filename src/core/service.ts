@@ -103,6 +103,8 @@ export class CoreService {
     mkdirSync(dataDir, { recursive: true })
     this.db = new Db(join(dataDir, 'market.db'))
     this.repo = new Repo(this.db)
+    // 参照の行（指数・為替など。FR-U6, FR-MB3）は起動のたびに入れる。既存の利用者も次の日々の更新で取得が始まる
+    this.repo.ensureRefs(new Date().toISOString())
     this.user = new UserStore(join(dataDir, 'user'))
     this.alertBook = new AlertBook(join(dataDir, 'user'), () => this.user.readOnly)
     this.folio = new FolioBook(join(dataDir, 'user'), () => this.user.readOnly)

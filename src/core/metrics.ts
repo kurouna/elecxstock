@@ -1,4 +1,5 @@
 // 銘柄ごとの指標の計算（FR-S10, FR-I1〜I4, FR-D9）。純粋関数。足りない期間の指標は null（欠損）にする。
+import { isStale } from '@shared/markets'
 import { epochDay, nextRightsDates, recordDayOf } from '@shared/rights'
 import type { Dividend, InstrumentId, InstrumentKind, JstDate, MetricsRow, Quote, Split } from '@shared/types'
 import { addDays, addYears, isTradingDay } from './calendar'
@@ -152,7 +153,7 @@ export function computeMetrics(
     ...empty,
     asOf,
     provisional: !!last.prov,
-    stale: asOf < lastSession,
+    stale: isStale(id, asOf, lastSession),
     close,
     chg: prev ? close - prev.c : null,
     chgPct: prev && prev.c > 0 ? (close / prev.c - 1) * 100 : null,

@@ -2,6 +2,7 @@
 // 条件は「または」（Condition.or）でまとめたグループを「かつ」でつなぐ（FR-SC5）。相対条件は Condition.ref で別の指標と比べる。
 import { COMPUTE_KEYS, computeValue, type HeldStats, heldStats } from '@shared/compute'
 import { FIELD_BY_ID, migrateConditions, refFields, refTarget, usable } from '@shared/fields'
+import { REF_ETF_IDS } from '@shared/markets'
 import type { Condition, Instrument, InstrumentId, JstDate, MetricsRow, ScreenResult } from '@shared/types'
 
 export interface ScreenInput {
@@ -108,8 +109,10 @@ export function evaluateConditions(
 
 /** スクリーニング・ランキング・ヒートマップの対象か: いま取得している銘柄だけ（FR-U4, U8） */
 export function screenable(ins: Instrument): boolean {
-  return ins.status === 'active' && (ins.market === 'P' || ins.market === 'R' || ins.userAdded)
+  // マーケット一覧の連動 ETF（FR-U6）は取得の対象なので、スクリーナーにも出す（市場に ETF を選んだとき）
+  return ins.status === 'active' && (ins.market === 'P' || ins.market === 'R' || ins.userAdded || REF_ETF_SET.has(ins.id))
 }
+const REF_ETF_SET = new Set(REF_ETF_IDS)
 
 export function runScreen(input: ScreenInput): ScreenResult {
   const t0 = performance.now()
