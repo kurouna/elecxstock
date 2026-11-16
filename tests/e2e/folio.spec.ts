@@ -56,6 +56,8 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     // TOPIX そのものは取れないので、比べているのは TOPIX 連動 ETF（1306）と分かるように出す（FR-U6）
     await expect(f.locator('.c-hero')).toContainText('TOPIX ETF')
     await expect(f.locator('.c-hist .chart svg')).toBeVisible()
+    // 円の資産推移は 0 円から: 取得額から 0 円までを塗る面がある
+    await expect(f.locator('.c-hist .costarea')).toHaveCount(1)
     await expect(f.locator('.c-alloc .tile').first()).toBeVisible()
     await expect(f.locator('.c-contrib .crow').first()).toBeVisible()
     await expect(f.locator('.c-events')).toContainText('今後 30 日の予定')

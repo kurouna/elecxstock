@@ -27,6 +27,7 @@ import {
   groupKey,
   heatBg,
   heroNumbers,
+  histGeom,
   histHead,
   histPoints,
   importedAtText,
@@ -234,6 +235,17 @@ describe('図の計算（FR-PF4・PF5・PF7）', () => {
     expect(bars[0]!.top + bars[0]!.h).toBeCloseTo(200 - 30)
     expect(bars[1]!.top).toBeLessThan(bars[0]!.top)
     expect(bars[2]!.link).toBeCloseTo(bars[3]!.top)
+  })
+  it('資産推移（円）: 縦軸は 0 円から。評価額・取得額が 0 円の高さより上に来て、目盛りに 0 がある', () => {
+    const p = (d: string, value: number, cost: number) =>
+      ({ d, src: 'rec', final: true, value, cost, pos: [], at: 1 }) as unknown as FolioSeriesPoint
+    const g = histGeom([p('2026-11-12', 43_000_000, 17_500_000), p('2026-11-13', 42_800_000, 17_500_000)], 600, 200)
+    expect(g.ticks[0]!.v).toBe(0)
+    expect(g.y(0)).toBeCloseTo(200 - 18)
+    expect(g.y(43_000_000)).toBeGreaterThan(6) // 上は少し空ける
+    expect(g.ticks.at(-1)!.v).toBeGreaterThanOrEqual(40_000_000)
+    // 取得額から 0 円までの面（中立の色で塗る）は 0 円の高さまで下りる
+    expect(g.clipDown).toContain(`V${(200 - 18).toFixed(1)}`)
   })
   it('ツリーマップ: 分類の見出しと銘柄のタイル。口座で分けると銘柄 × 口座、銘柄だけなら見出しなし', () => {
     const t = allocTiles(rows, 'sector', 0, 600, 300)

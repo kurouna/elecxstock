@@ -1054,6 +1054,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 }
 .dot.dash {
   border: 1px dashed var(--text-3);
+  background: color-mix(in srgb, var(--text-3) 16%, transparent);
 }
 .dot.ring {
   border: 1px solid var(--text-3);

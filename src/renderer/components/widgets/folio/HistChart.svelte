@@ -62,6 +62,8 @@ function move(e: MouseEvent) {
         <linearGradient id={`${uid}gu`} x1="0" x2="0" y1="0" y2="1"><stop offset="0" class="su" /><stop offset="1" class="su0" /></linearGradient>
         <linearGradient id={`${uid}gd`} x1="0" x2="0" y1="0" y2="1"><stop offset="0" class="sd0" /><stop offset="1" class="sd" /></linearGradient>
       </defs>
+      <!-- 取得額（入れた元本）から 0 円までを中立の色で塗り、その上に含み損益の帯を重ねる（縦軸が 0 からと分かる） -->
+      <path d={g.clipDown} class="costarea" />
       <path d={g.band} fill={`url(#${uid}gu)`} clip-path={`url(#${uid}u)`} />
       <path d={g.band} fill={`url(#${uid}gd)`} clip-path={`url(#${uid}d)`} />
       <path d={g.cPath} class="cost" />
@@ -157,6 +159,9 @@ svg {
 :global(:root[data-theme='light']) .su,
 :global(:root[data-theme='light']) .sd {
   stop-opacity: 0.22;
+}
+.costarea {
+  fill: color-mix(in srgb, var(--text-3) 16%, transparent);
 }
 .cost {
   fill: none;

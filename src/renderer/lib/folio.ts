@@ -311,12 +311,11 @@ export interface HistGeom {
 }
 /** 資産推移の図（評価額の線・取得額の階段・その間の帯）。i は points の位置 */
 export function histGeom(points: FolioSeriesPoint[], w: number, h: number, pad = { l: 2, r: 56, t: 6, b: 18 }): HistGeom {
+  // 縦軸は 0 円から（評価額と取得額の大きさを、そのままの比で見せる）。上だけ少し空ける
   const vals = points.flatMap((p) => (p.src === 'est' ? [p.value] : [p.value, p.cost]))
-  let lo = Math.min(...vals)
-  let hi = Math.max(...vals)
-  const m = (hi - lo) * 0.08 || Math.abs(hi) * 0.05 || 1
-  lo -= m
-  hi += m
+  const lo = Math.min(0, ...vals)
+  const top = Math.max(0, ...vals)
+  const hi = top + ((top - lo) * 0.08 || 1)
   const n = points.length
   const x = (i: number) => pad.l + (i / Math.max(1, n - 1)) * (w - pad.l - pad.r)
   const y = (v: number) => pad.t + (1 - (v - lo) / (hi - lo)) * (h - pad.t - pad.b)
