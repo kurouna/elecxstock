@@ -258,7 +258,7 @@ describe('フリー N（マルチモニタ）', () => {
 })
 
 describe('スクリーナーのタブの初期の並び（§6.4 Screener・FR-L5）', () => {
-  it('左から スクリーナー・銘柄情報・チャート 2 枚（上下）。すべてリンク 2', () => {
+  it('左から スクリーナー・銘柄情報・チャート 2 枚（上は日足・下は週足。同じ足を 2 枚出さない）。すべてリンク 2', () => {
     type N = { kind: string; widget?: string; dir?: string; sizes?: number[]; link?: number; state?: { tf?: string }; children?: N[] }
     const root = L.presetEntry('screener').root as N
     expect(root.dir).toBe('row')
@@ -270,7 +270,7 @@ describe('スクリーナーのタブの初期の並び（§6.4 Screener・FR-L5
     expect(charts!.sizes).toEqual([50, 50])
     expect(charts!.children!.map((c) => [c.widget, c.state?.tf])).toEqual([
       ['chart', 'D'],
-      ['chart', 'D'],
+      ['chart', 'W'],
     ])
     const panes = L.allPanes(L.presetEntry('screener'), false)
     expect(panes.every((p) => p.link === 2)).toBe(true)

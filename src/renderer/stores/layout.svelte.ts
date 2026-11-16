@@ -133,13 +133,13 @@ export function presetEntry(id: PresetId): LayoutEntry {
       return { root: P('grid', MAIN_LINK, { src: 'live' }), docks: { left: selectDock(MAIN_LINK, 1) } }
     case 'screener':
       // スクリーナーが主役なので、左の列はスクリーナーだけ（ウォッチリストは置かない）。結果の行を動かすと、
-      // となりの銘柄情報と右のチャート 2 枚（上下）が同じ銘柄を出す（リンク 2）
+      // となりの銘柄情報と右のチャート 2 枚（上は日足・下は週足）が同じ銘柄を出す（リンク 2）
       return {
         root: R(
           [26, 26, 48],
           P('screener', MAIN_LINK),
           P('info', MAIN_LINK),
-          C([50, 50], P('chart', MAIN_LINK, { tf: 'D' }), P('chart', MAIN_LINK, { tf: 'D' })),
+          C([50, 50], P('chart', MAIN_LINK, { tf: 'D' }), P('chart', MAIN_LINK, { tf: 'W' })),
         ),
         docks: {},
       }
