@@ -98,7 +98,7 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
   マイレイアウト（8 番目のタブ）のページの正は `layout.pages`（layouts.json）で、`doc.entries.free` は表示中のページの作業用の写し。
   すべてのレイアウトを回す処理は `doc.entries` ではなく `allEntries()`（表示中でないページも含む）を回す。写すときは `cloneEntry` で ID を振り直す
   （[docs/design-mylayouts.md](docs/design-mylayouts.md)）。
-- **文言は `lib/i18n.ts` の `ja` と `en` の両方に足す**（キーの一致は単体テストが確かめる）。
+- **文言は `lib/i18n.ts` の `ja` と `en` の両方に足す**（キーの一致は単体テストが確かめる）。保存した条件の組は、`ja` では「スクリーニング条件」と書く（「スクリーン」は画面と読まれる。コード・文書・`en` は screen／スクリーンのまま。requirements.md §5.2）。
 - **色・文字・余白は `app.css` のトークン（CSS 変数）から取る**。陽線・陰線は `--up` / `--down`（日本式が既定）。
 - 依存はすべて `devDependencies` に置き、バンドルに入れる（yahoo-finance2 の MCP 用の依存を配布物に入れないため）。
   バンドルに入る OSS を足したら `scripts/gen-notices.mjs` の `bundled` にも足す。GPL 系は入れない（`scripts/check-licenses.mjs`）。
