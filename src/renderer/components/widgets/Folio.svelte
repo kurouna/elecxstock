@@ -34,6 +34,7 @@ import {
   heroNumbers,
   histHead,
   histPoints,
+  importedAtText,
   manYen,
   moveRow,
   nextCard,
@@ -179,6 +180,7 @@ const tot = $derived(totalsOf(shown))
 const baseTot = $derived(totalsOf(rows))
 const heroN = $derived(heroNumbers(series?.points ?? [], crossDay && at ? crossDay : null, tot, app.portfolioMeta))
 const received = $derived(app.portfolioMeta?.dividends ?? 0)
+const receivedAt = $derived(importedAtText(app.portfolioMeta?.importedAt, app.settings.lang))
 const acctMix = $derived(acctParts(shown))
 const accts = $derived.by(() => {
   const m = new Map<string, number>()
@@ -686,7 +688,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
               <div class="stat"><span class="k">{t('folio.yield')}</span><span class="v num">{dy.yld == null ? '—' : dy.yld.toFixed(2)}%</span></div>
               <div class="stat"><span class="k">{t('folio.yoc')}</span><span class="v num">{dy.yoc == null ? '—' : dy.yoc.toFixed(2)}%</span></div>
               <div class="stat" title={t('folio.nisaSavedTip')}><span class="k">{t('folio.nisaSaved')}</span><span class="v num">¥{yenFull(dsum.nisaSaved)}</span></div>
-              <div class="stat"><span class="k">{t('folio.received')}</span><span class="v num">{received ? `¥${yenFull(received)}` : '—'}</span></div>
+              <div class="stat" title={receivedAt ? t('folio.receivedTip', { at: receivedAt }) : t('folio.receivedNone')}><span class="k">{t('folio.received')}</span><span class="v num">{received ? `¥${yenFull(received)}` : '—'}</span></div>
               <div class="stat"><span class="k">{t('folio.raisedCut')}</span><span class="v num"><span class="up">{dsum.raised}</span> · <span class="down">{dsum.cut}</span></span></div>
               <div class="stat"><span class="k">{t('folio.top3')}</span><span class="v num">{(dsum.top3 * 100).toFixed(0)}%</span></div>
             </div>

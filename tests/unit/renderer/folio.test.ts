@@ -29,6 +29,7 @@ import {
   heroNumbers,
   histHead,
   histPoints,
+  importedAtText,
   importedNote,
   lastTone,
   manYen,
@@ -570,6 +571,12 @@ describe('十字線の日の数・口座をまたぐ取得単価・無配にな�
   it('記録だけの保有の JSON を取り込んだら、その日数を知らせる', () => {
     expect(importedNote(0, 120)).toEqual({ key: 'hold.importedHistory', n: 120 })
     expect(importedNote(3, 120)).toEqual({ key: 'hold.imported', n: 3 })
+  })
+  it('CSV を取り込んだ日時は日本時間で出す（PC の時刻帯によらない）。無い・読めないときは null', () => {
+    expect(importedAtText('2026-11-12T16:30:00.000Z', 'ja')).toBe('2026/11/13 1:30')
+    expect(importedAtText('2026-11-12T16:30:00.000Z', 'en')).toMatch(/^11\/13\/26,? 1:30\sAM$/)
+    expect(importedAtText(undefined, 'ja')).toBeNull()
+    expect(importedAtText('bad', 'ja')).toBeNull()
   })
 })
 

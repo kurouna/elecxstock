@@ -899,6 +899,12 @@ export function contribSummary(rs: ContribRow[]): { total: number; div: number; 
 /** 保有の取り込みのあとの知らせ（記録だけの JSON なら記録の日数） */
 export const importedNote = (holdings: number, history: number): { key: 'hold.imported' | 'hold.importedHistory'; n: number } =>
   holdings || !history ? { key: 'hold.imported', n: holdings } : { key: 'hold.importedHistory', n: history }
+/** 証券会社の CSV を取り込んだ日時（日本時間。FR-T1）。読めなければ null */
+export function importedAtText(iso: string | undefined, lang: 'ja' | 'en'): string | null {
+  const ms = iso ? Date.parse(iso) : Number.NaN
+  if (!Number.isFinite(ms)) return null
+  return new Date(ms).toLocaleString(lang === 'ja' ? 'ja-JP' : 'en-US', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Tokyo' })
+}
 
 // ---------------- 予定・要約・その他 ----------------
 export interface FolioEvent {

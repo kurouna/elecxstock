@@ -5,6 +5,7 @@
 import { ACCOUNT_TYPES } from '@shared/api'
 import type { AccountType, Holding } from '@shared/types'
 import { onMount } from 'svelte'
+import { importedAtText } from '../../lib/folio'
 import { cls, fmt, money, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import {
@@ -66,11 +67,7 @@ const items = $derived(rows.filter((r): r is HRow => r.kind === 'h'))
 const total = $derived(sum(all))
 const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : null)
 const meta = $derived(app.portfolioMeta)
-const importedAt = $derived(
-  meta
-    ? new Date(meta.importedAt).toLocaleString(app.settings.lang === 'ja' ? 'ja-JP' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })
-    : null,
-)
+const importedAt = $derived(importedAtText(meta?.importedAt, app.settings.lang))
 // 保有を直す・取得で評価額が変わって並びが入れ替わっても、選んでいた保有（口座と銘柄）の行に移る。消えたら同じ位置（短くなれば最後）
 const follow = new SelectionFollow<HRow>((r) => `${r.h.account}:${r.h.code}`)
 $effect(() => {
