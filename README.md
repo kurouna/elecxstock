@@ -130,7 +130,7 @@ npm run verify     # lint・型検査・単体テスト
 npm run build && npx playwright test   # E2E（スタブのデータ・キーボードだけで操作）
 npm run package    # Windows のインストーラ（release/）
 npm run demo       # 紹介動画用のデモ（架空のデータ・キー操作で自動で進む）
-npm run demo:0.1.2 # 版ごとのデモ（0.1.2: ポートフォリオのタブ）
+npm run demo:0.1.3 # 版ごとのデモ（0.1.3: マーケット一覧・騰落・ポートフォリオの手直し）
 ```
 
 ネットワークを使わずに動かすときは `ELECXSTOCK_PROVIDER=stub` を付けます。
