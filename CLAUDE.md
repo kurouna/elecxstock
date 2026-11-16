@@ -93,6 +93,9 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
   （選択や表示の範囲が戻る）。`$derived` で値や中身のキー（`[...set].join()` など）にしてから読む。
 - **選んだときだけ出す行（キーの案内など）は出し入れせず、場所を取ったまま見えなくする**（`visibility: hidden`）。カードの高さが変わると、ツリーマップなどが並び直す。
 - **レイアウトの木の変更は `stores/layout.svelte.ts` の関数で行う**。ディスクから読んだ木は `normalizeDoc` を通す。
+  マイレイアウト（8 番目のタブ）のページの正は `layout.pages`（layouts.json）で、`doc.entries.free` は表示中のページの作業用の写し。
+  すべてのレイアウトを回す処理は `doc.entries` ではなく `allEntries()`（表示中でないページも含む）を回す。写すときは `cloneEntry` で ID を振り直す
+  （[docs/design-mylayouts.md](docs/design-mylayouts.md)）。
 - **文言は `lib/i18n.ts` の `ja` と `en` の両方に足す**（キーの一致は単体テストが確かめる）。
 - **色・文字・余白は `app.css` のトークン（CSS 変数）から取る**。陽線・陰線は `--up` / `--down`（日本式が既定）。
 - 依存はすべて `devDependencies` に置き、バンドルに入れる（yahoo-finance2 の MCP 用の依存を配布物に入れないため）。

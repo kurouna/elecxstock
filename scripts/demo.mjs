@@ -382,9 +382,9 @@ await press(page, 'Escape')
 await sleep(1800)
 await shot(page, 'drawer-closed')
 
-// 4b. フリーのタブ: ペインを足す・種類を変える・入れ替える・閉じる
+// 4b. マイレイアウトのタブ: ペインを足す・種類を変える・入れ替える・閉じる
 await press(page, 'Control+Shift+Digit8')
-await caption(page, 'フリーのタブでは、ペインを自由に追加・移動・削除できます')
+await caption(page, 'マイレイアウトのタブでは、ペインを自由に追加・移動・削除できます')
 await sleep(1800)
 await caption(page, 'Ctrl+Shift+E で右に、Ctrl+Shift+O で下に分割して、ペインを追加します')
 await press(page, 'Control+Shift+KeyE')

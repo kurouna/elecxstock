@@ -39,6 +39,46 @@ export function menuRows(pages: readonly SavedLayout[], active: string): MenuRow
     { kind: 'delete' },
   ]
 }
+/** 複製・名前・削除の相手: 選んでいる行がページならそのページ、操作の行なら表示中のページ */
+export function menuTarget(rows: readonly MenuRow[], sel: number, current: string | undefined): SavedLayout | undefined {
+  const r = rows[sel]
+  if (r?.kind === 'page') return r.page
+  return rows.find((x): x is Extract<MenuRow, { kind: 'page' }> => x.kind === 'page' && x.page.id === current)?.page
+}
+/** メニューでキーを押したときにすること（FR-KB5: 数字は code で判定し、変換中は何もしない） */
+export type MenuCommand =
+  | { kind: 'select'; sel: number }
+  | { kind: 'reorder'; delta: -1 | 1 }
+  | { kind: 'row' }
+  | { kind: 'open'; index: number }
+  | { kind: 'new' | 'duplicate' | 'rename' | 'delete' | 'undo' }
+type KeyLike = Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey' | 'isComposing'>
+export function menuKey(e: KeyLike, sel: number, count: number): MenuCommand | null {
+  if (e.isComposing) return null
+  const ctrl = e.ctrlKey || e.metaKey
+  const digit = /^Digit([1-9])$/.exec(e.code)
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey) return { kind: 'reorder', delta: e.key === 'ArrowUp' ? -1 : 1 }
+  if (e.key === 'ArrowDown') return { kind: 'select', sel: Math.min(count - 1, sel + 1) }
+  if (e.key === 'ArrowUp') return { kind: 'select', sel: Math.max(0, sel - 1) }
+  if (e.key === 'Home') return { kind: 'select', sel: 0 }
+  if (e.key === 'End') return { kind: 'select', sel: count - 1 }
+  if (e.key === 'Enter') return { kind: 'row' }
+  if (digit && !ctrl && !e.altKey && !e.shiftKey) return { kind: 'open', index: Number(digit[1]) - 1 }
+  if (e.key === 'Insert') return { kind: e.shiftKey ? 'duplicate' : 'new' }
+  if (e.key === 'F2') return { kind: 'rename' }
+  if (e.key === 'Delete') return { kind: 'delete' }
+  if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyZ') return { kind: 'undo' }
+  return null
+}
+/**
+ * 削除は同じ相手に 2 回（Delete か、削除の行で Enter）。1 回目は印だけ付け、ほかのキーを押すと印を消す。
+ * 返す `pending` を次の印にし、`remove` なら消す
+ */
+export function deletePress(pending: string | null, cmd: MenuCommand | null, row: MenuRow | undefined, target: string | undefined) {
+  const isDelete = cmd?.kind === 'delete' || (cmd?.kind === 'row' && row?.kind === 'delete')
+  if (!isDelete || !target) return { pending: null, remove: false }
+  return pending === target ? { pending: null, remove: true } : { pending: target, remove: false }
+}
 /** 新しいページの初期の形（§3.4。選ぶ順）と、その名前・説明（フリー N の初期の形と同じ言葉） */
 export const PAGE_SHAPES: readonly [shape: string, label: Key, hint: Key][] = [
   ['preset:free', 'lay.shape.free', 'lay.shape.freeHint'],
@@ -57,7 +97,7 @@ export function currentPageName(): string {
 const refused = (r: PageRefusal) => toast(r === 'limit' ? t('lay.limit', { n: PAGES_MAX }) : t('lay.tooBigAdd'), undefined, 5000)
 /** メニューを開く（ページを選ぶまで表示中のタブは変えない） */
 export function openPageMenu(): void {
-  if (!IS_FREE) app.overlay = { kind: 'layouts' }
+  if (!IS_FREE) app.overlay = { kind: 'pageMenu' }
 }
 const backToMenu = () => openPageMenu()
 

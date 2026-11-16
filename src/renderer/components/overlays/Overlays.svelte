@@ -8,7 +8,7 @@ import FirstRun from './FirstRun.svelte'
 import Help from './Help.svelte'
 import HoldingForm from './HoldingForm.svelte'
 import Jump from './Jump.svelte'
-import Layouts from './Layouts.svelte'
+import PageMenu from './PageMenu.svelte'
 import Palette from './Palette.svelte'
 import ScreensList from './ScreensList.svelte'
 import Settings from './Settings.svelte'
@@ -24,7 +24,7 @@ function backdrop(e: MouseEvent) {
   {:else}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <!-- マイレイアウトのメニューはタブの下に出すので、画面を暗くしない -->
-    <div class="scrim" class:menu={app.overlay.kind === 'layouts'} onmousedown={backdrop}>
+    <div class="scrim" class:menu={app.overlay.kind === 'pageMenu'} onmousedown={backdrop}>
       {#if app.overlay.kind === 'palette'}
         <Palette q={app.overlay.q ?? ''} title={app.overlay.title} />
       {:else if app.overlay.kind === 'help'}
@@ -33,8 +33,8 @@ function backdrop(e: MouseEvent) {
         <Settings tab={app.overlay.tab ?? 'general'} />
       {:else if app.overlay.kind === 'screens'}
         <ScreensList />
-      {:else if app.overlay.kind === 'layouts'}
-        <Layouts />
+      {:else if app.overlay.kind === 'pageMenu'}
+        <PageMenu />
       {:else if app.overlay.kind === 'firstrun'}
         <FirstRun />
       {:else if app.overlay.kind === 'holding'}

@@ -173,6 +173,11 @@ export const savedLayoutSchema = z.object({
   created: z.number(),
   updated: z.number(),
 })
+/**
+ * マイレイアウトのページの数の上限（保存・取り込み・ファイルの読み込みで同じ値。FR-L14）。画面で足せるのは 30 枚までで、
+ * これは取り込みや手で書いたファイルの歯止め。超えた分はファイルの読み込みでは除き（元を写しておく）、取り込みでは断る
+ */
+export const PAGES_LIMIT = 200
 
 /**
  * 利用者のデータのファイル（data/user/<name>.json）ごとのスキーマ。Core の UserStore が読むときに検証し、通らなければ退避して
@@ -183,7 +188,7 @@ export const USER_FILE_SCHEMAS = {
   watchlists: z.array(watchlistSchema),
   screens: z.array(screenSchema),
   layout: z.unknown(),
-  layouts: z.array(savedLayoutSchema),
+  layouts: z.array(savedLayoutSchema).max(PAGES_LIMIT),
   holdings: z.array(holdingSchema),
   portfolioMeta: portfolioMetaSchema.nullable(),
   /** アラートの定義（FR-AL10）。判定の状態と履歴は alerts.ts の AlertBook（世代なし） */
@@ -212,7 +217,7 @@ export const PARAMS = {
   'user.saveWatchlists': z.object({ watchlists: z.array(watchlistSchema).max(200) }),
   'user.saveScreens': z.object({ screens: z.array(screenSchema).max(500) }),
   'user.saveLayout': z.object({ layout: z.unknown() }),
-  'user.saveLayouts': z.object({ layouts: z.array(savedLayoutSchema).max(200) }),
+  'user.saveLayouts': z.object({ layouts: z.array(savedLayoutSchema).max(PAGES_LIMIT) }),
   'user.defaultScreens': z.object({}),
   'user.undoImport': z.object({}),
   'portfolio.list': z.object({}),

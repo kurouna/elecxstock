@@ -175,3 +175,43 @@ describe('取り込み・1 枚目だけが書く（FR-S3, FR-H9, FR-W, FR-L14）
     }
   })
 })
+
+describe('ページの数の上限と、取り消しの 1 件ずつの確かめ（FR-L14, FR-H9, FR-S12）', () => {
+  it('ファイルのページが上限（PAGES_LIMIT）を超えたら、上限まで残し、超えた分は除いたとして知らせる', async () => {
+    const { PAGES_LIMIT } = await import('@shared/api')
+    const d = tmp()
+    write(
+      d,
+      'layouts',
+      Array.from({ length: PAGES_LIMIT + 1 }, (_, i) => page(`p${i}`)),
+    )
+    const s = new UserStore(d)
+    expect(s.load('layouts')).toHaveLength(PAGES_LIMIT)
+    expect(s.recovered).toEqual([expect.objectContaining({ file: 'layouts', dropped: 1 })])
+    s.save('layouts', s.load('layouts')) // 上限までなら保存できる
+  })
+  it('上限を超えるページの取り込みは断り、今のデータを変えない', async () => {
+    const { PAGES_LIMIT } = await import('@shared/api')
+    const d = tmp()
+    const s = new UserStore(d)
+    s.save('layouts', [page('a')])
+    const json = JSON.stringify({
+      format: 'elecxstock.userdata',
+      watchlists: [],
+      screens: [],
+      layouts: Array.from({ length: PAGES_LIMIT + 1 }, (_, i) => page(`p${i}`)),
+    })
+    expect(() => s.importAll(json)).toThrow()
+    expect(s.load('layouts').map((p) => p.id)).toEqual(['a'])
+  })
+  it('ファイルに通らないページが残っていても、取り込みの取り消しは止まらずに全部戻す', () => {
+    const d = tmp()
+    write(d, 'layouts', [page('a'), { id: 'bad' }])
+    write(d, 'alerts', [])
+    const s = new UserStore(d)
+    s.load('layouts') // 読み込みでは除くが、ファイルには残っている
+    s.importAll(JSON.stringify({ format: 'elecxstock.userdata', watchlists: [], screens: [], layouts: [page('imported')], alerts: [] }))
+    expect(s.restoreBefore('layouts', 'preimport')?.map((p) => p.id)).toEqual(['a'])
+    expect(s.restoreBefore('alerts', 'preimport')).toEqual([])
+  })
+})

@@ -63,7 +63,7 @@ onMount(() => {
         <span class="lbl">{t(`preset.${p}` as Key)}{#if pg}<span class="pg"> · {pg}</span>{/if}</span><kbd class="keycap">{i + 1}</kbd>
       </button>
       {#if p === 'free'}
-        <button type="button" class="pmenu" data-page-menu aria-haspopup="menu" aria-label={t('lay.menu')} title={`${t('lay.menu')} (${keyOf('layouts')})`} onclick={openPageMenu}>▾</button>
+        <button type="button" class="page-menu-btn" data-page-menu aria-haspopup="menu" aria-label={t('lay.menu')} title={`${t('lay.menu')} (${keyOf('layouts')})`} onclick={openPageMenu}>▾</button>
       {/if}
     {/each}
   </nav>
@@ -181,7 +181,7 @@ onMount(() => {
     align-items: center;
   }
   .presets button[aria-current='true'],
-  .presets button[aria-current='true'] + .pmenu {
+  .presets button[aria-current='true'] + .page-menu-btn {
     color: var(--text);
     border-bottom-color: var(--focus);
     background: var(--panel-2);
@@ -196,12 +196,12 @@ onMount(() => {
     vertical-align: bottom;
   }
   /* ページのメニューを開く ▾（タブとは別のボタン。押せるのでドラッグから外れる） */
-  .presets button.pmenu {
+  .presets button.page-menu-btn {
     padding: 0 6px 0 2px;
     color: var(--text-3);
     font-size: var(--fs-1);
   }
-  .presets button.pmenu:hover {
+  .presets button.page-menu-btn:hover {
     color: var(--text);
   }
   /* ショートカットの数字はキーの形（Ctrl+Shift+数字） */

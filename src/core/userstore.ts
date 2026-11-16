@@ -5,6 +5,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameS
 import { join } from 'node:path'
 import {
   alertSchema,
+  PAGES_LIMIT,
   type RecoveredFile,
   savedLayoutSchema,
   screenSchema,
@@ -147,12 +148,7 @@ export class UserStore {
   }
   /** ページ（layouts.json）は要素ごとに確かめ、通らない要素だけを除く。除いたら元のファイルを間引かれない名前で写しておく */
   private loadPages(p: string, data: unknown[]): unknown[] {
-    const ok: unknown[] = []
-    for (const x of data) {
-      const r = savedLayoutSchema.safeParse(x)
-      if (r.success) ok.push(r.data)
-    }
-    const dropped = data.length - ok.length
+    const { ok, dropped } = pickPages(data)
     if (!dropped) return ok
     const name = `layouts.dropped-${Date.now()}.json`
     try {
@@ -227,9 +223,9 @@ export class UserStore {
     const q = join(this.dir, 'backups', `${n}.${tag}.json`)
     if (!existsSync(q)) return null
     const raw = JSON.parse(readFileSync(q, 'utf8')) as { data?: unknown }
-    const v = FILES[n].schema.parse(raw && typeof raw === 'object' && 'data' in raw ? raw.data : raw) as z.infer<
-      (typeof FILES)[N]['schema']
-    >
+    const d = raw && typeof raw === 'object' && 'data' in raw ? raw.data : raw
+    // ページは読み込みと同じく 1 件ずつ確かめる（読み込みで除いた要素がファイルに残っていても、取り消しを途中で止めない）
+    const v = (n === 'layouts' && Array.isArray(d) ? pickPages(d).ok : FILES[n].schema.parse(d)) as z.infer<(typeof FILES)[N]['schema']>
     this.save(n, v, { generation: true })
     rmSync(q, { force: true })
     return v
@@ -263,7 +259,7 @@ export class UserStore {
     // すべて検証してから保存する（途中で失敗して半分だけ入ることが無いように）
     const wl = z.array(watchlistSchema).parse(o.watchlists ?? [])
     const sc = z.array(screenSchema).parse(o.screens ?? [])
-    const ly = o.layouts ? z.array(savedLayoutSchema).parse(o.layouts) : null
+    const ly = o.layouts ? S.layouts.parse(o.layouts) : null
     const st = o.settings ? settingsSchema.parse({ ...this.load('settings'), ...(o.settings as object) }) : null
     const al = o.alerts ? z.array(alertSchema).max(500).parse(o.alerts) : null
     // 取り込む前の記録は、置き換えるファイルだけ残す（取り込まないファイルを「元に戻す」で巻き戻さない。前の取り込みの記録も消す）
@@ -278,6 +274,16 @@ export class UserStore {
     if (al) this.save('alerts', al)
     return { watchlists: wl.length, screens: sc.length }
   }
+}
+
+/** ページを 1 件ずつ確かめ、通るものを上限（PAGES_LIMIT）まで残す。除いた数を返す */
+function pickPages(data: readonly unknown[]): { ok: unknown[]; dropped: number } {
+  const ok: unknown[] = []
+  for (const x of data) {
+    const r = savedLayoutSchema.safeParse(x)
+    if (r.success && ok.length < PAGES_LIMIT) ok.push(r.data)
+  }
+  return { ok, dropped: data.length - ok.length }
 }
 
 function parse(schema: z.ZodType, n: Name, data: unknown): unknown {

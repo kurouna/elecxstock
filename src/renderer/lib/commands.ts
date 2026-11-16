@@ -53,7 +53,6 @@ import {
   resetAllLayouts,
   resetLayout,
   resetSizes,
-  resumeLayoutSave,
   saveLayout,
   setLinkSymbol,
   setPaneSymbol,
@@ -364,14 +363,21 @@ export async function importUser(): Promise<void> {
     ok: t('import.userDo'),
   })
   if (!ok.ok) return
-  // 取り込む前に保存を確定させ、読み直すまで止める（待つ間の自動保存が、取り込んだページを古いページで書き戻さないように。FR-L14）
-  await suspendLayoutSave()
-  const r = await rpc('user.importAll', { json: text }).catch((e: unknown) => {
-    resumeLayoutSave()
-    throw e
-  })
-  await reloadUser()
+  const r = await withUserReload(() => rpc('user.importAll', { json: text }))
   toast(t('set.imported', { w: r.watchlists, s: r.screens }), { label: t('hold.undo'), run: () => void undoUserImport() }, 10_000)
+}
+/**
+ * 利用者のデータを置き換える操作（取り込み・その取り消し）: 先にレイアウトの保存を確定させて止め（待つ間の自動保存が、取り込んだ
+ * ページを古いページで書き戻さないように。FR-L14 §5.6）、成否によらず読み直す（読み直すと保存が戻る）。読み直せなければ、古い
+ * ページで書き戻さないように止めたまま知らせる
+ */
+async function withUserReload<T>(op: () => Promise<T>): Promise<T> {
+  await suspendLayoutSave()
+  try {
+    return await op()
+  } finally {
+    await reloadUser().catch(() => toast(t('lay.reloadFailed'), undefined, 15_000, 'error'))
+  }
 }
 async function reloadUser(): Promise<void> {
   const u = await rpc('user.load', {})
@@ -386,18 +392,8 @@ async function reloadUser(): Promise<void> {
   await loadInstruments() // 取り込んだウォッチリストの銘柄が取得の対象になる
 }
 async function undoUserImport(): Promise<void> {
-  await suspendLayoutSave()
-  const done = await rpc('user.undoImport', {}).catch((e: unknown) => {
-    resumeLayoutSave()
-    throw e
-  })
-  if (!done) {
-    resumeLayoutSave()
-    toast(t('hold.nothingToUndo'))
-    return
-  }
-  await reloadUser()
-  toast(t('hold.undone'))
+  const done = await withUserReload(() => rpc('user.undoImport', {}))
+  toast(t(done ? 'hold.undone' : 'hold.nothingToUndo'))
 }
 /** 一覧を CSV に書き出す（FR-SC6, W8） */
 async function exportListCsv(): Promise<void> {
@@ -874,7 +870,7 @@ export function handleKey(e: KeyboardEvent): boolean {
       return true
     }
     // マイレイアウトのメニューを開いたまま、開くキー（Ctrl+Shift+L・Ctrl+Shift+8）を押すと閉じる
-    if (app.overlay.kind === 'layouts' && (matches(e, keyOf('layouts')) || matches(e, keyOf('layout.free')))) {
+    if (app.overlay.kind === 'pageMenu' && (matches(e, keyOf('layouts')) || matches(e, keyOf('layout.free')))) {
       closeOverlay()
       return true
     }

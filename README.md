@@ -53,7 +53,7 @@
 - **アラート**: 銘柄に条件（終値 ≤ 17,500、実績利回り ≥ 5%、終値 ≤ 75 日移動平均、保有の損益率など。最大 3 つの「かつ」）を付けるか、保存したスクリーンに新しく入った銘柄を知らせます。取得のジョブの終わりに判定し、トースト・Windows の通知・トップバーのベルで知らせます。分割があってもしきい値を換算して比べ、チャートにしきい値の点線を引きます。Ctrl+Alt+A で作り、Ctrl+Alt+L の一覧と履歴から銘柄を開けます。外部への送信（メールなど）はしません。
 - **マーケット**: 日本・米国・アジアの指数、為替・米国債10年利回り、原油・金・銀、ビットコインの値を 1 枚の表で見るマーケット一覧（区分のタブで絞り込み、ウォッチリストと同じ列とキー）、騰落（プライム・J-REIT の値上がり・値下がり・新高値・新安値・売買代金と、33 業種の騰落率。Enter で業種の中の銘柄へ。[設計](docs/design-breadth.md)）、33 業種のヒートマップ（面積 = 時価総額、色 = 騰落率）、ランキング、指数・指数連動 ETF の小さなチャート（[設計](docs/design-market-board.md)）。
   **TOPIX・JPX日経400・グロース250・東証REIT指数は Yahoo で取れないため、連動 ETF の値で代えています**（指数そのものの値ではありません）: TOPIX → NEXT FUNDS TOPIX連動型上場投信（1306）、JPX日経400 → NEXT FUNDS JPX日経インデックス400連動型上場投信（1591）、グロース250 → 東証グロース250ETF（2516）、東証REIT指数 → NEXT FUNDS 東証REIT指数連動型上場投信（1343）。一覧には「連動ETF」と ETF の名前を出します。値は日足の終値（取得したときの最後の足）で、リアルタイムではありません。
-- **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、9 つのプリセット（マーケット・スクリーナー・グリッド・MTF・トリプル・インカム・保有・フリー・ポートフォリオ）、名前を付けて保存したレイアウト、サイズのリセット、レイアウトを初期状態に戻す（このタブ・すべてのタブ）。ペインの種類は Ctrl+Shift+N で変えられます（チャートをスクリーナーや銘柄情報にする など）。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。
+- **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、9 つのプリセット（マーケット・スクリーナー・グリッド・MTF・トリプル・インカム・保有・マイレイアウト・ポートフォリオ）、名前を付けたページを何枚も持てるマイレイアウト（タブの ▾ で切り替え）、サイズのリセット、レイアウトを初期状態に戻す（このタブ・すべてのタブ）。ペインの種類は Ctrl+Shift+N で変えられます（チャートをスクリーナーや銘柄情報にする など）。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。
 - **マルチモニタ**: Ctrl+Alt+N（またはタイトルバーのボタン）でタブなしの「フリー」のウィンドウを最大 3 枚開き（チャートグリッド・4 分割・MTF + 銘柄情報）、2 枚目のモニタにチャートを並べられます。銘柄は 1 枚目の一覧からのドラッグか Ctrl+Alt+Enter で送ります。リンク色を付けたチャートは 1 枚目で選んだ銘柄を追います。並び・位置・文字の大きさは窓ごとに覚え、次の起動で開き直します。
 - **配当カレンダー**、取得ジョブの進捗と一時停止。
 - **日本語／英語**の表示、ダーク／ライトのテーマ、陽線・陰線の色（日本式／欧米式）、キーの割り当ての変更。
@@ -99,25 +99,25 @@
 
 ### 主なキー
 
-| 操作                                         | キー                                         |
-| -------------------------------------------- | -------------------------------------------- |
-| コマンドバー（銘柄・スクリーン・操作を探す） | Ctrl+K                                       |
-| 銘柄ジャンプ                                 | 数字キー（証券コード）→ Enter                |
-| ジャンプの候補をお気に入りに / リストに足す  | Ctrl+D / Ctrl+Enter                          |
-| ペイン間の移動                               | Alt+← → ↑ ↓                                  |
-| レイアウトの切り替え / 一覧                  | Ctrl+Shift+1〜9 / Ctrl+Shift+L               |
-| 左 / 右のドロワー                            | Ctrl+B / Ctrl+Shift+B（ピン留め Ctrl+Alt+B） |
-| お気に入り / リストに追加                    | Ctrl+D / Ctrl+Shift+A                        |
-| 日足 / 週足 / 月足・チャートの指標           | D / W / M・I                                 |
-| 列の選択（一覧）                             | Ctrl+Shift+C                                 |
-| ペインの種類を変える                         | Ctrl+Shift+N                                 |
-| チャート / グリッドのタイルの銘柄を変える    | C                                            |
-| データの更新                                 | F5                                           |
-| アラートを作る / 一覧と履歴                  | Ctrl+Alt+A / Ctrl+Alt+L                      |
-| フリーのウィンドウを開く / 窓を移る          | Ctrl+Alt+N / Ctrl+F6                         |
-| 選んだ銘柄をフリーのウィンドウへ送る         | Ctrl+Alt+Enter                               |
-| ショートカット一覧                           | F1                                           |
-| アプリを終了                                 | Ctrl+Shift+Q                                 |
+| 操作                                          | キー                                         |
+| --------------------------------------------- | -------------------------------------------- |
+| コマンドバー（銘柄・スクリーン・操作を探す）  | Ctrl+K                                       |
+| 銘柄ジャンプ                                  | 数字キー（証券コード）→ Enter                |
+| ジャンプの候補をお気に入りに / リストに足す   | Ctrl+D / Ctrl+Enter                          |
+| ペイン間の移動                                | Alt+← → ↑ ↓                                  |
+| レイアウトの切り替え / マイレイアウトのページ | Ctrl+Shift+1〜9 / Ctrl+Shift+L               |
+| 左 / 右のドロワー                             | Ctrl+B / Ctrl+Shift+B（ピン留め Ctrl+Alt+B） |
+| お気に入り / リストに追加                     | Ctrl+D / Ctrl+Shift+A                        |
+| 日足 / 週足 / 月足・チャートの指標            | D / W / M・I                                 |
+| 列の選択（一覧）                              | Ctrl+Shift+C                                 |
+| ペインの種類を変える                          | Ctrl+Shift+N                                 |
+| チャート / グリッドのタイルの銘柄を変える     | C                                            |
+| データの更新                                  | F5                                           |
+| アラートを作る / 一覧と履歴                   | Ctrl+Alt+A / Ctrl+Alt+L                      |
+| フリーのウィンドウを開く / 窓を移る           | Ctrl+Alt+N / Ctrl+F6                         |
+| 選んだ銘柄をフリーのウィンドウへ送る          | Ctrl+Alt+Enter                               |
+| ショートカット一覧                            | F1                                           |
+| アプリを終了                                  | Ctrl+Shift+Q                                 |
 
 すべてのキーは F1 の一覧と [docs/requirements.md](docs/requirements.md) §6.5 にあります。アプリ全体のキーは「設定 > キー」で変えられます。
 
@@ -178,7 +178,7 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 - **Alerts**: put conditions on a symbol (close ≤ 17,500, trailing yield ≥ 5%, close ≤ 75-day MA, P/L of a holding and so on; up to three, all must hold), or get notified of symbols that newly match a saved screen. Alerts are evaluated when a fetch job ends and shown as a toast, a Windows notification and a badge on the bell. Price thresholds are converted across stock splits, and drawn as dashed lines on charts. Create with Ctrl+Alt+A; open the list and history with Ctrl+Alt+L. Nothing is sent outside the app (no e-mail).
 - **Market**: a market board with Japanese, US and Asian indices, FX and the US 10-year yield, oil, gold, silver and Bitcoin in one table (filter by group with tabs; same columns and keys as watchlists), market breadth (advancers, decliners, new highs and lows and turnover for Prime and J-REITs, and returns by TSE 33 sector; press Enter to list a sector's stocks), a sector heatmap, rankings and index mini-charts.
   **TOPIX, JPX-Nikkei 400, Growth 250 and the TSE REIT Index are not available from Yahoo, so the board shows tracking ETFs instead** (not the index values): NEXT FUNDS TOPIX ETF (1306), NEXT FUNDS JPX-Nikkei Index 400 ETF (1591), TSE Growth 250 ETF (2516) and NEXT FUNDS REIT INDEX ETF (1343), labeled as ETFs. Values are daily closes (the latest bar at fetch time), not real-time.
-- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, nine presets (Market, Screener, Grid, MTF, Triple, Income, Holdings, Free, where each unlinked chart keeps its own symbol, and Portfolio), named layouts, size reset, and resetting the layout of this tab or all tabs. Change a pane into another kind with Ctrl+Shift+N (e.g. a chart into a screener or symbol info). Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
+- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, nine presets (Market, Screener, Grid, MTF, Triple, Income, Holdings, Pages, where each unlinked chart keeps its own symbol, and Portfolio), any number of named pages in the Pages tab (switch with the ▾ next to the tab), size reset, and resetting the layout of this tab or all tabs. Change a pane into another kind with Ctrl+Shift+N (e.g. a chart into a screener or symbol info). Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
 - **Multiple monitors**: open up to three tabless Free windows with Ctrl+Alt+N or the title-bar button (chart grid, four charts, or MTF + symbol info) to line up charts on a second monitor. Drag symbols from the main window's lists or send them with Ctrl+Alt+Enter; linked charts follow the symbol picked in the main window. Layout, position and text size are remembered per window and reopened at the next start.
 - **Dividend calendar**, fetch jobs with progress and pause.
 - **Japanese / English** UI, dark / light themes, candle colors (Japanese or Western) and remappable keys.

@@ -94,9 +94,14 @@ export async function launch(opts: LaunchOpts = {}): Promise<Launched> {
     const doc = readUser<LayoutDoc & { windows?: Record<string, unknown> }>(userData, 'layout')
     const free = JSON.stringify(doc.entries.free)
     opts.layout?.(doc)
-    // フリーのタブの正はマイレイアウトのページ（layouts.json。FR-L14）。フリーのタブを変えたら、ページを空にして、
-    // 起動時に entries.free から 1 枚目のページを作らせる（開けるページが 0 枚のときの決まり）
-    if (JSON.stringify(doc.entries.free) !== free) writeUser(userData, 'layouts', [])
+    // マイレイアウトのタブの正はページ（layouts.json。FR-L14）。テストがこのタブ（entries.free）を変えたら、その中身を
+    // 1 枚だけのページ（ID は 0 枚のときに作るのと同じ free）として書き、表示中のページにする。ほかのページを使うテストは user.layouts で書く
+    if (JSON.stringify(doc.entries.free) !== free) {
+      writeUser(userData, 'layouts', [
+        { id: 'free', name: { ja: 'フリー', en: 'Free' }, entry: doc.entries.free, links: {}, created: 1, updated: 1 },
+      ])
+      ;(doc as { page?: string }).page = 'free'
+    }
     if (opts.freeWindows) {
       doc.windows = { ...doc.windows, ...Object.fromEntries(Object.entries(opts.freeWindows).map(([k, root]) => [k, { root, docks: {} }])) }
       const wf = join(userData, 'window.json')

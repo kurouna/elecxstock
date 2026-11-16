@@ -4,12 +4,16 @@ import type { SavedLayout } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const calls: { method: string; params: unknown }[] = []
-let fail = false
+/** true ですべて、メソッド名でそのメソッドだけを断る */
+let fail: boolean | string = false
+/** 置くと、呼び出しの返事をこれが終わるまで待たせる（送っている最中を作る） */
+let hold: Promise<void> | null = null
 vi.stubGlobal('window', {
   elecxstock: {
     call: async (method: string, params: unknown) => {
       calls.push({ method, params })
-      if (fail) throw { code: 'read-only' }
+      if (hold) await hold
+      if (fail === true || fail === method) throw { code: 'invalid-params' }
       return undefined
     },
     on: () => () => {},
@@ -85,7 +89,9 @@ describe('読み込みの決まり（FR-L14, §5.4）', () => {
     // 開けないページだけなら、0 枚として 1 枚作る（隠したページは残す）
     const only = L.resolvePages(L.defaultDoc(), [future('free')])
     expect(only.created).toBe(true)
-    expect(only.pages.map((p) => p.id)).toEqual(['free', expect.stringMatching(/^p/)]) // free は使われているので別の ID
+    // free は使われているので別の ID。作ったページは先頭（1 番）
+    expect(only.pages.map((p) => p.id)).toEqual([expect.stringMatching(/^p/), 'free'])
+    expect(only.doc.page).toBe(only.pages[0]!.id)
   })
   it('ページの ID が重なれば振り直し、ペインの ID はページとタブをまたいで一意にする', () => {
     const doc = L.defaultDoc()
@@ -244,7 +250,7 @@ describe('保存（FR-L4, FR-L14, §5.2, §5.5, §5.6）', () => {
     calls.length = 0
     fail = false
   })
-  it('保存はページ（layouts）を先に、毎回送る。表示中のページは作業用の写しから写す', async () => {
+  it('保存はページ（layouts）を先に送る。表示中のページは作業用の写しから写す。ページが変わっていなければ送らない', async () => {
     L.setPage('a')
     L.splitPane(L.layout.entry.root.id, 'col', 'info')
     await flush()
@@ -254,6 +260,44 @@ describe('保存（FR-L4, FR-L14, §5.2, §5.5, §5.6）', () => {
     expect(sent[0]!.updated).toBeGreaterThan(1)
     expect(sent[1]!.updated).toBe(1) // 変えていないページは updated を変えない
     expect((calls[1]!.params as { layout: { page: string } }).layout.page).toBe('a')
+    // リンクの銘柄だけを変えた（ページは同じ）ときは layout.json だけ
+    calls.length = 0
+    L.setLinkSymbol(2, 'JP:8058')
+    await L.flushLayoutSave()
+    expect(calls.map((c) => c.method)).toEqual(['user.saveLayout'])
+  })
+  it('ページが断られても layout.json は送る（全タブの並びまで保存できなくならない）。次の保存でページを送り直す', async () => {
+    fail = 'user.saveLayouts'
+    app.toasts = []
+    L.renamePage('a', 'x')
+    await L.flushLayoutSave()
+    expect(calls.map((c) => c.method)).toEqual(['user.saveLayouts', 'user.saveLayout'])
+    await flush() // 失敗の知らせは 1 回だけ
+    expect(app.toasts.filter((x) => x.msg.includes('保存できません'))).toHaveLength(1)
+    fail = false
+    calls.length = 0
+    await flush()
+    expect(calls.map((c) => c.method)).toEqual(['user.saveLayouts', 'user.saveLayout'])
+  })
+  it('閉じる前の flush は、送っている最中の保存も待つ。続けた保存は前の保存のあとに送る', async () => {
+    let release = () => {}
+    hold = new Promise<void>((r) => (release = r))
+    L.renamePage('a', 'y')
+    const first = L.flushLayoutSave()
+    await vi.waitFor(() => expect(calls).toHaveLength(1)) // 送り始めて返事を待っている
+    L.renamePage('a', 'z')
+    const second = L.flushLayoutSave()
+    let done = false
+    void L.flushLayoutSave().then(() => (done = true))
+    await Promise.resolve()
+    expect(done).toBe(false)
+    expect(calls.map((c) => c.method)).toEqual(['user.saveLayouts']) // 2 回目はまだ送らない
+    hold = null
+    release()
+    await Promise.all([first, second])
+    expect(calls.map((c) => c.method)).toEqual(['user.saveLayouts', 'user.saveLayout', 'user.saveLayouts', 'user.saveLayout'])
+    const last = calls[2]!.params as { layouts: SavedLayout[] }
+    expect(last.layouts[0]!.name.ja).toBe('z')
   })
   it('取り込みの間は保存を止め、読み直すと戻す', async () => {
     await L.suspendLayoutSave()
@@ -271,13 +315,6 @@ describe('保存（FR-L4, FR-L14, §5.2, §5.5, §5.6）', () => {
     L.layout.dockOpen = 'left'
     L.reloadPages([page('a')])
     expect([app.focus, app.maximized, L.layout.dockOpen]).toEqual([null, null, null])
-  })
-  it('保存の失敗は 1 回だけ知らせる', async () => {
-    fail = true
-    app.toasts = []
-    await flush()
-    await flush()
-    expect(app.toasts.filter((x) => x.msg.includes('保存できません'))).toHaveLength(1)
   })
 })
 
@@ -415,5 +452,82 @@ describe('フリー 2〜4 でページを開く（FR-L7, FR-L14 §3.6, §5.8）'
     const { pageShapeChoices } = await import('../../../src/renderer/lib/pages')
     const cs = pageShapeChoices([page('a'), future('x'), page('bad id')])
     expect(cs.map((c) => [c.id, c.label])).toEqual([['page:a', 'マイレイアウト: a']])
+  })
+})
+
+describe('メニューのキーと削除の 2 回押し（FR-L14 §3.2, FR-KB5）', () => {
+  const ev = (key: string, code = '', m: Partial<KeyboardEvent> = {}) =>
+    ({ key, code, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, isComposing: false, ...m }) as KeyboardEvent
+  it('menuKey: 移動・並べ替え・番号（code で判定）・操作。変換中は何もしない', async () => {
+    const { menuKey } = await import('../../../src/renderer/lib/pages')
+    expect(menuKey(ev('ArrowDown'), 2, 4)).toEqual({ kind: 'select', sel: 3 })
+    expect(menuKey(ev('ArrowDown'), 3, 4)).toEqual({ kind: 'select', sel: 3 })
+    expect(menuKey(ev('ArrowUp', '', { altKey: true }), 2, 4)).toEqual({ kind: 'reorder', delta: -1 })
+    expect(menuKey(ev('End'), 0, 4)).toEqual({ kind: 'select', sel: 3 })
+    expect(menuKey(ev('!', 'Digit1'), 0, 4)).toEqual({ kind: 'open', index: 0 }) // 配列によらず物理キー
+    expect(menuKey(ev('1', 'Digit1', { ctrlKey: true }), 0, 4)).toBeNull()
+    expect(menuKey(ev('Insert', 'Insert'), 0, 4)).toEqual({ kind: 'new' })
+    expect(menuKey(ev('Insert', 'Insert', { shiftKey: true }), 0, 4)).toEqual({ kind: 'duplicate' })
+    expect(menuKey(ev('F2', 'F2'), 0, 4)).toEqual({ kind: 'rename' })
+    expect(menuKey(ev('z', 'KeyZ', { ctrlKey: true }), 0, 4)).toEqual({ kind: 'undo' })
+    expect(menuKey(ev('Enter', 'Enter', { isComposing: true }), 0, 4)).toBeNull()
+  })
+  it('deletePress: 同じ相手に 2 回で消す（Delete か削除の行で Enter）。ほかのキー・相手が替わると数え直す', async () => {
+    const { deletePress } = await import('../../../src/renderer/lib/pages')
+    const del = { kind: 'delete' } as const
+    const first = deletePress(null, del, undefined, 'a')
+    expect(first).toEqual({ pending: 'a', remove: false })
+    expect(deletePress('a', del, undefined, 'a')).toEqual({ pending: null, remove: true })
+    expect(deletePress('a', { kind: 'row' }, { kind: 'delete' }, 'a')).toEqual({ pending: null, remove: true })
+    expect(deletePress('a', del, undefined, 'b')).toEqual({ pending: 'b', remove: false })
+    expect(deletePress('a', { kind: 'select', sel: 1 }, undefined, 'a')).toEqual({ pending: null, remove: false })
+  })
+  it('menuTarget: 選んでいる行がページならそのページ、操作の行なら表示中のページ', async () => {
+    const { menuRows, menuTarget } = await import('../../../src/renderer/lib/pages')
+    const rows = menuRows([page('a'), page('b')], 'mtf')
+    expect(menuTarget(rows, 1, 'a')?.id).toBe('b')
+    expect(menuTarget(rows, 4, 'a')?.id).toBe('a')
+    expect(menuTarget(rows, 4, undefined)).toBeUndefined()
+  })
+})
+
+describe('レビューの修正（FR-L14）', () => {
+  beforeEach(() => {
+    L.useLoadedLayout({ ...L.defaultDoc(), active: 'mtf' }, [page('a'), page('b'), page('c')])
+  })
+  it('表示中のページを消したあと別のページに移っていたら、Ctrl+Z で戻しても表示を引き戻さない', () => {
+    L.setPage('a')
+    L.removePage('a')
+    expect(L.layout.doc.page).toBe('b')
+    L.setPage('c')
+    L.undoRemovePage()
+    expect(L.layout.pages.map((p) => p.id)).toEqual(['a', 'b', 'c'])
+    expect(L.layout.doc.page).toBe('c')
+  })
+  it('ドロワーの幅は、区切りの比率を合わせたプリセット（今の木にいちばん似たもの）から取る', () => {
+    const grid = L.presetEntry('grid')
+    grid.docks.left!.width = 300
+    L.useLoadedLayout(L.defaultDoc(), [page('g', grid)])
+    L.setPage('g')
+    L.resetSizes()
+    // 形の無いページは全プリセットから探す。左のドロワーを持つのはグリッドとマイレイアウト（どちらも 620）
+    expect(L.layout.entry.docks.left!.width).toBe(620)
+    expect(L.sizesAtDefault()).toBe(true)
+  })
+  it('表示中でないページのスクリーナーも、消したスクリーンから次のスクリーンに直し、保存する', async () => {
+    const { removeScreen } = await import('../../../src/renderer/lib/screens')
+    app.screens = [
+      { id: 's1', name: { ja: 's1', en: 's1' }, conditions: [], created: 1, updated: 1 },
+      { id: 's2', name: { ja: 's2', en: 's2' }, conditions: [], created: 1, updated: 1 },
+    ]
+    const scr = { root: { kind: 'pane', id: 'sp', widget: 'screener', link: 2, state: { screenId: 's1' } }, docks: {} }
+    L.useLoadedLayout(L.defaultDoc(), [page('a'), page('s', scr)])
+    L.setPage('a')
+    calls.length = 0
+    removeScreen('s1')
+    const sp = (L.layout.pages.find((p) => p.id === 's')!.entry as Entry).root as unknown as { state: { screenId: string } }
+    expect(sp.state.screenId).toBe('s2')
+    await L.flushLayoutSave()
+    expect(calls.map((c) => c.method)).toContain('user.saveLayouts')
   })
 })

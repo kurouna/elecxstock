@@ -312,36 +312,62 @@ export const layout = new LayoutState()
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 /** 取り込みの間は保存を止める（読み直すまで、古いページで書き戻さない。§5.6） */
 let saveSuspended = false
+/** 送っている最中の保存。続けて保存するときは前の保存のあとに送り、閉じる前の flush はこれも待つ */
+let inflight: Promise<void> | null = null
+/** Core が最後に受け取ったページ（JSON）。変わっていなければ送らない（ペインの状態が変わるたびに全ページを送らない） */
+let sentPages: string | null = null
 export function saveLayout(): void {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(flushLayout, 400)
 }
 /** 2MB を超えたこと・保存に失敗したことは 1 回だけ知らせる */
 const warned = { size: false, failed: false }
-async function flushLayout(): Promise<unknown> {
+function flushLayout(): Promise<void> {
   saveTimer = null
+  const p = (inflight ?? Promise.resolve()).then(writeLayout, writeLayout)
+  inflight = p
+  void p.finally(() => {
+    if (inflight === p) inflight = null
+  })
+  return p
+}
+async function writeLayout(): Promise<void> {
   // フリー N は自分の配置だけを保存する（1 枚目のレイアウトに触らない。マルチモニタ）
   if (IS_FREE) {
     // 開いた元の形（origin）を付けて保存する（LayoutEntry の直下。前の版は知らないキーを捨てるだけ）
     const entry = { ...$state.snapshot(layout.doc.entries.free), ...(freeWin.origin ? { origin: freeWin.origin } : {}) }
-    return rpc('user.saveWindowLayout', { slot: SLOT as 'free2', entry }).catch(() => {})
+    await rpc('user.saveWindowLayout', { slot: SLOT as 'free2', entry }).catch(() => {})
+    return
   }
   if (saveSuspended) return
-  // ページを先に書く（2 つの書き込みの間で落ちても、正の layouts.json のほうが新しい）。同じ中身なら Core は書かない
+  // ページを先に書く（2 つの書き込みの間で落ちても、正の layouts.json のほうが新しい）
   commitPage()
   const pages = $state.snapshot(layout.pages) as SavedLayout[]
+  const json = JSON.stringify(pages)
   // 自動保存は大きさで断らない（断ると layout.json とずれる）。超えたことだけ知らせる
-  if (!warned.size && pagesBytes(pages) > PAGES_MAX_BYTES) {
+  if (!warned.size && pagesBytes(json) > PAGES_MAX_BYTES) {
     warned.size = true
     toast(t('lay.tooBig'), undefined, 6000, 'error')
   }
-  // rpc は失敗のたびにトーストを出すので、自動保存は bridge で呼び、失敗は 1 回だけ知らせる
+  // rpc は失敗のたびにトーストを出すので、自動保存は bridge で呼び、失敗は 1 回だけ知らせる。
+  // ページが断られても layout.json は送る（全タブの並びまで保存できなくならないように）
+  let ok = true
+  if (json !== sentPages) {
+    try {
+      await bridge.call('user.saveLayouts', { layouts: pages })
+      sentPages = json
+    } catch {
+      ok = false
+    }
+  }
   try {
-    await bridge.call('user.saveLayouts', { layouts: pages })
     await bridge.call('user.saveLayout', { layout: $state.snapshot(layout.doc) })
   } catch {
-    if (!warned.failed) toast(t('lay.saveFailed'), undefined, 5000, 'error')
+    ok = false
+  }
+  if (!ok && !warned.failed) {
     warned.failed = true
+    toast(t('lay.saveFailed'), undefined, 5000, 'error')
   }
 }
 
@@ -438,9 +464,9 @@ export function applyRemoteLink(group: number, id: InstrumentId): void {
   // 1 枚目はリンクを保存しておく（次の起動で同じ銘柄から）。フリー N はリンクを保存しない
   if (!IS_FREE) saveLayout()
 }
-/** 閉じる前に、遅らせている保存を確定させる */
+/** 閉じる前に、遅らせている保存を確定させる（送っている最中の保存も待つ） */
 export function flushLayoutSave(): Promise<unknown> {
-  if (!saveTimer) return Promise.resolve()
+  if (!saveTimer) return inflight ?? Promise.resolve()
   clearTimeout(saveTimer)
   return flushLayout()
 }
@@ -449,17 +475,14 @@ export async function suspendLayoutSave(): Promise<void> {
   await flushLayoutSave()
   saveSuspended = true
 }
-/** 取り込みに失敗したとき（読み直さない）に保存を戻す */
-export function resumeLayoutSave(): void {
-  saveSuspended = false
-}
 
 // ---------------------------------------------------------------- マイレイアウトのページ（FR-L14、docs/design-mylayouts.md）
-/** ページの数の上限。足す操作だけに効かせる（取り込みで超えたときは全部を持つ） */
+/** ページの数の上限。画面で足す操作だけに効かせる（取り込みでは PAGES_LIMIT まで持つ） */
 export const PAGES_MAX = 30
-/** ページの合計の大きさの上限。足す・複製・写すときだけ調べる（自動保存は断らない） */
+/** ページの合計の大きさの上限（UTF-8 のバイト数）。足す・複製・写すときだけ調べる（自動保存は断らない） */
 export const PAGES_MAX_BYTES = 2_000_000
-export const pagesBytes = (pages: unknown): number => JSON.stringify(pages).length
+const utf8 = new TextEncoder()
+export const pagesBytes = (pages: unknown): number => utf8.encode(typeof pages === 'string' ? pages : JSON.stringify(pages)).length
 let pageSeq = 0
 /** 'p' + 時刻 + カウンタ（同じミリ秒に何件作っても重ならない） */
 export const newPageId = (): string => `p${Date.now().toString(36)}${(++pageSeq).toString(36)}`
@@ -530,7 +553,8 @@ export function resolvePages(rawDoc: unknown, rawPages: readonly SavedLayout[], 
   let created = false
   if (!open.size) {
     const id = ids.has(FIRST_PAGE.id) ? newPageId() : FIRST_PAGE.id
-    pages.push({
+    // 一覧の先頭に置く（開けないページだけが残っていたときも、作ったページが 1 番になる）
+    pages.unshift({
       id,
       name: { ...FIRST_PAGE.name },
       entry: JSON.parse(JSON.stringify(doc.entries.free)),
@@ -554,12 +578,11 @@ export function useLoadedLayout(rawDoc: unknown, rawPages: readonly SavedLayout[
   const r = resolvePages(rawDoc, rawPages)
   layout.doc = r.doc
   layout.pages = r.pages
-  layout.dockOpen = null
-  app.maximized = null
-  app.focus = null
+  clearView()
   undoSnap = null
   pageUndo = null
   saveSuspended = false
+  sentPages = null
   if (r.created || r.doc.page !== (rawDoc as { page?: unknown } | null)?.page) saveLayout()
   return r
 }
@@ -579,6 +602,12 @@ export function reloadPages(rawPages: readonly SavedLayout[]): ResolvedPages {
 }
 export function currentPage(): SavedLayout | undefined {
   return layout.pages.find((p) => p.id === layout.doc.page)
+}
+/** 表示を替えたあとの後始末: ドロワー・最大化・フォーカスを空にする（タブを替えたときと同じ。§3.5） */
+function clearView(): void {
+  layout.dockOpen = null
+  app.maximized = null
+  app.focus = null
 }
 /** 一覧に出すページ（開けるものだけ。並びはファイルのまま） */
 export function openablePages(): SavedLayout[] {
@@ -609,9 +638,7 @@ export function setPage(id: string): boolean {
   const p = layout.pages.find((x) => x.id === id)
   if (!p || !showPage(p)) return false
   layout.doc.active = 'free'
-  layout.dockOpen = null
-  app.maximized = null
-  app.focus = null
+  clearView()
   saveLayout()
   return true
 }
@@ -647,12 +674,17 @@ export function duplicatePage(id: string, name: string): SavedLayout | PageRefus
   return addPage(name, entry, p.shape)
 }
 /** 直前に消したページ（10 秒間は元に戻せる。サイズを戻すの取り消しと同じ 1 つの枠で、あとから行ったほうが残る） */
-let pageUndo: { page: SavedLayout; index: number; current: boolean } | null = null
+let pageUndo: {
+  page: SavedLayout
+  index: number
+  /** 表示中のページを消したとき、代わりに表示したページの ID（その間にほかのページへ移っていたら、表示を引き戻さない） */
+  replacedBy: string | null
+} | null = null
 let pageUndoTimer: ReturnType<typeof setTimeout> | null = null
 export function canUndoRemovePage(): boolean {
   return !!pageUndo
 }
-/** 消したページを元の位置に戻す。表示中だったページなら、また表示する（タブは変えない） */
+/** 消したページを元の位置に戻す。表示中だったページは、代わりのページを表示したままなら、また表示する（タブは変えない） */
 export function undoRemovePage(): SavedLayout | null {
   const u = pageUndo
   if (!u) return null
@@ -660,13 +692,9 @@ export function undoRemovePage(): SavedLayout | null {
   const id = layout.pages.some((p) => p.id === u.page.id) ? newPageId() : u.page.id
   layout.pages.splice(Math.min(u.index, layout.pages.length), 0, { ...u.page, id })
   const p = layout.pages.find((x) => x.id === id)!
-  if (u.current) {
+  if (u.replacedBy && u.replacedBy === layout.doc.page) {
     showPage(p)
-    if (layout.doc.active === 'free') {
-      layout.dockOpen = null
-      app.maximized = null
-      app.focus = null
-    }
+    if (layout.doc.active === 'free') clearView()
   }
   saveLayout()
   return p
@@ -678,20 +706,17 @@ export function removePage(id: string): boolean {
   if (at >= 0 && open.length <= 1) return false
   const i = layout.pages.findIndex((p) => p.id === id)
   if (i < 0) return false
-  if (id === layout.doc.page) commitPage() // 元に戻すときに最後の変更まで戻す
-  pageUndo = { page: $state.snapshot(layout.pages[i]!) as SavedLayout, index: i, current: id === layout.doc.page }
+  const current = id === layout.doc.page
+  if (current) commitPage() // 元に戻すときに最後の変更まで戻す
+  const next = current ? (open[at + 1] ?? open[at - 1]!) : null
+  pageUndo = { page: $state.snapshot(layout.pages[i]!) as SavedLayout, index: i, replacedBy: next?.id ?? null }
   undoSnap = null
   if (pageUndoTimer) clearTimeout(pageUndoTimer)
   pageUndoTimer = setTimeout(() => (pageUndo = null), 10_000)
-  if (id === layout.doc.page) {
-    const next = open[at + 1] ?? open[at - 1]!
+  if (next) {
     layout.doc.page = undefined // 消すページに書き戻さない
     showPage(next)
-    if (layout.doc.active === 'free') {
-      layout.dockOpen = null
-      app.maximized = null
-      app.focus = null
-    }
+    if (layout.doc.active === 'free') clearView()
   }
   layout.pages.splice(i, 1)
   saveLayout()
@@ -903,16 +928,57 @@ function defaultSizesOf(root: LNode, tiers: LayoutEntry[][]): Map<SplitNode, num
  */
 function sizeBases(): LayoutEntry[][] {
   const a = layout.doc.active
-  if (a !== 'free' || IS_FREE) return [[presetEntry(a)]]
+  if (a !== 'free' || IS_FREE) return [[basePreset(a)]]
   const shape = currentPage()?.shape ?? ''
-  const all = () => PRESET_IDS.map(presetEntry)
+  const all = () => PRESET_IDS.map(basePreset)
   const from = /^preset:(\w+)$/.exec(shape)?.[1] as PresetId | undefined
-  if (from && from !== 'free' && PRESET_IDS.includes(from)) return [[presetEntry(from)], all()]
-  if (shape.startsWith('free:') || shape === 'preset:free') return [[presetEntry('free')]]
+  if (from && from !== 'free' && PRESET_IDS.includes(from)) return [[basePreset(from)], all()]
+  if (shape.startsWith('free:') || shape === 'preset:free') return [[basePreset('free')]]
   return [all()]
 }
-/** ドロワーの幅の基準（区切りと同じ段の順で、そのドロワーを持つ最初のプリセット） */
-const dockBase = (tiers: LayoutEntry[][], side: DockSide): Dock | undefined => tiers.flat().find((e) => e.docks[side])?.docks[side]
+/**
+ * 比率の基準に読むだけのプリセットの木（作り直さずに使い回す。トップバーは描くたびに sizesAtDefault を求めるため）。
+ * 書き換えないこと（タブを初期状態に戻すときは presetEntry で新しく作る）
+ */
+const presetBases = new Map<PresetId, LayoutEntry>()
+function basePreset(id: PresetId): LayoutEntry {
+  const hit = presetBases.get(id)
+  if (hit) return hit
+  const e = presetEntry(id)
+  presetBases.set(id, e)
+  return e
+}
+/** 今の木の区切りが、そのプリセットの区切りにどれだけ似ているか（区切りごとのいちばん似た度合いの合計） */
+function likeness(root: LNode, e: LayoutEntry): number {
+  const cands: SplitNode[] = []
+  eachSplit(e.root, (s) => cands.push(s))
+  let sum = 0
+  eachSplit(root, (s) => {
+    sum += Math.max(0, ...cands.map((c) => similarity(s, c)))
+  })
+  return sum
+}
+/**
+ * ドロワーの幅の基準: 区切りと同じ段の順で、そのドロワーを持つプリセットのうち、今の木にいちばん似たもの
+ * （区切りの比率を合わせたプリセットと同じものになる。設計 §3.5）
+ */
+function dockBase(tiers: LayoutEntry[][], side: DockSide, root: LNode): Dock | undefined {
+  for (const tier of tiers) {
+    const withDock = tier.filter((e) => e.docks[side])
+    if (!withDock.length) continue
+    let best = withDock[0]!
+    let bs = -1
+    for (const e of withDock) {
+      const v = likeness(root, e)
+      if (v > bs) {
+        bs = v
+        best = e
+      }
+    }
+    return best.docks[side]
+  }
+  return undefined
+}
 /** サイズを元に戻す（FR-L9）。並び・中身は変えない。10 秒間は元に戻せる */
 export function resetSizes(): boolean {
   const e = layout.entry
@@ -925,7 +991,7 @@ export function resetSizes(): boolean {
   })
   for (const side of ['left', 'right'] as const) {
     const d = e.docks[side]
-    const p = dockBase(tiers, side)
+    const p = dockBase(tiers, side, e.root)
     if (d && p) d.width = p.width
   }
   saveLayout()
@@ -946,7 +1012,7 @@ export function sizesAtDefault(): boolean {
   })
   for (const side of ['left', 'right'] as const) {
     const d = e.docks[side]
-    const p = dockBase(tiers, side)
+    const p = dockBase(tiers, side, e.root)
     if (d && p && Math.abs(d.width - p.width) > 1) same = false
   }
   return same

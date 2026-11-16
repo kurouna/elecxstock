@@ -41,8 +41,7 @@ test.describe('フリー N でマイレイアウトのページを開く（FR-L7
     await expect(panes).toHaveCount(5)
     await expect(free.locator('.main [data-widget="chart"]')).toHaveCount(5)
     await expect(free.locator('.toasts')).toContainText('チャートにするか外しました')
-    // 1 枚閉じてから初期状態に戻すと、ページの中身を写し直す。確認には窓の名前と元のページを出す
-    await panes.first().click()
+    // 1 枚閉じてから（開いたときに最初のペインにフォーカスがある）初期状態に戻すと、ページの中身を写し直す。確認には窓の名前と元のページを出す
     await keys(free, 'Control+Shift+w')
     await expect(panes).toHaveCount(4)
     await keys(free, 'Control+k')

@@ -61,7 +61,7 @@ export type Overlay =
       reorder: boolean
       resolve: (v: CheckItem[] | null) => void
     }
-  | { kind: 'layouts' }
+  | { kind: 'pageMenu' }
   | { kind: 'holding'; holding?: Holding; resolve: (h: Holding | null) => void }
   /** アラートのポップアップ（FR-AL8）。tab が無ければ、未読があれば履歴 */
   | { kind: 'alerts'; tab?: 'alerts' | 'history' }

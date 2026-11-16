@@ -362,7 +362,7 @@ test.describe('マイレイアウトのページ・再起動（FR-L4, FR-L14, FR
     const first = await start()
     const { page } = first
     const grid = page.locator('[data-widget="grid"]')
-    const menu = page.locator('.pmenu[role="menu"]')
+    const menu = page.locator('.page-menu[role="menu"]')
     const current = page.locator('.presets [aria-current="true"]')
     await tab(page, 'grid')
     // Ctrl+Shift+L はどのタブからでもメニューを開く（タブは変えない）。「今のタブを写して足す」は削除の 1 つ上
@@ -394,12 +394,12 @@ test.describe('マイレイアウトのページ・再起動（FR-L4, FR-L14, FR
     const again = await start({ userData: first.userData })
     await expect(again.page.locator('[data-widget="grid"]')).toHaveCount(1)
     await keys(again.page, 'Control+Shift+l')
-    await expect(again.page.locator('.pmenu [aria-checked="true"]')).toContainText('朝の確認')
+    await expect(again.page.locator('.page-menu [aria-checked="true"]')).toContainText('朝の確認')
   })
 
   test('新しいページを形を選んで作り、名前を変え、消して Ctrl+Z で戻す。コマンドバーからも開ける', async ({ start }) => {
     const { page } = await start()
-    const menu = page.locator('.pmenu[role="menu"]')
+    const menu = page.locator('.page-menu[role="menu"]')
     const charts = page.locator('.main [data-widget="chart"]')
     await tab(page, 'free')
     await keys(page, 'Control+Shift+Digit8', 'Insert')
@@ -425,6 +425,13 @@ test.describe('マイレイアウトのページ・再起動（FR-L4, FR-L14, FR
     await keys(page, 'Control+z')
     await expect(menu).toContainText('四分割')
     await keys(page, 'Escape')
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('四分割')
+    // メニューを閉じたあとの Ctrl+Z でも戻る（全体のキー処理）
+    await keys(page, 'Control+Shift+Digit8', 'Delete', 'Delete', 'Escape')
+    await expect(menu).toHaveCount(0)
+    await expect(page.locator('.presets [aria-current="true"]')).not.toContainText('四分割')
+    await keys(page, 'Control+z')
+    await expect(page.locator('.toasts')).toContainText('ページを元に戻しました: 四分割')
     await expect(page.locator('.presets [aria-current="true"]')).toContainText('四分割')
     // コマンドバーの「マイレイアウト: <名前> を開く」
     await keys(page, 'Control+Shift+Digit8', 'Digit1')
