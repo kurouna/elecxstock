@@ -47,7 +47,8 @@ import { freeShapeArg } from './shapes'
 declare const __APP_VERSION__: string
 const here = dirname(fileURLToPath(import.meta.url))
 const isDev = !!process.env.ELECTRON_RENDERER_URL
-const devTools = !app.isPackaged || process.env.ELECXSTOCK_DEVTOOLS === '1'
+// ELECXSTOCK_DEVTOOLS=1 で開発版の扱い、=0 で製品版の扱い（E2E で製品版の安全策を確かめる）。無ければパッケージしたかで決める
+const devTools = process.env.ELECXSTOCK_DEVTOOLS ? process.env.ELECXSTOCK_DEVTOOLS === '1' : !app.isPackaged
 
 if (process.env.ELECXSTOCK_USER_DATA) app.setPath('userData', process.env.ELECXSTOCK_USER_DATA)
 app.setAppUserModelId(appUserModelId(app.isPackaged))
@@ -384,12 +385,10 @@ async function createWindow(slot: Slot, shape?: string, hidden = false): Promise
   win.webContents.on('console-message', (e) => {
     if (e.level === 'error') log(`renderer error (${slot}): ${e.message}`)
   })
-  if (!devTools) {
-    // 製品版では再読み込みのキーを無効にする（F5 はアプリの「データ更新」に使う）
-    win.webContents.on('before-input-event', (e, input) => {
-      if (input.type === 'keyDown' && (input.control || input.meta) && input.key.toLowerCase() === 'r') e.preventDefault()
-    })
-  }
+  // 製品版では再読み込み（Ctrl+R・Ctrl+Shift+R）を無効にする（NFR-S3）。アプリのメニューは持たず（setApplicationMenu(null)）、
+  // メニューのショートカットも無視する。キーは画面には届ける（Ctrl+Shift+R はスクリーニング条件の一覧で使う。
+  // before-input-event で preventDefault すると画面にも届かない）
+  if (!devTools) win.webContents.setIgnoreMenuShortcuts(true)
   await win.loadURL(pageUrl(slot, shape))
 }
 /** フリー N を開く（開いていれば前に出す）。slot が無ければ空いている番号 */

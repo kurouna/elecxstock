@@ -422,6 +422,38 @@ test.describe('列挙の条件・条件の行と結果の行（FR-SC1, FR-SC10, 
     await expect(hint).toHaveCount(0)
     await expect(page.locator('.toast')).toContainText('既定のスクリーニング条件を 1 件戻しました')
   })
+
+  // 回帰（2026-11-17）: 製品版は再読み込みを止めるために Ctrl+R・Ctrl+Shift+R を main で握りつぶしていて、画面に届かなかった。
+  // Playwright の打鍵は main の before-input-event を通らないので、実際のキー入力と同じ経路（sendInputEvent）で打つ
+  test('製品版の扱いでも Ctrl+Shift+R が一覧に届き、Ctrl+R で再読み込みはしない（FR-SC15, NFR-S3）', async ({ start }) => {
+    const { app, page } = await start({ env: { ELECXSTOCK_DEVTOOLS: '0' } })
+    const native = (keyCode: string, modifiers: string[]) =>
+      app.evaluate(
+        ({ BrowserWindow }, a) => {
+          const wc = BrowserWindow.getAllWindows()[0]!.webContents
+          wc.sendInputEvent({ type: 'keyDown', keyCode: a.keyCode, modifiers: a.modifiers as never })
+          wc.sendInputEvent({ type: 'keyUp', keyCode: a.keyCode, modifiers: a.modifiers as never })
+        },
+        { keyCode, modifiers },
+      )
+    await openScreener(page)
+    await page.evaluate(() => {
+      ;(window as unknown as { __kept: number }).__kept = 1
+    })
+    await keys(page, 'Control+o')
+    const list = page.locator('.dialog')
+    await expect(list.locator('.sel')).toHaveCount(1)
+    await keys(page, 'Delete', 'Delete')
+    await expect(list).not.toContainText('高配当銘柄')
+    await native('R', ['control', 'shift'])
+    await expect(list).toContainText('高配当銘柄')
+    await keys(page, 'Escape')
+    await expect(list).toBeHidden()
+    await native('R', ['control'])
+    await native('R', ['control', 'shift'])
+    await expect(page.locator('[data-widget="screener"]')).toBeVisible()
+    expect(await page.evaluate(() => (window as unknown as { __kept?: number }).__kept)).toBe(1)
+  })
 })
 
 // 回帰（2026-11-16 のレビューで見つけた同じ作り）: 表示倍率を変えると、項目の説明が ⓘ から離れた位置に出ていた
