@@ -26,12 +26,25 @@ test.describe('チャートの画像の保存（FR-C11）', () => {
     await expect(chart.locator('.legend')).toBeVisible()
     const btn = chart.getByRole('button', { name: '画像を保存' })
 
+    // S を押しても保存しないことを確かめる: 続けて L（対数軸）を押し、その知らせが出るまで待つ（キーは順に処理されるので、
+    // S で保存が始まっていれば、そのあとで数を見ても取りこぼさない程度に進んでいる）。L はもう一度押して戻す
+    const pressSNoSave = async (n: number) => {
+      await keys(page, 's', 'l')
+      await expect(page.locator('.toasts')).toContainText('対数軸: ON')
+      await keys(page, 'l')
+      await expect(page.locator('.toasts')).toContainText('対数軸: OFF')
+      expect(await calls()).toHaveLength(n)
+    }
+    const pngSize = () => {
+      const png = readFileSync(file)
+      expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      return { w: png.readUInt32BE(16), h: png.readUInt32BE(20) }
+    }
+
     // 既定は OFF: ボタンは無く、S を押しても保存しない
     expect((await rpc<{ settings: { chartSave: boolean } }>(page, 'user.load')).settings.chartSave).toBe(false)
     await expect(btn).toHaveCount(0)
-    await keys(page, 's')
-    await expect(page.locator('.toasts')).not.toContainText('チャートの画像を保存しました')
-    expect(await calls()).toEqual([])
+    await pressSNoSave(0)
 
     // 設定（Ctrl+,）→ ↓↓ で「チャート」→ Tab で目標利回りの線、もう一度 Tab で画像の保存（目標の欄は OFF で飛ばす）→ Space で ON
     await keys(page, 'Control+Comma')
@@ -53,20 +66,29 @@ test.describe('チャートの画像の保存（FR-C11）', () => {
     await expect(page.locator('.toasts')).toContainText('チャートの画像を保存しました')
     expect(await calls()).toEqual(['elecxstock-8306-D-2026-11-13.png'])
     expect(existsSync(file)).toBe(true)
-    // PNG で、チャートの本体の上に見出しの 1 行を足した大きさ
-    const png = readFileSync(file)
-    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-    const w = png.readUInt32BE(16)
-    const h = png.readUInt32BE(20)
-    const box = (await chart.locator('.host').boundingBox())!
+    // PNG で、チャートの本体の上に見出しの 1 行（28px）を足した大きさ
     const dpr = await page.evaluate(() => window.devicePixelRatio)
-    expect(Math.abs(w - box.width * dpr)).toBeLessThanOrEqual(2)
-    expect(Math.abs(h - (box.height + 28) * dpr)).toBeLessThanOrEqual(2)
+    const box = (await chart.locator('.host').boundingBox())!
+    const a = pngSize()
+    expect(Math.abs(a.w - box.width * dpr)).toBeLessThanOrEqual(2)
+    expect(Math.abs(a.h - (box.height + 28) * dpr)).toBeLessThanOrEqual(2)
+
+    // この窓の文字を大きくする（CSS の zoom。devicePixelRatio は変わらない）と、見出しの 1 行もチャートと同じ倍率で大きくなる
+    await keys(page, 'Control+Alt+Equal', 'Control+Alt+Equal')
+    await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe('1.2')
+    await keys(page, 's')
+    await expect.poll(calls).toHaveLength(2)
+    await expect(page.locator('.toasts')).toContainText('チャートの画像を保存しました')
+    const zbox = (await chart.locator('.host').boundingBox())!
+    const b = pngSize()
+    expect(Math.abs(b.w - zbox.width * dpr)).toBeLessThanOrEqual(3)
+    expect(Math.abs(b.h - (zbox.height + 28 * 1.2) * dpr)).toBeLessThanOrEqual(3)
+    await keys(page, 'Control+Alt+Digit0')
+    await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe('1')
 
     // OFF に戻すとボタンは消え、S も効かない
     await keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'Tab', 'Tab', 'Space', 'Escape')
     await expect(btn).toHaveCount(0)
-    await keys(page, 's')
-    expect(await calls()).toHaveLength(1)
+    await pressSNoSave(2)
   })
 })

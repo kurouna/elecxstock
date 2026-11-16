@@ -26,6 +26,7 @@ import {
 } from 'lightweight-charts'
 import { onMount, untrack } from 'svelte'
 import { getBars } from '../../lib/barsCache'
+import { type ChartSnapshot, visibleSpan } from '../../lib/chartImage'
 import { cls, px, sgn } from '../../lib/format'
 import { bollinger, ichimoku, macd, rsiSeries, type Series, sma, stochastic } from '../../lib/indicators'
 import { barsForPeriod } from '../../lib/periods'
@@ -38,8 +39,8 @@ export const INDICATORS: Indicator[] = ['ma', 'vol', 'volma', 'bb', 'ichimoku', 
 export type ChartType = 'candle' | 'bar' | 'line'
 export interface ChartViewApi {
   key: (e: KeyboardEvent) => boolean
-  /** 画像の保存（FR-C11）: 今の表示を描いたキャンバス（十字線は入れない）と、見えている期間 */
-  snapshot: () => { canvas: HTMLCanvasElement; from?: string; to?: string } | null
+  /** 画像の保存（FR-C11）: 今の表示を描いたキャンバス（十字線は入れない）・見えている期間・描いている足の時間軸・倍率 */
+  snapshot: () => ChartSnapshot | null
 }
 
 let {
@@ -84,15 +85,20 @@ let lines = $state<{ label: string; color: string; values: Series }[]>([])
 let token = 0
 const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
 
+/** 描いている足の時間軸（D/W/M を押してから読み終わるまでは前の足を出しているので、tf とずれる。画像の名前に使う） */
+let shownTf: Timeframe = untrack(() => tf)
+
 async function load() {
   const my = ++token
+  const reqTf = tf
   try {
     loading = true
-    const b = await getBars(id, tf, adj)
+    const b = await getBars(id, reqTf, adj)
     const others: Record<string, Bars> = {}
     for (const c of cmp) others[c] = await getBars(c, tf, adj)
     if (my !== token) return // 古い要求の結果は捨てる（NFR-A8）
     bars = b
+    shownTf = reqTf
     cmpBars = others
     loading = false
     build()
@@ -504,7 +510,10 @@ onMount(() => {
     snapshot() {
       if (!chart || !bars?.time.length) return null
       const r = chart.timeScale().getVisibleRange()
-      return { canvas: chart.takeScreenshot(true, false), from: r?.from as string | undefined, to: r?.to as string | undefined }
+      const canvas = chart.takeScreenshot(true, false)
+      // 倍率はキャンバスとペインの幅の比（devicePixelRatio に、設定の文字の大きさ・窓の倍率の CSS zoom を掛けたもの）
+      const scale = host && host.clientWidth > 0 ? canvas.width / host.clientWidth : window.devicePixelRatio || 1
+      return { canvas, tf: shownTf, scale, ...visibleSpan(r?.from as string | undefined, r?.to as string | undefined, bars.time) }
     },
     key(e) {
       if (e.ctrlKey || e.altKey || e.metaKey) return false

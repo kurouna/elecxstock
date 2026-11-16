@@ -3,7 +3,7 @@
 import { jstNow } from '@shared/calendar'
 import type { Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
-import { isSaveKey, saveChartImage } from '../../lib/chartImage'
+import { isSaveKey, SAVE_TOAST, saveChartImage } from '../../lib/chartImage'
 import { cancelCompare, changeSymbol, chartKey, chartMenu, chartMore, takeCompare } from '../../lib/chartMenu'
 import { keyOf } from '../../lib/commands'
 import { cls, px, sgn } from '../../lib/format'
@@ -49,14 +49,14 @@ onMount(() =>
 /** 画像の保存（FR-C11。設定で ON のときだけ。ボタン・S キー・「⋯」） */
 async function saveImage() {
   if (!app.settings.chartSave) return
-  const ok = await saveChartImage(view?.snapshot() ?? null, {
+  const r = await saveChartImage(view?.snapshot() ?? null, {
     code: codeOf(id),
     name: nameOf(id),
-    tf,
-    tfLabel: t(`tf.${tf}` as Key),
+    tfLabel: (x) => t(`tf.${x}` as Key),
     date: jstNow().date,
   })
-  if (ok) toast(t('chart.imageSaved'))
+  const msg = SAVE_TOAST[r]
+  if (msg) toast(t(msg), undefined, r === 'failed' ? 6000 : 2200, r === 'failed' ? 'error' : 'info')
 }
 </script>
 

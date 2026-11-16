@@ -2,7 +2,7 @@
 // 見出しのボタン・S キー・「⋯」の項目から呼ぶ。Lightweight Charts の takeScreenshot は凡例（DOM）を含まないので、
 // 銘柄・時間軸・見えている期間の 1 行を上に描き足してから PNG にする
 
-/** 見出しの 1 行の高さ（CSS ピクセル） */
+/** 見出しの 1 行の高さ（CSS ピクセル。画像では倍率を掛ける） */
 export const HEADER_PX = 28
 
 /** 保存の既定のファイル名。例: elecxstock-8306-D-2026-11-16.png（ファイル名に使えない文字は _ にする） */
@@ -21,13 +21,50 @@ export function chartImageRange(from?: string, to?: string): string {
   return `${from.replaceAll('-', '/')} – ${to.replaceAll('-', '/')}`
 }
 
+/**
+ * 見えている期間を足の範囲に収める。一目均衡表の先行スパンは最後の足より先まで時間軸を延ばしているので、
+ * 右端が見えているとき getVisibleRange の終わりは未来の日付になる（日付は YYYY-MM-DD なので文字列で比べられる）
+ */
+export function visibleSpan(from: string | undefined, to: string | undefined, time: readonly string[]): { from?: string; to?: string } {
+  const first = time[0]
+  const last = time[time.length - 1]
+  if (!from || !to || !first || !last) return {}
+  const clamp = (x: string) => (x < first ? first : x > last ? last : x)
+  return { from: clamp(from), to: clamp(to) }
+}
+
+/**
+ * 見出しの 1 行の左右を、幅に収まるように決める。銘柄（左）を優先し、期間（右）は入らなければ出さない。
+ * 期間を出さなくても銘柄が収まらなければ、末尾を … で切る。measure は描く文字の幅（キャンバスの measureText。bold は左の太字）
+ */
+export function fitHeader(
+  title: string,
+  range: string,
+  width: number,
+  gap: number,
+  measure: (s: string, bold: boolean) => number,
+): { title: string; range: string } {
+  const tw = measure(title, true)
+  if (range && tw + gap + measure(range, false) <= width) return { title, range }
+  if (tw <= width) return { title, range: '' }
+  const cs = [...title]
+  let lo = 0
+  let hi = cs.length
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (measure(`${cs.slice(0, mid).join('')}…`, true) <= width) lo = mid
+    else hi = mid - 1
+  }
+  return { title: lo > 0 ? `${cs.slice(0, lo).join('')}…` : '', range: '' }
+}
+
 export interface ImageStyle {
   bg: string
   fg: string
   muted: string
   line: string
   font: string
-  /** チャートのキャンバスの倍率（devicePixelRatio。見出しも同じ倍率で描く） */
+  /** チャートのキャンバスの倍率（devicePixelRatio × CSS の zoom。見出しも同じ倍率で描く） */
   scale: number
 }
 
@@ -43,17 +80,24 @@ export function composeChartImage(shot: HTMLCanvasElement, title: string, range:
   g.fillRect(0, 0, out.width, out.height)
   g.textBaseline = 'middle'
   const pad = Math.round(8 * s.scale)
-  g.font = `600 ${Math.round(13 * s.scale)}px ${s.font}`
+  const bold = `600 ${Math.round(13 * s.scale)}px ${s.font}`
+  const thin = `${Math.round(11 * s.scale)}px ${s.font}`
+  const fit = fitHeader(title, range, out.width - pad * 2, Math.round(16 * s.scale), (x, b) => {
+    g.font = b ? bold : thin
+    return g.measureText(x).width
+  })
+  g.font = bold
   g.fillStyle = s.fg
-  g.fillText(title, pad, head / 2)
-  if (range) {
-    g.font = `${Math.round(11 * s.scale)}px ${s.font}`
+  g.fillText(fit.title, pad, head / 2)
+  if (fit.range) {
+    g.font = thin
     g.fillStyle = s.muted
     g.textAlign = 'right'
-    g.fillText(range, out.width - pad, head / 2)
+    g.fillText(fit.range, out.width - pad, head / 2)
   }
+  const lw = Math.max(1, Math.round(s.scale))
   g.fillStyle = s.line
-  g.fillRect(0, head - Math.max(1, Math.round(s.scale)), out.width, Math.max(1, Math.round(s.scale)))
+  g.fillRect(0, head - lw, out.width, lw)
   g.drawImage(shot, 0, head)
   return out
 }
@@ -65,33 +109,59 @@ export function canvasPng(c: HTMLCanvasElement): Promise<Uint8Array | null> {
   })
 }
 
-/** S キー（修飾キーなし）で保存するか。設定が OFF なら何もしない（キーも効かせない） */
-export function isSaveKey(e: Pick<KeyboardEvent, 'code' | 'ctrlKey' | 'altKey' | 'metaKey' | 'shiftKey'>, on: boolean): boolean {
-  return on && e.code === 'KeyS' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey
+/** S キー（修飾キーなし・押しっぱなしの繰り返しは除く）で保存するか。設定が OFF なら何もしない（キーも効かせない） */
+export function isSaveKey(e: Pick<KeyboardEvent, 'code' | 'ctrlKey' | 'altKey' | 'metaKey' | 'shiftKey' | 'repeat'>, on: boolean): boolean {
+  return on && e.code === 'KeyS' && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey
 }
 
 export interface ChartSnapshot {
   canvas: HTMLCanvasElement
+  /** 描いている足の時間軸（D/W/M を押した直後は、読み終わるまで前の時間軸の足を出している） */
+  tf: string
+  /** キャンバスの倍率（キャンバスの幅 ÷ ペインの CSS の幅） */
+  scale: number
   from?: string
   to?: string
 }
 
-/** 今のチャートを PNG にして保存ダイアログを出す。保存したら true */
+/** 保存の結果: 保存した・取りやめた（ダイアログの取り消しと、保存中の 2 回目）・まだ描けていない・失敗した */
+export type SaveResult = 'saved' | 'cancelled' | 'notReady' | 'failed'
+
+/** 保存中か（連打・ボタンの 2 回押しで保存ダイアログを重ねて出さない） */
+let saving = false
+
+/** 今のチャートを PNG にして保存ダイアログを出す。名前と見出しの時間軸は、描いている足の時間軸（snap.tf） */
 export async function saveChartImage(
   snap: ChartSnapshot | null,
-  o: { code: string; name: string; tf: string; tfLabel: string; date: string },
-): Promise<boolean> {
-  if (!snap) return false
-  const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
-  const img = composeChartImage(snap.canvas, chartImageTitle(o.code, o.name, o.tfLabel), chartImageRange(snap.from, snap.to), {
-    bg: css('--panel'),
-    fg: css('--text'),
-    muted: css('--text-3'),
-    line: css('--line'),
-    font: css('--font') || 'sans-serif',
-    scale: window.devicePixelRatio || 1,
-  })
-  const png = await canvasPng(img)
-  if (!png) return false
-  return window.elecxstock.savePng(chartImageName(o.code, o.tf, o.date), png)
+  o: { code: string; name: string; tfLabel: (tf: string) => string; date: string },
+): Promise<SaveResult> {
+  if (saving) return 'cancelled'
+  if (!snap) return 'notReady'
+  saving = true
+  try {
+    const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
+    const img = composeChartImage(snap.canvas, chartImageTitle(o.code, o.name, o.tfLabel(snap.tf)), chartImageRange(snap.from, snap.to), {
+      bg: css('--panel'),
+      fg: css('--text'),
+      muted: css('--text-3'),
+      line: css('--line'),
+      font: css('--font') || 'sans-serif',
+      scale: snap.scale,
+    })
+    const png = await canvasPng(img)
+    if (!png) return 'failed'
+    return (await window.elecxstock.savePng(chartImageName(o.code, snap.tf, o.date), png)) ? 'saved' : 'cancelled'
+  } catch {
+    return 'failed'
+  } finally {
+    saving = false
+  }
+}
+
+/** 保存の結果ごとのトーストの文言のキー（取りやめたときは出さない） */
+export const SAVE_TOAST: Record<SaveResult, 'chart.imageSaved' | 'chart.imageNotReady' | 'chart.imageFailed' | null> = {
+  saved: 'chart.imageSaved',
+  cancelled: null,
+  notReady: 'chart.imageNotReady',
+  failed: 'chart.imageFailed',
 }

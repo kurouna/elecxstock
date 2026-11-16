@@ -22,12 +22,15 @@ describe('チャートの画像の保存の「⋯」の項目（FR-C11）', () =
     expect(chartMore(pane, save).map((x) => x.id)).not.toContain('saveImage')
 
     app.settings.chartSave = true
-    const item = chartMore(pane, save).find((x) => x.id === 'saveImage')
-    expect(item?.hint).toBe('S')
-    item?.run()
-    expect(saved).toBe(1)
-    // 保存の手段を渡さない呼び出し（ほかの見出し）には出さない
-    expect(chartMore(pane).map((x) => x.id)).not.toContain('saveImage')
-    app.settings.chartSave = false
+    try {
+      const item = chartMore(pane, save).find((x) => x.id === 'saveImage')
+      expect(item?.hint).toBe('S')
+      item?.run()
+      expect(saved).toBe(1)
+      // 保存の手段を渡さない呼び出し（ほかの見出し）には出さない
+      expect(chartMore(pane).map((x) => x.id)).not.toContain('saveImage')
+    } finally {
+      app.settings.chartSave = false
+    }
   })
 })
