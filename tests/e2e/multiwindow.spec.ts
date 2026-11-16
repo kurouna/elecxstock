@@ -29,9 +29,9 @@ async function openFree(app: ElectronApplication, page: Page, label: string): Pr
 test.describe('フリー N でマイレイアウトのページを開く（FR-L7, FR-L14）', () => {
   test('ページの写しを開き（一覧はチャートにして知らせる）、初期状態に戻すとページの今の中身を写し直す', async ({ start }) => {
     const { app, page } = await start()
-    // MTF のタブを写して「朝」のページを作る（メニューの「今のタブを写して足す」は削除の 1 つ上）
+    // MTF のタブを写して「朝」のページを作る（ページが 1 枚なので、メニューの最後が「今のタブを写して足す」）
     await tab(page, 'mtf')
-    await keys(page, 'Control+Shift+l', 'End', 'ArrowUp', 'Enter')
+    await keys(page, 'Control+Shift+l', 'End', 'Enter')
     await type(page, '朝')
     await keys(page, 'Enter')
     await expect(page.locator('.presets [aria-current="true"]')).toContainText('朝')

@@ -28,7 +28,10 @@ import { freeNo, IS_FREE, SLOT } from './windowSlot'
 export type MenuRow =
   | { kind: 'page'; page: SavedLayout; n: number | null }
   | { kind: 'new' | 'duplicate' | 'rename' | 'copyTab' | 'delete' }
-/** メニューの行を作る。「今のタブを写して足す」はマイレイアウト以外のタブで開いたときだけ */
+/**
+ * メニューの行を作る（`pages` は開けるページ）。「今のタブを写して足す」はマイレイアウト以外のタブで開いたときだけ。
+ * 「削除」はページが 2 枚以上のときだけ（最後の 1 枚は消せないので、選べない行を出さない。Delete キーは理由を知らせる）
+ */
 export function menuRows(pages: readonly SavedLayout[], active: string): MenuRow[] {
   return [
     ...pages.map((page, i) => ({ kind: 'page' as const, page, n: i < 9 ? i + 1 : null })),
@@ -36,7 +39,7 @@ export function menuRows(pages: readonly SavedLayout[], active: string): MenuRow
     { kind: 'duplicate' },
     { kind: 'rename' },
     ...(active === 'free' ? [] : [{ kind: 'copyTab' as const }]),
-    { kind: 'delete' },
+    ...(pages.length > 1 ? [{ kind: 'delete' as const }] : []),
   ]
 }
 /** 複製・名前・削除の相手: 選んでいる行がページならそのページ、操作の行なら表示中のページ */

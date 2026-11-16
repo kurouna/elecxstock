@@ -363,6 +363,8 @@ describe('メニューの操作（FR-L14, §3.2〜§3.4）', () => {
     expect(rows.filter((r) => r.kind === 'page').map((r) => (r as { n: number | null }).n)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, null, null])
     expect(rows.slice(11).map((r) => r.kind)).toEqual(['new', 'duplicate', 'rename', 'copyTab', 'delete'])
     expect(menuRows(many, 'free').some((r) => r.kind === 'copyTab')).toBe(false)
+    // ページが 1 枚なら削除の行は出さない（最後の 1 枚は消せない）
+    expect(menuRows([page('a')], 'mtf').map((r) => r.kind)).toEqual(['page', 'new', 'duplicate', 'rename', 'copyTab'])
   })
   it('コマンドバーの項目は、開けるページごとに「マイレイアウト: <名前> を開く」', async () => {
     const { pageCommands } = await import('../../../src/renderer/lib/pages')

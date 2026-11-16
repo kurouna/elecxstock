@@ -365,11 +365,12 @@ test.describe('マイレイアウトのページ・再起動（FR-L4, FR-L14, FR
     const menu = page.locator('.page-menu[role="menu"]')
     const current = page.locator('.presets [aria-current="true"]')
     await tab(page, 'grid')
-    // Ctrl+Shift+L はどのタブからでもメニューを開く（タブは変えない）。「今のタブを写して足す」は削除の 1 つ上
+    // Ctrl+Shift+L はどのタブからでもメニューを開く（タブは変えない）。ページが 1 枚なので削除の行は無く、「今のタブを写して足す」が最後
     await keys(page, 'Control+Shift+l')
     await expect(menu).toBeVisible()
     await expect(current).toContainText('グリッド')
-    await keys(page, 'End', 'ArrowUp', 'Enter')
+    await expect(menu).not.toContainText('削除')
+    await keys(page, 'End', 'Enter')
     await type(page, '朝の確認')
     await keys(page, 'Enter')
     await expect(page.locator('.toasts')).toContainText('ページを足しました: 朝の確認')
