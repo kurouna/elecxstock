@@ -28,6 +28,17 @@ import { onMount, untrack } from 'svelte'
 import { getBars } from '../../lib/barsCache'
 import { type ChartSnapshot, visibleSpan } from '../../lib/chartImage'
 import { cls, px, sgn } from '../../lib/format'
+import {
+  type DigitsKind,
+  histTone,
+  indicatorDigits,
+  type LegendLine,
+  legendByPane,
+  paneTops,
+  priceFormat,
+  stretchFactors,
+  withAlpha,
+} from '../../lib/indicatorPanes'
 import { bollinger, ichimoku, macd, rsiSeries, type Series, sma, stochastic } from '../../lib/indicators'
 import { barsForPeriod } from '../../lib/periods'
 import { app, ensureMetrics, metric, nameOf, t, touched } from '../../stores/app.svelte'
@@ -80,8 +91,13 @@ let markers: ISeriesMarkersPluginApi<Time> | null = null
 let alertLines: IPriceLine[] = []
 /** 目標利回りの点線（FR-C12） */
 let targetLines: IPriceLine[] = []
-/** 凡例に出す値（指標の名前・色・値の配列） */
-let lines = $state<{ label: string; color: string; values: Series }[]>([])
+/** 凡例に出す線（indicatorPanes.ts の LegendLine） */
+let lines = $state<LegendLine[]>([])
+/** 下の段の名前（段の番号 → 名前。1 から） */
+let paneTitles = $state<Record<number, string>>({})
+/** 段ごとの上端（px。下の段の凡例を置く） */
+let tops = $state<number[]>([])
+let paneObs: ResizeObserver | null = null
 let token = 0
 const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
 
@@ -227,7 +243,8 @@ function build() {
       fontSize: 11,
       // ロゴは出さない（グリッドのタイルとそろえる）。帰属の表示とリンクは初回の確認と設定 > このアプリについて に置く（Lightweight Charts の NOTICE）
       attributionLogo: false,
-      panes: { separatorColor: css('--line'), separatorHoverColor: css('--line-strong') },
+      // 段の区切りは濃い線（下の段が本体と別の段だと分かるように）
+      panes: { separatorColor: css('--line-strong'), separatorHoverColor: css('--chart-cross') },
     },
     localization: {
       locale: app.settings.lang === 'ja' ? 'ja-JP' : 'en-US',
@@ -243,7 +260,8 @@ function build() {
     },
   })
   const b = bars
-  const ls: typeof lines = []
+  const ls: LegendLine[] = []
+  const titles: Record<number, string> = {}
   const mode = cmp.length ? PriceScaleMode.Percentage : log ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal
   chart.priceScale('right').applyOptions({ mode })
   // 本体（FR-C1）: ローソク足 / バー / 終値ライン
@@ -264,7 +282,7 @@ function build() {
     const base = b.close.at(-1) ?? 1000
     // マーケット一覧の行（ドル/円・米10年など）は登録表の桁（FR-MB2）
     const pd = priceDigits(id) ?? (base < 1000 ? 1 : 0)
-    main.applyOptions({ priceFormat: { type: 'price', precision: pd, minMove: 10 ** -pd } })
+    main.applyOptions({ priceFormat: priceFormat(pd) })
     drawAlertLines()
     drawTargetLines()
     const tm = b.time as Time[]
@@ -276,9 +294,12 @@ function build() {
     const line = (
       values: Series,
       color: string,
-      label: string,
-      opt: { width?: LineWidth; dashed?: boolean; pane?: number; time?: string[] } = {},
+      label: string | null,
+      opt: { width?: LineWidth; dashed?: boolean; pane?: number; time?: string[]; kind?: DigitsKind; digits?: number } = {},
     ) => {
+      // label が null の線は凡例に出さない（'' は名前なしで値だけ）。
+      // 桁: 下の段は指標の種類で決め、目盛りも同じ桁にする。本体の段は OHLC と同じ（登録表の桁、無ければ値の大きさ）
+      const digits = opt.kind ? indicatorDigits(opt.kind, pd) : opt.digits
       const s = chart!.addSeries(
         LineSeries,
         {
@@ -288,28 +309,29 @@ function build() {
           priceLineVisible: false,
           lastValueVisible: false,
           crosshairMarkerVisible: false,
+          ...(opt.kind ? { priceFormat: priceFormat(digits!) } : {}),
         },
         opt.pane ?? 0,
       )
       s.setData(ld(opt.time ?? b.time, values))
-      if (label) ls.push({ label, color, values })
+      if (label != null) ls.push({ label, color, values, pane: opt.pane ?? 0, digits })
       return s
     }
-    if (ind.has('ma')) periods.forEach((n, k) => line(sma(b.close, n), css(MA_COLORS[k]!), `MA${n}`))
+    if (ind.has('ma')) periods.forEach((n, k) => line(sma(b.close, n), css(MA_COLORS[k]!), `MA${n}`, { digits: pdg }))
     if (ind.has('bb')) {
       const bb = bollinger(b.close)
-      line(bb.mid, css('--ind1'), 'BB20', { dashed: true })
-      line(bb.up, css('--ind1'), '+2σ')
-      line(bb.lo, css('--ind1'), '−2σ')
+      line(bb.mid, css('--ind1'), 'BB20', { dashed: true, digits: pdg })
+      line(bb.up, css('--ind1'), '+2σ', { digits: pdg })
+      line(bb.lo, css('--ind1'), '−2σ', { digits: pdg })
     }
     if (ind.has('ichimoku')) {
       const ic = ichimoku(b.high, b.low, b.close)
       const ext = extendTime(b.time, 26)
-      line(ic.tenkan, css('--ind2'), t('ind.tenkan'))
-      line(ic.kijun, css('--ind1'), t('ind.kijun'))
-      line(ic.spanA, css('--ok'), t('ind.spanA'), { time: ext })
-      line(ic.spanB, css('--danger'), t('ind.spanB'), { time: ext })
-      line(ic.chikou, css('--ind3'), '', { dashed: true })
+      line(ic.tenkan, css('--ind2'), t('ind.tenkan'), { digits: pdg })
+      line(ic.kijun, css('--ind1'), t('ind.kijun'), { digits: pdg })
+      line(ic.spanA, css('--ok'), t('ind.spanA'), { time: ext, digits: pdg })
+      line(ic.spanB, css('--danger'), t('ind.spanB'), { time: ext, digits: pdg })
+      line(ic.chikou, css('--ind3'), null, { dashed: true })
     }
     // 比較表示（FR-C7）: 他銘柄を % で重ねる（右の目盛りは表示の始点を 0% にした騰落率）
     cmp.forEach((c, k) => {
@@ -320,7 +342,7 @@ function build() {
         b.time.map((x) => map.get(x) ?? null),
         css(CMP_COLORS[k]!),
         nameOf(c),
-        { width: 2 },
+        { width: 2, digits: priceDigits(c) },
       )
     })
     if (ind.has('vol')) {
@@ -347,30 +369,41 @@ function build() {
       }
     }
     // 下の段（RSI・MACD・ストキャスティクス）
+    // 段ごとに左上へ名前と値の凡例を出す（FR-C3）
     let paneNo = 0
     if (ind.has('rsi')) {
       paneNo++
-      const r = line(rsiSeries(b.close), css('--ind4'), 'RSI14', { pane: paneNo })
+      titles[paneNo] = t('ind.rsi')
+      // 線が 1 本なので、凡例は段の名前のあとに値だけ
+      const r = line(rsiSeries(b.close), css('--ind4'), '', { pane: paneNo, kind: 'osc' })
       r.createPriceLine({ price: 70, color: css('--line-strong'), lineWidth: 1, lineStyle: 2, axisLabelVisible: false, title: '' })
       r.createPriceLine({ price: 30, color: css('--line-strong'), lineWidth: 1, lineStyle: 2, axisLabelVisible: false, title: '' })
     }
     if (ind.has('macd')) {
       paneNo++
+      titles[paneNo] = t('ind.macd')
       const m = macd(b.close)
-      const h = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false }, paneNo)
-      h.setData(
-        m.hist.flatMap((v, i) => (v == null ? [] : [{ time: tm[i]!, value: v, color: v >= 0 ? css('--vol-up') : css('--vol-down') }])),
-      )
-      line(m.macd, css('--ind1'), 'MACD', { pane: paneNo })
-      line(m.signal, css('--ind2'), 'Signal', { pane: paneNo })
+      const dg = indicatorDigits('diff', pd)
+      // ヒストグラムは出来高と分けて陽線・陰線の色で、0 から離れていく足を濃く、近づいていく足を薄く
+      const tone = { up: withAlpha(up, 0.75), upWeak: withAlpha(up, 0.3), down: withAlpha(down, 0.75), downWeak: withAlpha(down, 0.3) }
+      const h = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false, priceFormat: priceFormat(dg) }, paneNo)
+      h.setData(m.hist.flatMap((v, i) => (v == null ? [] : [{ time: tm[i]!, value: v, color: tone[histTone(v, m.hist[i - 1])] }])))
+      // 0 の線（MACD は 0 の上か下かが読みどころ）
+      h.createPriceLine({ price: 0, color: css('--chart-cross'), lineWidth: 1, lineStyle: 0, axisLabelVisible: false, title: '' })
+      line(m.macd, css('--ind1'), 'MACD', { pane: paneNo, kind: 'diff' })
+      line(m.signal, css('--ind2'), 'Signal', { pane: paneNo, kind: 'diff' })
+      ls.push({ label: 'Hist', color: '', values: m.hist, pane: paneNo, digits: dg, signColor: true })
     }
     if (ind.has('stoch')) {
       paneNo++
+      titles[paneNo] = t('ind.stoch')
       const st = stochastic(b.high, b.low, b.close)
-      line(st.k, css('--ind1'), '%K', { pane: paneNo })
-      line(st.d, css('--ind2'), '%D', { pane: paneNo })
+      line(st.k, css('--ind1'), '%K', { pane: paneNo, kind: 'osc' })
+      line(st.d, css('--ind2'), '%D', { pane: paneNo, kind: 'osc' })
     }
-    for (let i = 1; i <= paneNo; i++) chart.panes()[i]?.setHeight(Math.max(60, (host.clientHeight || 400) * 0.18))
+    // 下の段の高さ（1 つなら 25%、増えたら合計 50%）
+    const ps = chart.panes()
+    if (paneNo) stretchFactors(paneNo).forEach((f, i) => ps[i]?.setStretchFactor(f))
     // 配当落ち日・分割の印（FR-C5）。週足・月足は、その日を含む足に付ける
     markers = createSeriesMarkers(main, [])
     if (ind.has('divs')) {
@@ -398,8 +431,27 @@ function build() {
     requestAnimationFrame(() => chart?.timeScale().setVisibleLogicalRange(keep ?? { from: Math.max(0, n - show), to: n + 3 }))
   }
   lines = ls
+  paneTitles = titles
   legendIdx = null
   wire()
+  watchPanes()
+}
+
+/** 段の上端を測り直す（段の凡例の位置）。段の高さは区切りを動かす・ペインの大きさが変わると変わる */
+function placePanes() {
+  tops = chart ? paneTops(chart.panes().map((p) => p.getHeight())) : []
+}
+function watchPanes() {
+  paneObs?.disconnect()
+  paneObs = null
+  tops = []
+  if (!chart || !Object.keys(paneTitles).length) return
+  paneObs = new ResizeObserver(placePanes)
+  for (const p of chart.panes()) {
+    const el = p.getHTMLElement()
+    if (el) paneObs.observe(el)
+  }
+  requestAnimationFrame(placePanes)
 }
 
 const legend = $derived.by(() => {
@@ -418,7 +470,7 @@ const legend = $derived.by(() => {
     prov: bars.provisional.includes(i),
     forming: bars.forming.includes(i),
     monthly: bars.monthlyUntil != null && i < bars.monthlyUntil,
-    vals: lines.map((x) => ({ label: x.label, color: x.color, v: x.values[i] ?? null })),
+    ...legendByPane(lines, paneTitles, i),
   }
 })
 
@@ -559,6 +611,7 @@ onMount(() => {
   })
   return () => {
     charts.delete(handle)
+    paneObs?.disconnect()
     chart?.remove()
     chart = null
   }
@@ -580,8 +633,8 @@ onMount(() => {
         {#if legend.monthly}<span class="badge">{t('chart.monthlySeries')}</span>{/if}
       </div>
       <div class="mas">
-        {#each legend.vals as x, k (k)}
-          <span style:color={x.color}><b>{x.label}</b> {x.v != null ? (Math.abs(x.v) < 200 && !x.label.startsWith('MA') && !x.label.startsWith('BB') ? x.v.toFixed(2) : px(x.v)) : '—'}</span>
+        {#each legend.main as x, k (k)}
+          <span style:color={x.color}><b>{x.label}</b> {x.text}</span>
         {/each}
         {#each targets as y (y.pct)}
           <span class="yl"><b>{t('chart.yieldTarget', { p: y.label })}</b> {px(y.price)}{#if y.gap != null} <span class="dim">({sgn(y.gap, 1, '%')})</span>{/if}</span>
@@ -591,6 +644,18 @@ onMount(() => {
         {#if adj !== 'split'}<span class="badge">{t(adj === 'unadjusted' ? 'chart.unadjusted' : 'chart.total')}</span>{/if}
       </div>
     </div>
+    {#each legend.subs as s (s.pane)}
+      {#if tops[s.pane] != null}
+        <div class="legend sub" data-pane={s.pane} style:top="{tops[s.pane]! + 3}px">
+          <div class="mas">
+            <span class="ttl">{s.title}</span>
+            {#each s.vals as x, k (k)}
+              <span class={x.cls} style:color={x.color}>{#if x.label}<b>{x.label}</b>{' '}{/if}{x.text}</span>
+            {/each}
+          </div>
+        </div>
+      {/if}
+    {/each}
   {:else if loading && !bars}
     <div class="state">{t('common.loading')}</div>
   {:else if bars && !bars.time.length}
@@ -643,6 +708,22 @@ onMount(() => {
   }
   .mas b {
     color: inherit;
+    font-weight: 600;
+  }
+  /* 下の段は低く線が凡例の下を通りやすいので、文字の下を薄く塗る */
+  .legend.sub {
+    padding: 0 4px;
+    margin-left: -4px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--panel) 80%, transparent);
+  }
+  /* 1 行に収め、はみ出す値は隠す（狭いペインで段を覆わない） */
+  .legend.sub .mas {
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .ttl {
+    color: var(--text);
     font-weight: 600;
   }
   .yl {

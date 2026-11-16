@@ -38,16 +38,33 @@ test.describe('表示期間（FR-C1, FR-G3）', () => {
   })
 })
 
-test.describe('指標とツールチップ（FR-C6, FR-V13, FR-V14）', () => {
-  test('I の指標メニューから RSI を足すと下に段が増える', async ({ start }) => {
+test.describe('指標とツールチップ（FR-C3, FR-C6, FR-V13, FR-V14）', () => {
+  test('I の指標メニューから RSI と MACD を足すと、下に段が増え、段ごとに名前と値の凡例が出る', async ({ start }) => {
     const { page } = await start()
     await tab(page, 'triple')
     await keys(page, 'Alt+ArrowRight') // 左の列のウォッチリストから右の日足のチャートへ
     await expect(page.locator('.pane.focused')).toHaveAttribute('data-widget', 'chart')
     await keys(page, 'i', 'Enter')
     await expect(page.locator('.dialog')).toContainText('RSI')
-    await keys(page, 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'Space', 'Enter')
-    await expect(page.locator('[data-widget="chart"]').first()).toContainText('RSI14')
+    // RSI（6 つ目）と MACD（7 つ目）を選ぶ
+    await keys(page, 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'Space', 'ArrowDown', 'Space', 'Enter')
+    const chart = page.locator('[data-widget="chart"]').first()
+    const rsi = chart.locator('.legend.sub', { hasText: 'RSI（14）' })
+    const macd = chart.locator('.legend.sub', { hasText: 'MACD（12, 26, 9）' })
+    await expect(rsi).toHaveAttribute('data-pane', '1')
+    await expect(macd).toHaveAttribute('data-pane', '2')
+    // RSI は小数 1 桁。MACD の段は MACD・Signal・Hist を出し、本体の凡例には出さない
+    await expect(rsi).toContainText(/RSI（14） \d+\.\d(?!\d)/)
+    await expect(macd).toContainText(/Signal -?[\d,]+\.\d/)
+    await expect(macd).toContainText('Hist')
+    await expect(chart.locator('.legend:not(.sub)')).not.toContainText('Signal')
+    // 下の段が 2 つなら 25% ずつ: RSI の段（の凡例）は高さの半ばから、MACD の段は 4 分の 3 から
+    const at = (l: typeof rsi) =>
+      l.evaluate((el) => (el as HTMLElement).offsetTop / (el.parentElement!.querySelector('.host') as HTMLElement).clientHeight)
+    await expect.poll(() => at(rsi)).toBeGreaterThan(0.45)
+    expect(await at(rsi)).toBeLessThan(0.55)
+    expect(await at(macd)).toBeGreaterThan(0.7)
+    expect(await at(macd)).toBeLessThan(0.8)
   })
 
   test('★・指標・時間軸のツールチップに説明とキーを付ける', async ({ start }) => {
