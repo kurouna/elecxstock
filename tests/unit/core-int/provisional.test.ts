@@ -107,7 +107,12 @@ describe('指標の基準日と仮の印（FR-S13）', () => {
     expect(row?.stale).toBe(true)
     expect(r.rows.find((x) => x.id === 'JP:7203')?.stale).toBe(false)
   })
-  // 「結果から外すこともできる」: Core の screener.run にも設定にも、基準日の古い行を外す指定が無い（印を付けるだけ）。
-  // 実装されたら、ここで外した結果を確かめる
-  it.todo('基準日が直近の営業日より古い行を、スクリーナーの結果から外せる')
+  it('基準日の古い行も、スクリーナーの結果からは外さない（薄く表示するだけ）', async () => {
+    const r = await call('screener.run', {
+      conditions: [{ field: 'price.close', op: '>=', value: 0 }],
+      favorites: [],
+      watchlists: {},
+    })
+    expect(r.ids).toContain('JP:8001')
+  })
 })

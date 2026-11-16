@@ -27,8 +27,8 @@ function hue(hex: string): number {
 }
 const isRed = (hex: string) => hue(hex) < 20 || hue(hex) > 340
 const isGreen = (hex: string) => hue(hex) > 90 && hue(hex) < 170
-/** 青緑〜青（日本式の陰線） */
-const isCool = (hex: string) => hue(hex) >= 170 && hue(hex) <= 240
+/** 青（日本式の陰線） */
+const isBlue = (hex: string) => hue(hex) >= 195 && hue(hex) <= 250
 
 describe('陽線・陰線の色（FR-C9）', () => {
   const dark = tokens(':root')
@@ -39,10 +39,10 @@ describe('陽線・陰線の色（FR-C9）', () => {
   it('既定は日本式', () => {
     expect(DEFAULT_SETTINGS.candleStyle).toBe('jp')
   })
-  it('日本式: 陽線 = 赤、陰線 = 青緑〜青（ダーク・ライトとも）', () => {
+  it('日本式: 陽線 = 赤、陰線 = 青（ダーク・ライトとも）', () => {
     for (const t of [dark, light]) {
       expect(isRed(t.up!), t.up).toBe(true)
-      expect(isCool(t.down!), t.down).toBe(true)
+      expect(isBlue(t.down!), t.down).toBe(true)
     }
   })
   it('欧米式: 陽線 = 緑、陰線 = 赤（ダーク・ライトとも）', () => {

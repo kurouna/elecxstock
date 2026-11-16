@@ -77,10 +77,9 @@ describe('リクエストの最小間隔と揺らぎ（FR-F2）', () => {
     ac.abort()
     await expect(p).rejects.toThrow('aborted')
   })
-  // 要求は「同時実行数（既定 1）をプロバイダごとに設定できる」。実装はジョブを 1 本ずつ順に回すだけで（JobRunner の running）、
-  // Provider に同時実行数の項目が無く設定できない。直すまで it.fails で残す
-  it.fails('同時実行数をプロバイダごとに設定できる（既定 1）', () => {
-    const p = createYahooProvider() as Provider & { concurrency?: number }
-    expect(p.concurrency).toBe(1)
+  it('Yahoo の間隔は 1.0 秒 + 0〜0.3 秒の揺らぎ（コードで決め、設定にはしない）', () => {
+    const p = createYahooProvider()
+    expect(p.minIntervalMs).toBe(1000)
+    expect(p.jitterMs).toBe(300)
   })
 })

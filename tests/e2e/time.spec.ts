@@ -46,4 +46,33 @@ test.describe('時間の経過（FR-I8, FR-SC8）', () => {
     expect(Number(d1)).toBeLessThan(190)
     expect(readUser<{ autoUpdate: boolean }>(first.userData, 'settings').autoUpdate).toBe(false)
   })
+
+  test('基準日が直近の営業日より古い行は、スクリーナーで薄く表示し、結果からは外さない（FR-S13）', async ({ start }) => {
+    // 11/17 に、自動の更新を止めて起動する: 保存した指標の基準日（11/13）は直近の営業日（11/17）より古い
+    const { page } = await start({
+      layout: freeTab(pane('screener', { screenId: 'rights' }, 1)),
+      user: { screens },
+      now: '2026-11-17T18:00:00+09:00',
+      settings: { autoUpdate: false },
+    })
+    const r = await rpc<{ ids: string[]; rows: { stale?: boolean }[] }>(page, 'screener.run', {
+      conditions: screens[0]!.conditions,
+      favorites: [],
+      watchlists: {},
+    })
+    expect(r.ids.length).toBeGreaterThan(0)
+    expect(r.rows.every((x) => x.stale)).toBe(true)
+    const rows = page.locator('[data-widget="screener"] tbody tr:not(.spacer)')
+    await expect(rows.first()).toBeVisible()
+    await expect(rows.first()).toHaveClass(/stale/)
+    // 結果の件数は古い行も含めた数（外していない）
+    await expect(page.locator('[data-widget="screener"] .num').filter({ hasText: '件' }).first()).toContainText(`${r.ids.length} /`)
+    expect(
+      await rows
+        .first()
+        .locator('td')
+        .first()
+        .evaluate((el) => getComputedStyle(el).opacity),
+    ).toBe('0.6')
+  })
 })
