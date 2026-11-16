@@ -39,8 +39,8 @@ let hov = $state(-1)
 </div>
 <div class="ribbon">
   {#each months as x, i (x.m)}
-    <button type="button" class="cell" class:sel={i === sel} tabindex="-1" aria-label={t('folio.month', { m: x.m })} onclick={() => onpick(i)}>
-      {#each x.codes.slice(0, 4) as c (c.code)}<i class:on={i === sel} class:dim={brushed && !brushed.has(c.code)} title={`${c.code} ${c.name}`}></i>{/each}
+    <button type="button" class="cell" class:sel={i === sel} class:hov={i === hov} tabindex="-1" aria-label={t('folio.month', { m: x.m })} title={monthTip(x, t)} onclick={() => onpick(i)} onmouseenter={() => (hov = i)} onmouseleave={() => (hov = -1)}>
+      {#each x.codes.slice(0, 4) as c (c.code)}<i class:on={i === sel} class:dim={brushed && !brushed.has(c.code)}></i>{/each}
       {#if x.codes.length > 4}<em>+{x.codes.length - 4}</em>{/if}
     </button>
   {/each}
@@ -125,7 +125,8 @@ svg {
   padding: 4px 2px 2px;
   border-radius: var(--radius);
 }
-.cell:hover {
+.cell:hover,
+.cell.hov {
   background: var(--hover);
 }
 .cell.sel {

@@ -7,6 +7,8 @@ import {
   donutOtherTip,
   donutTip,
   dpsTip,
+  eventTip,
+  histStepTip,
   tileTip,
   trendIndexAt,
   trendLabel,
@@ -136,5 +138,36 @@ describe('ポートフォリオのツールチップ（FR-PF7）: 1 株配当（
     ]
     expect(trendLabel(tr2, 1, tr)).toBe('folio.trendAt{"d":"2026/02/02","v":"¥98,000","dv":"−¥2,000"}')
     expect(trendLabel(tr2, 5, tr)).toBe('')
+  })
+})
+
+describe('ポートフォリオのツールチップ（FR-PF3・PF6）: 期間の内訳と今後 30 日の予定', () => {
+  it('期間の内訳: 期首・期末は日付、入出金・評価損益の増減は意味を添える', () => {
+    expect(histStepTip('start', 1000000, '2026-05-01', '2026-11-13', tr)).toBe('folio.wf.start ¥1,000,000（2026/05/01）')
+    expect(histStepTip('end', 1200000, '2026-05-01', '2026-11-13', tr)).toBe('folio.wf.end ¥1,200,000（2026/11/13）')
+    expect(histStepTip('flow', 50000, null, null, tr).split('\n')).toEqual(['folio.wf.flow +¥50,000', 'folio.wfTip.flow'])
+    expect(histStepTip('move', -3000, null, null, tr).split('\n')).toEqual(['folio.wf.move −¥3,000', 'folio.wfTip.move'])
+  })
+  it('予定の印: 日付・あと何日・種類・銘柄と、種類ごとの値（権利は配当見込み・決算は株数・アラートは条件）', () => {
+    const e = { day: 3, date: '2026-11-16', code: '8058', name: 'n8058' }
+    expect(eventTip({ ...e, type: 'rights', amount: 12000 }, tr).split('\n')).toEqual([
+      '2026/11/16（folio.inDays{"n":3}）folio.ev.rightsLong',
+      '8058 n8058',
+      'folio.ev.amount{"v":"12,000"}',
+    ])
+    expect(
+      eventTip({ ...e, type: 'earnings', qty: 1200 }, tr)
+        .split('\n')
+        .at(-1),
+    ).toBe('folio.ev.qty{"n":"1,200"}')
+    expect(eventTip({ ...e, day: 0, type: 'alert', text: '終値 ≥ 5,000' }, tr).split('\n')).toEqual([
+      '2026/11/16（folio.ev.met）folio.ev.alertLong',
+      '8058 n8058',
+      '終値 ≥ 5,000',
+    ])
+    expect(eventTip({ ...e, day: 0, type: 'rights' }, tr).split('\n')).toEqual([
+      '2026/11/16（folio.today）folio.ev.rightsLong',
+      '8058 n8058',
+    ])
   })
 })

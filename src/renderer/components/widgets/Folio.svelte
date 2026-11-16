@@ -56,7 +56,7 @@ import {
   yenFull,
 } from '../../lib/folio'
 import { briefText, groupLabel } from '../../lib/folioText'
-import { contribTip, divStepTip, trendIndexAt, trendLabel } from '../../lib/folioTips'
+import { contribTip, divStepTip, eventTip, histStepTip, trendIndexAt, trendLabel } from '../../lib/folioTips'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { periodOfKey } from '../../lib/periods'
@@ -232,6 +232,8 @@ const alertsMet = $derived(
     }),
 )
 const events = $derived(eventsOf(rows, dRows, alertsMet, today))
+/** 今後 30 日の予定でマウスを載せた予定（時間軸の印と一覧のカードを結ぶ） */
+let evHov = $state(-1)
 const brief = $derived(
   briefOf(
     contribRows('year', rows, contribY, (c) => nameOf(`JP:${c}`)),
@@ -550,7 +552,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             <span class="legend right"><span><span class="dot" style:background="var(--text)"></span>{t('folio.value')}</span><span><span class="dot dash"></span>{t('folio.cost')}</span><span><span class="dot" style:background="var(--up)"></span>{t('folio.gain')}</span><span><span class="dot" style:background="var(--down)"></span>{t('folio.loss')}</span>{#if hp.some((x) => x.src === 'fill')}<span><span class="dot ring"></span>{t('folio.src.fill')}</span>{/if}</span>
           {/if}
         </div>
-        <HistChart points={hp} pct={view.pct} twr={head.twr} bench={benchS} {cross} onhover={(i) => (cross = i)} />
+        <HistChart points={hp} pct={view.pct} twr={head.twr} bench={benchS} benchName={view.bench ? t(`folio.bench.${view.bench}` as Key) : ''} {cross} onhover={(i) => (cross = i)} />
         <div class="wfbox">
           {#if realN < 5}
             <div class="note">{t('folio.newRecords', { n: realN })}</div>
@@ -564,6 +566,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
               ]}
               label={(k) => t(`folio.wf.${k}` as Key)}
               aside={{ text: t('folio.wf.received'), v: head.bridge.received }}
+              detail={(b) => histStepTip(b.key, b.v, head.from, hp.at(-1)?.d ?? null, t)}
               fs={10}
               bottom={15}
               maxW={64}
@@ -640,13 +643,14 @@ const empty = $derived(loaded && !rows.length && !recs.length)
         <div class="tl" aria-hidden="true">
           <i class="axis"></i>
           {#each [0, 7, 14, 21, 30] as d (d)}<span class="tick" style:left={`${(d / evRange) * 100}%`}><em>{d === 0 ? t('folio.today') : d === 30 ? t('folio.d30') : t('folio.weeks', { n: d / 7 })}</em></span>{/each}
-          {#each events as e, i (i)}<span class={`mark ${e.type}`} class:sel={card === 'events' && i === ev} class:dim={dim(e.code)} style:left={`${(e.day / evRange) * 100}%`} style:bottom={`${events.slice(0, i).filter((x) => x.day === e.day).length * 9 + 12}px`}></span>{/each}
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+          {#each events as e, i (i)}<span class={`mark ${e.type}`} class:sel={card === 'events' && i === ev} class:hov={i === evHov} class:dim={dim(e.code)} style:left={`${(e.day / evRange) * 100}%`} style:bottom={`${events.slice(0, i).filter((x) => x.day === e.day).length * 9 + 12}px`} title={eventTip(e, t)} onclick={() => pick('events', i)} onmouseenter={() => (evHov = i)} onmouseleave={() => (evHov = -1)}></span>{/each}
         </div>
         {#if events.length}
           <div class="events">
             {#each events as e, i (i)}
               <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-              <div class="ev" class:sel={card === 'events' && i === ev} class:dim={dim(e.code)} onclick={() => pick('events', i)}>
+              <div class="ev" class:sel={card === 'events' && i === ev} class:hov={i === evHov} class:dim={dim(e.code)} onclick={() => pick('events', i)} onmouseenter={() => (evHov = i)} onmouseleave={() => (evHov = -1)}>
                 <span class="d"><span class="num">{e.date.slice(5).replace('-', '/')}</span> · {e.day ? t('folio.inDays', { n: e.day }) : e.type === 'alert' ? t('folio.ev.met') : t('folio.today')}</span>
                 <span class={`t ${e.type}`}>{t(`folio.ev.${e.type}Long` as Key)}</span>
                 <span class="n"><span class="mute num">{e.code}</span> {e.name}</span>
@@ -682,7 +686,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
               {#if tg}
                 <svg viewBox={`0 0 ${tw} ${th}`}>
                   <path d={tg.area} class="tarea" /><path d={tg.line} class="tline" />
-                  <text x={tw - 46} y={tg.y(trend.at(-1)!.v) + 4} class="tl">{manYen(trend.at(-1)!.v)}</text>
+                  <text x={tw - 46} y={tg.y(trend.at(-1)!.v) + 4} class="tlast">{manYen(trend.at(-1)!.v)}</text>
                   {#if thov >= 0 && trend[thov]}
                     {@const hx = tg.x(thov)}
                     <line x1={hx} x2={hx} y1="0" y2={th - 14} class="tcross" />
@@ -703,7 +707,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
               <div class="stat"><span class="k">{t('folio.top3')}</span><span class="v num">{(dsum.top3 * 100).toFixed(0)}%</span></div>
             </div>
             {#if app.settings.divGoal}
-              <div class="goal"><span>{t('folio.goal', { v: manYen(app.settings.divGoal) })}</span><span class="track"><i style:width={`${Math.min(100, (dsum.perMonth / app.settings.divGoal) * 100)}%`}></i></span><span class="num">{((dsum.perMonth / app.settings.divGoal) * 100).toFixed(0)}%</span></div>
+              <div class="goal" title={t('folio.goalTip', { goal: yenFull(app.settings.divGoal), now: yenFull(dsum.perMonth), p: ((dsum.perMonth / app.settings.divGoal) * 100).toFixed(0) })}><span>{t('folio.goal', { v: manYen(app.settings.divGoal) })}</span><span class="track"><i style:width={`${Math.min(100, (dsum.perMonth / app.settings.divGoal) * 100)}%`}></i></span><span class="num">{((dsum.perMonth / app.settings.divGoal) * 100).toFixed(0)}%</span></div>
             {/if}
           {/if}
         </section>
@@ -1325,8 +1329,19 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   border-radius: 50%;
   background: var(--panel);
 }
+.mark {
+  cursor: pointer;
+  transition: scale var(--motion);
+}
 .mark.sel {
   outline: 2px solid var(--focus);
+}
+.mark.hov {
+  scale: 1.6;
+  z-index: 1;
+}
+.ev.hov {
+  background: var(--hover);
 }
 .mark.dim {
   opacity: 0.35;
@@ -1440,7 +1455,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   stroke: var(--gold);
   stroke-width: 1.5;
 }
-.tl {
+.tlast {
   font-size: 10px;
   fill: var(--text-2);
   font-family: var(--mono);

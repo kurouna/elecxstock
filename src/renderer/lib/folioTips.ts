@@ -1,7 +1,7 @@
 // ポートフォリオのグラフのツールチップの文言（FR-PF1・PF5・PF7）。マウスを載せたときに出す詳細で、
 // 画面に出ている値の内訳を足す。文言は渡された t で作る（このファイルは画面の状態を読まない）
 import type { FolioContribRow } from '@shared/types'
-import type { DivGroupRow, DivRow, FRow, Tile } from './folio'
+import type { DivGroupRow, DivRow, FolioEvent, FRow, Tile } from './folio'
 import { lastTone, signPct, yenFull } from './folio'
 import type { Key } from './i18n'
 
@@ -165,4 +165,29 @@ export function trendLabel(trend: { d: string; v: number }[], i: number, tr: Tr)
   const p = trend[i]
   if (!p) return ''
   return tr('folio.trendAt', { d: p.d.replaceAll('-', '/'), v: yen(p.v), dv: yen(p.v - trend[0]!.v, true) })
+}
+
+/** 今後 30 日の予定の印: 日付・あと何日・種類・銘柄と、権利なら配当見込みの額・決算なら株数・アラートなら条件 */
+export function eventTip(e: FolioEvent, tr: Tr): string {
+  const when = e.day ? tr('folio.inDays', { n: e.day }) : e.type === 'alert' ? tr('folio.ev.met') : tr('folio.today')
+  const x =
+    e.type === 'rights'
+      ? e.amount
+        ? tr('folio.ev.amount', { v: yenFull(e.amount) })
+        : ''
+      : e.type === 'earnings'
+        ? tr('folio.ev.qty', { n: (e.qty ?? 0).toLocaleString() })
+        : (e.text ?? '')
+  return [`${e.date.replaceAll('-', '/')}（${when}）${tr(`folio.ev.${e.type}Long` as Key)}`, `${e.code} ${e.name}`, ...(x ? [x] : [])].join(
+    '\n',
+  )
+}
+
+/** 資産推移の期間の内訳の棒: 期首・期末は日付、入出金・評価損益の増減はその意味 */
+export function histStepTip(key: string, v: number, from: string | null, to: string | null, tr: Tr): string {
+  const total = key === 'start' || key === 'end'
+  const d = key === 'start' ? from : key === 'end' ? to : null
+  const head = `${tr(`folio.wf.${key}` as Key)} ${yen(v, !total)}${d ? `（${d.replaceAll('-', '/')}）` : ''}`
+  const note = key === 'flow' ? tr('folio.wfTip.flow') : key === 'move' ? tr('folio.wfTip.move') : ''
+  return note ? `${head}\n${note}` : head
 }

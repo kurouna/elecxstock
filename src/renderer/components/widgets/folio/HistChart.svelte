@@ -10,6 +10,7 @@ let {
   pct,
   twr,
   bench,
+  benchName = '',
   cross,
   onhover,
 }: {
@@ -17,6 +18,8 @@ let {
   pct: boolean
   twr: number[]
   bench: number[] | null
+  /** ベンチマークの名前（十字線の値に出す） */
+  benchName?: string
   cross: number
   onhover: (i: number) => void
 } = $props()
@@ -30,6 +33,8 @@ const ticksM = $derived(monthTicks((pct ? real : points).map((p) => p.d)))
 const n = $derived(pct ? real.length : points.length)
 const ci = $derived(cross >= 0 ? Math.min(cross, n - 1) : -1)
 const cp = $derived(ci >= 0 ? (pct ? real : points)[ci] : undefined)
+// 十字線の x。値の枠は十字線の横に出し、線と点を隠さない（右半分では左に出す）
+const cx = $derived(ci >= 0 ? ((pct ? pg?.x(ci) : g?.x(ci)) ?? 0) : 0)
 function move(e: MouseEvent) {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
   if (n < 2) return
@@ -63,7 +68,7 @@ function move(e: MouseEvent) {
       <path d={g.vPath} class="val" />
       {#each g.fills as i (i)}<circle cx={g.x(i)} cy={g.y(points[i]!.value)} r="2" class="fill" />{/each}
       <circle cx={g.x(points.length - 1)} cy={g.y(points.at(-1)!.value)} r="3.5" class="last" />
-      {#if ci >= 0}<line x1={g.x(ci)} x2={g.x(ci)} y1="6" y2={h - 18} class="cross" />{/if}
+      {#if ci >= 0}<line x1={g.x(ci)} x2={g.x(ci)} y1="6" y2={h - 18} class="cross" />{#if cp}<circle cx={g.x(ci)} cy={g.y(cp.value)} r="3.5" class="cdot" />{/if}{/if}
     </svg>
   {:else if pg}
     <svg viewBox={`0 0 ${w} ${h}`} aria-label={t('folio.twr')}>
@@ -75,11 +80,15 @@ function move(e: MouseEvent) {
       <line x1="2" x2={w - 56} y1={pg.y(0)} y2={pg.y(0)} class="zero" />
       {#if bench}<path d={pg.path(bench)} class="bench" />{/if}
       <path d={pg.path(twr)} class="val" />
-      {#if ci >= 0}<line x1={pg.x(ci)} x2={pg.x(ci)} y1="6" y2={h - 18} class="cross" />{/if}
+      {#if ci >= 0}
+        <line x1={pg.x(ci)} x2={pg.x(ci)} y1="6" y2={h - 18} class="cross" />
+        {#if bench?.[ci] != null}<circle cx={pg.x(ci)} cy={pg.y(bench[ci]!)} r="3" class="cdot bench-dot" />{/if}
+        {#if twr[ci] != null}<circle cx={pg.x(ci)} cy={pg.y(twr[ci]!)} r="3.5" class="cdot" />{/if}
+      {/if}
     </svg>
   {/if}
   {#if cp}
-    <div class="tip" style:left={`${Math.min(Math.max((pct ? pg?.x(ci) : g?.x(ci)) ?? 0, 90), w - 100)}px`}>
+    <div class="tip" class:flip={cx > w / 2} style:left={`${cx}px`}>
       <div class="row"><b class="num">{cp.d}</b><span class="mute">{t(`folio.src.${cp.src}`)}</span></div>
       <div class="row"><span class="mute">{t('folio.value')}</span><span class="num">¥{yenFull(cp.value)}</span></div>
       {#if cp.src !== 'est'}
@@ -87,6 +96,7 @@ function move(e: MouseEvent) {
         <div class="row"><span class="mute">{t('folio.pnl')}</span><span class={`num ${cp.value - cp.cost >= 0 ? 'up' : 'down'}`}>{yenFull(cp.value - cp.cost, true)}</span></div>
       {/if}
       {#if pct && twr[ci] != null}<div class="row"><span class="mute">{t('folio.twr')}</span><span class="num">{signPct(twr[ci])}</span></div>{/if}
+      {#if pct && bench?.[ci] != null}<div class="row bench-row"><span class="mute">{benchName}</span><span class="num">{signPct(bench[ci])}</span></div>{/if}
     </div>
   {/if}
 </div>
@@ -177,10 +187,19 @@ svg {
   stroke: var(--chart-cross);
   stroke-dasharray: 3 3;
 }
+/* 十字線の日の線の上の点 */
+.cdot {
+  fill: var(--text);
+  stroke: var(--panel);
+  stroke-width: 1.5;
+}
+.bench-dot {
+  fill: var(--ind1);
+}
 .tip {
   position: absolute;
   top: 6px;
-  transform: translateX(-50%);
+  transform: translateX(10px);
   pointer-events: none;
   background: var(--panel-2);
   border: 1px solid var(--line-strong);
@@ -189,6 +208,9 @@ svg {
   font-size: var(--fs-1);
   white-space: nowrap;
   z-index: 2;
+}
+.tip.flip {
+  transform: translateX(calc(-100% - 10px));
 }
 .row {
   display: flex;

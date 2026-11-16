@@ -71,6 +71,9 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await keys(page, 'ArrowLeft', 'ArrowLeft', 'ArrowLeft')
     await expect(f.locator('.c-hero .crossday')).toBeVisible()
     await expect(f.locator('.c-alloc .crossday')).toBeVisible()
+    // 十字線の日の評価額の線に点。期間の内訳の棒には期首・期末の日付が出る
+    await expect(f.locator('.c-hist .cdot')).toHaveCount(1)
+    await expect(f.locator('.c-hist .wfbox .hit title').first()).toContainText(/期首 .*（\d{4}\/\d{2}\/\d{2}）/)
     await expect.poll(() => f.locator('.hero-value').textContent()).not.toBe(before)
     await shot(page, 'folio-cross')
     await keys(page, 'Escape')
@@ -80,7 +83,13 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     // P で % にすると時間加重。B でベンチマーク
     await keys(page, 'p')
     await expect(f.locator('.c-hist .histhead')).toContainText('時間加重収益率')
-    await keys(page, 'p')
+    // ベンチマーク（TOPIX 連動 ETF）を出すと、十字線の値にもベンチマークの値と点が出る
+    await keys(page, 'b', 'b')
+    await expect(f.locator('.c-hist .histhead .legend')).toContainText('TOPIX 連動 ETF')
+    await keys(page, 'ArrowLeft')
+    await expect(f.locator('.c-hist .tip .bench-row')).toContainText('TOPIX 連動 ETF')
+    await expect(f.locator('.c-hist .bench-dot')).toHaveCount(1)
+    await keys(page, 'Escape', 'b', 'p')
     await shot(page, 'folio-top')
   })
 
