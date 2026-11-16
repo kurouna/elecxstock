@@ -187,6 +187,38 @@ describe('利用者のデータの保護（FR-S12）', () => {
   })
 })
 
+describe('ジョブの進み具合の知らせ（FR-F4）', () => {
+  it('実行中に知らせる項目の数は、足された項目（照合など）を含め、保存した項目の列と一致する', async () => {
+    const d = mkdtempSync(join(tmpdir(), 'elecxstock-progress-'))
+    const seen: { id: number; status: string; done: number; total: number }[] = []
+    const s = new CoreService(
+      d,
+      createStubProvider(),
+      (ev: string, p: unknown) => {
+        if (ev === 'jobs.progress') seen.push(p as (typeof seen)[number])
+      },
+      'test',
+    )
+    const id = await s.call('jobs.start', { kind: 'initial' })
+    const t0 = Date.now()
+    for (;;) {
+      const j = (await s.call('jobs.list', {})).find((x) => x.id === id)!
+      if (j.status === 'done') {
+        const mine = seen.filter((p) => p.id === id)
+        const last = mine.at(-1)!
+        expect(last).toMatchObject({ status: 'done', done: j.total, total: j.total })
+        // 途中の知らせも、進んだ数が項目の数を超えない
+        for (const p of mine) expect(p.done).toBeLessThanOrEqual(p.total)
+        break
+      }
+      if (Date.now() - t0 > 60_000) throw new Error('timeout')
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    s.close()
+    rmSync(d, { recursive: true, force: true })
+  }, 90_000)
+})
+
 describe('ジョブの取り消し・一時停止（FR-F4）', () => {
   it('待っている別のジョブを止めても、実行中のジョブは完了にならない。取り直しは同じ項目を重ねない', async () => {
     const d = mkdtempSync(join(tmpdir(), 'elecxstock-jobs-'))

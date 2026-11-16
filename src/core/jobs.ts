@@ -165,8 +165,11 @@ export class JobRunner {
     })
   }
 
-  private progressOf(j: JobRow, msg?: string): JobProgress {
-    const items = JSON.parse(j.items) as string[]
+  /**
+   * ジョブの進み具合。total は項目の数で、実行中のジョブは手元の項目の列の長さを渡す
+   * （進捗を知らせるたびに数千項目の JSON を作って読み直さない）。渡さなければ保存した列から数える
+   */
+  private progressOf(j: JobRow, msg?: string, total: number = (JSON.parse(j.items) as string[]).length): JobProgress {
     const elapsed = (Date.now() - this.startedAt) / 1000
     const rate = this.doneThisRun > 3 && elapsed > 0 ? this.doneThisRun / elapsed : null
     return {
@@ -174,9 +177,9 @@ export class JobRunner {
       kind: j.kind,
       status: j.status,
       done: j.pos,
-      total: items.length,
+      total,
       failed: j.failed,
-      etaSec: rate ? Math.round((items.length - j.pos) / rate) : null,
+      etaSec: rate ? Math.round((total - j.pos) / rate) : null,
       ...(msg ? { message: msg } : {}),
     }
   }
@@ -247,7 +250,7 @@ export class JobRunner {
             this.offline = true
             this.h.emitProvider({ offline: true, paused: false, message: pe.message })
             j.status = 'waiting-offline'
-            this.h.emitProgress(this.progressOf({ ...j, items: JSON.stringify(items) }))
+            this.h.emitProgress(this.progressOf(j, undefined, items.length))
             await sleep(30_000, this.abort.signal).catch(() => {})
             j.status = 'running'
             continue
@@ -257,7 +260,7 @@ export class JobRunner {
             if (this.consecutiveProviderErrors >= 5) {
               j.status = 'provider-paused'
               this.h.emitProvider({ offline: false, paused: true, message: pe.message })
-              this.h.emitProgress(this.progressOf({ ...j, items: JSON.stringify(items) }, pe.message))
+              this.h.emitProgress(this.progressOf(j, pe.message, items.length))
               await sleep(10 * 60_000, this.abort.signal).catch(() => {})
               this.consecutiveProviderErrors = 0
               this.h.emitProvider({ offline: false, paused: false })
@@ -289,7 +292,7 @@ export class JobRunner {
         } else db.run(`UPDATE jobs SET pos = ?, failed = ?, updated = ? WHERE id = ?`, j.pos, j.failed, nowIso(), j.id)
         if (Date.now() - lastEmit > 300 || j.pos === items.length) {
           lastEmit = Date.now()
-          this.h.emitProgress(this.progressOf({ ...j, items: JSON.stringify(items) }))
+          this.h.emitProgress(this.progressOf(j, undefined, items.length))
         }
         // 項目のあとで処理を譲る。通信の間隔が 0 のプロバイダ（スタブ）でも、ジョブの途中で画面からの呼び出しに答える
         await new Promise<void>((r) => setImmediate(r))
@@ -303,7 +306,7 @@ export class JobRunner {
         // 止められたが、このジョブ自身は取り消し・一時停止されていない（閉じるときも）: 完了にせず待ちに戻す
         db.run(`UPDATE jobs SET status = 'queued', updated = ? WHERE id = ?`, nowIso(), j.id)
         if (this.stopping) return
-        this.h.emitProgress(this.progressOf({ ...j, status: 'queued', items: JSON.stringify(items) }))
+        this.h.emitProgress(this.progressOf({ ...j, status: 'queued' }, undefined, items.length))
         continue
       } else if (failMsg) {
         final = 'failed'
@@ -318,7 +321,7 @@ export class JobRunner {
           this.h.log(`jobDone: ${String((e as Error)?.message ?? e)}`)
         }
       }
-      this.h.emitProgress(this.progressOf({ ...j, status: final, items: JSON.stringify(items) }, failMsg ?? undefined))
+      this.h.emitProgress(this.progressOf({ ...j, status: final }, failMsg ?? undefined, items.length))
       this.flushData()
     }
   }
