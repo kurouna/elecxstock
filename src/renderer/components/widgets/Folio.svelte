@@ -56,7 +56,7 @@ import {
   yenFull,
 } from '../../lib/folio'
 import { briefText, groupLabel } from '../../lib/folioText'
-import { contribTip, divStepTip } from '../../lib/folioTips'
+import { contribTip, divStepTip, trendIndexAt, trendLabel } from '../../lib/folioTips'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { periodOfKey } from '../../lib/periods'
@@ -242,6 +242,8 @@ const trend = $derived(divs ? divs.trend : [])
 let tw = $state(0)
 let th = $state(0)
 const tg = $derived(tw > 40 && th > 20 ? trendGeom(trend, tw, th) : null)
+/** 年間配当の推移でマウスを載せた記録の位置（-1 は無し） */
+let thov = $state(-1)
 const evRange = 30
 
 // 選んでいる銘柄（行の位置ではなく銘柄で覚える。取得で値が変わって並びが入れ替わっても、選んだ銘柄から動かない）
@@ -675,11 +677,18 @@ const empty = $derived(loaded && !rows.length && !recs.length)
               {#if dsum.hasYearAgo || dsum.prev}<span class={`num ${toneOf(dsum.delta)}`}>{yenFull(dsum.delta, true)}（{signPct(pct(dsum.delta, dsum.prev))}）</span><span class="mute">{t('folio.yoyPrev', { v: yenFull(dsum.prev) })}</span>{/if}
             </div>
             {#if !dsum.hasYearAgo}<div class="note">{t('folio.noYearAgo')}</div>{/if}
-            <div class="trend" bind:clientWidth={tw} bind:clientHeight={th} title={t('folio.trendTip')}>
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="trend" bind:clientWidth={tw} bind:clientHeight={th} title={t('folio.trendTip')} onmousemove={(e) => (thov = trendIndexAt(e.clientX - e.currentTarget.getBoundingClientRect().left, tw, trend.length))} onmouseleave={() => (thov = -1)}>
               {#if tg}
                 <svg viewBox={`0 0 ${tw} ${th}`}>
                   <path d={tg.area} class="tarea" /><path d={tg.line} class="tline" />
                   <text x={tw - 46} y={tg.y(trend.at(-1)!.v) + 4} class="tl">{manYen(trend.at(-1)!.v)}</text>
+                  {#if thov >= 0 && trend[thov]}
+                    {@const hx = tg.x(thov)}
+                    <line x1={hx} x2={hx} y1="0" y2={th - 14} class="tcross" />
+                    <circle cx={hx} cy={tg.y(trend[thov]!.v)} r="3.5" class="tdot" />
+                    <text x={hx > tw / 2 ? hx - 6 : hx + 6} y="10" class="tread" class:end={hx > tw / 2} data-trend-at={trend[thov]!.d}>{trendLabel(trend, thov, t)}</text>
+                  {/if}
                 </svg>
               {:else}<div class="note">{t('folio.trendWait')}</div>{/if}
             </div>
@@ -1435,6 +1444,30 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   font-size: 10px;
   fill: var(--text-2);
   font-family: var(--mono);
+}
+/* 年間配当の推移: マウスを載せた日の縦線・点・値 */
+.tcross {
+  stroke: var(--text-3);
+  stroke-dasharray: 2 2;
+  pointer-events: none;
+}
+.tdot {
+  fill: var(--gold);
+  stroke: var(--panel);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+.tread {
+  font-size: 10px;
+  fill: var(--text);
+  font-family: var(--mono);
+  paint-order: stroke;
+  stroke: var(--panel);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.tread.end {
+  text-anchor: end;
 }
 .goal {
   display: grid;

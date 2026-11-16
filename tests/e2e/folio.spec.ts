@@ -295,6 +295,27 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await shot(page, 'folio-dshare-hover')
     await page.mouse.move(0, 0)
     await expect(sl).not.toHaveClass(/on/)
+    // 増減要因: マウスを載せた棒だけが縁取られ、ほかの棒の色（不透明度）は変わらない
+    const bars = f.locator('.c-dwf rect.b')
+    const opac = () => bars.evaluateAll((es) => es.map((e) => getComputedStyle(e).opacity))
+    const before = await opac()
+    await f.locator('.c-dwf .hit').nth(1).hover()
+    await expect(bars.nth(1)).toHaveClass(/hov/)
+    await expect(bars.and(f.locator('.hov'))).toHaveCount(1)
+    expect(await opac()).toEqual(before)
+    await shot(page, 'folio-dwf-hover')
+    // 年間配当の推移: マウスを載せると、その日の縦線・点と値が出る。離すと消える
+    const trend = f.locator('.c-dsum .trend')
+    const box = (await trend.boundingBox())!
+    await page.mouse.move(box.x + 4, box.y + box.height / 2)
+    await expect(trend.locator('.tread')).toHaveAttribute('data-trend-at', /^\d{4}-\d{2}-\d{2}$/)
+    await expect(trend.locator('.tread')).toContainText('最初の記録から')
+    await shot(page, 'folio-trend-hover')
+    await page.mouse.move(0, 0)
+    await expect(trend.locator('.tread')).toHaveCount(0)
+    // 1 株配当（5 年）: 見出しに色の意味、行に年ごとの値
+    await expect(f.locator('.c-dtab th', { hasText: '1 株配当（5 年）' })).toHaveAttribute('title', /金 = 増配/)
+    await expect(f.locator('.c-dtab td[title^="1 株配当（1 年ごと"]').first()).toHaveAttribute('title', /直近 1 年/)
     await keys(page, 'Enter')
     await expect(f.locator('.c-dtab')).toHaveClass(/focus/)
     await expect(f.locator('.c-dtab tr.sel')).toContainText(code)

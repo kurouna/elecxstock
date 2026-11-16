@@ -1,7 +1,17 @@
 // ポートフォリオのグラフのツールチップの文言（FR-PF1・PF5・PF7）。値は架空
 import { describe, expect, it } from 'vitest'
 import type { DivGroupRow, DivRow, FRow, Tile } from '../../../src/renderer/lib/folio'
-import { contribTip, divStepTip, donutOtherTip, donutTip, tileTip, yen } from '../../../src/renderer/lib/folioTips'
+import {
+  contribTip,
+  divStepTip,
+  donutOtherTip,
+  donutTip,
+  dpsTip,
+  tileTip,
+  trendIndexAt,
+  trendLabel,
+  yen,
+} from '../../../src/renderer/lib/folioTips'
 
 const tr = (k: string, v?: Record<string, string | number>) => (v ? `${k}${JSON.stringify(v)}` : k)
 const row = (code: string, x: Partial<DivRow>) =>
@@ -90,5 +100,41 @@ describe('ポートフォリオのツールチップ（FR-PF5）', () => {
     expect(contribTip({ code: 'A', name: 'nA', price: 0, div: 0, soldOn: '2026-10-01' }, tr).split('\n').at(-1)).toBe(
       'folio.soldTip{"d":"2026-10-01"}',
     )
+  })
+})
+
+describe('ポートフォリオのツールチップ（FR-PF7）: 1 株配当（5 年）と年間配当の推移', () => {
+  it('1 株配当（5 年）: 年ごとの値（古い順）と右端の色の意味。増配・減配は増減率も', () => {
+    expect(dpsTip([40, 45, null, 50, 60], false, tr).split('\n')).toEqual([
+      'folio.dps.head',
+      '  folio.dps.ago{"n":4}  40',
+      '  folio.dps.ago{"n":3}  45',
+      '  folio.dps.ago{"n":2}  —',
+      '  folio.dps.ago{"n":1}  50',
+      '  folio.dps.last  60',
+      'folio.dps.gold（+20.0%）',
+    ])
+    expect(dpsTip([50, 40], false, tr).split('\n').at(-1)).toBe('folio.dps.down（−20.0%）')
+    expect(dpsTip([null, 40], false, tr).split('\n').at(-1)).toBe('folio.dps.flat')
+    // 分類の行は 1 株配当 × 今の株数（円）。0 の年は —
+    expect(dpsTip([0, 12000], true, tr).split('\n')).toEqual([
+      'folio.dps.group',
+      '  folio.dps.ago{"n":1}  —',
+      '  folio.dps.last  ¥12,000',
+      'folio.dps.gold',
+    ])
+  })
+  it('年間配当の推移: マウスの位置に近い記録（図の右 50px は値の文字。端は寄せる）と、その日の値・最初からの増減', () => {
+    expect(trendIndexAt(0, 250, 5)).toBe(0)
+    expect(trendIndexAt(100, 250, 5)).toBe(2)
+    expect(trendIndexAt(240, 250, 5)).toBe(4)
+    expect(trendIndexAt(-5, 250, 5)).toBe(0)
+    expect(trendIndexAt(10, 250, 1)).toBe(0)
+    const tr2 = [
+      { d: '2026-01-05', v: 100000 },
+      { d: '2026-02-02', v: 98000 },
+    ]
+    expect(trendLabel(tr2, 1, tr)).toBe('folio.trendAt{"d":"2026/02/02","v":"¥98,000","dv":"−¥2,000"}')
+    expect(trendLabel(tr2, 5, tr)).toBe('')
   })
 })

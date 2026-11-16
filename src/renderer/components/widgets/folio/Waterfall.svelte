@@ -39,7 +39,7 @@ const tone = (b: WfStep) => (b.total ? 'tot' : b.flow ? 'flow' : Math.abs(b.v) <
     <svg viewBox={`0 0 ${w} ${h}`}>
       {#if aside}<text x="0" y={top - fs - 4} font-size={fs} class="aside">{aside.text} <tspan class="gold">{man1(aside.v, true)}</tspan></text>{/if}
       {#each bars as b, i (b.key)}
-        <rect x={b.x} y={b.top} width={b.w} height={b.h} rx="1.5" class={`b ${tone(b)}`} class:hov={i === hov} class:fade={hov >= 0 && i !== hov} />
+        <rect x={b.x} y={b.top} width={b.w} height={b.h} rx="1.5" class={`b ${tone(b)}`} class:hov={i === hov} />
         {#if b.total}<path d={`M${b.x},${h - bottom - 6} l${b.w / 4},-3 l${b.w / 4},3 l${b.w / 4},-3 l${b.w / 4},3`} class="cutmark" />{/if}
         {#if i < bars.length - 1}<line x1={b.x + b.w} x2={bars[i + 1]!.x} y1={b.link} y2={b.link} class="link" />{/if}
         <text x={b.x + b.w / 2} y={b.top - 4} font-size={fs} class={`v ${tone(b)}`}>{b.total ? man1(b.v) : Math.abs(b.v) < 1 ? '±0' : man1(b.v, true)}</text>
@@ -80,14 +80,14 @@ svg {
 }
 .b {
   transition:
-    opacity var(--motion),
-    filter var(--motion);
+    filter var(--motion),
+    stroke var(--motion);
 }
-.b.fade {
-  opacity: 0.4;
-}
+/* マウスを載せた棒だけを明るくして縁取る（ほかの棒の色は変えない） */
 .b.hov {
-  filter: brightness(1.18);
+  filter: brightness(1.3);
+  stroke: var(--text-2);
+  stroke-width: 1;
 }
 .hit {
   fill: transparent;

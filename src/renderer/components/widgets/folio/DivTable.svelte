@@ -2,6 +2,7 @@
 // 分類ごとの配当（FR-PF7）: 分類が銘柄以外ならアコーディオン（→ で開き ← で閉じる）。前年比・要因（増配・減配・新規・買い増し・売却）・
 // 1 株配当の 5 年・増配率・連続増配・利回り・取得利回り・配当性向（概算）。見出しは固定し、本体は縦にスクロールする
 import { DIV_SORTS, type DivGroup, dimmed, divFactors, lastTone, manYen, signPct, type TableRow, toneOf, yenFull } from '../../../lib/folio'
+import { dpsTip } from '../../../lib/folioTips'
 import type { Key } from '../../../lib/i18n'
 import { t } from '../../../stores/app.svelte'
 
@@ -53,7 +54,7 @@ const dim = (codes: string[]) => dimmed(brushed, codes)
         <th class={`sortable ${on('annual')}`} aria-sort={on('annual') ? 'descending' : 'none'} onclick={() => sortBy('annual')}>{t('folio.colAnnual')}</th>
         <th class={`sortable ${on('delta')}`} aria-sort={on('delta') ? 'descending' : 'none'} onclick={() => sortBy('delta')}>{t('folio.colDelta')}</th>
         <th class="c-fx l">{t('folio.colFactor')}</th>
-        <th>{t('folio.colDps')}</th>
+        <th title={t('folio.dpsTip')}>{t('folio.colDps')}</th>
         <th class={`c-cagr sortable ${on('cagr')}`} aria-sort={on('cagr') ? 'descending' : 'none'} onclick={() => sortBy('cagr')}>{t('folio.colCagr')}</th>
         <th class="c-streak" title={t('folio.streakTip')}>{t('folio.colStreak')}</th>
         <th class={`sortable ${on('yield')}`} aria-sort={on('yield') ? 'descending' : 'none'} onclick={() => sortBy('yield')}>{t('folio.colYield')}</th>
@@ -74,7 +75,7 @@ const dim = (codes: string[]) => dimmed(brushed, codes)
               {#if Math.abs(g.raise) >= 1}<span class={`fx ${toneOf(g.raise)}`}>{t(g.raise > 0 ? 'folio.fx.raise' : 'folio.fx.cut')}<b>{manYen(g.raise, true)}</b></span>{/if}
               {#if Math.abs(g.qty) >= 1}<span class={`fx ${toneOf(g.qty)}`}>{t('folio.fx.qty')}<b>{manYen(g.qty, true)}</b></span>{/if}
             </td>
-            <td>{@render spark(g.dps)}</td>
+            <td title={dpsTip(g.dps, true, t)}>{@render spark(g.dps, lastTone(g.dps))}</td>
             <td class="c-cagr"></td>
             <td class="c-streak"></td>
             <td class="num">{g.yld != null ? `${g.yld.toFixed(2)}%` : '—'}</td>
@@ -89,7 +90,7 @@ const dim = (codes: string[]) => dimmed(brushed, codes)
             <td class="num"><span class="ib"><i style:width={`${(r.annual / maxShare) * 100}%`} class="gold"></i></span>{yenFull(r.annual)}</td>
             <td class={`num ${toneOf(r.annual - r.annualPrev)}`}>{@render delta(r.annual - r.annualPrev)}</td>
             <td class="c-fx l">{#each divFactors(r) as f (f.k)}<span class={`fx ${f.k === 'flat' ? '' : toneOf(f.v)}`}>{t(`folio.fx.${f.k}` as Key)}{#if f.k !== 'flat'}<b>{manYen(f.v, true)}</b>{/if}</span>{/each}</td>
-            <td>{@render spark(r.dps.map((v) => v ?? 0), lastTone(r.dps))} <span class="num mute">{r.dpsNow.toLocaleString('ja-JP', { maximumFractionDigits: 2 })}</span></td>
+            <td title={dpsTip(r.dps, false, t)}>{@render spark(r.dps.map((v) => v ?? 0), lastTone(r.dps))} <span class="num mute">{r.dpsNow.toLocaleString('ja-JP', { maximumFractionDigits: 2 })}</span></td>
             <td class={`num c-cagr ${toneOf(r.cagr)}`}>{signPct(r.cagr)}</td>
             <td class="num c-streak">{r.streak ? t('folio.years', { n: `${r.streak}${r.streak >= 4 ? '+' : ''}` }) : r.noCut ? t('folio.noCut') : '—'}</td>
             <td class="num">{r.sold || r.yld == null ? '—' : `${r.yld.toFixed(2)}%`}</td>

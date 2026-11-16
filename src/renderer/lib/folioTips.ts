@@ -2,7 +2,7 @@
 // 画面に出ている値の内訳を足す。文言は渡された t で作る（このファイルは画面の状態を読まない）
 import type { FolioContribRow } from '@shared/types'
 import type { DivGroupRow, DivRow, FRow, Tile } from './folio'
-import { signPct, yenFull } from './folio'
+import { lastTone, signPct, yenFull } from './folio'
 import type { Key } from './i18n'
 
 export type Tr = (k: Key, v?: Record<string, string | number>) => string
@@ -134,4 +134,35 @@ export function contribTip(r: FolioContribRow & { name: string }, tr: Tr): strin
     `${tr('folio.tip.total')} ${yen(r.price + r.div, true)}`,
     ...(r.soldOn ? [tr('folio.soldTip', { d: r.soldOn })] : []),
   ].join('\n')
+}
+
+/**
+ * 1 株配当（5 年）の小さな棒: 年ごとの値（古い順）と、右端（直近 1 年）の色の意味。
+ * 分類の行（group）は 1 株配当 × 今の株数の合計（税引前の円）
+ */
+export function dpsTip(dps: (number | null)[], group: boolean, tr: Tr): string {
+  const n = dps.length
+  const fmt = (v: number | null) =>
+    v == null || (group && !v) ? '—' : group ? yen(v) : v.toLocaleString('ja-JP', { maximumFractionDigits: 2 })
+  const tone = lastTone(dps)
+  const a = dps.at(-1)
+  const b = dps.at(-2)
+  const chg = tone !== 'flat' && a != null && b ? `（${signPct((a / b - 1) * 100)}）` : ''
+  return [
+    tr(group ? 'folio.dps.group' : 'folio.dps.head'),
+    ...dps.map((v, i) => `  ${i === n - 1 ? tr('folio.dps.last') : tr('folio.dps.ago', { n: n - 1 - i })}  ${fmt(v)}`),
+    `${tr(`folio.dps.${tone}` as Key)}${chg}`,
+  ].join('\n')
+}
+
+/** 年間配当の推移: x（図の左端から）に近い記録の位置 */
+export function trendIndexAt(px: number, w: number, n: number): number {
+  if (n < 2) return 0
+  return Math.max(0, Math.min(n - 1, Math.round((px / Math.max(1, w - 50)) * (n - 1))))
+}
+/** 年間配当の推移: その日の配当見込みと、最初の記録からの増減 */
+export function trendLabel(trend: { d: string; v: number }[], i: number, tr: Tr): string {
+  const p = trend[i]
+  if (!p) return ''
+  return tr('folio.trendAt', { d: p.d.replaceAll('-', '/'), v: yen(p.v), dv: yen(p.v - trend[0]!.v, true) })
 }

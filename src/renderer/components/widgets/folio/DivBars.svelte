@@ -28,7 +28,7 @@ let hov = $state(-1)
         {@const cx = (w / 12) * (i + 0.5)}
         {@const bw = Math.min(24, (w / 12) * 0.5)}
         {#if x.prev}<rect x={cx - bw / 2 - 6} y={h - B - yh(x.prev)} width="4" height={yh(x.prev)} rx="1" class="prev" />{/if}
-        <rect x={cx - bw / 2} y={h - B - yh(x.now)} width={bw} height={yh(x.now)} rx="1.5" class:next={i === 1} class="bar" class:hov={i === hov} class:fade={hov >= 0 && i !== hov} />
+        <rect x={cx - bw / 2} y={h - B - yh(x.now)} width={bw} height={yh(x.now)} rx="1.5" class:next={i === 1} class="bar" class:hov={i === hov} />
         {#if x.now && (x.now === top || i === 1)}<text x={cx} y={h - B - Math.max(yh(x.now), yh(x.prev)) - 4} class="lab">{manYen(x.now)}</text>{/if}
         <text x={cx} y={h - 3} class="ax" class:on={i === 1}>{t('folio.month', { m: x.m })}</text>
         <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -70,14 +70,13 @@ svg {
 .bar {
   fill: var(--f-bar);
   transition:
-    opacity var(--motion),
-    filter var(--motion);
-}
-.bar.fade {
-  opacity: 0.45;
+    filter var(--motion),
+    stroke var(--motion);
 }
 .bar.hov {
-  filter: brightness(1.25);
+  filter: brightness(1.3);
+  stroke: var(--text-2);
+  stroke-width: 1;
 }
 .bar.next {
   fill: var(--gold);
