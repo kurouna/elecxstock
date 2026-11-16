@@ -26,6 +26,9 @@ const PATHS = {
   resetSize: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M9 9l-5-5M15 9l5-5M9 15l-5 5M15 15l5 5',
   /** メニューを開く: 下向きの山形（マイレイアウトのページのメニュー） */
   chevronDown: 'M6 9l6 6 6-6',
+  /** プライバシーモード（FR-H12）: 目（オフ）と斜線の入った目（オン） */
+  eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  eyeOff: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 4l16 16',
 } as const
 export type IconName = keyof typeof PATHS
 </script>

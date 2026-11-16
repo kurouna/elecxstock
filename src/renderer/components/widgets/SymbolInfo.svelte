@@ -16,6 +16,7 @@ import { cls, date, fmt, money, px, retText, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { accountName, valuation } from '../../lib/portfolio'
+import { secret } from '../../lib/privacy.svelte'
 import {
   app,
   bridge,
@@ -311,10 +312,10 @@ onMount(() =>
       {/if}
       {#if held}
         <div class="heldbar">
-          <span>{t('si.held')} <span class="num">{fmt(held.qty, 0)}</span>{unitWord}</span>
-          <span>{t('hold.pnl')} <b class={`num ${cls(held.pnl)}`}>{sgn(held.pnl, 0)}{ja ? '円' : ''}</b> <span class={`num ${cls(held.pnl)}`}>{sgn(held.pnlPct, 1, '%')}</span></span>
+          <span>{t('si.held')} <span class="num">{secret(fmt(held.qty, 0))}</span>{unitWord}</span>
+          <span>{t('hold.pnl')} <b class={`num ${cls(held.pnl)}`}>{secret(sgn(held.pnl, 0))}{ja ? '円' : ''}</b> <span class={`num ${cls(held.pnl)}`}>{sgn(held.pnlPct, 1, '%')}</span></span>
           <span>{t('hold.yoc')} <span class="num">{held.yoc != null ? `${fmt(held.yoc)}%` : '—'}</span></span>
-          {#if held.annual != null}<span>{reit ? t('si.annualDivReit') : t('si.annualDiv')} <span class="num">{fmt(held.annual, 0)}</span>{ja ? '円' : ''}</span>{/if}
+          {#if held.annual != null}<span>{reit ? t('si.annualDivReit') : t('si.annualDiv')} <span class="num">{secret(fmt(held.annual, 0))}</span>{ja ? '円' : ''}</span>{/if}
         </div>
       {/if}
     </section>
@@ -469,11 +470,11 @@ onMount(() =>
         {#if held}
           <section class="card c-held held">
             <h5>{t('info.gHeld')}<span class="grow"></span><span class="muted accts">{held.accounts}</span></h5>
-            <div class="pnl"><span class={`v num ${cls(held.pnl)}`}>{sgn(held.pnl, 0)}<span class="u">{ja ? '円' : ''}</span></span><span class={`num ${cls(held.pnl)}`}>{sgn(held.pnlPct, 1, '%')}</span></div>
-            <div class="kv"><span>{t('hold.qty')}</span><span>{fmt(held.qty, 0)}<span class="u">{unitWord}</span></span></div>
+            <div class="pnl"><span class={`v num ${cls(held.pnl)}`}>{secret(sgn(held.pnl, 0))}<span class="u">{ja ? '円' : ''}</span></span><span class={`num ${cls(held.pnl)}`}>{sgn(held.pnlPct, 1, '%')}</span></div>
+            <div class="kv"><span>{t('hold.qty')}</span><span>{secret(fmt(held.qty, 0))}<span class="u">{unitWord}</span></span></div>
             <div class="kv"><span>{t('hold.avgShort')}</span><span>{px(held.avg)}<span class="u">{ja ? '円' : ''}</span></span></div>
-            <div class="kv"><span>{t('hold.value')}</span><span>{fmt(held.value, 0)}<span class="u">{ja ? '円' : ''}</span></span></div>
-            {#if held.annual != null}<div class="kv"><span>{reit ? t('si.annualDivReit') : t('si.annualDiv')}</span><span>{fmt(held.annual, 0)}<span class="u">{ja ? '円' : ''}</span></span></div>{/if}
+            <div class="kv"><span>{t('hold.value')}</span><span>{secret(fmt(held.value, 0))}<span class="u">{ja ? '円' : ''}</span></span></div>
+            {#if held.annual != null}<div class="kv"><span>{reit ? t('si.annualDivReit') : t('si.annualDiv')}</span><span>{secret(fmt(held.annual, 0))}<span class="u">{ja ? '円' : ''}</span></span></div>{/if}
           </section>
         {/if}
         <section class="card c-al">

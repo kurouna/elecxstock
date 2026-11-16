@@ -62,6 +62,7 @@ import { registerPane } from '../../lib/panes'
 import { periodOfKey } from '../../lib/periods'
 import { localX } from '../../lib/pointer'
 import { loadHoldings } from '../../lib/portfolio'
+import { privacy, secret } from '../../lib/privacy.svelte'
 import { app, ensureMetrics, inst, metric, nameOf, rpc, t } from '../../stores/app.svelte'
 import { type PaneNode, saveLayout, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -524,7 +525,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           <div class="stat"><span class="k">PER · β</span><span class="v num">{tot.per?.toFixed(1) ?? '—'} · {tot.beta?.toFixed(2) ?? '—'}</span></div>
         </div>
         <AcctRing parts={acctMix} nisa={nisaShare(acctMix)} />
-        <div class="nisa" title={t('folio.nisaTip')}><span>{t('folio.nisa')}</span><span class="track"><i style:width={`${Math.min(100, (nisaCost / 18e6) * 100)}%`}></i></span><span class="num">{manYen(nisaCost)} <span class="mute">/ {t('folio.nisaLife')}</span></span></div>
+        <div class="nisa" title={t('folio.nisaTip')}><span>{t('folio.nisa')}</span><span class="track"><i style:width={`${privacy.on ? 0 : Math.min(100, (nisaCost / 18e6) * 100)}%`}></i></span><span class="num">{manYen(nisaCost)} <span class="mute">/ {t('folio.nisaLife')}</span></span></div>
       </section>
 
       <!-- 資産推移 -->
@@ -540,7 +541,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           {#if view.pct}
             <Seg items={[t('folio.benchNone'), t('folio.bench.1'), t('folio.bench.2')]} on={view.bench} label={segLabel('folio.k.bench')} onpick={(i) => applyView({ ...view, bench: i })} />
           {:else}
-            <button type="button" class="toggle" class:on={view.est} aria-pressed={view.est} tabindex="-1" title={t('folio.k.est')} onclick={() => applyView({ ...view, est: !view.est, period: !view.est && view.period === 0 ? 5 : view.period })}>{t('folio.estToggle')} <kbd>E</kbd></button>
+            <button type="button" class="toggle" class:on={view.est} aria-pressed={view.est} tabindex="-1" title={t('folio.estTip')} onclick={() => applyView({ ...view, est: !view.est, period: !view.est && view.period === 0 ? 5 : view.period })}>{t('folio.estToggle')} <kbd>E</kbd></button>
           {/if}
         </div>
         <div class="histhead">
@@ -655,7 +656,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
                 <span class="d"><span class="num">{e.date.slice(5).replace('-', '/')}</span> · {e.day ? t('folio.inDays', { n: e.day }) : e.type === 'alert' ? t('folio.ev.met') : t('folio.today')}</span>
                 <span class={`t ${e.type}`}>{t(`folio.ev.${e.type}Long` as Key)}</span>
                 <span class="n"><span class="mute num">{e.code}</span> {e.name}</span>
-                <span class="x num">{e.type === 'rights' ? (e.amount ? t('folio.ev.amount', { v: yenFull(e.amount) }) : '') : e.type === 'earnings' ? t('folio.ev.qty', { n: (e.qty ?? 0).toLocaleString() }) : e.text}</span>
+                <span class="x num">{e.type === 'rights' ? (e.amount ? t('folio.ev.amount', { v: yenFull(e.amount) }) : '') : e.type === 'earnings' ? t('folio.ev.qty', { n: secret((e.qty ?? 0).toLocaleString()) }) : e.text}</span>
               </div>
             {/each}
           </div>
@@ -708,7 +709,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
               <div class="stat"><span class="k">{t('folio.top3')}</span><span class="v num">{(dsum.top3 * 100).toFixed(0)}%</span></div>
             </div>
             {#if app.settings.divGoal}
-              <div class="goal" title={t('folio.goalTip', { goal: yenFull(app.settings.divGoal), now: yenFull(dsum.perMonth), p: ((dsum.perMonth / app.settings.divGoal) * 100).toFixed(0) })}><span>{t('folio.goal', { v: manYen(app.settings.divGoal) })}</span><span class="track"><i style:width={`${Math.min(100, (dsum.perMonth / app.settings.divGoal) * 100)}%`}></i></span><span class="num">{((dsum.perMonth / app.settings.divGoal) * 100).toFixed(0)}%</span></div>
+              <div class="goal" title={t('folio.goalTip', { goal: yenFull(app.settings.divGoal), now: yenFull(dsum.perMonth), p: secret(((dsum.perMonth / app.settings.divGoal) * 100).toFixed(0)) })}><span>{t('folio.goal', { v: manYen(app.settings.divGoal) })}</span><span class="track"><i style:width={`${privacy.on ? 0 : Math.min(100, (dsum.perMonth / app.settings.divGoal) * 100)}%`}></i></span><span class="num">{secret(((dsum.perMonth / app.settings.divGoal) * 100).toFixed(0))}%</span></div>
             {/if}
           {/if}
         </section>

@@ -229,7 +229,7 @@ export function recordPoint(
   return changed ? mergePoints([], out) : null
 }
 
-/** 資産推移の系列（保有の明細を除く）。est なら記録の前を今の保有（最初の記録）で試算した点を前に付ける（§6.1） */
+/** 資産推移の系列（保有の明細を除く）。est なら記録の前を最初の記録の保有で試算した点を前に付ける（§6.1） */
 export function seriesOf(points: FolioPoint[], m: Market, est: boolean, from?: JstDate): FolioSeriesPoint[] {
   const strip = (p: FolioPoint): FolioSeriesPoint => ({
     d: p.d,

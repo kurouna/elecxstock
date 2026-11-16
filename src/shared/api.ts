@@ -103,6 +103,7 @@ export const settingsSchema = z.object({
   theme: z.enum(['dark', 'light']),
   autoUpdate: z.boolean(),
   checkUpdates: z.boolean(),
+  privacyMode: z.boolean(),
   alertNotify: z.boolean(),
   /** 配当の目標（月あたり・円。0 は無し。FR-PF7） */
   divGoal: z.number().min(0).max(1e10),

@@ -30,6 +30,7 @@ import type {
   JstDate,
   MetricsRow,
 } from '@shared/types'
+import { secret } from './privacy.svelte'
 import { type Placed, squarify } from './treemap'
 
 // ---------------- 状態とキー ----------------
@@ -1037,17 +1038,18 @@ export function rowsAtDay(at: FolioAt, base: FRow[], nameOf: (code: string) => s
 
 // ---------------- 書式（符号は − を使い、▲▼ は使わない。日本の会計では ▲ がマイナスを表すため） ----------------
 const sg = (v: number, sign: boolean) => (v < 0 ? '−' : sign && v > 0 ? '+' : '')
-/** 円を万・億で短く（1 万未満はそのまま） */
-export function manYen(v: number, sign = false): string {
+/** 円を万・億で短く（1 万未満はそのまま）。この節の円の書式は個人の金額だけに使い、プライバシーモードでは隠す（FR-H12） */
+export const manYen = (v: number, sign = false): string => secret(manYenRaw(v, sign))
+function manYenRaw(v: number, sign: boolean): string {
   const a = Math.abs(v)
   if (a >= 1e8) return `${sg(v, sign)}${(a / 1e8).toFixed(2)}億`
   if (a >= 1e4) return `${sg(v, sign)}${(a / 1e4).toFixed(a >= 1e6 ? 0 : 1)}万`
   return `${sg(v, sign)}${Math.round(a).toLocaleString('ja-JP')}`
 }
 /** 1 枚の図の中は万円・小数 1 桁にそろえる */
-export const man1 = (v: number, sign = false) => `${sg(v, sign)}${(Math.abs(v) / 1e4).toFixed(1)}万`
+export const man1 = (v: number, sign = false) => secret(`${sg(v, sign)}${(Math.abs(v) / 1e4).toFixed(1)}万`)
 /** 円（桁区切り） */
-export const yenFull = (v: number, sign = false) => `${sg(v, sign)}${Math.round(Math.abs(v)).toLocaleString('ja-JP')}`
+export const yenFull = (v: number, sign = false) => secret(`${sg(v, sign)}${Math.round(Math.abs(v)).toLocaleString('ja-JP')}`)
 /** % （± を付ける） */
 export const signPct = (v: number | null | undefined, d = 1) =>
   v == null || !Number.isFinite(v) ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(d)}%`

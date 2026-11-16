@@ -576,6 +576,13 @@ export const ACTIONS: Action[] = [
   },
   { id: 'lang', label: () => t('act.lang'), run: () => saveSettings({ lang: app.settings.lang === 'ja' ? 'en' : 'ja' }) },
   { id: 'theme', label: () => t('act.theme'), run: () => saveSettings({ theme: app.settings.theme === 'dark' ? 'light' : 'dark' }) },
+  {
+    id: 'privacy',
+    label: () => t('act.privacy'),
+    key: 'Ctrl+Shift+H',
+    when: 'global',
+    run: () => saveSettings({ privacyMode: !app.settings.privacyMode }),
+  },
   { id: 'candle', label: () => t('act.candle'), run: () => saveSettings({ candleStyle: app.settings.candleStyle === 'jp' ? 'us' : 'jp' }) },
   {
     id: 'density',

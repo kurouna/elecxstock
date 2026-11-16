@@ -7,6 +7,7 @@ import type { AccountType, Holding } from '@shared/types'
 import { app, choiceDialog, confirmDialog, holdingDialog, loadInstruments, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
 import { importedNote } from './folio'
 import type { Key } from './i18n'
+import { secret } from './privacy.svelte'
 
 export const accountName = (a: AccountType) => t(`acct.${a}` as Key)
 
@@ -83,7 +84,7 @@ export async function importBrokerCsv(): Promise<void> {
   if (!(bytes instanceof Uint8Array)) return
   const p = await rpc('portfolio.previewCsv', { text: decodeCsv(bytes) })
   const line = (h: Holding) =>
-    `${h.code} ${nameOf(`JP:${h.code}`) || h.name || ''} · ${accountName(h.account)} · ${h.quantity.toLocaleString()}`
+    `${h.code} ${nameOf(`JP:${h.code}`) || h.name || ''} · ${accountName(h.account)} · ${secret(h.quantity.toLocaleString())}`
   const out = new Set(p.skipped.map((x) => x.kind || '?'))
   const items = [
     t('hold.prevAdd', { n: p.add.length }),
@@ -158,7 +159,7 @@ export async function importHoldings(): Promise<void> {
   if (typeof text !== 'string') return
   const p = await rpc('portfolio.previewImport', { json: text })
   const line = (h: Holding) =>
-    `${h.code} ${nameOf(`JP:${h.code}`) || h.name || ''} · ${accountName(h.account)} · ${h.quantity.toLocaleString()}`
+    `${h.code} ${nameOf(`JP:${h.code}`) || h.name || ''} · ${accountName(h.account)} · ${secret(h.quantity.toLocaleString())}`
   const items = [
     t('hold.prevAdd', { n: p.add.length }),
     ...p.add.slice(0, 8).map((h) => `＋ ${line(h)}`),

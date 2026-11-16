@@ -79,6 +79,8 @@ onMount(() => {
     {#if !IS_FREE}
     <!-- アラート（Ctrl+Alt+L と同じ。未読があれば数の札。FR-AL8） -->
     <button type="button" class="ibtn bell" onclick={() => runAction('alerts')} aria-label={t('act.alerts')} title={t('al.bellTip', { key: keyOf('alerts') })}><Icon name="bell" />{#if app.alertsUnread}<span class="unread num">{app.alertsUnread > 99 ? '99+' : app.alertsUnread}</span>{/if}</button>
+    <!-- プライバシーモード（Ctrl+Shift+H と同じ。保有の金額と数量を隠す。FR-H12） -->
+    <button type="button" class="ibtn privacy" class:on={app.settings.privacyMode} data-privacy onclick={() => runAction('privacy')} aria-pressed={app.settings.privacyMode} aria-label={t('act.privacy')} title={`${t(app.settings.privacyMode ? 'top.privacyOn' : 'top.privacyOff')} (${keyOf('privacy')})`}><Icon name={app.settings.privacyMode ? 'eyeOff' : 'eye'} /></button>
     {/if}
     <!-- 2 枚目以降のモニタ用のフリーのウィンドウを開く（Ctrl+Alt+N と同じ。初期の形を選ぶ） -->
     <button type="button" class="ibtn opt" onclick={() => runAction('newWindow')} aria-label={t('act.newWindow')} title={`${t('act.newWindow')} (${keyOf('newWindow')})`}><Icon name="newWindow" /></button>
@@ -95,6 +97,10 @@ onMount(() => {
 </header>
 
 <style>
+  /* オンのときは強調の色で、隠していることが分かるように */
+  .privacy.on {
+    color: var(--focus);
+  }
   .bell {
     position: relative;
   }

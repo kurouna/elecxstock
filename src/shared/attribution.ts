@@ -7,3 +7,16 @@ export const LWC_NOTICE = ['TradingView Lightweight Charts™', 'Copyright (с) 
 
 /** 帰属表示のリンク先 */
 export const TRADINGVIEW_URL = 'https://www.tradingview.com/'
+
+/** 文の中の token を境に前・token・後ろに分ける（token の部分をリンクにして出す）。無ければ全体を before に */
+export function splitToken(text: string, token: string): { before: string; token: string; after: string } {
+  const i = text.indexOf(token)
+  if (i < 0) return { before: text, token: '', after: '' }
+  return { before: text.slice(0, i), token, after: text.slice(i + token.length) }
+}
+
+/** NOTICE の 2 行目を、URL（リンクにする部分）とその前に分けたもの */
+export const LWC_NOTICE_PARTS = splitToken(LWC_NOTICE[1], TRADINGVIEW_URL)
+
+/** データ源の Yahoo Finance のリンク先。日本語の画面では Yahoo!ファイナンス、それ以外は Yahoo Finance */
+export const yahooUrl = (lang: string) => (lang === 'ja' ? 'https://finance.yahoo.co.jp/' : 'https://finance.yahoo.com/')

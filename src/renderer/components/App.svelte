@@ -7,6 +7,7 @@ import { clearBars } from '../lib/barsCache'
 import { checkUpdate, handleKey, runAction, sendSymbol, startUpdate } from '../lib/commands'
 import { noticeFreeOpened } from '../lib/pages'
 import { loadHoldings } from '../lib/portfolio'
+import { privacy } from '../lib/privacy.svelte'
 import { IS_FREE, SHAPE, SLOT } from '../lib/windowSlot'
 import {
   app,
@@ -72,6 +73,11 @@ function flushData() {
   pending = new Set()
   void applyDataUpdated(ids as Set<InstrumentId> | '*')
 }
+
+// プライバシーモード（FR-H12）: 設定を書式の関数が読む写しへ。描く前に写す（一瞬でも金額を出さない）
+$effect.pre(() => {
+  privacy.on = app.settings.privacyMode === true
+})
 
 // アラートの一覧（ポップアップ・チャートの点線）: 変わるたびに読み直す（どの窓でも。FR-AL9）
 // ジョブの終わりと鳴った知らせが続けて来るので、まとめて 1 回にする

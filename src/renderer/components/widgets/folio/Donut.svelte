@@ -2,7 +2,7 @@
 // 配当の内訳（FR-PF7）: ドーナツ（上位 5 ＋その他。色は配当の金色の濃淡 = 割合の大きさ。分類ごとの色相は使わない）と、凡例を兼ねる一覧。
 // 狭い幅ではドーナツをやめ、一覧に横棒を出す。行を選ぶとスライスが外へ出て、真ん中にその分類を出す
 import { donutSlices } from '@shared/folio'
-import { arcPath, type DivGroupRow, dimmed, donutShade, manYen, toneOf } from '../../../lib/folio'
+import { arcPath, type DivGroupRow, dimmed, donutShade, manYen, toneOf, yenFull } from '../../../lib/folio'
 import { donutOtherTip, donutTip } from '../../../lib/folioTips'
 import { t } from '../../../stores/app.svelte'
 
@@ -74,7 +74,7 @@ let w = $state(0)
       {#if curSl}
         <text x="100" y="92" class="c1">{curSl.item ? label(curSl.item.g) : t('folio.other')}</text>
         <text x="100" y="113" class="c2">{((curSl.value / total) * 100).toFixed(0)}%</text>
-        <text x="100" y="129" class="c3">¥{Math.round(curSl.value).toLocaleString('ja-JP')}</text>
+        <text x="100" y="129" class="c3">¥{yenFull(curSl.value)}</text>
       {:else}
         <text x="100" y="94" class="c1">{t('folio.annualNet')}</text>
         <text x="100" y="114" class="c2">{manYen(total)}</text>

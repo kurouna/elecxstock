@@ -376,6 +376,8 @@ export interface Settings {
   autoUpdate: boolean
   /** 新しい版が GitHub Releases に出たら知らせる（NFR-Q9）。通信は api.github.com だけ */
   checkUpdates: boolean
+  /** プライバシーモード: 保有の金額と数量を **** で隠す（FR-H12） */
+  privacyMode: boolean
   /** アラートが鳴ったら Windows の通知でも知らせる（FR-AL5） */
   alertNotify: boolean
   /** キーの割り当ての上書き（FR-KB6）。アクションの ID → キー（例 'Ctrl+Shift+K'）。'' は割り当てなし */

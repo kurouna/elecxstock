@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
   autoUpdate: true,
   checkUpdates: true,
+  privacyMode: false,
   alertNotify: true,
   divGoal: 0,
   yieldLine: false,

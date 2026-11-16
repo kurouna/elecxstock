@@ -1,6 +1,6 @@
 <script lang="ts">
 // 設定（Ctrl+,）: 一般・表示・チャート（FR-C12）・データ（FR-S5〜S9, FR-D6）・キー・このアプリについて。↑↓ で項目、Tab で中へ。
-import { LWC_NOTICE, TRADINGVIEW_URL } from '@shared/attribution'
+import { LWC_NOTICE, LWC_NOTICE_PARTS, splitToken, TRADINGVIEW_URL, yahooUrl } from '@shared/attribution'
 import { type LoginState, loginView } from '@shared/background'
 import { CODE_RE } from '@shared/code'
 import { targetsFromInputs, targetTexts, YIELD_TARGETS_UI } from '@shared/yieldLines'
@@ -15,6 +15,8 @@ let { tab = 'general' }: { tab?: string } = $props()
 const TABS = ['general', 'display', 'chart', 'data', 'keys', 'about'] as const
 let cur = $state<string>('general')
 let notices = $state('')
+// データ源の文の「Yahoo Finance」をリンクにする
+const src = $derived(splitToken(t('set.dataSource'), 'Yahoo Finance'))
 let nav = $state<HTMLElement>()
 onMount(() => {
   cur = tab
@@ -276,12 +278,15 @@ async function importJpx() {
     {:else}
       <div class="field"><span>{t('set.version')}</span><span class="num">{app.info?.version ?? __APP_VERSION__}</span></div>
       <div class="field"><span>{t('set.licenseLabel')}</span><span>{t('set.license')}</span></div>
-      <div class="field"><span>{t('set.dataLabel')}</span><span>{app.info?.provider === 'stub' ? t('set.dataSourceStub') : t('set.dataSource')}</span></div>
+      <div class="field">
+        <span>{t('set.dataLabel')}</span>
+        {#if app.info?.provider === 'stub'}<span>{t('set.dataSourceStub')}</span>{:else}<span>{src.before}<button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(yahooUrl(app.settings.lang))}>{src.token}</button>{src.after}</span>{/if}
+      </div>
       <div class="field">
         <span>{t('set.chartsLabel')}</span>
         <span class="notice">
-          <button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(TRADINGVIEW_URL)}>{LWC_NOTICE[0]}</button>
-          <span class="dim">{LWC_NOTICE[1]}</span>
+          <span>{LWC_NOTICE[0]}</span>
+          <span class="dim">{LWC_NOTICE_PARTS.before}<button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(TRADINGVIEW_URL)}>{LWC_NOTICE_PARTS.token}</button>{LWC_NOTICE_PARTS.after}</span>
         </span>
       </div>
       <div class="field">

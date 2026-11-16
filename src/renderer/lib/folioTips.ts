@@ -4,6 +4,7 @@ import type { FolioContribRow } from '@shared/types'
 import type { DivGroupRow, DivRow, FolioEvent, FRow, Tile } from './folio'
 import { lastTone, signPct, yenFull } from './folio'
 import type { Key } from './i18n'
+import { secret } from './privacy.svelte'
 
 export type Tr = (k: Key, v?: Record<string, string | number>) => string
 
@@ -176,7 +177,7 @@ export function eventTip(e: FolioEvent, tr: Tr): string {
         ? tr('folio.ev.amount', { v: yenFull(e.amount) })
         : ''
       : e.type === 'earnings'
-        ? tr('folio.ev.qty', { n: (e.qty ?? 0).toLocaleString() })
+        ? tr('folio.ev.qty', { n: secret((e.qty ?? 0).toLocaleString()) })
         : (e.text ?? '')
   return [`${e.date.replaceAll('-', '/')}（${when}）${tr(`folio.ev.${e.type}Long` as Key)}`, `${e.code} ${e.name}`, ...(x ? [x] : [])].join(
     '\n',

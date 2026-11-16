@@ -1,5 +1,6 @@
 // 数値・日付の書式（FR-N3, FR-V2）。言語に合わせて Intl で書く。
 import { app } from '../stores/app.svelte'
+import { MASK, privacy } from './privacy.svelte'
 
 const loc = () => (app.settings.lang === 'ja' ? 'ja-JP' : 'en-US')
 export function fmt(v: number | null | undefined, digits = 2): string {
@@ -26,6 +27,8 @@ export function cls(v: number | null | undefined): string {
   return v == null ? '' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat'
 }
 /** 金額（億円・兆円 / ¥B・¥T）。単位は小さく添える（FR-V2） */
+/** 個人の金額（保有の評価額・損益・配当）の money。プライバシーモードでは単位ごと隠す（単位で桁が分かるため。FR-H12） */
+export const ownMoney = (v: number | null | undefined): { n: string; u: string } => (privacy.on ? { n: MASK, u: '' } : money(v))
 export function money(v: number | null | undefined): { n: string; u: string } {
   if (v == null || !Number.isFinite(v)) return { n: '—', u: '' }
   if (app.settings.lang === 'ja') {

@@ -562,7 +562,7 @@ function drawHist() {
   let body = ''
   if (!pctMode) {
     if (estN > 0) body += `<rect x="${x(0)}" y="${Tp}" width="${x(estN) - x(0)}" height="${H - Tp - B}" fill="var(--panel-2)"/>
-      <text x="${x(0) + 8}" y="${Tp + 16}" font-size="11" fill="var(--text-3)">現在の保有で過去を試算（参考。実際の推移ではない）</text>
+      <text x="${x(0) + 8}" y="${Tp + 16}" font-size="11" fill="var(--text-3)">最初の記録の保有で過去を試算（参考。実際の推移ではない）</text>
       <path d="${pts.slice(0, estN + 1).map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join('')}" fill="none" stroke="var(--text-3)" stroke-width="1.2" opacity=".75"/>`
     const rp = pts.slice(estN), xs = (i) => x(i + estN)
     const vPath = rp.map((p, i) => `${i ? 'L' : 'M'}${xs(i).toFixed(1)},${y(p.value).toFixed(1)}`).join('')
@@ -594,7 +594,7 @@ function drawHist() {
     : `<span class="big num ${tone(b.value - b.cost)}">${man(b.value - b.cost, true)}</span><span class="mute">含み損益（${pct(((b.value - b.cost) / b.cost) * 100, 1)}）</span><span class="mute">評価損益の増減（入出金除く） <span class="num" style="color:var(--text-2)">${man(move, true)}</span> ・ ${a.d.replaceAll('-', '/')} から</span>
        <span class="legend" style="margin-left:auto"><span><span class="dot" style="background:var(--text)"></span>評価額</span><span><span class="dot" style="border:1px dashed var(--text-3)"></span>取得額</span><span><span class="dot" style="background:var(--up);opacity:.7"></span>含み益</span><span><span class="dot" style="background:var(--down);opacity:.7"></span>含み損</span>${rpHasFill(pts) ? '<span><span class="dot" style="border:1px solid var(--text-3)"></span>補完値（記録なし）</span>' : ''}</span>`
   const wfb = document.getElementById('wf')
-  if (recPts.length < 5) wfb.innerHTML = `<div class="note">日次記録を開始しました（${recPts.length} 日分）。日次更新のたびに 1 件ずつ記録します。<kbd>E</kbd> で現在の保有で記録開始前を試算した推移（参考）を表示します</div>`
+  if (recPts.length < 5) wfb.innerHTML = `<div class="note">日次記録を開始しました（${recPts.length} 日分）。日次更新のたびに 1 件ずつ記録します。<kbd>E</kbd> で最初の記録の保有を使って記録開始前を試算した推移（参考）を表示します</div>`
   else { const st = [['期首', a.value, 'total'], ['入出金', inflow, 'flow'], ['評価損益の増減', move, 'd'], ['期末', b.value, 'total']]; waterfall(wfb, st, { fs: 10, bottom: 15, maxW: 64, cut: 0.15, aside: ['受取配当（別枠・現金）', divs] }) }
   const tip = document.getElementById('tip')
   if (ci < 0) tip.style.display = 'none'

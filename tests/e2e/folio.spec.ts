@@ -390,3 +390,36 @@ test.describe('表示倍率と十字線（FR-V10）', () => {
     await page.mouse.move(0, 0)
   })
 })
+
+test.describe('プライバシーモード（FR-H12）', () => {
+  test('Ctrl+Shift+H で保有の金額と数量が **** になり、% は残る。もう一度で戻る', async ({ start }) => {
+    const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    await expect(f).toHaveClass(/focused/)
+    const hero = f.locator('.hero-value')
+    await expect(hero).toContainText(/\d/)
+    const btn = page.locator('[data-privacy]')
+    await expect(btn).toHaveAttribute('aria-pressed', 'false')
+
+    await keys(page, 'Control+Shift+KeyH')
+    await expect(btn).toHaveAttribute('aria-pressed', 'true')
+    await expect(hero).toHaveText('¥****')
+    await expect(hero).not.toContainText(/\d/)
+    // 損益率（%）は隠さない
+    await expect(f.locator('.c-hero')).toContainText('%')
+
+    // 保有のペイン: 数量・評価額・損益は ****、損益率は残る
+    await tab(page, 'holdings')
+    const row = page.locator('[data-widget="portfolio"] tbody tr', { hasText: '7203' })
+    const cells = row.locator('td')
+    await expect(cells.nth(2)).toHaveText('****')
+    await expect(cells.nth(6)).toHaveText('****')
+    await expect(cells.nth(7)).toHaveText('****')
+    await expect(cells.nth(8)).toContainText('%')
+
+    await keys(page, 'Control+Shift+KeyH')
+    await expect(btn).toHaveAttribute('aria-pressed', 'false')
+    await expect(cells.nth(2)).toHaveText('100')
+  })
+})

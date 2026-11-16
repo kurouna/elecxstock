@@ -26,6 +26,7 @@ export function blockedInFree(id: string): boolean {
       'keys',
       'lang',
       'theme',
+      'privacy',
       'candle',
       'density',
       'screens',
