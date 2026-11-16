@@ -168,6 +168,8 @@ export const savedLayoutSchema = z.object({
   name,
   entry: z.unknown(),
   links: z.record(z.string(), id),
+  /** 作ったときの形（FR-L14。初期状態に戻す先）。前の版は知らないキーを捨てるので読める */
+  shape: z.string().max(60).optional(),
   created: z.number(),
   updated: z.number(),
 })
@@ -278,6 +280,15 @@ export interface UserData {
   layouts: SavedLayout[]
   readOnly: boolean
   error?: string
+  /** 読み損なって退避したレイアウトのファイル（FR-S12。既定に戻した・通らない要素を除いた）。1 枚目がトーストで知らせる */
+  recovered?: RecoveredFile[]
+}
+export interface RecoveredFile {
+  file: 'layout' | 'layouts'
+  /** 退避した先（data/user/backups の中のファイル名） */
+  backup: string
+  /** 要素ごとの検証で除いた件数（ファイルごと既定に戻したときは無い） */
+  dropped?: number
 }
 
 export interface Results {

@@ -3,11 +3,14 @@ import { isMarketOpen, isTradingDay, jstNow } from '@shared/calendar'
 import { onMount } from 'svelte'
 import { doResetSizes, keyOf, runAction } from '../lib/commands'
 import type { Key } from '../lib/i18n'
+import { currentPageName, openPageMenu } from '../lib/pages'
 import { captionInset } from '../lib/titleBar'
 import { freeNo, IS_FREE, SLOT } from '../lib/windowSlot'
 import { app, t } from '../stores/app.svelte'
 import { layout, PRESET_IDS, setPreset, sizesAtDefault } from '../stores/layout.svelte'
 import Icon from './Icon.svelte'
+
+const pageLabel = $derived(currentPageName())
 
 let clock = $state('')
 let market = $state<'open' | 'closed' | 'holiday'>('closed')
@@ -45,7 +48,7 @@ onMount(() => {
 })
 </script>
 
-<header class="top" class:free={IS_FREE} style:--caption-w={caption == null ? null : `${caption}px`}>
+<header class="top" class:free={IS_FREE} class:haspg={!IS_FREE && layout.doc.active === 'free' && !!pageLabel} style:--caption-w={caption == null ? null : `${caption}px`}>
   <div class="brand">
     <span class="logo" aria-hidden="true">E</span><span class="name">elecxstock</span>
   </div>
@@ -54,9 +57,14 @@ onMount(() => {
   {:else}
   <nav class="presets" aria-label={t('a11y.layouts')}>
     {#each PRESET_IDS as p, i (p)}
-      <button type="button" aria-current={layout.doc.active === p} onclick={() => setPreset(p)} title={`${t(`preset.${p}` as Key)} (Ctrl+Shift+${i + 1})`}>
-        <span class="lbl">{t(`preset.${p}` as Key)}</span><kbd class="keycap">{i + 1}</kbd>
+      <!-- マイレイアウト（FR-L14）: 表示中のときだけページの名前を出す（長い名前は CSS で切り、全体はツールチップ）。右の ▾ でページのメニュー -->
+      {@const pg = p === 'free' && layout.doc.active === 'free' ? pageLabel : ''}
+      <button type="button" data-preset={p} aria-current={layout.doc.active === p} onclick={() => setPreset(p)} title={`${t(`preset.${p}` as Key)}${pg ? ` · ${pg}` : ''} (Ctrl+Shift+${i + 1})`}>
+        <span class="lbl">{t(`preset.${p}` as Key)}{#if pg}<span class="pg"> · {pg}</span>{/if}</span><kbd class="keycap">{i + 1}</kbd>
       </button>
+      {#if p === 'free'}
+        <button type="button" class="pmenu" data-page-menu aria-haspopup="menu" aria-label={t('lay.menu')} title={`${t('lay.menu')} (${keyOf('layouts')})`} onclick={openPageMenu}>▾</button>
+      {/if}
     {/each}
   </nav>
   {/if}
@@ -172,10 +180,29 @@ onMount(() => {
     gap: 6px;
     align-items: center;
   }
-  .presets button[aria-current='true'] {
+  .presets button[aria-current='true'],
+  .presets button[aria-current='true'] + .pmenu {
     color: var(--text);
     border-bottom-color: var(--focus);
     background: var(--panel-2);
+  }
+  /* ページの名前（マイレイアウトを表示中のとき）。長い名前は省略記号で切る */
+  .presets .pg {
+    display: inline-block;
+    max-width: 7em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+  /* ページのメニューを開く ▾（タブとは別のボタン。押せるのでドラッグから外れる） */
+  .presets button.pmenu {
+    padding: 0 6px 0 2px;
+    color: var(--text-3);
+    font-size: var(--fs-1);
+  }
+  .presets button.pmenu:hover {
+    color: var(--text);
   }
   /* ショートカットの数字はキーの形（Ctrl+Shift+数字） */
   .presets kbd.keycap {
@@ -257,19 +284,30 @@ onMount(() => {
     background: var(--hover);
     color: var(--text);
   }
-  /* 狭いとき（FR-L13）: 検索欄が縮み、それでも足りなければ 時計 → タブの名前（キーの数字とツールチップは残す）→ ロゴの文字・取引時間の表示
-     → 新しいウィンドウ・サイズを戻すのボタン（キーとコマンドバーで使える）の順に省く。窓の名前とタブは省かない */
+  /* 狭いとき（FR-L13）: 検索欄が縮み、それでも足りなければ 時計 → マイレイアウトのページの名前 → タブの名前（キーの数字・▾・ツールチップは残す）
+     → ロゴの文字・取引時間の表示 → 新しいウィンドウ・サイズを戻すのボタン（キーとコマンドバーで使える）の順に省く。窓の名前とタブは省かない。
+     境目はトップバーの中身の幅。ページの名前（最大 7em）を出しているときは、時計を早めに省く（FR-L14） */
   @container cmd (max-width: 199px) {
     kbd {
       display: none;
     }
   }
-  @container top (max-width: 1479px) {
+  @container top (max-width: 1659px) {
+    .top.haspg .clock {
+      display: none;
+    }
+  }
+  @container top (max-width: 1549px) {
     .top:not(.free) .clock {
       display: none;
     }
   }
-  @container top (max-width: 1319px) {
+  @container top (max-width: 1499px) {
+    .presets .pg {
+      display: none;
+    }
+  }
+  @container top (max-width: 1389px) {
     .presets button {
       padding: 0 8px;
     }

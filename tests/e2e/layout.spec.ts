@@ -237,7 +237,7 @@ test.describe('フリーのタブ（FR-L11, FR-L10）', () => {
     // このタブのレイアウトを初期状態に戻す: 確認は ← → で選び Enter で決める（危険な操作なので取り消しから始まる）
     const reset = async () => {
       await command(page, '初期状態')
-      await expect(page.getByRole('alertdialog')).toContainText('「フリー」のレイアウト')
+      await expect(page.getByRole('alertdialog')).toContainText('「マイレイアウト · フリー」のレイアウト')
     }
     await reset()
     await keys(page, 'Enter') // 取り消し
@@ -245,7 +245,7 @@ test.describe('フリーのタブ（FR-L11, FR-L10）', () => {
     await expect(panes(page)).toHaveCount(5)
     await reset()
     await keys(page, 'ArrowRight', 'Enter') // 実行
-    await expect(page.locator('.toasts')).toContainText('「フリー」のレイアウトを初期状態に戻しました')
+    await expect(page.locator('.toasts')).toContainText('「マイレイアウト · フリー」のレイアウトを初期状態に戻しました')
     await expect(panes(page)).toHaveCount(4)
   })
 })
@@ -357,24 +357,83 @@ test.describe('銘柄を見える場所に出す・リンク色（FR-K1）', () 
   })
 })
 
-test.describe('名前付きのレイアウト・再起動（FR-L4, FR-G11, FR-SC14）', () => {
-  test('名前を付けてレイアウトを保存し、別のタブに切り替えてから開く', async ({ start }) => {
-    const { page } = await start()
+test.describe('マイレイアウトのページ・再起動（FR-L4, FR-L14, FR-G11, FR-SC14）', () => {
+  test('ほかのタブを写してページに足すとそのページを開き、メニューの数字でページを替えられ、再起動しても残る', async ({ start }) => {
+    const first = await start()
+    const { page } = first
+    const grid = page.locator('[data-widget="grid"]')
+    const menu = page.locator('.pmenu[role="menu"]')
+    const current = page.locator('.presets [aria-current="true"]')
     await tab(page, 'grid')
+    // Ctrl+Shift+L はどのタブからでもメニューを開く（タブは変えない）。「今のタブを写して足す」は削除の 1 つ上
     await keys(page, 'Control+Shift+l')
-    await expect(page.locator('.dialog')).toBeVisible()
-    await keys(page, 'Insert')
+    await expect(menu).toBeVisible()
+    await expect(current).toContainText('グリッド')
+    await keys(page, 'End', 'ArrowUp', 'Enter')
     await type(page, '朝の確認')
     await keys(page, 'Enter')
-    await expect(page.locator('.dialog')).toContainText('朝の確認')
-    await keys(page, 'Escape')
-    await expect(page.locator('.dialog')).toHaveCount(0)
-    await tab(page, 'mtf')
-    await keys(page, 'Control+Shift+l')
-    await expect(page.locator('.dialog')).toContainText('朝の確認')
+    await expect(page.locator('.toasts')).toContainText('ページを足しました: 朝の確認')
+    await expect(current).toContainText('マイレイアウト')
+    await expect(current).toContainText('朝の確認') // タブに表示中のページの名前
+    await expect(grid).toHaveCount(1)
+    // マイレイアウトで Ctrl+Shift+8 をもう一度押すとメニュー。1 枚目（元のフリーのタブ）にグリッドは無く、2 枚目でまた出る
+    await keys(page, 'Control+Shift+Digit8')
+    await expect(menu).toContainText('朝の確認')
+    await keys(page, 'Digit1')
+    await expect(menu).toHaveCount(0)
+    await expect(grid).toHaveCount(0)
+    await keys(page, 'Control+Shift+Digit8', 'Digit2')
+    await expect(grid).toHaveCount(1)
+    // 開いたまま同じキーで閉じる
+    await keys(page, 'Control+Shift+Digit8')
+    await expect(menu).toBeVisible()
+    await keys(page, 'Control+Shift+Digit8')
+    await expect(menu).toHaveCount(0)
+    await first.app.close() // 終了の前に main が全窓の保存を待つ
+
+    const again = await start({ userData: first.userData })
+    await expect(again.page.locator('[data-widget="grid"]')).toHaveCount(1)
+    await keys(again.page, 'Control+Shift+l')
+    await expect(again.page.locator('.pmenu [aria-checked="true"]')).toContainText('朝の確認')
+  })
+
+  test('新しいページを形を選んで作り、名前を変え、消して Ctrl+Z で戻す。コマンドバーからも開ける', async ({ start }) => {
+    const { page } = await start()
+    const menu = page.locator('.pmenu[role="menu"]')
+    const charts = page.locator('.main [data-widget="chart"]')
+    await tab(page, 'free')
+    await keys(page, 'Control+Shift+Digit8', 'Insert')
+    // 形: マイレイアウトの初めの並び → 空 → 4 分割
+    await expect(page.locator('.dialog')).toContainText('4 分割')
+    await keys(page, 'ArrowDown', 'ArrowDown', 'Enter')
+    await type(page, '四つ')
     await keys(page, 'Enter')
-    await expect(page.locator('.toasts')).toContainText('レイアウトを開きました')
-    await expect(page.locator('[data-pane-id]').filter({ hasText: 'チャートグリッド' })).toBeVisible()
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('四つ')
+    await expect(charts).toHaveCount(4)
+    // F2 で名前を変える（終わるとメニューに戻る）
+    await keys(page, 'Control+Shift+Digit8', 'F2')
+    await keys(page, 'Control+a')
+    await type(page, '四分割')
+    await keys(page, 'Enter')
+    await expect(menu).toContainText('四分割')
+    // Delete を 2 回で消すと 1 枚目に移る。Ctrl+Z で戻る
+    await keys(page, 'Delete')
+    await expect(menu).toContainText('もう一度 Delete')
+    await keys(page, 'Delete')
+    await expect(page.locator('.toasts')).toContainText('ページを消しました: 四分割')
+    await expect(menu).not.toContainText('四分割')
+    await keys(page, 'Control+z')
+    await expect(menu).toContainText('四分割')
+    await keys(page, 'Escape')
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('四分割')
+    // コマンドバーの「マイレイアウト: <名前> を開く」
+    await keys(page, 'Control+Shift+Digit8', 'Digit1')
+    await expect(page.locator('.presets [aria-current="true"]')).not.toContainText('四分割')
+    await keys(page, 'Control+k')
+    await type(page, '四分割 を開く')
+    await keys(page, 'Enter')
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('四分割')
+    await expect(charts).toHaveCount(4)
   })
 
   test('再起動してもタブ・グリッドの銘柄と時間軸・動かしたペインが残る', async ({ start }) => {
@@ -395,7 +454,7 @@ test.describe('名前付きのレイアウト・再起動（FR-L4, FR-G11, FR-SC
     await first.app.close() // 終了の前に main が全窓の保存を待つ
 
     const { page } = await start({ userData: first.userData })
-    await expect(page.locator('.presets [aria-current="true"]')).toContainText('フリー')
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('マイレイアウト')
     const moved = await boxOf(byId(page, srcId))
     expect(near(moved.x + moved.width, mb.x + mb.width, 4)).toBe(true)
     expect(near(moved.height, mb.height, 4)).toBe(true)
@@ -417,10 +476,10 @@ test.describe('すべてのタブのレイアウトを初期状態に戻す（FR
     await command(page, 'すべてのタブのレイアウトを初期状態に戻す')
     const dlg = page.getByRole('alertdialog')
     await expect(dlg).toContainText('すべてのタブ')
-    await expect(dlg).toContainText('名前を付けて保存したレイアウト')
+    await expect(dlg).toContainText('マイレイアウトのページ')
     await keys(page, 'ArrowRight', 'Enter')
     await expect(page.locator('.toasts')).toContainText('すべてのタブのレイアウトを初期状態に戻しました')
-    await expect(page.locator('.presets [aria-current="true"]')).toContainText('フリー')
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('マイレイアウト')
     await tab(page, 'mtf')
     await expect(page.locator('[data-widget="watchlist"]')).toHaveCount(1)
     await expect(page.locator('[data-widget="screener"]')).toHaveCount(1)

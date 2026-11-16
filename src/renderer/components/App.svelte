@@ -20,7 +20,7 @@ import {
   toast,
   winZoom,
 } from '../stores/app.svelte'
-import { applyRemoteLink, flushLayoutSave, freeDoc, layout, normalizeDoc, saveLayout } from '../stores/layout.svelte'
+import { applyRemoteLink, flushLayoutSave, freeDoc, layout, noticeLoaded, saveLayout, useLoadedLayout } from '../stores/layout.svelte'
 import Overlays from './overlays/Overlays.svelte'
 import StatusBar from './StatusBar.svelte'
 import Toasts from './Toasts.svelte'
@@ -185,7 +185,6 @@ async function onUserChanged(d: { kind: string; from: string; op?: { list: strin
   if (all || d.kind === 'watchlists') app.watchlists = u.watchlists
   if (all || d.kind === 'screens') app.screens = u.screens
   if (all) {
-    app.layouts = u.layouts
     await loadHoldings()
     await loadInstruments()
   }
@@ -200,10 +199,11 @@ async function boot() {
     app.settings = u.settings
     app.watchlists = u.watchlists
     app.screens = u.screens
-    app.layouts = u.layouts
     app.readOnly = u.readOnly
     if (u.error) app.userError = u.error
-    layout.doc = IS_FREE ? freeDoc(u.layout, SLOT, SHAPE) : normalizeDoc(u.layout)
+    // 1 枚目: マイレイアウトのページが正。表示中のページを entries.free に写す（FR-L14）
+    if (IS_FREE) layout.doc = freeDoc(u.layout, SLOT, SHAPE)
+    else noticeLoaded(useLoadedLayout(u.layout, u.layouts), u.recovered)
     if (IS_FREE) {
       // 窓の名前（タスクバー・Alt+Tab）。初期の形は 1 度だけ: URL から外し、選んだ形を保存する（読み込み直しで前の配置に戻す）
       document.title = `elecxstock — ${t('win.freeTitle', { n: SLOT.replace('free', '') })}`

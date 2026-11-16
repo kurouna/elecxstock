@@ -1,8 +1,17 @@
 // 利用者のデータ（FR-S4, S12）: JSON に版を持ち、一時ファイルに書いてから置き換え、直近 10 世代を残す。
 // 読み込み・検証に失敗したら、そのファイルを退避して知らせ、読み取り専用で起動する（空で上書きしない）。
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+// レイアウトの 2 つのファイルだけは、退避して既定で起動し、書ける状態を保つ（docs/design-mylayouts.md §5.4）。
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { alertSchema, savedLayoutSchema, screenSchema, settingsSchema, USER_FILE_SCHEMAS, watchlistSchema } from '@shared/api'
+import {
+  alertSchema,
+  type RecoveredFile,
+  savedLayoutSchema,
+  screenSchema,
+  settingsSchema,
+  USER_FILE_SCHEMAS,
+  watchlistSchema,
+} from '@shared/api'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { SavedScreen, Watchlist } from '@shared/types'
 import { z } from 'zod'
@@ -66,10 +75,19 @@ const FILES = {
 /** レイアウトは作業に追従して頻繁に保存されるので、世代は 10 分に 1 つだけ残す */
 const LAYOUT_GEN_MS = 10 * 60_000
 type Name = keyof typeof FILES
+/**
+ * 読み損なったら退避して既定（layout は null、layouts は []）で起動するファイル。レイアウトが読めないだけで、
+ * ウォッチリスト・保有・アラートまで保存できなくなるのを避ける。退避に失敗したときは、ほかのファイルと同じく読み取り専用
+ */
+const RECOVERABLE: ReadonlySet<Name> = new Set<Name>(['layout', 'layouts'])
+/** ページの ID・名前・並び。変わった保存は必ず世代を残す（中身だけの変更はレイアウトと同じく間引く） */
+const pagesShape = (v: unknown) => (Array.isArray(v) ? JSON.stringify(v.map((x: { id?: unknown; name?: unknown }) => [x.id, x.name])) : '')
 
 export class UserStore {
   readOnly = false
   error: string | undefined
+  /** 読み損なって退避したレイアウトのファイル（user.load で返す） */
+  readonly recovered: RecoveredFile[] = []
   private cache = new Map<Name, unknown>()
   private lastGen = new Map<Name, number>()
   constructor(readonly dir: string) {
@@ -85,35 +103,90 @@ export class UserStore {
     let value: unknown = f.def()
     if (existsSync(p)) {
       try {
-        const raw = JSON.parse(readFileSync(p, 'utf8')) as { version?: number; data?: unknown }
-        const data = migrate(n, raw.version ?? 0, raw.data ?? raw)
-        const parsed = f.schema.safeParse(n === 'settings' ? { ...DEFAULT_SETTINGS, ...(data as object) } : data)
-        if (!parsed.success) throw new Error(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '))
-        value = parsed.data
-      } catch (e) {
-        // 壊れたファイルは退避し、読み取り専用で起動する（FR-S12）
-        const q = join(this.dir, 'backups', `${n}.broken-${Date.now()}.json`)
-        try {
-          renameSync(p, q)
-        } catch {
-          /* ignore */
+        const raw = JSON.parse(readFileSync(p, 'utf8')) as { version?: unknown; data?: unknown } | null
+        const version = raw && typeof raw === 'object' && typeof raw.version === 'number' ? raw.version : 0
+        if (version > STORE_VERSION) {
+          // 新しい版が書いたファイル: 作り直さず（退避も既定もせず）、読み取り専用で起動する
+          this.readOnly = true
+          this.error = `${n}.json: version ${version} > ${STORE_VERSION}`
+        } else {
+          const data = migrate(n, version, raw && typeof raw === 'object' && 'data' in raw ? raw.data : raw)
+          value = n === 'layouts' && Array.isArray(data) ? this.loadPages(p, data) : parse(f.schema, n, data)
         }
-        this.readOnly = true
-        this.error = `${n}.json: ${(e as Error).message}`
+      } catch (e) {
+        value = this.broken(n, p, e as Error)
       }
     }
     if (n === 'watchlists') value = ensureBuiltins(value as Watchlist[])
     this.cache.set(n, value)
     return value as never
   }
-  save<N extends Name>(n: N, value: z.infer<(typeof FILES)[N]['schema']>): void {
+  /** 壊れたファイルを退避する（rename、だめなら copy）。レイアウトは退避できたら既定で続け、ほかは読み取り専用（FR-S12） */
+  private broken(n: Name, p: string, e: Error): unknown {
+    const name = `${n}.broken-${Date.now()}.json`
+    const q = join(this.dir, 'backups', name)
+    let kept = false
+    try {
+      renameSync(p, q)
+      kept = true
+    } catch {
+      try {
+        copyFileSync(p, q)
+        kept = true
+      } catch {
+        /* 退避できない: 書ける状態で起動すると、次の保存で元を上書きしてしまう */
+      }
+    }
+    this.prune(`${n}.broken-`)
+    if (kept && RECOVERABLE.has(n)) this.recovered.push({ file: n as RecoveredFile['file'], backup: name })
+    else {
+      this.readOnly = true
+      this.error = `${n}.json: ${e.message}`
+    }
+    return FILES[n].def()
+  }
+  /** ページ（layouts.json）は要素ごとに確かめ、通らない要素だけを除く。除いたら元のファイルを間引かれない名前で写しておく */
+  private loadPages(p: string, data: unknown[]): unknown[] {
+    const ok: unknown[] = []
+    for (const x of data) {
+      const r = savedLayoutSchema.safeParse(x)
+      if (r.success) ok.push(r.data)
+    }
+    const dropped = data.length - ok.length
+    if (!dropped) return ok
+    const name = `layouts.dropped-${Date.now()}.json`
+    try {
+      copyFileSync(p, join(this.dir, 'backups', name))
+      this.recovered.push({ file: 'layouts', backup: name, dropped })
+    } catch (e) {
+      this.readOnly = true
+      this.error = `layouts.json: ${(e as Error).message}`
+    }
+    this.prune('layouts.dropped-')
+    return ok
+  }
+  /** 退避ファイルも、種類ごとに直近 10 個まで残す */
+  private prune(prefix: string): void {
+    try {
+      const dir = join(this.dir, 'backups')
+      const old = readdirSync(dir)
+        .filter((f) => f.startsWith(prefix))
+        .sort()
+      for (const f of old.slice(0, Math.max(0, old.length - GENERATIONS))) rmSync(join(dir, f), { force: true })
+    } catch {
+      /* best effort */
+    }
+  }
+  /** opts.generation: 間引かずに必ず世代を残す（取り込み・元に戻す） */
+  save<N extends Name>(n: N, value: z.infer<(typeof FILES)[N]['schema']>, opts: { generation?: boolean } = {}): void {
     if (this.readOnly) throw Object.assign(new Error('read-only'), { code: 'read-only' })
     const parsed = FILES[n].schema.parse(value)
     const p = this.path(n)
     const body = JSON.stringify({ version: STORE_VERSION, data: parsed }, null, 1)
     if (existsSync(p) && readFileSync(p, 'utf8') === body) return
-    // 世代を残す（直近 10）。レイアウトは 10 分に 1 世代
-    const throttled = n === 'layout' && Date.now() - (this.lastGen.get(n) ?? 0) < LAYOUT_GEN_MS
+    // 世代を残す（直近 10）。レイアウトと、ページの中身だけが変わった保存は 10 分に 1 世代
+    const thin = n === 'layout' || (n === 'layouts' && pagesShape(this.cache.get(n)) === pagesShape(parsed))
+    const throttled = !opts.generation && thin && Date.now() - (this.lastGen.get(n) ?? 0) < LAYOUT_GEN_MS
     if (existsSync(p) && !throttled) {
       this.lastGen.set(n, Date.now())
       const b = join(this.dir, 'backups', `${n}.${Date.now()}.json`)
@@ -157,7 +230,7 @@ export class UserStore {
     const v = FILES[n].schema.parse(raw && typeof raw === 'object' && 'data' in raw ? raw.data : raw) as z.infer<
       (typeof FILES)[N]['schema']
     >
-    this.save(n, v)
+    this.save(n, v, { generation: true })
     rmSync(q, { force: true })
     return v
   }
@@ -193,14 +266,24 @@ export class UserStore {
     const ly = o.layouts ? z.array(savedLayoutSchema).parse(o.layouts) : null
     const st = o.settings ? settingsSchema.parse({ ...this.load('settings'), ...(o.settings as object) }) : null
     const al = o.alerts ? z.array(alertSchema).max(500).parse(o.alerts) : null
-    for (const n of ['watchlists', 'screens', 'layouts', 'settings', 'alerts'] as const) this.keepBefore(n, 'preimport')
+    // 取り込む前の記録は、置き換えるファイルだけ残す（取り込まないファイルを「元に戻す」で巻き戻さない。前の取り込みの記録も消す）
+    const replaced = { watchlists: true, screens: true, layouts: !!ly, settings: !!st, alerts: !!al }
+    for (const n of ['watchlists', 'screens', 'layouts', 'settings', 'alerts'] as const)
+      if (replaced[n]) this.keepBefore(n, 'preimport')
+      else rmSync(join(this.dir, 'backups', `${n}.preimport.json`), { force: true })
     this.save('watchlists', ensureBuiltins(wl))
     this.save('screens', sc.length ? sc : defaultScreens())
-    if (ly) this.save('layouts', ly)
+    if (ly) this.save('layouts', ly, { generation: true })
     if (st) this.save('settings', st)
     if (al) this.save('alerts', al)
     return { watchlists: wl.length, screens: sc.length }
   }
+}
+
+function parse(schema: z.ZodType, n: Name, data: unknown): unknown {
+  const parsed = schema.safeParse(n === 'settings' ? { ...DEFAULT_SETTINGS, ...(data as object) } : data)
+  if (!parsed.success) throw new Error(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '))
+  return parsed.data
 }
 
 function ensureBuiltins(list: Watchlist[]): Watchlist[] {

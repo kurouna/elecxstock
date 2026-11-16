@@ -14,7 +14,6 @@ import type {
   JobProgress,
   MetricsRow,
   PortfolioMeta,
-  SavedLayout,
   SavedScreen,
   Settings,
   Watchlist,
@@ -120,8 +119,6 @@ class AppState {
   /** スクリーナーで編集中の条件（グリッドの「スクリーナーの結果」）。null はまだ触っていない */
   liveConds = $state<Condition[] | null>(null)
   liveScreenId = $state<string | null>(null)
-  /** 名前を付けて保存したレイアウト（FR-L4 の P2） */
-  layouts = $state<SavedLayout[]>([])
   /** 保有の記録（FR-H7）。数量・平均取得単価は Core が取引から計算したもの */
   holdings = $state<Holding[]>([])
   /** 最後に取り込んだ証券会社の CSV の情報（FR-H11） */

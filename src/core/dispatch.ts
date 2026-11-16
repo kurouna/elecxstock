@@ -34,6 +34,9 @@ export async function dispatch(
       throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
     // 資産推移の記録を消すのは 1 枚目だけ（FR-PF2）
     if (slot !== 'main' && method === 'folio.clear') throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
+    // 1 枚目のレイアウトとマイレイアウトのページを書くのは 1 枚目だけ（フリー N は開くときに読むだけ。FR-L14）
+    if (slot !== 'main' && (method === 'user.saveLayout' || method === 'user.saveLayouts'))
+      throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
     // フリー N は自分の配置だけを書ける
     if (method === 'user.saveWindowLayout' && (msg.params as { slot?: unknown } | null)?.slot !== slot)
       throw { code: 'invalid-params', message: 'slot' } satisfies CoreError

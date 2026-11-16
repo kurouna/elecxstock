@@ -41,4 +41,13 @@ test.describe('見た目（NFR-Q10, FR-V8）', () => {
     await keys(page, 'F1')
     await expect(page.getByRole('dialog', { name: 'ショートカット' })).toHaveScreenshot('help-light.png', opts)
   })
+
+  test('マイレイアウトのページのメニュー（FR-L14）', async ({ start }) => {
+    const { page } = await start()
+    await page.evaluate(() => document.fonts.ready)
+    await keys(page, 'Control+Shift+l')
+    const menu = page.getByRole('menu', { name: 'マイレイアウトのページ' })
+    await expect(menu).toContainText('今のタブを写してページに足す')
+    await expect(menu).toHaveScreenshot('pages-menu.png', opts)
+  })
 })

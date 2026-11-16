@@ -26,7 +26,19 @@ const G = $derived([
       [ja ? 'サイズを元に戻す / 取り消し' : 'Reset sizes / undo', `${K('resetSizes')} / Ctrl+Z`],
       [ja ? 'リンク色 1〜5 / 解除' : 'Link color 1–5 / none', 'Ctrl+1–5 / Ctrl+0'],
       [ja ? 'レイアウト（プリセット）' : 'Layouts (presets)', 'Ctrl+Shift+1–9'],
-      [ja ? 'レイアウトの一覧（名前を付けて保存）' : 'Saved layouts', K('layouts')],
+      [
+        ja
+          ? 'マイレイアウトのページのメニュー（マイレイアウトで Ctrl+Shift+8 をもう一度でも）'
+          : 'Pages menu (or Ctrl+Shift+8 again on Pages)',
+        K('layouts'),
+      ],
+      [
+        ja
+          ? 'ページのメニューの中: 開く・新しいページ・複製・名前・並べ替え・削除'
+          : 'In the pages menu: open, new, duplicate, rename, reorder, delete',
+        '1–9 / Insert / Shift+Insert / F2 / Alt+↑↓ / Delete×2',
+      ],
+      [ja ? '消したページを元に戻す（10 秒間）' : 'Restore a deleted page (10 s)', 'Ctrl+Z'],
       [ja ? 'お気に入り' : 'Favorite', K('fav')],
       [ja ? 'ウォッチリストに追加' : 'Add to watchlist', K('addTo')],
       [ja ? 'データ更新 / 選んだ銘柄の取り直し' : 'Update / refetch selection', K('update', 'refetch')],

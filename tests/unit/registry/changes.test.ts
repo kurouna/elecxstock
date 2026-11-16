@@ -14,7 +14,7 @@ const WRITES = Object.keys(PARAMS).filter((m) =>
 /** 書くが、ほかの窓に知らせないメソッドと理由 */
 const NO_NOTICE: Record<string, string> = {
   'user.saveLayout': 'レイアウトは窓ごと（1 枚目だけが持つ）',
-  'user.saveLayouts': '名前を付けたレイアウトは 1 枚目だけが使う',
+  'user.saveLayouts': 'マイレイアウトのページは 1 枚目だけが書く（フリー N は開くときに読むだけ）',
   'user.saveWindowLayout': 'フリー N は自分の配置だけを書く',
   'alerts.markRead': '既読は 1 枚目のベルだけが使う',
 }

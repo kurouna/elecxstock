@@ -23,7 +23,8 @@ function backdrop(e: MouseEvent) {
     <Jump first={app.overlay.first} />
   {:else}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="scrim" onmousedown={backdrop}>
+    <!-- マイレイアウトのメニューはタブの下に出すので、画面を暗くしない -->
+    <div class="scrim" class:menu={app.overlay.kind === 'layouts'} onmousedown={backdrop}>
       {#if app.overlay.kind === 'palette'}
         <Palette q={app.overlay.q ?? ''} title={app.overlay.title} />
       {:else if app.overlay.kind === 'help'}
@@ -68,6 +69,10 @@ function backdrop(e: MouseEvent) {
     justify-content: center;
     align-items: flex-start;
     padding-top: 72px;
+  }
+  .scrim.menu {
+    background: transparent;
+    -webkit-app-region: no-drag;
   }
   :global(.dialog) {
     background: var(--panel-2);

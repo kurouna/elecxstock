@@ -26,32 +26,38 @@ import {
 } from '../stores/app.svelte'
 import {
   allPanes,
+  canUndoRemovePage,
   canUndoReset,
   changeWidget,
   closePane,
   type DockSide,
   dockOf,
   findPane,
+  flushLayoutSave,
   inDock,
   layout,
   MAIN_LINK,
   moveFromDock,
   moveToDock,
   moveToEdge,
+  noticeLoaded,
   nudgeDivider,
   type PaneNode,
   PRESET_IDS,
   type PresetId,
   paneSymbol,
   patchState,
+  reloadPages,
   resetAllLayouts,
   resetLayout,
   resetSizes,
+  resumeLayoutSave,
   saveLayout,
   setLinkSymbol,
   setPaneSymbol,
   setPreset,
   splitPane,
+  suspendLayoutSave,
   swapPane,
   undoResetSizes,
   WIDGETS,
@@ -62,10 +68,11 @@ import { toCsv } from './columns'
 import { dateTime } from './format'
 import type { Key } from './i18n'
 import { matches, normalizeKey } from './keys'
+import { currentPageName, openPageMenu, undoRemove } from './pages'
 import { paneApi } from './panes'
 import { exportHoldings, importBrokerCsv, importHoldings, undoHoldingsImport } from './portfolio'
 import { condsOf, confirmCloseScreen } from './screens'
-import { blockedInFree, FREE_WIDGETS, freeNo, IS_FREE } from './windowSlot'
+import { blockedInFree, FREE_WIDGETS, freeNo, IS_FREE, SLOT } from './windowSlot'
 
 export interface Action {
   id: string
@@ -225,8 +232,13 @@ export function doResetSizes(): void {
   toast(t('layout.sizesReset'), { label: `${t('layout.undo')} (Ctrl+Z)`, run: () => undoResetSizes() && toast(t('layout.undone')) }, 10_000)
 }
 export async function doResetLayout(): Promise<void> {
-  // 戻すのは表示中のタブだけ。どのタブかを名前で示す
-  const tab = t(`preset.${layout.doc.active}` as Key)
+  // 戻すのは表示中のタブだけ。どのタブかを名前で示す（マイレイアウトはページの名前も。フリー N は窓の名前）
+  const a = layout.doc.active
+  const tab = IS_FREE
+    ? t('win.freeTitle', { n: freeNo(SLOT) })
+    : a === 'free'
+      ? t('layout.pageTab', { tab: t('preset.free'), page: currentPageName() })
+      : t(`preset.${a}` as Key)
   const r = await confirmDialog({
     title: t('layout.resetTitle', { tab }),
     body: t('layout.resetBody'),
@@ -316,6 +328,7 @@ export async function addToListDialog(ids: InstrumentId[]): Promise<void> {
 
 const today = () => jstNow().date // 日本時間の日付（FR-T1）
 export async function exportUser(): Promise<void> {
+  await flushLayoutSave() // 400ms 以内のページの変更も書き出しに入れる
   const json = await rpc('user.exportAll', {})
   if (await window.elecxstock.saveText(`elecxstock-userdata-${today()}.json`, json)) toast(t('set.exported'))
 }
@@ -335,7 +348,7 @@ export async function importUser(): Promise<void> {
     items: [
       t('import.userLists', { from: app.watchlists.length, to: o.watchlists?.length ?? 0 }),
       t('import.userScreens', { from: app.screens.length, to: o.screens?.length ?? 0 }),
-      ...(o.layouts ? [t('import.userLayouts', { from: app.layouts.length, to: o.layouts.length })] : []),
+      ...(o.layouts ? [t('import.userLayouts', { from: layout.pages.length, to: o.layouts.length })] : []),
       ...(o.alerts ? [t('import.userAlerts', { from: app.alerts.length, to: o.alerts.length })] : []),
       ...(o.settings ? [t('import.userSettings')] : []),
     ],
@@ -343,7 +356,12 @@ export async function importUser(): Promise<void> {
     ok: t('import.userDo'),
   })
   if (!ok.ok) return
-  const r = await rpc('user.importAll', { json: text })
+  // 取り込む前に保存を確定させ、読み直すまで止める（待つ間の自動保存が、取り込んだページを古いページで書き戻さないように。FR-L14）
+  await suspendLayoutSave()
+  const r = await rpc('user.importAll', { json: text }).catch((e: unknown) => {
+    resumeLayoutSave()
+    throw e
+  })
   await reloadUser()
   toast(t('set.imported', { w: r.watchlists, s: r.screens }), { label: t('hold.undo'), run: () => void undoUserImport() }, 10_000)
 }
@@ -352,14 +370,21 @@ async function reloadUser(): Promise<void> {
   app.watchlists = u.watchlists
   app.screens = u.screens
   app.settings = u.settings
-  app.layouts = u.layouts
+  // ページと表示中のページを読み直す（タブの配置は今のまま。保存を戻す）
+  noticeLoaded(reloadPages(u.layouts))
   applySettingsToDom()
   app.alertsRev++ // アラートの一覧・チャートの点線（自分の窓の user.changed は届かない）
   app.alertsUnread = await rpc('alerts.unread', {}).catch(() => app.alertsUnread)
   await loadInstruments() // 取り込んだウォッチリストの銘柄が取得の対象になる
 }
 async function undoUserImport(): Promise<void> {
-  if (!(await rpc('user.undoImport', {}))) {
+  await suspendLayoutSave()
+  const done = await rpc('user.undoImport', {}).catch((e: unknown) => {
+    resumeLayoutSave()
+    throw e
+  })
+  if (!done) {
+    resumeLayoutSave()
     toast(t('hold.nothingToUndo'))
     return
   }
@@ -506,16 +531,15 @@ export const ACTIONS: Action[] = [
     label: () => t('act.layout', { name: presetName(p) }),
     key: `Ctrl+Shift+${i + 1}`,
     when: 'global' as const,
-    run: () => setPreset(p),
+    // マイレイアウトのタブにいるときにもう一度押すと、ページのメニューを開く（FR-L14）
+    run: () => (p === 'free' && layout.doc.active === 'free' && !IS_FREE ? openPageMenu() : setPreset(p)),
   })),
   {
     id: 'layouts',
     label: () => t('act.layouts'),
     key: 'Ctrl+Shift+L',
     when: 'global',
-    run: () => {
-      app.overlay = { kind: 'layouts' }
-    },
+    run: () => openPageMenu(),
   },
   { id: 'max', label: () => t('act.max'), key: 'Ctrl+Shift+Enter', when: 'global', run: () => toggleMax() },
   { id: 'fav', label: () => t('act.fav'), key: 'Ctrl+D', when: 'global', run: () => toggleFav(focusedSymbol()) },
@@ -837,6 +861,11 @@ export function handleKey(e: KeyboardEvent): boolean {
       closeOverlay()
       return true
     }
+    // マイレイアウトのメニューを開いたまま、開くキー（Ctrl+Shift+L・Ctrl+Shift+8）を押すと閉じる
+    if (app.overlay.kind === 'layouts' && (matches(e, keyOf('layouts')) || matches(e, keyOf('layout.free')))) {
+      closeOverlay()
+      return true
+    }
     if (matches(e, keyOf('help')) && app.overlay.kind === 'help') {
       closeOverlay()
       return true
@@ -892,6 +921,11 @@ export function handleKey(e: KeyboardEvent): boolean {
   // 直前に消したアラートを戻す（10 秒以内。§6.5）
   if (ctrl && !e.shiftKey && !e.altKey && c === 'KeyZ' && canUndoRemoveAlert()) {
     void undoRemoveAlert()
+    return true
+  }
+  // 直前に消したマイレイアウトのページを戻す（10 秒以内。サイズを戻すの取り消しと同じ枠）
+  if (ctrl && !e.shiftKey && !e.altKey && c === 'KeyZ' && canUndoRemovePage()) {
+    undoRemove()
     return true
   }
   if (ctrl && !e.shiftKey && !e.altKey && c === 'KeyZ' && canUndoReset()) {

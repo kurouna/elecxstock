@@ -92,7 +92,11 @@ export async function launch(opts: LaunchOpts = {}): Promise<Launched> {
   if (Object.keys(patch).length) writeUser(userData, 'settings', { ...readUser<object>(userData, 'settings'), ...patch })
   if (opts.layout || opts.freeWindows) {
     const doc = readUser<LayoutDoc & { windows?: Record<string, unknown> }>(userData, 'layout')
+    const free = JSON.stringify(doc.entries.free)
     opts.layout?.(doc)
+    // フリーのタブの正はマイレイアウトのページ（layouts.json。FR-L14）。フリーのタブを変えたら、ページを空にして、
+    // 起動時に entries.free から 1 枚目のページを作らせる（開けるページが 0 枚のときの決まり）
+    if (JSON.stringify(doc.entries.free) !== free) writeUser(userData, 'layouts', [])
     if (opts.freeWindows) {
       doc.windows = { ...doc.windows, ...Object.fromEntries(Object.entries(opts.freeWindows).map(([k, root]) => [k, { root, docks: {} }])) }
       const wf = join(userData, 'window.json')

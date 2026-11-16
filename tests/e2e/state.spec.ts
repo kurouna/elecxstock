@@ -244,7 +244,7 @@ test.describe('状態の変化への追従: ★・ウォッチリスト・スク
     await typeJump(page, '8058')
     await keys(page, 'Control+Enter')
     await expect(page.locator('.dialog.jump')).toHaveCount(0)
-    await expect(page.locator('.presets [aria-current="true"]')).toContainText('フリー') // このタブのチャートに出す
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('マイレイアウト') // このタブのチャートに出す
     await each(2)
     await focusPane(page, wl)
     await selectRow(page, wl, '7203')

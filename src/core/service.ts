@@ -450,6 +450,7 @@ export class CoreService {
           layouts: this.user.load('layouts'),
           readOnly: this.user.readOnly,
           ...(this.user.error ? { error: this.user.error } : {}),
+          ...(this.user.recovered.length ? { recovered: [...this.user.recovered] } : {}),
         } as Results[M]
       case 'user.saveSettings': {
         const prev = this.user.load('settings')

@@ -328,13 +328,16 @@ export interface HoldingsImportPreview {
   history?: FolioPoint[]
 }
 
-/** 名前を付けて保存したレイアウト（FR-L4 の P2） */
+/** マイレイアウトのページ（FR-L14。前の版の「名前を付けて保存したレイアウト」と同じファイル・同じ形） */
 export interface SavedLayout {
   id: string
   name: LocalizedName
-  /** LayoutEntry（renderer の stores/layout.svelte.ts）とリンクの銘柄 */
+  /** LayoutEntry（renderer の stores/layout.svelte.ts） */
   entry: unknown
+  /** 使わない（前の版は必須なので {} を書き続ける） */
   links: Record<string, InstrumentId>
+  /** 作ったときの形（`preset:<タブ>`・`free:<形>`。無ければ前の版のもの） */
+  shape?: string
   created: number
   updated: number
 }

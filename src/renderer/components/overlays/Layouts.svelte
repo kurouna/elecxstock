@@ -1,130 +1,192 @@
 <script lang="ts">
-// 名前を付けたレイアウト（Ctrl+Shift+L。FR-L4 の P2）: 今のレイアウトを保存（Insert）・開く（Enter）・名前の変更（F2）・
-// 上書き（Ctrl+S）・削除（Delete を 2 回）・並べ替え（Alt+↑↓）。開くと今のプリセットの「今のレイアウト」に読み込む。
+// マイレイアウトのページのメニュー（FR-L14。docs/design-mylayouts.md §3.2）。タブの ▾・Ctrl+Shift+L・このタブで Ctrl+Shift+8 で開き、
+// タブの下に出す。↑↓ Enter・1〜9 で開く・Alt+↑↓ 並べ替え・Insert 新しいページ・Shift+Insert 複製・F2 名前・Delete 2 回で削除・
+// Ctrl+Z 削除を元に戻す・Esc で閉じる。ページを選ぶまで表示中のタブは変えない
 import type { SavedLayout } from '@shared/types'
 import { onMount } from 'svelte'
-import { app, promptDialog, rpc, t, toast } from '../../stores/app.svelte'
-import { applyEntry, type LayoutEntry, layout, normalizeEntry, snapshotEntry } from '../../stores/layout.svelte'
+import { copyTab, duplicate, type MenuRow, menuRows, nameOfPage, newPage, remove, rename, undoRemove } from '../../lib/pages'
+import { app, t } from '../../stores/app.svelte'
+import { layout, movePage, openablePages, setPage } from '../../stores/layout.svelte'
 
-let sel = $state(0)
+const rows = $derived(menuRows(openablePages(), layout.doc.active))
+let sel = $state(
+  Math.max(
+    0,
+    openablePages().findIndex((p) => p.id === layout.doc.page),
+  ),
+)
 let pendingDel = $state<string | null>(null)
 let box = $state<HTMLDivElement>()
-const name = (l: SavedLayout) => (app.settings.lang === 'en' ? l.name.en || l.name.ja : l.name.ja)
-const persist = () => void rpc('user.saveLayouts', { layouts: $state.snapshot(app.layouts) }).catch(() => {})
-const reopen = () => (app.overlay = { kind: 'layouts' })
+let pos = $state<{ left: number; top: number } | null>(null)
+$effect(() => {
+  if (sel >= rows.length) sel = rows.length - 1
+})
+/** 複製・名前・削除の相手: 選んでいる行がページならそのページ、操作の行なら表示中のページ */
+const target = $derived.by((): SavedLayout | undefined => {
+  const r = rows[sel]
+  return r?.kind === 'page' ? r.page : openablePages().find((p) => p.id === layout.doc.page)
+})
 
-async function saveNew() {
-  const n = await promptDialog(t('lay.saveTitle'), '')
-  reopen()
-  if (!n) return
-  const now = Date.now()
-  app.layouts = [
-    ...app.layouts,
-    {
-      id: `l${now.toString(36)}`,
-      name: { ja: n, en: n },
-      entry: snapshotEntry(),
-      links: { ...$state.snapshot(layout.doc.links) },
-      created: now,
-      updated: now,
-    },
-  ]
-  sel = app.layouts.length - 1
-  persist()
-  toast(t('lay.saved', { name: n }))
-}
-function overwrite(l: SavedLayout) {
-  l.entry = snapshotEntry()
-  l.links = { ...$state.snapshot(layout.doc.links) }
-  l.updated = Date.now()
-  persist()
-  toast(t('lay.saved', { name: name(l) }))
-}
-function open(l: SavedLayout) {
-  const e = normalizeEntry(l.entry)
-  if (!e) return toast(t('lay.broken'))
+function open(p: SavedLayout) {
   app.overlay = null
-  applyEntry(e as LayoutEntry, l.links)
-  toast(t('lay.opened', { name: name(l) }))
+  setPage(p.id)
 }
-async function key(e: KeyboardEvent) {
+function del(p: SavedLayout | undefined) {
+  if (!p) return
+  if (pendingDel !== p.id) pendingDel = p.id
+  else {
+    pendingDel = null
+    remove(p.id)
+  }
+}
+function runRow(r: MenuRow | undefined) {
+  if (!r) return
+  if (r.kind === 'page') open(r.page)
+  else if (r.kind === 'new') void newPage()
+  else if (r.kind === 'duplicate') void duplicate(target?.id)
+  else if (r.kind === 'rename') void rename(target?.id)
+  else if (r.kind === 'copyTab') void copyTab()
+  else del(target)
+}
+function key(e: KeyboardEvent) {
   if (e.isComposing) return
-  const ls = app.layouts
-  const x = ls[sel]
-  if (e.key !== 'Delete') pendingDel = null
-  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey && x) {
-    const j = sel + (e.key === 'ArrowUp' ? -1 : 1)
-    if (j >= 0 && j < ls.length) {
-      const n = [...ls]
-      ;[n[sel], n[j]] = [n[j]!, n[sel]!]
-      app.layouts = n
-      sel = j
-      persist()
-    }
-  } else if (e.key === 'ArrowDown') sel = Math.min(ls.length - 1, sel + 1)
+  const r = rows[sel]
+  const ctrl = e.ctrlKey || e.metaKey
+  if (e.key !== 'Delete' && !(e.key === 'Enter' && r?.kind === 'delete')) pendingDel = null
+  const digit = /^Digit([1-9])$/.exec(e.code)
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey) {
+    const d = e.key === 'ArrowUp' ? -1 : 1
+    if (r?.kind === 'page' && movePage(r.page.id, d)) sel += d
+  } else if (e.key === 'ArrowDown') sel = Math.min(rows.length - 1, sel + 1)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
-  else if (e.key === 'Enter' && x) open(x)
-  else if (e.key === 'Insert' || (e.ctrlKey && e.shiftKey && e.code === 'KeyS')) void saveNew()
-  else if (e.ctrlKey && !e.shiftKey && e.code === 'KeyS' && x) overwrite(x)
-  else if (e.key === 'F2' && x) {
-    const n = await promptDialog(t('lay.renameTitle'), name(x))
-    reopen()
-    if (n) {
-      x.name = { ja: n, en: n }
-      persist()
-    }
-  } else if (e.key === 'Delete' && x) {
-    if (pendingDel !== x.id) pendingDel = x.id
-    else {
-      app.layouts = ls.filter((l) => l.id !== x.id)
-      sel = Math.max(0, Math.min(sel, app.layouts.length - 1))
-      persist()
-      pendingDel = null
-    }
-  } else return
+  else if (e.key === 'Home') sel = 0
+  else if (e.key === 'End') sel = rows.length - 1
+  else if (e.key === 'Enter') runRow(r)
+  else if (digit && !ctrl && !e.altKey && !e.shiftKey) {
+    const p = openablePages()[Number(digit[1]) - 1]
+    if (p) open(p)
+  } else if (e.key === 'Insert' && e.shiftKey) void duplicate(target?.id)
+  else if (e.key === 'Insert') void newPage()
+  else if (e.key === 'F2') void rename(target?.id)
+  else if (e.key === 'Delete') del(target)
+  else if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyZ') undoRemove()
+  else return
   e.preventDefault()
+  e.stopPropagation()
 }
-onMount(() => box?.focus())
+onMount(() => {
+  // タブの ▾ の下に出す（無ければフリーのタブ、それも無ければ上の真ん中）
+  const a = document.querySelector('[data-page-menu]') ?? document.querySelector('[data-preset="free"]')
+  const r = a?.getBoundingClientRect()
+  const w = box?.offsetWidth ?? 320
+  if (r?.width) pos = { left: Math.max(4, Math.min(r.right - w, window.innerWidth - w - 4)), top: r.bottom + 2 }
+  box?.focus()
+})
+const label: Record<Exclude<MenuRow['kind'], 'page'>, () => string> = {
+  new: () => `＋ ${t('lay.new')}`,
+  duplicate: () => `⧉ ${t('lay.duplicate')}`,
+  rename: () => `✎ ${t('lay.rename')}`,
+  copyTab: () => `↓ ${t('lay.saveCurrent')}`,
+  delete: () => `🗑 ${t('lay.delete')}`,
+}
+const hint: Record<Exclude<MenuRow['kind'], 'page'>, string> = {
+  new: 'Insert',
+  duplicate: 'Shift+Insert',
+  rename: 'F2',
+  copyTab: '',
+  delete: 'Delete ×2',
+}
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-<div class="dialog palette" role="dialog" aria-label={t('lay.title')} tabindex="0" bind:this={box} onkeydown={key}>
-  <div class="head"><h3>{t('lay.title')}</h3><button type="button" class="chip" onclick={saveNew}>＋ {t('lay.saveCurrent')} <kbd>Insert</kbd></button></div>
-  <div class="list res">
-    {#if !app.layouts.length}<div class="empty muted">{t('lay.empty')}</div>{/if}
-    {#each app.layouts as l, i (l.id)}
-      <button type="button" class="it" class:sel={i === sel} onclick={() => open(l)} onmousemove={() => (sel = i)}>
-        <span class="n">{name(l)}{#if pendingDel === l.id}<span class="tag warn">{t('scr.deleteAgain')}</span>{/if}</span>
-        <span class="s">{new Date(l.updated).toLocaleString(app.settings.lang === 'ja' ? 'ja-JP' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })}</span>
+<div
+  class="dialog pmenu"
+  class:anchored={!!pos}
+  style:left={pos ? `${pos.left}px` : null}
+  style:top={pos ? `${pos.top}px` : null}
+  role="menu"
+  aria-label={t('lay.title')}
+  tabindex="0"
+  bind:this={box}
+  onkeydown={key}
+>
+  {#each rows as r, i (r.kind === 'page' ? r.page.id : r.kind)}
+    {#if r.kind !== 'page' && rows[i - 1]?.kind === 'page'}<div class="sep" role="separator"></div>{/if}
+    {#if r.kind === 'page'}
+      <button
+        type="button"
+        role="menuitemradio"
+        class="it"
+        class:sel={i === sel}
+        aria-checked={r.page.id === layout.doc.page}
+        onclick={() => open(r.page)}
+        onmousemove={() => (sel = i)}
+      >
+        <span class="ck" aria-hidden="true">{r.page.id === layout.doc.page ? '✓' : ''}</span>
+        <span class="n">{nameOfPage(r.page)}</span>
+        {#if pendingDel === r.page.id}<span class="tag warn">{t('scr.deleteAgain')}</span>{/if}
+        <span class="s num">{r.n ?? ''}</span>
       </button>
-    {/each}
-  </div>
-  <div class="foot">
-    <span>Enter {t('lay.open')}</span><span>Insert {t('lay.saveCurrent')}</span><span>Ctrl+S {t('lay.overwrite')}</span><span>F2</span><span>Alt+↑↓</span><span>Delete</span>
-  </div>
+    {:else}
+      <button type="button" role="menuitem" class="it act" class:sel={i === sel} onclick={() => runRow(r)} onmousemove={() => (sel = i)}>
+        <span class="n">{label[r.kind]()}</span>
+        {#if r.kind === 'delete' && pendingDel && target?.id === pendingDel}<span class="tag warn">{t('scr.deleteAgain')}</span>{/if}
+        <span class="s">{hint[r.kind]}</span>
+      </button>
+    {/if}
+  {/each}
 </div>
 
 <style>
-  .palette {
-    width: 560px;
-    overflow: hidden;
-    outline: none;
-  }
-  .head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--s-3) var(--s-3) var(--s-2);
-  }
-  .head h3 {
-    margin: 0;
-  }
-  .res {
-    max-height: 420px;
-    overflow: auto;
+  .pmenu {
+    width: 320px;
     padding: 4px 0;
+    outline: none;
+    max-height: calc(100vh - 80px);
+    overflow: auto;
   }
-  .empty {
-    padding: var(--s-3);
+  .pmenu.anchored {
+    position: fixed;
+  }
+  .it {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    width: 100%;
+    padding: 4px var(--s-3);
+    background: none;
+    border: 0;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+  }
+  .it:hover {
+    background: var(--hover);
+  }
+  .it.sel {
+    background: var(--select-strong);
+    box-shadow: inset 2px 0 0 var(--focus);
+  }
+  .it .ck {
+    width: 1em;
+    color: var(--focus);
+  }
+  .it .n {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .it .s {
+    color: var(--text-3);
+    font-size: var(--fs-1);
+  }
+  .it.act .n {
+    color: var(--text-2);
+  }
+  .sep {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--line);
   }
 </style>

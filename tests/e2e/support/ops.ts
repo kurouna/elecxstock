@@ -11,13 +11,15 @@ export const TABS = {
   triple: { n: 5, ja: 'トリプル', en: 'Triple' },
   income: { n: 6, ja: 'インカム', en: 'Income' },
   holdings: { n: 7, ja: '保有', en: 'Holdings' },
-  free: { n: 8, ja: 'フリー', en: 'Free' },
+  free: { n: 8, ja: 'マイレイアウト', en: 'Pages' },
   folio: { n: 9, ja: 'ポートフォリオ', en: 'Portfolio' },
 } as const
 export type Tab = keyof typeof TABS
 
 export async function tab(page: Page, t: Tab, lang: 'ja' | 'en' = 'ja'): Promise<void> {
-  await keys(page, `Control+Shift+Digit${TABS[t].n}`)
+  // マイレイアウトにいるときにもう一度押すとページのメニューが開く（FR-L14）ので、すでにそのタブなら押さない
+  const cur = await page.locator('.presets [aria-current="true"]').getAttribute('data-preset')
+  if (cur !== t || t !== 'free') await keys(page, `Control+Shift+Digit${TABS[t].n}`)
   await expect(page.locator('.presets [aria-current="true"]')).toContainText(TABS[t][lang])
 }
 

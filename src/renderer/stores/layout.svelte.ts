@@ -1,8 +1,9 @@
 // レイアウト（§6.1, FR-L1〜L10, FR-DR1〜DR5）。木構造の変更はすべてこのモジュールの関数で行う（FR-L6）。
 // 今のレイアウトは作業に追従して自動保存する（FR-L4）。プリセットの初期値は残し、FR-L9 / L10 で戻せる。
-import type { InstrumentId } from '@shared/types'
+import type { RecoveredFile } from '@shared/api'
+import type { InstrumentId, SavedLayout } from '@shared/types'
 import { FREE_WIDGETS, IS_FREE, SHAPE, SLOT } from '../lib/windowSlot'
-import { app, rpc } from './app.svelte'
+import { app, bridge, rpc, t, toast } from './app.svelte'
 
 export type WidgetId =
   | 'watchlist'
@@ -69,8 +70,11 @@ export const PRESET_IDS: PresetId[] = ['market', 'screener', 'grid', 'mtf', 'tri
 export interface LayoutDoc {
   version: 1
   active: PresetId
+  /** `free` は表示中のマイレイアウトのページの作業用の写し（正は layouts.json のページ。FR-L14） */
   entries: Record<PresetId, LayoutEntry>
   links: Record<string, InstrumentId>
+  /** 表示中のマイレイアウトのページの ID（1 枚目だけ） */
+  page?: string
 }
 
 let uid = 0
@@ -223,12 +227,31 @@ const fixDock = (fixNode: (n: unknown) => LNode | null, d: Dock | undefined): Do
   }
 }
 
-/** ディスクから読んだ木を正規化する（形を確かめ、ID を一意にする。FR-L6） */
-export function normalizeDoc(raw: unknown): LayoutDoc {
+/**
+ * ディスクから読んだ木を正規化する（形を確かめ、ID を一意にする。FR-L6）。`seen` を渡すと、すでに使った ID を避ける
+ * （マイレイアウトのページとタブをまたいでペインの ID を一意にする。docs/design-mylayouts.md §5.3）
+ */
+export function normalizeDoc(raw: unknown, seen = new Set<string>()): LayoutDoc {
   const d = defaultDoc()
   if (!raw || typeof raw !== 'object') return d
   const o = raw as Partial<LayoutDoc>
-  const seen = new Set<string>()
+  const fix = entryFixer(seen)
+  for (const p of PRESET_IDS) {
+    const e = fix(o.entries?.[p])
+    if (e) d.entries[p] = e
+  }
+  if (o.active && PRESET_IDS.includes(o.active)) d.active = o.active
+  if (o.links && typeof o.links === 'object') d.links = { ...d.links, ...o.links }
+  if (typeof o.page === 'string' && o.page.length <= 40) d.page = o.page
+  return d
+}
+
+/** 1 つのエントリ（マイレイアウトのページ・フリー N の配置）を正規化する。開けない（本体にペインが 1 枚も残らない）ときは null */
+export function normalizeEntry(raw: unknown, seen = new Set<string>()): LayoutEntry | null {
+  return entryFixer(seen)(raw)
+}
+
+function entryFixer(seen: Set<string>): (raw: unknown) => LayoutEntry | null {
   const fixNode = (n: unknown): LNode | null => {
     if (!n || typeof n !== 'object') return null
     const x = n as LNode
@@ -257,32 +280,29 @@ export function normalizeDoc(raw: unknown): LayoutDoc {
     }
     return null
   }
-  for (const p of PRESET_IDS) {
-    const e = o.entries?.[p]
-    const root = e ? fixNode(e.root) : null
-    if (!root) continue
+  return (raw) => {
+    if (!raw || typeof raw !== 'object') return null
+    const e = raw as Partial<LayoutEntry>
+    const root = fixNode(e.root)
+    if (!root) return null
     const docks: LayoutEntry['docks'] = {}
-    const left = fixDock(fixNode, e?.docks?.left)
-    const right = fixDock(fixNode, e?.docks?.right)
+    const left = fixDock(fixNode, e.docks?.left)
+    const right = fixDock(fixNode, e.docks?.right)
     if (left) docks.left = left
     if (right) docks.right = right
-    d.entries[p] = { root, docks }
+    return { root, docks }
   }
-  if (o.active && PRESET_IDS.includes(o.active)) d.active = o.active
-  if (o.links && typeof o.links === 'object') d.links = { ...d.links, ...o.links }
-  return d
-}
-
-/** 1 つのエントリ（保存したレイアウトなど）を正規化する */
-export function normalizeEntry(raw: unknown): LayoutEntry | null {
-  const doc = normalizeDoc({ version: 1, active: 'mtf', entries: { mtf: raw }, links: {} })
-  return raw && (raw as LayoutEntry).root ? doc.entries.mtf : null
 }
 
 class LayoutState {
   doc = $state<LayoutDoc>(defaultDoc())
   /** 開いているドロワー（ピン留めしたものは別に開いたまま） */
   dockOpen = $state<DockSide | null>(null)
+  /**
+   * マイレイアウトのページ（FR-L14。1 枚目だけ）。並びは layouts.json のまま。開けないページ（前の版にないペインだけのもの）も
+   * 中身のまま持ち、保存で書き戻す（一覧には出さない）。表示中のページの中身は `doc.entries.free` が新しい
+   */
+  pages = $state<SavedLayout[]>([])
   get entry(): LayoutEntry {
     return this.doc.entries[this.doc.active]
   }
@@ -290,16 +310,36 @@ class LayoutState {
 export const layout = new LayoutState()
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+/** 取り込みの間は保存を止める（読み直すまで、古いページで書き戻さない。§5.6） */
+let saveSuspended = false
 export function saveLayout(): void {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(flushLayout, 400)
 }
-function flushLayout(): Promise<unknown> {
+/** 2MB を超えたこと・保存に失敗したことは 1 回だけ知らせる */
+const warned = { size: false, failed: false }
+async function flushLayout(): Promise<unknown> {
   saveTimer = null
   // フリー N は自分の配置だけを保存する（1 枚目のレイアウトに触らない。マルチモニタ）
   if (IS_FREE)
     return rpc('user.saveWindowLayout', { slot: SLOT as 'free2', entry: $state.snapshot(layout.doc.entries.free) }).catch(() => {})
-  return rpc('user.saveLayout', { layout: $state.snapshot(layout.doc) }).catch(() => {})
+  if (saveSuspended) return
+  // ページを先に書く（2 つの書き込みの間で落ちても、正の layouts.json のほうが新しい）。同じ中身なら Core は書かない
+  commitPage()
+  const pages = $state.snapshot(layout.pages) as SavedLayout[]
+  // 自動保存は大きさで断らない（断ると layout.json とずれる）。超えたことだけ知らせる
+  if (!warned.size && pagesBytes(pages) > PAGES_MAX_BYTES) {
+    warned.size = true
+    toast(t('lay.tooBig'), undefined, 6000, 'error')
+  }
+  // rpc は失敗のたびにトーストを出すので、自動保存は bridge で呼び、失敗は 1 回だけ知らせる
+  try {
+    await bridge.call('user.saveLayouts', { layouts: pages })
+    await bridge.call('user.saveLayout', { layout: $state.snapshot(layout.doc) })
+  } catch {
+    if (!warned.failed) toast(t('lay.saveFailed'), undefined, 5000, 'error')
+    warned.failed = true
+  }
 }
 
 // ---------------------------------------------------------------- フリー N（マルチモニタ、docs/design-multimonitor.md）
@@ -353,6 +393,283 @@ export function flushLayoutSave(): Promise<unknown> {
   if (!saveTimer) return Promise.resolve()
   clearTimeout(saveTimer)
   return flushLayout()
+}
+/** 取り込み・取り込みの取り消しの前に: 遅らせている保存を確定させ、読み直す（useLoadedLayout）まで保存を止める（§5.6） */
+export async function suspendLayoutSave(): Promise<void> {
+  await flushLayoutSave()
+  saveSuspended = true
+}
+/** 取り込みに失敗したとき（読み直さない）に保存を戻す */
+export function resumeLayoutSave(): void {
+  saveSuspended = false
+}
+
+// ---------------------------------------------------------------- マイレイアウトのページ（FR-L14、docs/design-mylayouts.md）
+/** ページの数の上限。足す操作だけに効かせる（取り込みで超えたときは全部を持つ） */
+export const PAGES_MAX = 30
+/** ページの合計の大きさの上限。足す・複製・写すときだけ調べる（自動保存は断らない） */
+export const PAGES_MAX_BYTES = 2_000_000
+export const pagesBytes = (pages: unknown): number => JSON.stringify(pages).length
+let pageSeq = 0
+/** 'p' + 時刻 + カウンタ（同じミリ秒に何件作っても重ならない） */
+export const newPageId = (): string => `p${Date.now().toString(36)}${(++pageSeq).toString(36)}`
+/** 開けるページか（スキーマには通るが、知らないペインだけのページ＝新しい版で作ったページなどは開けない） */
+export const pageOpenable = (p: SavedLayout): boolean => normalizeEntry(p.entry) != null
+export const pageName = (p: SavedLayout, lang: string): string => (lang === 'en' ? p.name.en || p.name.ja : p.name.ja)
+/** 0 枚のときに作るページ（§5.4 の 2）。ID を固定するので、書けずに起動し直しても同じページになる */
+export const FIRST_PAGE = { id: 'free', name: { ja: 'フリー', en: 'Free' } } as const
+
+/** 写す（複製・今のタブを写す・フリー N で開く）。ペインと区切りの ID を振り直し、ドロワーへ移す前の位置（_home.sib）も直す */
+export function cloneEntry(e: LayoutEntry): LayoutEntry {
+  const c = JSON.parse(JSON.stringify(e)) as LayoutEntry
+  const ids = new Map<string, string>()
+  const walk = (n: LNode) => {
+    const id = nid()
+    ids.set(n.id, id)
+    n.id = id
+    if (n.kind === 'split') n.children.forEach(walk)
+  }
+  walk(c.root)
+  for (const d of [c.docks.left, c.docks.right]) for (const p of d?.panes ?? []) walk(p)
+  for (const p of allPanes(c)) {
+    const { _home, ...rest } = p.state as { _home?: Home }
+    if (!_home) continue
+    const sib = ids.get(_home.sib)
+    p.state = sib ? { ...rest, _home: { ..._home, sib } } : rest
+  }
+  return c
+}
+
+/** ページの初期の形（§3.4）。初期状態に戻す（FR-L10）ときの戻す先。形が無い・知らない形はフリーのプリセット */
+export function shapeEntry(shape: string | undefined): LayoutEntry {
+  const m = /^(preset|free):(\w+)$/.exec(shape ?? '')
+  if (m?.[1] === 'free' && ['empty', 'quad', 'grid', 'detail'].includes(m[2]!)) return freeShape(m[2]!)
+  if (m?.[1] === 'preset' && (PRESET_IDS as string[]).includes(m[2]!)) return presetEntry(m[2] as PresetId)
+  return presetEntry('free')
+}
+
+export interface ResolvedPages {
+  doc: LayoutDoc
+  pages: SavedLayout[]
+  /** 開けないので隠したページの数 */
+  hidden: number
+  /** 開けるページが無かったので 1 枚作った */
+  created: boolean
+}
+/**
+ * 読み込みの決まり（§5.4・§5.2）。移行の処理は持たず、何度通しても同じ結果になる:
+ * 1. ページはそのまま（前の版の名前付きのレイアウトもページ）。ID が重なるページは振り直す
+ * 2. 開けるページが 0 枚なら、今の entries.free（無ければフリーのプリセット）から ID `free` のページを作る
+ * 3. 開けないページは隠して、中身のまま持つ（保存で書き戻す）
+ * 表示中のページは doc.page の開けるページ、無ければ先頭の開けるページ。正は layouts.json なので、entries.free はそのページから作る。
+ * ペインの ID はページとタブをまたいで一意にする（ページが先: 表示中のページと entries.free は同じ ID を持つので、捨てる側を振り直す）
+ */
+export function resolvePages(rawDoc: unknown, rawPages: readonly SavedLayout[], now = Date.now()): ResolvedPages {
+  const seen = new Set<string>()
+  const ids = new Set<string>()
+  const open = new Set<string>()
+  const pages = rawPages.map((p): SavedLayout => {
+    const id = ids.has(p.id) ? newPageId() : p.id
+    ids.add(id)
+    const entry = normalizeEntry(p.entry, seen)
+    if (entry) open.add(id)
+    return { ...p, id, entry: entry ?? p.entry }
+  })
+  const hidden = pages.length - open.size
+  const doc = normalizeDoc(rawDoc, seen)
+  let created = false
+  if (!open.size) {
+    const id = ids.has(FIRST_PAGE.id) ? newPageId() : FIRST_PAGE.id
+    pages.push({
+      id,
+      name: { ...FIRST_PAGE.name },
+      entry: JSON.parse(JSON.stringify(doc.entries.free)),
+      links: {},
+      created: now,
+      updated: now,
+    })
+    open.add(id)
+    created = true
+  }
+  const cur = pages.find((p) => p.id === doc.page && open.has(p.id)) ?? pages.find((p) => open.has(p.id))!
+  doc.page = cur.id
+  doc.entries.free = JSON.parse(JSON.stringify(cur.entry))
+  return { doc, pages, hidden, created }
+}
+/**
+ * 読み込んだレイアウトとページを使う（1 枚目の起動・取り込みと取り消しのあと）。フォーカス・最大化・ドロワー・サイズの取り消しを空にし、
+ * 止めていた保存を戻す。ページを作った・表示中のページが変わったときは保存する
+ */
+export function useLoadedLayout(rawDoc: unknown, rawPages: readonly SavedLayout[]): ResolvedPages {
+  const r = resolvePages(rawDoc, rawPages)
+  layout.doc = r.doc
+  layout.pages = r.pages
+  layout.dockOpen = null
+  app.maximized = null
+  app.focus = null
+  undoSnap = null
+  pageUndo = null
+  saveSuspended = false
+  if (r.created || r.doc.page !== (rawDoc as { page?: unknown } | null)?.page) saveLayout()
+  return r
+}
+/** 読み込みで直したことを知らせる（1 枚目だけ）: 読み損なって既定に戻したファイル・除いたページ・隠したページ */
+export function noticeLoaded(r: ResolvedPages, recovered: readonly RecoveredFile[] = []): void {
+  for (const f of recovered) {
+    const msg = f.dropped
+      ? t('lay.droppedPages', { n: f.dropped, file: f.backup })
+      : t(f.file === 'layout' ? 'lay.recoveredLayout' : 'lay.recoveredPages', { file: f.backup })
+    toast(msg, undefined, 12_000, 'error')
+  }
+  if (r.hidden) toast(t('lay.hiddenPages', { n: r.hidden }), undefined, 6000)
+}
+/** 取り込み・取り込みの取り消しのあと: ページを読み直す（タブの配置は今のまま。§5.6） */
+export function reloadPages(rawPages: readonly SavedLayout[]): ResolvedPages {
+  return useLoadedLayout($state.snapshot(layout.doc), rawPages)
+}
+export function currentPage(): SavedLayout | undefined {
+  return layout.pages.find((p) => p.id === layout.doc.page)
+}
+/** 一覧に出すページ（開けるものだけ。並びはファイルのまま） */
+export function openablePages(): SavedLayout[] {
+  return layout.pages.filter(pageOpenable)
+}
+/** 表示中のページに作業用の写し（entries.free）を書き戻す。変わっていなければ触らない（updated を変えない） */
+function commitPage(): void {
+  const p = IS_FREE ? undefined : currentPage()
+  if (!p) return
+  const now = $state.snapshot(layout.doc.entries.free)
+  if (JSON.stringify(now) === JSON.stringify($state.snapshot(p.entry))) return
+  p.entry = now
+  p.updated = Date.now()
+}
+/** 作業用の写しを別のページに替える（表示中のタブは変えない） */
+function showPage(p: SavedLayout): boolean {
+  const e = normalizeEntry($state.snapshot(p.entry))
+  if (!e) return false
+  if (p.id !== layout.doc.page) {
+    commitPage()
+    layout.doc.entries.free = e
+    layout.doc.page = p.id
+  }
+  return true
+}
+/** ページを開く（マイレイアウトのタブへ移る）。タブを替えたときと同じく、ドロワー・最大化・フォーカスを空にする（§3.5） */
+export function setPage(id: string): boolean {
+  const p = layout.pages.find((x) => x.id === id)
+  if (!p || !showPage(p)) return false
+  layout.doc.active = 'free'
+  layout.dockOpen = null
+  app.maximized = null
+  app.focus = null
+  saveLayout()
+  return true
+}
+export type PageRefusal = 'limit' | 'size'
+/** ページを足す（中身は写す）。上限（30 枚・2MB）を超えるなら足さずに理由を返す */
+export function addPage(name: string, entry: LayoutEntry, shape?: string): SavedLayout | PageRefusal {
+  if (openablePages().length >= PAGES_MAX) return 'limit'
+  const now = Date.now()
+  const p: SavedLayout = { id: newPageId(), name: { ja: name, en: name }, entry: cloneEntry(entry), links: {}, created: now, updated: now }
+  if (shape) p.shape = shape
+  commitPage()
+  if (pagesBytes([...($state.snapshot(layout.pages) as SavedLayout[]), p]) > PAGES_MAX_BYTES) return 'size'
+  layout.pages.push(p)
+  saveLayout()
+  return layout.pages[layout.pages.length - 1]!
+}
+/** 今のタブ（マイレイアウトなら表示中のページ）を写してページに足す。形は写した元のタブ（ページの複製はそのページの形） */
+export function copyToPage(name: string): SavedLayout | PageRefusal {
+  const a = layout.doc.active
+  return addPage(name, layout.entry, a === 'free' ? currentPage()?.shape : `preset:${a}`)
+}
+export function renamePage(id: string, name: string): void {
+  const p = layout.pages.find((x) => x.id === id)
+  if (!p || !name) return
+  p.name = { ja: name, en: name }
+  saveLayout()
+}
+/** ページを複製する（中身と形を写し、ペインの ID を振り直す）。表示中のページは作業用の写しから */
+export function duplicatePage(id: string, name: string): SavedLayout | PageRefusal | null {
+  const p = layout.pages.find((x) => x.id === id)
+  if (!p || !pageOpenable(p)) return null
+  const entry = id === layout.doc.page ? layout.doc.entries.free : (p.entry as LayoutEntry)
+  return addPage(name, entry, p.shape)
+}
+/** 直前に消したページ（10 秒間は元に戻せる。サイズを戻すの取り消しと同じ 1 つの枠で、あとから行ったほうが残る） */
+let pageUndo: { page: SavedLayout; index: number; current: boolean } | null = null
+let pageUndoTimer: ReturnType<typeof setTimeout> | null = null
+export function canUndoRemovePage(): boolean {
+  return !!pageUndo
+}
+/** 消したページを元の位置に戻す。表示中だったページなら、また表示する（タブは変えない） */
+export function undoRemovePage(): SavedLayout | null {
+  const u = pageUndo
+  if (!u) return null
+  pageUndo = null
+  const id = layout.pages.some((p) => p.id === u.page.id) ? newPageId() : u.page.id
+  layout.pages.splice(Math.min(u.index, layout.pages.length), 0, { ...u.page, id })
+  const p = layout.pages.find((x) => x.id === id)!
+  if (u.current) {
+    showPage(p)
+    if (layout.doc.active === 'free') {
+      layout.dockOpen = null
+      app.maximized = null
+      app.focus = null
+    }
+  }
+  saveLayout()
+  return p
+}
+/** ページを消す。開ける最後の 1 枚は消さない（false）。表示中のページを消したら、となりのページを写す。10 秒間は元に戻せる */
+export function removePage(id: string): boolean {
+  const open = openablePages()
+  const at = open.findIndex((p) => p.id === id)
+  if (at >= 0 && open.length <= 1) return false
+  const i = layout.pages.findIndex((p) => p.id === id)
+  if (i < 0) return false
+  if (id === layout.doc.page) commitPage() // 元に戻すときに最後の変更まで戻す
+  pageUndo = { page: $state.snapshot(layout.pages[i]!) as SavedLayout, index: i, current: id === layout.doc.page }
+  undoSnap = null
+  if (pageUndoTimer) clearTimeout(pageUndoTimer)
+  pageUndoTimer = setTimeout(() => (pageUndo = null), 10_000)
+  if (id === layout.doc.page) {
+    const next = open[at + 1] ?? open[at - 1]!
+    layout.doc.page = undefined // 消すページに書き戻さない
+    showPage(next)
+    if (layout.doc.active === 'free') {
+      layout.dockOpen = null
+      app.maximized = null
+      app.focus = null
+    }
+  }
+  layout.pages.splice(i, 1)
+  saveLayout()
+  return true
+}
+/** 一覧（開けるページ）の上下と入れ替える */
+export function movePage(id: string, delta: -1 | 1): boolean {
+  const open = openablePages()
+  const j = open.findIndex((p) => p.id === id)
+  const q = open[j + delta]
+  if (j < 0 || !q) return false
+  const a = layout.pages.findIndex((p) => p.id === id)
+  const b = layout.pages.findIndex((p) => p.id === q.id)
+  const list = [...layout.pages]
+  ;[list[a], list[b]] = [list[b]!, list[a]!]
+  layout.pages = list
+  saveLayout()
+  return true
+}
+/** すべてのタブと、表示中でない開けるページのエントリ（§5.7。`doc.entries` を回る処理はこれを回す） */
+export function allEntries(): LayoutEntry[] {
+  const out = PRESET_IDS.map((p) => layout.doc.entries[p])
+  if (!IS_FREE) for (const p of layout.pages) if (p.id !== layout.doc.page && pageOpenable(p)) out.push(p.entry as LayoutEntry)
+  return out
+}
+/** 画面の木を作り直す鍵（Workspace の {#key}）: タブと、マイレイアウトではページ */
+export function viewKey(): string {
+  return layout.doc.active === 'free' ? `free:${layout.doc.page ?? ''}` : layout.doc.active
 }
 
 // ---------------------------------------------------------------- queries
@@ -462,6 +779,8 @@ export function nudgeDivider(paneId: string, dir: 'left' | 'right' | 'up' | 'dow
 }
 interface SizeSnap {
   preset: PresetId
+  /** マイレイアウトのページ（ページをまたいで戻さない） */
+  page: string | undefined
   splits: number[][]
   dock?: number
   dockRight?: number
@@ -473,6 +792,7 @@ function snapshotSizes(e: LayoutEntry): SizeSnap {
   eachSplit(e.root, (s) => splits.push([...s.sizes]))
   return {
     preset: layout.doc.active,
+    page: layout.doc.page,
     splits,
     ...(e.docks.left ? { dock: e.docks.left.width } : {}),
     ...(e.docks.right ? { dockRight: e.docks.right.width } : {}),
@@ -503,35 +823,61 @@ function similarity(a: SplitNode, b: SplitNode): number {
  * 子の中のペインが重なるもの）の比率を使い、似たものが無ければ等分。ペインをドロワーに移したり、前の版で保存した
  * レイアウトで形が違っても、残った区切り（例: 日足 / 週足・月足）は元の比率に戻る
  */
-function defaultSizesOf(root: LNode, preset: LayoutEntry): Map<SplitNode, number[]> {
-  const cands: SplitNode[] = []
-  eachSplit(preset.root, (s) => cands.push(s))
+function defaultSizesOf(root: LNode, tiers: LayoutEntry[][]): Map<SplitNode, number[]> {
+  const cands = tiers.map((tier) => {
+    const out: SplitNode[] = []
+    for (const e of tier) eachSplit(e.root, (s) => out.push(s))
+    return out
+  })
   const out = new Map<SplitNode, number[]>()
   eachSplit(root, (s) => {
     let best: SplitNode | null = null
-    let bs = 0
-    for (const c of cands) {
-      const v = similarity(s, c)
-      if (v > bs) {
-        bs = v
-        best = c
+    for (const tier of cands) {
+      let bs = 0
+      for (const c of tier) {
+        const v = similarity(s, c)
+        if (v > bs) {
+          bs = v
+          best = c
+        }
       }
+      if (best) break // 先の段で見つかれば、次の段（ほかのプリセット）は見ない
     }
     out.set(s, best ? [...best.sizes] : s.sizes.map(() => 100 / s.sizes.length))
   })
   return out
 }
+/**
+ * 基準の比率を探すプリセットの段（FR-L9）。先の段に似た区切りが無ければ次の段から探す。マイレイアウトのページは、
+ * 写した元のタブ（`preset:<タブ>`）を先に、無ければすべてのプリセットから。フリーの形（`free:*`・`preset:free`）はフリーのプリセット
+ */
+function sizeBases(): LayoutEntry[][] {
+  const a = layout.doc.active
+  if (a !== 'free' || IS_FREE) return [[presetEntry(a)]]
+  const shape = currentPage()?.shape ?? ''
+  const all = () => PRESET_IDS.map(presetEntry)
+  const from = /^preset:(\w+)$/.exec(shape)?.[1] as PresetId | undefined
+  if (from && from !== 'free' && PRESET_IDS.includes(from)) return [[presetEntry(from)], all()]
+  if (shape.startsWith('free:') || shape === 'preset:free') return [[presetEntry('free')]]
+  return [all()]
+}
+/** ドロワーの幅の基準（区切りと同じ段の順で、そのドロワーを持つ最初のプリセット） */
+const dockBase = (tiers: LayoutEntry[][], side: DockSide): Dock | undefined => tiers.flat().find((e) => e.docks[side])?.docks[side]
 /** サイズを元に戻す（FR-L9）。並び・中身は変えない。10 秒間は元に戻せる */
 export function resetSizes(): boolean {
   const e = layout.entry
-  const preset = presetEntry(layout.doc.active)
-  const target = defaultSizesOf(e.root, preset)
+  const tiers = sizeBases()
+  const target = defaultSizesOf(e.root, tiers)
   undoSnap = snapshotSizes(e)
+  pageUndo = null // 元に戻すは 1 つだけ（あとから行ったほうが残る）
   eachSplit(e.root, (s) => {
     s.sizes = [...target.get(s)!]
   })
-  if (e.docks.left && preset.docks.left) e.docks.left.width = preset.docks.left.width
-  if (e.docks.right && preset.docks.right) e.docks.right.width = preset.docks.right.width
+  for (const side of ['left', 'right'] as const) {
+    const d = e.docks[side]
+    const p = dockBase(tiers, side)
+    if (d && p) d.width = p.width
+  }
   saveLayout()
   if (undoTimer) clearTimeout(undoTimer)
   undoTimer = setTimeout(() => (undoSnap = null), 10_000)
@@ -540,8 +886,8 @@ export function resetSizes(): boolean {
 /** 区切りとドロワーの幅が既定のままか（「サイズを戻す」を押しても変わらないとき true） */
 export function sizesAtDefault(): boolean {
   const e = layout.entry
-  const preset = presetEntry(layout.doc.active)
-  const target = defaultSizesOf(e.root, preset)
+  const tiers = sizeBases()
+  const target = defaultSizesOf(e.root, tiers)
   let same = true
   eachSplit(e.root, (x) => {
     const want = target.get(x)!
@@ -550,13 +896,13 @@ export function sizesAtDefault(): boolean {
   })
   for (const side of ['left', 'right'] as const) {
     const d = e.docks[side]
-    const p = preset.docks[side]
+    const p = dockBase(tiers, side)
     if (d && p && Math.abs(d.width - p.width) > 1) same = false
   }
   return same
 }
 export function canUndoReset(): boolean {
-  return !!undoSnap && undoSnap.preset === layout.doc.active
+  return !!undoSnap && undoSnap.preset === layout.doc.active && (undoSnap.preset !== 'free' || undoSnap.page === layout.doc.page)
 }
 export function undoResetSizes(): boolean {
   if (!canUndoReset()) return false
@@ -573,19 +919,21 @@ export function undoResetSizes(): boolean {
   saveLayout()
   return true
 }
-/** レイアウトを初期状態に戻す（FR-L10。確認は呼ぶ側で行う） */
+/** レイアウトを初期状態に戻す（FR-L10。確認は呼ぶ側で行う）。マイレイアウトでは表示中のページだけを、作ったときの形に戻す */
 export function resetLayout(): void {
-  layout.doc.entries[layout.doc.active] = IS_FREE ? freeShape(SHAPE) : presetEntry(layout.doc.active)
+  const a = layout.doc.active
+  layout.doc.entries[a] = IS_FREE ? freeShape(SHAPE) : a === 'free' ? shapeEntry(currentPage()?.shape) : presetEntry(a)
   app.focus = null
   saveLayout()
 }
 /**
- * すべてのタブ（プリセット）のレイアウトを初期状態に戻す（FR-L10）。表示中のタブ・リンクの銘柄・名前を付けたレイアウトは変えない。
+ * すべてのタブ（プリセット）のレイアウトを初期状態に戻す（FR-L10）。表示中のタブ・リンクの銘柄は変えない。
+ * マイレイアウト（フリーのタブのページ）は利用者が作ったものなので触らない。
  * 1 枚目だけ（フリー N はそれぞれの窓の配置なので、窓ごとに resetLayout で戻す）
  */
 export function resetAllLayouts(): void {
   if (IS_FREE) return
-  for (const id of PRESET_IDS) layout.doc.entries[id] = presetEntry(id)
+  for (const id of PRESET_IDS) if (id !== 'free') layout.doc.entries[id] = presetEntry(id)
   app.focus = null
   saveLayout()
 }
@@ -805,15 +1153,6 @@ export function moveFromDock(paneId: string): boolean {
   } else layout.entry.root = { kind: 'split', id: nid(), dir: 'row', sizes: [70, 30], children: [root, p] }
   saveLayout()
   return true
-}
-/** 名前を付けて保存したレイアウトを今のプリセットに読み込む（FR-L4 の P2） */
-export function applyEntry(entry: LayoutEntry, links: Record<string, InstrumentId>): void {
-  layout.doc.entries[layout.doc.active] = JSON.parse(JSON.stringify(entry)) as LayoutEntry
-  layout.doc.links = { ...layout.doc.links, ...links }
-  layout.dockOpen = null
-  app.maximized = null
-  app.focus = null
-  saveLayout()
 }
 /** 隣のペインと入れ替える（Ctrl+Alt+Shift+矢印。ドラッグ移動の代わり） */
 export function swapPane(paneId: string, targetId: string): void {

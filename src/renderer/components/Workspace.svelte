@@ -1,15 +1,16 @@
 <script lang="ts">
 import { setFocus } from '../lib/commands'
 import { app, t } from '../stores/app.svelte'
-import { allPanes, findPane, layout, moveToEdge, PRESET_FOCUS, toggleDockOpen } from '../stores/layout.svelte'
+import { allPanes, findPane, layout, moveToEdge, PRESET_FOCUS, toggleDockOpen, viewKey } from '../stores/layout.svelte'
 import Dock from './Dock.svelte'
 import { DRAG_MIME } from './dragPane'
 import Node from './Node.svelte'
 
 // レイアウトを開いたとき、フォーカスが無ければそのタブの主役のペイン（PRESET_FOCUS）か最初のペインに置く
-// （キーボードだけで始められるように）
+// （キーボードだけで始められるように）。マイレイアウトでページを替えたときも同じ（FR-L14）
+const view = $derived(viewKey())
 $effect(() => {
-  void layout.doc.active
+  void view
   if (!findPane(app.focus)) {
     const panes = allPanes(layout.entry, false)
     const want = PRESET_FOCUS[layout.doc.active]
@@ -58,7 +59,7 @@ function edgeDrop(e: DragEvent, side: Edge) {
   {/if}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="main" onmousedown={() => toggleDockOpen(false)}>
-    {#key layout.doc.active}
+    {#key view}
       <Node node={layout.entry.root} />
     {/key}
     {#each EDGES as side (side)}

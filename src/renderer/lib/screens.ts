@@ -1,7 +1,7 @@
 // 名前を付けたスクリーン（FR-SC4, SC12〜SC16）の操作。スクリーナーのペインとスクリーン一覧の両方から使う。
 import type { Condition, SavedScreen } from '@shared/types'
 import { app, ask3, promptDialog, saveScreens, screenName, t, toast } from '../stores/app.svelte'
-import { allPanes, layout, type PaneNode, patchState, setPreset } from '../stores/layout.svelte'
+import { allEntries, allPanes, type PaneNode, patchState, setPreset } from '../stores/layout.svelte'
 import { revealPane } from './commands'
 import { withoutLeadingOr } from './conditionEdit'
 
@@ -110,7 +110,7 @@ export function removeScreen(id: string): void {
   app.screens = app.screens.filter((s) => s.id !== id)
   saveScreens()
   const next = app.screens[0]
-  for (const entry of Object.values(layout.doc.entries))
+  for (const entry of allEntries())
     for (const p of allPanes(entry))
       if (p.widget === 'screener' && p.state.screenId === id)
         patchState(p, {
