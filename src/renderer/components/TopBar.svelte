@@ -63,7 +63,7 @@ onMount(() => {
         <span class="lbl">{t(`preset.${p}` as Key)}{#if pg}<span class="pg"> · {pg}</span>{/if}</span><kbd class="keycap">{i + 1}</kbd>
       </button>
       {#if p === 'free'}
-        <button type="button" class="page-menu-btn" data-page-menu aria-haspopup="menu" aria-label={t('lay.menu')} title={`${t('lay.menu')} (${keyOf('layouts')})`} onclick={openPageMenu}>▾</button>
+        <button type="button" class="page-menu-btn" data-page-menu aria-haspopup="menu" aria-label={t('lay.menu')} title={`${t('lay.menu')} (${keyOf('layouts')})`} onclick={openPageMenu}><Icon name="chevronDown" size={16} /></button>
       {/if}
     {/each}
   </nav>
@@ -198,11 +198,11 @@ onMount(() => {
   /* ページのメニューを開く ▾（タブとは別のボタン。押せるのでドラッグから外れる） */
   .presets button.page-menu-btn {
     padding: 0 6px 0 2px;
-    color: var(--text-3);
-    font-size: var(--fs-1);
+    color: var(--text-2);
   }
   .presets button.page-menu-btn:hover {
     color: var(--text);
+    background: var(--hover);
   }
   /* ショートカットの数字はキーの形（Ctrl+Shift+数字） */
   .presets kbd.keycap {

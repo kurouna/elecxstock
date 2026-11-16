@@ -24,6 +24,8 @@ const PATHS = {
   /** 画像の保存（FR-C11）: 額と山 */
   image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15.5 9h.01',
   resetSize: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M9 9l-5-5M15 9l5-5M9 15l-5 5M15 15l5 5',
+  /** メニューを開く: 下向きの山形（マイレイアウトのページのメニュー） */
+  chevronDown: 'M6 9l6 6 6-6',
 } as const
 export type IconName = keyof typeof PATHS
 </script>
