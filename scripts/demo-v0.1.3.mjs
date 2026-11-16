@@ -8,12 +8,14 @@
 //   DEMO_WAIT=8          タイトルを出してから始めるまでの秒数（その間に録画を始める）
 //   DEMO_SPEED=1         速さの倍率（1.5 で速く、0.8 でゆっくり）
 //   DEMO_SHOTS=<フォルダ> 場面ごとにスクリーンショットを残す（確認用）。DEMO_EXIT=1 で終わったら閉じる
+//   DEMO_SHOTS_CLEAN=1   字幕・押したキーなしのスクリーンショットも <フォルダ>/clean/ に残す
+//   DEMO_THEME=light     テーマを決めて始める（light / dark。既定は今の設定のまま）
 // 終わったら終わりの画面のまま止まる。窓を閉じると終わる。
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from '@playwright/test'
-import { call, caption, card, overlay, press, SIZE, SPEED, shot, sleep, WAIT } from './demo-kit.mjs'
+import { call, caption, card, overlay, press, SIZE, SPEED, setTheme, shot, sleep, WAIT } from './demo-kit.mjs'
 import { HOLD, history, writeHistory } from './folio-fixture.mjs'
 import { waitIdle } from './wait-idle.mjs'
 
@@ -39,6 +41,7 @@ const idle = (page) => waitIdle(page, 120_000)
   await idle(page)
   await call(page, 'portfolio.save', { holdings: HOLD })
   await idle(page)
+  await setTheme(page)
   const today = (await call(page, 'folio.series', {})).points.at(-1)
   const end = today ? today.value / today.cost : 1.05
   await app.close()

@@ -1,10 +1,15 @@
 // デモの共通の部品（字幕・押したキー・タイトルの画面・キーを押す）。scripts/demo-v0.1.1.mjs が使う（scripts/demo.mjs と同じ見た目）
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 export const SPEED = Number(process.env.DEMO_SPEED ?? 1) || 1
 export const WAIT = Number(process.env.DEMO_WAIT ?? 8)
 export const SIZE = process.env.DEMO_SIZE ?? 'max'
 const SHOTS = process.env.DEMO_SHOTS
+/** 1 で、場面ごとのスクリーンショットを字幕・押したキーなしでも撮る（DEMO_SHOTS の下の clean/。架空の値の注意は残す） */
+const CLEAN = process.env.DEMO_SHOTS_CLEAN === '1'
+/** light / dark: 2 回目の起動の前にテーマを決める（準備の起動で setTheme を呼ぶ）。動画とスクリーンショットで変えるとき */
+export const THEME = process.env.DEMO_THEME
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms / SPEED))
 export const call = (page, method, params = {}) => page.evaluate(([m, p]) => window.elecxstock.call(m, p), [method, params])
 
@@ -55,6 +60,7 @@ export async function overlay(p) {
     })
     // 押したキー（右下）
     const keys = document.createElement('div')
+    keys.id = 'demo-keys'
     Object.assign(keys.style, {
       position: 'absolute',
       right: '24px',
@@ -205,6 +211,27 @@ export const press = async (p, ...keys) => {
 }
 let shotNo = 0
 export const shot = async (p, name) => {
-  if (SHOTS) await p.screenshot({ path: join(SHOTS, `${String(++shotNo).padStart(2, '0')}-${name}.png`) })
+  if (!SHOTS) return
+  const file = `${String(++shotNo).padStart(2, '0')}-${name}.png`
+  await p.screenshot({ path: join(SHOTS, file) })
+  if (!CLEAN) return
+  // 字幕と押したキーを隠して撮り直す（タイトル・終わりの画面と架空の値の注意はそのまま）
+  mkdirSync(join(SHOTS, 'clean'), { recursive: true })
+  const toggle = (hide) =>
+    p.evaluate((h) => {
+      for (const id of ['demo-cap', 'demo-keys']) {
+        const e = document.getElementById(id)
+        if (e) e.style.visibility = h ? 'hidden' : ''
+      }
+    }, hide)
+  await toggle(true)
+  await p.screenshot({ path: join(SHOTS, 'clean', file) })
+  await toggle(false)
+}
+/** DEMO_THEME があれば、準備の起動でテーマを保存する（2 回目の起動はそのテーマで始まる） */
+export async function setTheme(p) {
+  if (THEME !== 'light' && THEME !== 'dark') return
+  const u = await call(p, 'user.load')
+  await call(p, 'user.saveSettings', { settings: { ...u.settings, theme: THEME } })
 }
 export const typeCode = (p, code) => press(p, ...[...code].map((c) => (/\d/.test(c) ? `Digit${c}` : `Key${c}`)))
