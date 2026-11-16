@@ -229,8 +229,12 @@ export class Repo {
     return this.db.get<{ c: number }>('SELECT c FROM daily_bars WHERE id = ? AND d = ? AND prov = 0', id, d)?.c ?? null
   }
   /** 日足を置き換える（from 以降）。取得に成功してから呼ぶ（FR-S11） */
+  /**
+   * 日足を from から置き換える。気配で補った仮の足（FR-D8）は消さず、同じ日の本物の足が来たときだけ置き換わる
+   * （大引け後しばらくの Yahoo は当日の足の終値が空で、取得した足に当日が無い）
+   */
   replaceDaily(id: InstrumentId, from: JstDate, bars: RawBar[]): void {
-    this.db.run('DELETE FROM daily_bars WHERE id = ? AND d >= ?', id, from)
+    this.db.run('DELETE FROM daily_bars WHERE id = ? AND d >= ? AND prov = 0', id, from)
     const st = this.db.prepare('INSERT OR REPLACE INTO daily_bars(id, d, o, h, l, c, v, prov) VALUES(?, ?, ?, ?, ?, ?, ?, 0)')
     for (const b of bars) if (b.d >= from) st.run(id, b.d, b.o, b.h, b.l, b.c, b.v)
   }

@@ -69,10 +69,9 @@ describe('終値の無い足と仮の足（FR-D8）', () => {
     expect(b.provisional).toEqual([b.time.length - 1])
     expect(b.close.at(-1)).toBe(q.price)
   })
-  // 食い違い: 同じ日々の更新の中で、気配で仮の足を作ったあとに日足の取得（定期照合・取りこぼしの取り直し）が走ると、
-  // jobs.ts の history() の replaceDaily が開始日以降を消してから入れ直すので、終値の無い当日の足と一緒に仮の足も消える。
-  // 最後の取りこぼしの確認（C）は「最終日が前の営業日なら欠けていない」と見るので、当日の足は次の日の更新まで無いままになる
-  it.fails('同じ更新で日足を取り直した銘柄（定期照合の当番）でも、気配で補った当日の仮の足が残る', async () => {
+  // 回帰（2026-11-17）: 同じ日々の更新の中で、気配で仮の足を作ったあとに日足の取得（定期照合・取りこぼしの取り直し）が走ると、
+  // replaceDaily が開始日以降を消してから入れ直していたので、終値の無い当日の足と一緒に仮の足も消えていた
+  it('同じ更新で日足を取り直した銘柄（定期照合の当番）でも、気配で補った当日の仮の足が残る', async () => {
     const b = await call('bars.get', { id: 'JP:8053', tf: 'D' })
     expect(b.time.at(-1)).toBe(TODAY)
     expect(b.provisional).toEqual([b.time.length - 1])

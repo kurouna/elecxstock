@@ -234,6 +234,7 @@ export class JobRunner {
           this.consecutiveProviderErrors = 0
           if (this.offline) {
             this.offline = false
+            this.h.log('online again')
             this.h.emitProvider({ offline: false, paused: false })
           }
         } catch (e) {
@@ -246,7 +247,8 @@ export class JobRunner {
           }
           const pe = e instanceof ProviderError ? e : new ProviderError('symbol', String((e as Error)?.message ?? e))
           if (pe.scope === 'offline') {
-            // 通信断は失敗に数えず、復帰を待つ（FR-F3）
+            // 通信断は失敗に数えず、復帰を待つ（FR-F3）。ログには切れたときに 1 回だけ書く（NFR-R3）
+            if (!this.offline) this.h.log(`offline ${item}: ${pe.message}`)
             this.offline = true
             this.h.emitProvider({ offline: true, paused: false, message: pe.message })
             j.status = 'waiting-offline'
@@ -257,8 +259,10 @@ export class JobRunner {
           }
           if (pe.scope === 'provider') {
             this.consecutiveProviderErrors++
+            this.h.log(`provider error ${item} (${this.consecutiveProviderErrors}): ${pe.message}`) // NFR-R3
             if (this.consecutiveProviderErrors >= 5) {
               j.status = 'provider-paused'
+              this.h.log(`provider paused for 10 min: ${pe.message}`)
               this.h.emitProvider({ offline: false, paused: true, message: pe.message })
               this.h.emitProgress(this.progressOf(j, pe.message, items.length))
               await sleep(10 * 60_000, this.abort.signal).catch(() => {})

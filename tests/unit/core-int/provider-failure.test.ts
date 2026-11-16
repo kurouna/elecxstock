@@ -9,18 +9,20 @@ import { CoreService } from '@core/service'
 import type { Method, Params, Results } from '@shared/api'
 import { afterAll, afterEach, describe, expect, inject, it, vi } from 'vitest'
 
-/** 失敗のしかた: なし・8306 の日足だけ（銘柄単位）・全部（銘柄単位の例外）・全部（プロバイダ単位の 503） */
-let mode: 'ok' | 'one' | 'all' | 'provider' = 'ok'
+/** 失敗のしかた: なし・8306 の日足だけ（銘柄単位）・全部（銘柄単位の例外）・全部（プロバイダ単位の 503）・通信断 */
+let mode: 'ok' | 'one' | 'all' | 'provider' | 'offline' = 'ok'
 const stub = createStubProvider()
 const provider: Provider = {
   ...stub,
   async fetchHistory(symbol, opt) {
+    if (mode === 'offline') throw new ProviderError('offline', '架空の通信断: getaddrinfo ENOTFOUND')
     if (mode === 'one' && symbol === '8306.T') throw new Error('架空の失敗: No data found for 8306.T')
     if (mode === 'all') throw new Error('架空の障害: socket hang up')
     if (mode === 'provider') throw new ProviderError('provider', '架空の障害: HTTP 503 Service Unavailable', 503)
     return stub.fetchHistory(symbol, opt)
   },
   async fetchQuotes(symbols, opt) {
+    if (mode === 'offline') throw new ProviderError('offline', '架空の通信断: getaddrinfo ENOTFOUND')
     if (mode === 'all') throw new Error('架空の障害: socket hang up')
     if (mode === 'provider') throw new ProviderError('provider', '架空の障害: HTTP 503 Service Unavailable', 503)
     return stub.fetchQuotes(symbols, opt)
@@ -144,9 +146,7 @@ describe('プロバイダが取れないとき（NFR-R3）', () => {
     expect(during.metrics.map((m) => m.close)).toEqual(before.metrics.map((m) => m.close))
     expect(during.screen).toEqual(before.screen)
   })
-  // 食い違い: プロバイダ単位の失敗（429・5xx）と通信断は、jobs.ts で画面への通知（provider.state）だけをして
-  // this.h.log を呼ばない（銘柄単位の失敗と銘柄一覧の失敗だけがログに出る）。ログのファイルには止まった原因が残らない
-  it.fails('プロバイダ単位の失敗で止まった原因がログに出る', () => {
+  it('プロバイダ単位の失敗で止まった原因がログに出る', () => {
     expect(logs.some((l) => l.includes('503'))).toBe(true)
   })
   it('止めた取得は取り消せる（後片付け）', async () => {
@@ -154,5 +154,33 @@ describe('プロバイダが取れないとき（NFR-R3）', () => {
     vi.useRealTimers()
     await idle()
     expect((await call('jobs.list', {})).find((j) => j.id === jobId)?.status).toBe('cancelled')
+  })
+
+  // 通信断は 30 秒ごとに試し直す。ログには切れたときと戻ったときに 1 回ずつ書く（試し直すたびには書かない）
+  it('通信断になったこと・戻ったことがログに出る', async () => {
+    mode = 'offline'
+    logs.length = 0
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const id = await call('jobs.start', { kind: 'daily' })
+    const offline = () => logs.filter((l) => l.startsWith('offline'))
+    for (let i = 0; i < 100 && offline().length === 0; i++) {
+      await vi.advanceTimersByTimeAsync(1_000)
+      await new Promise((r) => setImmediate(r))
+    }
+    for (let i = 0; i < 3; i++) {
+      await vi.advanceTimersByTimeAsync(30_000)
+      await new Promise((r) => setImmediate(r))
+    }
+    expect(offline()).toHaveLength(1)
+    expect(offline()[0]).toContain('ENOTFOUND')
+    mode = 'ok'
+    for (let i = 0; i < 20 && !logs.includes('online again'); i++) {
+      await vi.advanceTimersByTimeAsync(30_000)
+      await new Promise((r) => setImmediate(r))
+    }
+    expect(logs.filter((l) => l === 'online again')).toHaveLength(1)
+    await call('jobs.cancel', { id })
+    vi.useRealTimers()
+    await idle()
   })
 })
