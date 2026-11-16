@@ -22,11 +22,15 @@ test.describe('マーケット（FR-L5, FR-V13）', () => {
     await keys(page, 'Alt+ArrowRight')
     await expect(page.locator('.pane.focused')).toHaveAttribute('data-widget', 'heatmap')
     const sectors = await heat.locator('.map .cell').count()
-    await keys(page, 'ArrowRight', 'Enter')
+    await keys(page, 'ArrowRight')
+    const entered = (await heat.locator('.map .cell.sel .n').textContent())!
+    await keys(page, 'Enter')
     await expect.poll(() => heat.locator('.map .cell').count()).not.toBe(sectors)
     await expect(heat.locator('.map .cell').first()).toBeVisible()
     await keys(page, 'Escape')
     await expect.poll(() => heat.locator('.map .cell').count()).toBe(sectors)
+    // 戻ると、入った業種のタイルを選んでいる
+    await expect(heat.locator('.map .cell.sel .n')).toHaveText(entered)
   })
 })
 

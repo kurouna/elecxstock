@@ -19,6 +19,7 @@ import {
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, type ListCol, resolveColumns, sortIds } from '../../lib/columns'
 import { date } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
+import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
@@ -48,12 +49,15 @@ let col = $state(1)
 let scroller = $state<HTMLDivElement>()
 let width = $state(600)
 
+const fresh = latest()
 async function run() {
+  const ok = fresh()
   const r = await bridge.call('screener.run', {
     conditions: [{ field: 'attr.market', op: 'in', value: ['P', 'R'] }],
     favorites: [],
     watchlists: {},
   })
+  if (!ok()) return // 取得が続いて呼び直したとき、古い応答で上書きしない
   for (const row of r.rows) app.metrics.set(row.id, row)
   ids = r.ids
 }
@@ -160,13 +164,12 @@ function back(): boolean {
   const k = drill
   patchState(pane, { drill: null })
   follow.reset()
-  queueMicrotask(() => {
-    sel = Math.max(
-      0,
-      tableRows.findIndex((r) => r.key === k),
-    )
-    scrollSel()
-  })
+  // 戻った表（業種の並びは中に入っても変わらない）で、入った行をすぐ選ぶ（一度ずれた位置を経ない）。スクロールは描いたあと
+  sel = Math.max(
+    0,
+    tableRows.findIndex((r) => r.key === k),
+  )
+  scrollSel()
   return true
 }
 function sortBy(k: string) {

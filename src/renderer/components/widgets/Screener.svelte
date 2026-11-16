@@ -9,6 +9,7 @@ import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
 import { keyOf, openInGrid } from '../../lib/commands'
 import { conditionValueText, moveCondition, newCondition, stepValue, valueChoices } from '../../lib/conditionEdit'
+import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
 import { SelectionFollow } from '../../lib/selection'
@@ -62,10 +63,13 @@ let viewH = $state(400)
 let total = $state(0)
 let timer: ReturnType<typeof setTimeout> | null = null
 
+const fresh = latest()
 async function run() {
+  const ok = fresh()
   const favs = app.watchlists.find((w) => w.builtin === 'favorites')?.items ?? []
   const wl = Object.fromEntries(app.watchlists.map((w) => [w.id, w.items]))
   const r = await bridge.call('screener.run', { conditions: $state.snapshot(conds) as Condition[], favorites: favs, watchlists: wl })
+  if (!ok()) return // 条件を続けて変えたとき、古い条件の結果で上書きしない
   for (const row of r.rows) app.metrics.set(row.id, row)
   result = r
   total = app.status?.instruments ?? r.ids.length

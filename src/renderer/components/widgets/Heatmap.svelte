@@ -5,6 +5,7 @@ import type { InstrumentId } from '@shared/types'
 import { onMount } from 'svelte'
 import { fmt, money, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
+import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { SelectionFollow } from '../../lib/selection'
 import { neighbor, type Placed, squarify } from '../../lib/treemap'
@@ -29,7 +30,9 @@ let host = $state<HTMLDivElement>()
 let W = $state(600)
 let H = $state(400)
 
+const fresh = latest()
 async function run() {
+  const ok = fresh()
   const r = await bridge.call('screener.run', {
     conditions: [
       { field: 'attr.market', op: 'in', value: ['P'] },
@@ -38,6 +41,7 @@ async function run() {
     favorites: [],
     watchlists: {},
   })
+  if (!ok()) return // 古い応答で上書きしない
   for (const row of r.rows) app.metrics.set(row.id, row)
   ids = r.ids
 }
@@ -109,12 +113,10 @@ function back() {
   const s = sector
   patchState(pane, { sector: null })
   follow.reset()
-  queueMicrotask(
-    () =>
-      (sel = Math.max(
-        0,
-        placed.findIndex((p) => p.item.key === s),
-      )),
+  // 業種のタイルに戻ったら、入った業種をすぐ選ぶ（一度ずれた位置を経ない）
+  sel = Math.max(
+    0,
+    placed.findIndex((p) => p.item.key === s),
   )
   return true
 }

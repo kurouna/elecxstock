@@ -6,6 +6,7 @@ import { onMount } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, type ListCol, resolveColumns, sortIds } from '../../lib/columns'
 import type { Key } from '../../lib/i18n'
+import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
@@ -31,10 +32,13 @@ const cols = $derived<ListCol[]>(
     (c, i, a): c is ListCol => !!c && a.indexOf(c) === i,
   ),
 )
+const fresh = latest()
 async function run() {
+  const ok = fresh()
   const conditions: Condition[] = [{ field: 'attr.market', op: 'in', value: MARKETS[mk] ?? ['P', 'R'] }]
   const favs = app.watchlists.find((w) => w.builtin === 'favorites')?.items ?? []
   const r = await bridge.call('screener.run', { conditions, favorites: favs, watchlists: {} })
+  if (!ok()) return // 市場を続けて切り替えたとき、古い応答で上書きしない
   for (const row of r.rows) app.metrics.set(row.id, row)
   ids = r.ids
 }

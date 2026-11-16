@@ -6,6 +6,7 @@ import { priceDigits } from '@shared/markets'
 import type { Bars, InstrumentId, Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
 import { cls, px, sgn } from '../../lib/format'
+import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { marketBars, periodOfKey } from '../../lib/periods'
 import { app, bridge, codeOf, nameOf, t, toast } from '../../stores/app.svelte'
@@ -24,8 +25,11 @@ let bars = $state<Record<string, Bars>>({})
 let sel = $state(0)
 let host = $state<HTMLDivElement>()
 
+const fresh = latest()
 async function load() {
+  const ok = fresh()
   const r = await bridge.call('bars.many', { ids: [...ids], tf, count: marketBars(period, tf) })
+  if (!ok()) return // 時間軸・期間を続けて変えたとき、古い応答で上書きしない
   bars = r
   queueMicrotask(draw)
 }
