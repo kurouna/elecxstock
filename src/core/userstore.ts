@@ -31,7 +31,10 @@ export function defaultWatchlists(): Watchlist[] {
   ]
 }
 
-/** 既定のスクリーン（FR-SC15） */
+/**
+ * 既定のスクリーン（FR-SC15）。ID は利用者のファイルに残るので変えない（既定を戻す操作は ID で見る）。
+ * 値を変えても、すでに入っている利用者のスクリーンは変わらない（新しく入れたとき・消して戻したときに効く）。
+ */
 export function defaultScreens(now = Date.now()): SavedScreen[] {
   const s = (id: string, ja: string, en: string, conditions: SavedScreen['conditions']): SavedScreen => ({
     id,
@@ -42,13 +45,14 @@ export function defaultScreens(now = Date.now()): SavedScreen[] {
   })
   return [
     s('high-yield', '高配当銘柄', 'High yield', [
-      { field: 'income.yield', op: '>=', value: 3.5 },
+      { field: 'income.yield', op: '>=', value: 4 },
       { field: 'liq.turnover20', op: '>=', value: 1e9 },
       { field: 'attr.market', op: 'in', value: ['P', 'R'] },
     ]),
-    s('value', '割安（PBR 1 倍割れ）', 'Value (P/B < 1)', [
+    // 東証の「資本コストや株価を意識した経営」の要請で、PBR 1 倍割れの改善が注目される。稼ぐ力（ROE 8%。伊藤レポートの目安）がある銘柄に絞る
+    s('value', '割安（PBR 1 倍割れ・ROE 8%）', 'Value (P/B < 1, ROE ≥ 8%)', [
       { field: 'value.pbr', op: '<=', value: 1 },
-      { field: 'value.per', op: '<=', value: 15 },
+      { field: 'value.roe', op: '>=', value: 8 },
       { field: 'liq.turnover20', op: '>=', value: 5e8 },
     ]),
     s('jreit-yield', 'J-REIT 高利回り', 'J-REIT high yield', [
@@ -58,6 +62,32 @@ export function defaultScreens(now = Date.now()): SavedScreen[] {
     s('near-high', '52週高値圏', 'Near 52W high', [
       { field: 'tech.fromHi52', op: '>=', value: -3 },
       { field: 'tech.maDev75', op: '>=', value: 0 },
+    ]),
+    // 新 NISA の成長投資枠で長く持つ: 増配が続き、配当に無理が無い
+    s('div-growth', '連続増配', 'Dividend growers', [
+      { field: 'income.divUpYears', op: '>=', value: 3 },
+      { field: 'income.yield', op: '>=', value: 3 },
+      { field: 'income.payout', op: '<=', value: 70 },
+    ]),
+    // 株式分割と東証の投資単位の引き下げの要請で、少額で買える銘柄が増えた
+    s('small-lot', '10万円以下で買える高配当', 'High yield under ¥100k', [
+      { field: 'price.minInvest', op: '<=', value: 1e5 },
+      { field: 'income.yield', op: '>=', value: 3.5 },
+      { field: 'liq.turnover20', op: '>=', value: 1e8 },
+    ]),
+    // 相場が大きく振れる局面の守り: 値動きが小さく、日経平均に連れにくい
+    s('low-vol', '低ボラティリティ・ディフェンシブ', 'Low volatility', [
+      { field: 'risk.vol60', op: '<=', value: 20 },
+      { field: 'risk.beta', op: '<=', value: 0.6 },
+      { field: 'income.yield', op: '>=', value: 3 },
+      { field: 'liq.turnover20', op: '>=', value: 5e8 },
+    ]),
+    // 長期の上昇（200 日線の上）が続く中での一時的な下げ
+    s('pullback', '上昇トレンドの押し目', 'Pullback in uptrend', [
+      { field: 'tech.maDev200', op: '>=', value: 0 },
+      { field: 'tech.maDev25', op: '<=', value: -3 },
+      { field: 'tech.rsi14', op: '<=', value: 40 },
+      { field: 'liq.turnover20', op: '>=', value: 1e9 },
     ]),
   ]
 }
