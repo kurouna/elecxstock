@@ -6,6 +6,7 @@
 import { DEFAULT_RECENT_FIELDS, FIELD_BY_ID, FIELD_GROUPS, type FieldDef, MISSING_FIELDS, NEW_FIELD_IDS } from '@shared/fields'
 import { onMount, tick } from 'svelte'
 import { SvelteSet } from 'svelte/reactivity'
+import { rootZoom, tipBeside } from '../../lib/pointer'
 import { app, closeOverlay, t } from '../../stores/app.svelte'
 import Icon from '../Icon.svelte'
 
@@ -160,7 +161,7 @@ function key(e: KeyboardEvent) {
 }
 function showTip(id: string, ev: MouseEvent) {
   const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
-  tip = { id, x: Math.min(r.right + 8, window.innerWidth - 320), y: r.top - 4 }
+  tip = { id, ...tipBeside(r, 320, window.innerWidth, rootZoom()) }
 }
 onMount(() => input?.focus())
 </script>

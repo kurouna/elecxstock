@@ -60,6 +60,7 @@ import { contribTip, divStepTip, eventTip, histStepTip, trendIndexAt, trendLabel
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { periodOfKey } from '../../lib/periods'
+import { localX } from '../../lib/pointer'
 import { loadHoldings } from '../../lib/portfolio'
 import { app, ensureMetrics, inst, metric, nameOf, rpc, t } from '../../stores/app.svelte'
 import { type PaneNode, saveLayout, setLinkSymbol } from '../../stores/layout.svelte'
@@ -682,7 +683,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             </div>
             {#if !dsum.hasYearAgo}<div class="note">{t('folio.noYearAgo')}</div>{/if}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="trend" bind:clientWidth={tw} bind:clientHeight={th} title={t('folio.trendTip')} onmousemove={(e) => (thov = trendIndexAt(e.clientX - e.currentTarget.getBoundingClientRect().left, tw, trend.length))} onmouseleave={() => (thov = -1)}>
+            <div class="trend" bind:clientWidth={tw} bind:clientHeight={th} title={t('folio.trendTip')} onmousemove={(e) => (thov = trendIndexAt(localX(e.clientX, e.currentTarget.getBoundingClientRect(), tw), tw, trend.length))} onmouseleave={() => (thov = -1)}>
               {#if tg}
                 <svg viewBox={`0 0 ${tw} ${th}`}>
                   <path d={tg.area} class="tarea" /><path d={tg.line} class="tline" />

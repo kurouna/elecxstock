@@ -32,7 +32,7 @@ const leaves = $derived(tiles.filter((x) => !x.group))
 $effect(() => ontiles(leaves))
 const light = $derived(app.settings.theme === 'light')
 const total = $derived(rows.reduce((s, r) => s + r.value, 0))
-const share = (t: Tile) => t.item.rows.reduce((s, r) => s + r.value, 0) / (rows.reduce((s, r) => s + r.value, 0) || 1)
+const share = (t: Tile) => t.item.rows.reduce((s, r) => s + r.value, 0) / (total || 1)
 </script>
 
 <div class="tm" bind:clientWidth={w} bind:clientHeight={h}>

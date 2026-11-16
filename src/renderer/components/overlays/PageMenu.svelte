@@ -20,6 +20,7 @@ import {
   rename,
   undoRemove,
 } from '../../lib/pages'
+import { rootZoom } from '../../lib/pointer'
 import { app, t } from '../../stores/app.svelte'
 import { layout, movePage, openablePages, setPage } from '../../stores/layout.svelte'
 
@@ -92,7 +93,7 @@ onMount(() => {
   // タブの ▾ の下に出す（無ければフリーのタブ、それも無ければ上の真ん中）
   const a = document.querySelector('[data-page-menu]') ?? document.querySelector('[data-preset="free"]')
   const r = a?.getBoundingClientRect()
-  if (r?.width) pos = menuPosition(r, box?.offsetWidth ?? 320, window.innerWidth, Number(document.documentElement.style.zoom) || 1)
+  if (r?.width) pos = menuPosition(r, box?.offsetWidth ?? 320, window.innerWidth, rootZoom())
   box?.focus()
 })
 // キーで選んだ行が、スクロールの外に出ないようにする（ページが多いとメニューは縦に流れる）

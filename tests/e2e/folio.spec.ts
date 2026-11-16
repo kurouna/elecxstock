@@ -1,7 +1,7 @@
 // ポートフォリオ（FR-PF1〜PF8）: 9 つ目のタブ・カードを Tab で巡る・資産推移の期間と十字線の連動・損益寄与の期間・
 // 配当の分析（分類・アコーディオン）・段の移動。キーボードだけで操作する。値はスタブ（架空）と架空の記録
 
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { addDays, isTradingDay } from '../../src/shared/calendar'
 import type { FolioPoint } from '../../src/shared/types'
 import { expect, holdings, keys, tab, test } from './support'
@@ -357,5 +357,36 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await tab(page, 'folio')
     const f = page.locator('[data-widget="folio"]')
     await expect(f.locator('.empty')).toContainText('保有がありません')
+  })
+})
+
+// 回帰（2026-11-16 のレビュー）: 表示倍率（ルートの zoom）を変えると、getBoundingClientRect の px（倍率が掛かる）と
+// clientWidth（掛からない）が混ざって、十字線がポインタからずれていた
+test.describe('表示倍率と十字線（FR-V10）', () => {
+  test('表示倍率 150% でも、資産推移と年間配当の推移の十字線はポインタの位置に出る', async ({ start }) => {
+    const { page } = await start({ settings: { uiScale: 1.5 }, user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    const near = async (cross: Locator, x: number) => {
+      await expect(cross).toHaveCount(1)
+      const b = (await cross.boundingBox())!
+      expect(Math.abs(b.x + b.width / 2 - x)).toBeLessThan(6)
+    }
+    const chart = f.locator('.c-hist .chart')
+    await expect(chart.locator('svg')).toBeVisible()
+    await chart.scrollIntoViewIfNeeded()
+    const cb = (await chart.boundingBox())!
+    const cx = cb.x + cb.width * 0.8
+    await page.mouse.move(cx, cb.y + cb.height / 2)
+    await near(f.locator('.c-hist .cross'), cx)
+    await page.mouse.move(0, 0)
+
+    const trend = f.locator('.c-dsum .trend')
+    await trend.scrollIntoViewIfNeeded()
+    const tb = (await trend.boundingBox())!
+    const tx = tb.x + tb.width * 0.4
+    await page.mouse.move(tx, tb.y + tb.height / 2)
+    await near(trend.locator('.tcross'), tx)
+    await page.mouse.move(0, 0)
   })
 })

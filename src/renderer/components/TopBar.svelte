@@ -4,6 +4,7 @@ import { onMount } from 'svelte'
 import { doResetSizes, keyOf, runAction } from '../lib/commands'
 import type { Key } from '../lib/i18n'
 import { currentPageName, openPageMenu } from '../lib/pages'
+import { rootZoom } from '../lib/pointer'
 import { captionInset } from '../lib/titleBar'
 import { freeNo, IS_FREE, SLOT } from '../lib/windowSlot'
 import { app, t } from '../stores/app.svelte'
@@ -33,7 +34,7 @@ onMount(() => {
   const wco = (navigator as Navigator & { windowControlsOverlay?: Wco }).windowControlsOverlay
   const root = document.documentElement
   const update = () => {
-    caption = captionInset(window.innerWidth, wco?.visible ? wco.getTitlebarAreaRect() : null, Number(root.style.zoom) || 1)
+    caption = captionInset(window.innerWidth, wco?.visible ? wco.getTitlebarAreaRect() : null, rootZoom())
   }
   update()
   wco?.addEventListener('geometrychange', update)

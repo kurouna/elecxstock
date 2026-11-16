@@ -4,6 +4,7 @@
 import { keyOf, setFocus } from '../lib/commands'
 import type { Key } from '../lib/i18n'
 import { paneApi } from '../lib/panes'
+import { rootZoom } from '../lib/pointer'
 import { t } from '../stores/app.svelte'
 import { type Dock, type DockSide, layout, moveToDock, saveLayout, toggleDockOpen } from '../stores/layout.svelte'
 import { DRAG_MIME } from './dragPane'
@@ -65,7 +66,9 @@ function resize(e: MouseEvent) {
   e.preventDefault()
   const x0 = e.clientX
   const w0 = dock.width
-  const move = (ev: MouseEvent) => (dock.width = Math.min(1200, Math.max(320, w0 + (ev.clientX - x0) * (side === 'left' ? 1 : -1))))
+  // ポインタの動き（表示倍率が掛かった px）を幅（CSS の px）に直す
+  const z = rootZoom()
+  const move = (ev: MouseEvent) => (dock.width = Math.min(1200, Math.max(320, w0 + ((ev.clientX - x0) / z) * (side === 'left' ? 1 : -1))))
   const up = () => {
     removeEventListener('mousemove', move)
     removeEventListener('mouseup', up)

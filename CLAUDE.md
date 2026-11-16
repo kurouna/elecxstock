@@ -92,6 +92,7 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 - **`patchState` は `pane.state` を丸ごと置き換える**。`$effect` で `pane.state.X` や、毎回作り直す `Set`・配列を直に読むと、関係のない変更でも走る
   （選択や表示の範囲が戻る）。`$derived` で値や中身のキー（`[...set].join()` など）にしてから読む。
 - **選んだときだけ出す行（キーの案内など）は出し入れせず、場所を取ったまま見えなくする**（`visibility: hidden`）。カードの高さが変わると、ツリーマップなどが並び直す。
+- **表示倍率はルートの CSS の `zoom`**（FR-V10）。`getBoundingClientRect`・`clientX` は倍率が掛かった px、`clientWidth`・`offsetWidth`・style の px は掛かっていない。混ぜずに `lib/pointer.ts`（`localX`・`tipBeside`・`rootZoom`）でそろえる。
 - **レイアウトの木の変更は `stores/layout.svelte.ts` の関数で行う**。ディスクから読んだ木は `normalizeDoc` を通す。
   マイレイアウト（8 番目のタブ）のページの正は `layout.pages`（layouts.json）で、`doc.entries.free` は表示中のページの作業用の写し。
   すべてのレイアウトを回す処理は `doc.entries` ではなく `allEntries()`（表示中でないページも含む）を回す。写すときは `cloneEntry` で ID を振り直す

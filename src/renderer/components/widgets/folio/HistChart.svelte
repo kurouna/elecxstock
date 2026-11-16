@@ -2,7 +2,8 @@
 // 資産推移の図（FR-PF3・PF4）: 評価額は中立の線、取得額は破線の階段、その間の帯を含み損益の色で塗る（取得額より上は上昇の色、下は下落の色）。
 // % にすると時間加重の概算とベンチマーク。記録の前の試算は細い中立の線だけ（数に入れない）
 import type { FolioSeriesPoint } from '@shared/types'
-import { histGeom, manYen, monthTicks, pctGeom, signPct, yenFull } from '../../../lib/folio'
+import { histGeom, histIndexAt, manYen, monthTicks, pctGeom, signPct, yenFull } from '../../../lib/folio'
+import { localX } from '../../../lib/pointer'
 import { t } from '../../../stores/app.svelte'
 
 let {
@@ -36,9 +37,9 @@ const cp = $derived(ci >= 0 ? (pct ? real : points)[ci] : undefined)
 // 十字線の x。値の枠は十字線の横に出し、線と点を隠さない（右半分では左に出す）
 const cx = $derived(ci >= 0 ? ((pct ? pg?.x(ci) : g?.x(ci)) ?? 0) : 0)
 function move(e: MouseEvent) {
-  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
   if (n < 2) return
-  onhover(Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left - 2) / (r.width - 58)) * (n - 1)))))
+  // ポインタの位置は表示倍率が掛かった px なので、図と同じ CSS の px（w）に直してから点を選ぶ
+  onhover(histIndexAt(localX(e.clientX, (e.currentTarget as HTMLElement).getBoundingClientRect(), w), w, n))
 }
 </script>
 

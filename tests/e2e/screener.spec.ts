@@ -403,3 +403,25 @@ test.describe('列挙の条件・条件の行と結果の行（FR-SC1, FR-SC10, 
     expect(name).toContain('高配当')
   })
 })
+
+// 回帰（2026-11-16 のレビューで見つけた同じ作り）: 表示倍率を変えると、項目の説明が ⓘ から離れた位置に出ていた
+test.describe('表示倍率と説明の位置（FR-V10・FR-SC1）', () => {
+  test('表示倍率 150% でも、条件を選ぶダイアログの ⓘ の説明は ⓘ の右に出て、窓からはみ出さない', async ({ start }) => {
+    const { page } = await start({ settings: { uiScale: 1.5 } })
+    await openScreener(page)
+    await keys(page, 'Insert')
+    const fp = page.locator('.dialog.picker')
+    await expect(fp).toBeVisible()
+    const info = fp.locator('.it.sel .info')
+    await info.hover()
+    const tip = fp.locator('.tip')
+    await expect(tip).toBeVisible()
+    const ib = (await info.boundingBox())!
+    const tb = (await tip.boundingBox())!
+    const vw = await page.evaluate(() => window.innerWidth)
+    expect(tb.x + tb.width).toBeLessThanOrEqual(vw + 1)
+    expect(Math.abs(tb.y - ib.y)).toBeLessThan(20)
+    expect(tb.x).toBeGreaterThan(ib.x)
+    await page.mouse.move(0, 0)
+  })
+})

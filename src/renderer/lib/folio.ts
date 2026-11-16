@@ -848,6 +848,11 @@ export function toggleOpen(
   const sel = !on && r.type === 'm' ? rows.findIndex((x) => x.type === 'g' && x.g.key === k) : i
   return { open: next, sel: Math.max(0, sel) }
 }
+/** 資産推移の図: x（図の左端からの CSS の px）に近い点の位置。histGeom の左右の余白（左 2・右 56）と合わせる */
+export function histIndexAt(px: number, w: number, n: number): number {
+  if (n < 2) return 0
+  return Math.max(0, Math.min(n - 1, Math.round(((px - 2) / Math.max(1, w - 58)) * (n - 1))))
+}
 /** 資産推移の配当見込みの推移の図 */
 export function trendGeom(trend: { d: string; v: number }[], w: number, h: number) {
   if (trend.length < 2) return null
