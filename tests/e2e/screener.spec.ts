@@ -402,6 +402,26 @@ test.describe('列挙の条件・条件の行と結果の行（FR-SC1, FR-SC10, 
     await expect(scr.locator('.ph').first()).not.toContainText('変更あり')
     expect(name).toContain('高配当')
   })
+
+  test('既定の条件を戻す（FR-SC15）: すべてあれば案内を出さない。消すと件数つきで出て、Ctrl+Shift+R で戻すと消える', async ({ start }) => {
+    const { page } = await start()
+    await openScreener(page)
+    await keys(page, 'Control+o')
+    const list = page.locator('.dialog')
+    const hint = list.locator('.foot .restore')
+    await expect(list.locator('.sel')).toHaveCount(1)
+    await expect(list.locator('.foot')).toContainText('Delete 削除')
+    await expect(hint).toHaveCount(0)
+    await keys(page, 'Control+Shift+r') // 戻すものが無ければ何もしない（「0 件」を出さない）
+    await expect(page.locator('.toast')).toHaveCount(0)
+    await keys(page, 'Delete', 'Delete')
+    await expect(list).not.toContainText('高配当銘柄')
+    await expect(hint).toHaveText('Ctrl+Shift+R 既定の条件を戻す（1 件）')
+    await keys(page, 'Control+Shift+r')
+    await expect(list).toContainText('高配当銘柄')
+    await expect(hint).toHaveCount(0)
+    await expect(page.locator('.toast')).toContainText('既定のスクリーニング条件を 1 件戻しました')
+  })
 })
 
 // 回帰（2026-11-16 のレビューで見つけた同じ作り）: 表示倍率を変えると、項目の説明が ⓘ から離れた位置に出ていた

@@ -48,3 +48,16 @@ describe('グリッドの「今のスクリーン」（FR-SC6, FR-G1）', () => 
     expect(app.liveConds).toEqual([{ field: 'income.yield', op: '>=', value: 4 }])
   })
 })
+
+describe('既定のスクリーンを戻す（FR-SC15）', () => {
+  const defs = [scr('d1', 3), scr('d2', 4), scr('d3', 5)]
+  it('消したものだけを既定の並びで返す', () => {
+    expect(S.missingDefaults(defs, [scr('d2', 4), scr('mine', 1)]).map((s) => s.id)).toEqual(['d1', 'd3'])
+  })
+  it('すべてあれば空（案内を出さない）。編集したもの（同じ ID）は「ある」とみなす', () => {
+    expect(S.missingDefaults(defs, [scr('d3', 9), scr('d1', 9), scr('d2', 9)])).toEqual([])
+  })
+  it('既定がまだ届いていなければ空', () => {
+    expect(S.missingDefaults([], [])).toEqual([])
+  })
+})

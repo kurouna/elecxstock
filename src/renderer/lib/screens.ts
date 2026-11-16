@@ -7,6 +7,11 @@ import { withoutLeadingOr } from './conditionEdit'
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
 
+/** 既定のスクリーンのうち、利用者が消したもの（FR-SC15。ID で見る。編集したものは「ある」として戻さない） */
+export function missingDefaults(defs: readonly SavedScreen[], screens: readonly SavedScreen[]): SavedScreen[] {
+  const have = new Set(screens.map((s) => s.id))
+  return defs.filter((d) => !have.has(d.id))
+}
 export function screenOf(pane: PaneNode): SavedScreen | undefined {
   return app.screens.find((s) => s.id === pane.state.screenId)
 }

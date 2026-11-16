@@ -1,8 +1,9 @@
 <script lang="ts">
 // 保存したスクリーンの一覧（Ctrl+O。FR-SC12）: 開く・名前の変更（F2）・複製（Ctrl+Shift+D）・削除（Delete を 2 回）・
-// 並べ替え（Alt+↑↓）・既定のスクリーンを追加し直す（Ctrl+Shift+R、FR-SC15）。
+// 並べ替え（Alt+↑↓）・既定のスクリーンを戻す（Ctrl+Shift+R、FR-SC15。戻せるものがあるときだけ案内を出す）。
+import type { SavedScreen } from '@shared/types'
 import { onMount } from 'svelte'
-import { openScreenAnywhere, removeScreen } from '../../lib/screens'
+import { missingDefaults, openScreenAnywhere, removeScreen } from '../../lib/screens'
 import { app, promptDialog, rpc, saveScreens, screenName, t, toast } from '../../stores/app.svelte'
 import { allPanes } from '../../stores/layout.svelte'
 
@@ -10,6 +11,8 @@ let query = $state('')
 let sel = $state(0)
 let pendingDel = $state<string | null>(null)
 let input = $state<HTMLInputElement>()
+let defs = $state<SavedScreen[]>([])
+const missing = $derived(missingDefaults(defs, app.screens))
 const openId = $derived(allPanes().find((p) => p.widget === 'screener')?.state.screenId as string | undefined)
 const items = $derived(app.screens.filter((s) => !query || screenName(s).toLowerCase().includes(query.toLowerCase())))
 
@@ -61,16 +64,16 @@ async function key(e: KeyboardEvent) {
   } else return
   e.preventDefault()
 }
-/** 既定のスクリーンを追加し直す（FR-SC15）。消したものだけを末尾に足し、編集したものは上書きしない */
-async function restoreDefaults() {
-  const defs = await rpc('user.defaultScreens', {})
-  const have = new Set(app.screens.map((s) => s.id))
-  const add = defs.filter((d) => !have.has(d.id))
+/** 既定のスクリーンを戻す（FR-SC15）。消したものだけを末尾に足し、編集したものは上書きしない。戻すものが無ければ何もしない */
+function restoreDefaults() {
+  const add = missing
+  if (!add.length) return
   app.screens = [...app.screens, ...add]
   saveScreens()
   toast(t('scr.restored', { n: add.length }))
 }
 onMount(() => {
+  void rpc('user.defaultScreens', {}).then((d) => (defs = d))
   sel = Math.max(
     0,
     app.screens.findIndex((s) => s.id === openId),
@@ -91,9 +94,12 @@ onMount(() => {
       </button>
     {/each}
   </div>
-  <div class="foot">
-    <span>{t('cmd.hint.move')}</span><span>Enter {t('scr.open')}</span><span>F2 {t('scr.rename')}</span><span>Ctrl+Shift+D {t('scr.duplicate')}</span>
-    <span>Alt+↑↓ {t('dlg.reorder')}</span><span>Delete</span><span>Ctrl+Shift+R {t('scr.restoreDefaults')}</span><span>{t('cmd.hint.close')}</span>
+  <div class="foot keys">
+    <div class="row"><span>{t('cmd.hint.move')}</span><span>Enter {t('scr.open')}</span><span class="end">{t('cmd.hint.close')}</span></div>
+    <div class="row">
+      <span>F2 {t('scr.rename')}</span><span>Ctrl+Shift+D {t('scr.duplicate')}</span><span>Alt+↑↓ {t('dlg.reorder')}</span><span>Delete {t('scr.delete')}</span>
+      {#if missing.length}<span class="restore">Ctrl+Shift+R {t('scr.restoreDefaults', { n: missing.length })}</span>{/if}
+    </div>
   </div>
 </div>
 
@@ -106,6 +112,21 @@ onMount(() => {
     max-height: 420px;
     overflow: auto;
     padding: 4px 0;
+  }
+  .keys {
+    flex-direction: column;
+    gap: 2px;
+  }
+  .keys .row {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 16px;
+  }
+  .keys span {
+    white-space: nowrap;
+  }
+  .keys .end {
+    margin-left: auto;
   }
   .del {
     color: var(--danger);

@@ -157,7 +157,7 @@ test.describe('スクリーンのアラート（FR-AL2）', () => {
     await expect(page.locator('[data-widget="screener"]')).toContainText('高配当銘柄')
     await keys(page, 'Control+Alt+a')
     const form = page.locator('.dialog.alertform')
-    const screenRadio = form.getByRole('radio', { name: 'スクリーン' })
+    const screenRadio = form.getByRole('radio', { name: 'スクリーニング条件' })
     await expect(screenRadio).toHaveAttribute('aria-checked', 'true')
     await expect(form).toContainText('新しく入った銘柄')
     await expect(form.locator('.nowline')).toContainText('外れた銘柄は知らせません')

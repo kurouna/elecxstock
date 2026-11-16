@@ -83,7 +83,7 @@ const G = $derived([
       [ja ? '条件の指標を変える / 並べ替え' : 'Change field / reorder condition', 'F / Alt+↑↓'],
       [ja ? '上位 N 件に絞る' : 'Keep top N', 'T'],
       [ja ? '上書き保存 / 名前を付けて保存' : 'Save / save as', 'Ctrl+S / Ctrl+Shift+S'],
-      [ja ? 'スクリーンを開く / 名前の変更' : 'Open / rename screen', `${K('screens')} / F2`],
+      [ja ? 'スクリーニング条件を開く / 名前の変更' : 'Open / rename screen', `${K('screens')} / F2`],
       [ja ? 'グリッドで開く' : 'Open in grid', K('openGrid')],
     ],
   },
