@@ -1,17 +1,20 @@
 // マイレイアウトのページの操作（FR-L14。docs/design-mylayouts.md §3.2〜§3.4）: メニュー（components/overlays/Layouts.svelte）・
 // コマンドバー・キーから使う。ダイアログとトーストはここ、ページの木の変更は stores/layout.svelte.ts
 import type { SavedLayout } from '@shared/types'
-import { app, choiceDialog, promptDialog, t, toast } from '../stores/app.svelte'
+import { app, choiceDialog, promptDialog, rpc, t, toast } from '../stores/app.svelte'
 import {
   addPage,
   copyToPage,
   currentPage,
   duplicatePage,
+  type FreeOpened,
+  freeWin,
   layout,
   openablePages,
   PAGES_MAX,
   type PageRefusal,
   pageName,
+  pageOpenable,
   removePage,
   renamePage,
   setPage,
@@ -19,7 +22,7 @@ import {
   undoRemovePage,
 } from '../stores/layout.svelte'
 import type { Key } from './i18n'
-import { IS_FREE } from './windowSlot'
+import { freeNo, IS_FREE, SLOT } from './windowSlot'
 
 /** メニューの行: ページ（番号は 1〜9 だけ）と、操作 */
 export type MenuRow =
@@ -127,4 +130,33 @@ export function pageCommands(): { id: string; label: string; run: () => void }[]
     label: t('lay.openPage', { tab: t('preset.free'), name: nameOfPage(p) }),
     run: () => void setPage(p.id),
   }))
+}
+
+// ---------------------------------------------------------------- フリー 2〜4 でページを開く（docs/design-mylayouts.md §3.6）
+/** 新しいウィンドウの初期の形の選択肢に足す、開けるページ（`page:<ID>`。写しを開く） */
+export function pageShapeChoices(pages: readonly SavedLayout[]): { id: string; label: string; hint: string }[] {
+  return pages
+    .filter((p) => pageOpenable(p) && /^[\w-]{1,40}$/.test(p.id))
+    .map((p) => ({
+      id: `page:${p.id}`,
+      label: t('win.shape.page', { tab: t('preset.free'), name: nameOfPage(p) }),
+      hint: t('win.shape.pageHint'),
+    }))
+}
+/** フリー N を開いたときに、ページから変えたもの・ページが無かったことを知らせる */
+export function noticeFreeOpened(r: FreeOpened, shape: string | null): void {
+  if (r.missing) toast(t('win.pageMissing'), undefined, 5000)
+  else if (r.adjusted && shape?.startsWith('page:')) toast(t('win.pageAdjusted'), undefined, 5000)
+}
+/** フリー N の窓の名前（ページから開いた窓は「フリー 2（<ページ名> から）」）。ページの名前は渡されたページから読む */
+export function freeWindowName(pages: readonly SavedLayout[] = []): string {
+  const win = t('win.freeTitle', { n: freeNo(SLOT) })
+  const id = freeWin.origin?.startsWith('page:') ? freeWin.origin.slice(5) : null
+  const p = id ? pages.find((x) => x.id === id) : undefined
+  return p ? t('win.fromPage', { win, name: nameOfPage(p) }) : win
+}
+/** フリー N の初期状態の中身（ページから開いた窓は、ページの今の中身を読み直して写す） */
+export async function freeResetTarget(): Promise<{ name: string; pages: SavedLayout[] }> {
+  const pages = freeWin.origin?.startsWith('page:') ? (await rpc('user.load', {})).layouts : []
+  return { name: freeWindowName(pages), pages }
 }

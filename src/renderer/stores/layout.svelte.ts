@@ -2,7 +2,7 @@
 // 今のレイアウトは作業に追従して自動保存する（FR-L4）。プリセットの初期値は残し、FR-L9 / L10 で戻せる。
 import type { RecoveredFile } from '@shared/api'
 import type { InstrumentId, SavedLayout } from '@shared/types'
-import { FREE_WIDGETS, IS_FREE, SHAPE, SLOT } from '../lib/windowSlot'
+import { FREE_WIDGETS, IS_FREE, SLOT } from '../lib/windowSlot'
 import { app, bridge, rpc, t, toast } from './app.svelte'
 
 export type WidgetId =
@@ -321,8 +321,11 @@ const warned = { size: false, failed: false }
 async function flushLayout(): Promise<unknown> {
   saveTimer = null
   // フリー N は自分の配置だけを保存する（1 枚目のレイアウトに触らない。マルチモニタ）
-  if (IS_FREE)
-    return rpc('user.saveWindowLayout', { slot: SLOT as 'free2', entry: $state.snapshot(layout.doc.entries.free) }).catch(() => {})
+  if (IS_FREE) {
+    // 開いた元の形（origin）を付けて保存する（LayoutEntry の直下。前の版は知らないキーを捨てるだけ）
+    const entry = { ...$state.snapshot(layout.doc.entries.free), ...(freeWin.origin ? { origin: freeWin.origin } : {}) }
+    return rpc('user.saveWindowLayout', { slot: SLOT as 'free2', entry }).catch(() => {})
+  }
   if (saveSuspended) return
   // ページを先に書く（2 つの書き込みの間で落ちても、正の layouts.json のほうが新しい）。同じ中身なら Core は書かない
   commitPage()
@@ -368,14 +371,61 @@ export function freeShape(shape: string | null): LayoutEntry {
   }
 }
 /** フリー N のレイアウトを作る: 開くときに形を選んだらその形、無ければ前回の配置、それも無ければグリッド */
-export function freeDoc(raw: unknown, slot: string, shape: string | null): LayoutDoc {
-  const saved = (raw as { windows?: Record<string, unknown> } | null)?.windows?.[slot]
-  const entry = shape ? freeShape(shape) : saved ? normalizeEntry(saved) : null
-  const d = normalizeDoc({ version: 1, active: 'free', entries: { free: entry ?? freeShape('grid') }, links: {} })
-  // 置けるのはチャートを並べるペインだけ（一覧は 1 枚目で）。古い保存に他の種類があればチャートにする
-  for (const p of allPanes(d.entries.free)) if (!FREE_WIDGETS.includes(p.widget)) changeWidgetIn(p, 'chart')
+export function freeDoc(raw: unknown, slot: string, shape: string | null, pages: readonly SavedLayout[] = []): LayoutDoc {
+  return openFreeWindow(raw, slot, shape, pages).doc
+}
+/** フリー N で開いた元の形（`free:<形>`・`page:<ページの ID>`）。初期状態に戻す（FR-L10）先。窓の配置に `origin` として保存する */
+export const freeWin = { origin: null as string | null }
+export interface FreeOpened {
+  doc: LayoutDoc
+  origin: string | null
+  /** フリー N に置けないペインをチャートにした・ドロワーを捨てた */
+  adjusted: boolean
+  /** 開く元のページが無かった（グリッドで開いた） */
+  missing: boolean
+}
+/**
+ * フリー N を開く（docs/design-mylayouts.md §3.6・§5.8）。形（`grid` など・`page:<ID>`）を選んだらその形、無ければ前回の配置
+ * （元の形は `origin` から読む）、それも無ければグリッド。マイレイアウトのページは写しを開く（ペインの ID を振り直す）
+ */
+export function openFreeWindow(raw: unknown, slot: string, shape: string | null, pages: readonly SavedLayout[] = []): FreeOpened {
+  const saved = (raw as { windows?: Record<string, unknown> } | null)?.windows?.[slot] as { origin?: unknown } | undefined
+  if (shape && shape !== 'last') {
+    const origin = shape.startsWith('page:') ? shape : `free:${shape}`
+    return { ...freeEntryOf(origin, pages), origin }
+  }
+  const origin = typeof saved?.origin === 'string' ? saved.origin : null
+  const entry = saved ? normalizeEntry(saved) : null
+  const r = fitFree(entry ?? freeShape('grid'))
+  return { doc: r.doc, origin: entry ? origin : 'free:grid', adjusted: r.adjusted, missing: false }
+}
+/** 開いたフリー N のレイアウトを使う */
+export function useFreeWindow(r: FreeOpened): FreeOpened {
+  layout.doc = r.doc
+  freeWin.origin = r.origin
+  return r
+}
+/** 元の形の中身（フリー N の初期状態に戻すときも使う）。ページは今の中身を写す。無ければグリッド */
+export function freeEntryOf(origin: string | null, pages: readonly SavedLayout[]): Omit<FreeOpened, 'origin'> {
+  if (origin?.startsWith('page:')) {
+    const p = pages.find((x) => `page:${x.id}` === origin)
+    const e = p ? normalizeEntry(p.entry) : null
+    if (!e) return { ...fitFree(freeShape('grid')), missing: true }
+    return { ...fitFree(cloneEntry(e)), missing: false }
+  }
+  return { ...fitFree(freeShape(origin?.replace(/^free:/, '') ?? 'grid')), missing: false }
+}
+/** フリー N に合わせる: 置けるのはチャートを並べるペインだけ（一覧は 1 枚目で）。ほかの種類はチャートにし、ドロワーは捨てる */
+function fitFree(entry: LayoutEntry): { doc: LayoutDoc; adjusted: boolean } {
+  const d = normalizeDoc({ version: 1, active: 'free', entries: { free: entry }, links: {} })
+  let adjusted = !!(d.entries.free.docks.left || d.entries.free.docks.right)
+  for (const p of allPanes(d.entries.free))
+    if (!FREE_WIDGETS.includes(p.widget)) {
+      changeWidgetIn(p, 'chart')
+      adjusted = true
+    }
   d.entries.free.docks = {}
-  return d
+  return { doc: d, adjusted }
 }
 function changeWidgetIn(p: PaneNode, widget: WidgetId): void {
   p.widget = widget
@@ -919,10 +969,14 @@ export function undoResetSizes(): boolean {
   saveLayout()
   return true
 }
-/** レイアウトを初期状態に戻す（FR-L10。確認は呼ぶ側で行う）。マイレイアウトでは表示中のページだけを、作ったときの形に戻す */
-export function resetLayout(): void {
+/**
+ * レイアウトを初期状態に戻す（FR-L10。確認は呼ぶ側で行う）。マイレイアウトでは表示中のページだけを、作ったときの形に戻す。
+ * フリー N は開いた元の形に戻す。ページから開いた窓は、呼ぶ側がページの今の中身を読んで `entry` に渡す（読むのが非同期のため）
+ */
+export function resetLayout(entry?: LayoutEntry): void {
   const a = layout.doc.active
-  layout.doc.entries[a] = IS_FREE ? freeShape(SHAPE) : a === 'free' ? shapeEntry(currentPage()?.shape) : presetEntry(a)
+  layout.doc.entries[a] =
+    entry ?? (IS_FREE ? freeEntryOf(freeWin.origin, []).doc.entries.free : a === 'free' ? shapeEntry(currentPage()?.shape) : presetEntry(a))
   app.focus = null
   saveLayout()
 }

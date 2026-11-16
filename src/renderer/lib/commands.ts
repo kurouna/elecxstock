@@ -34,6 +34,8 @@ import {
   dockOf,
   findPane,
   flushLayoutSave,
+  freeEntryOf,
+  freeWin,
   inDock,
   layout,
   MAIN_LINK,
@@ -68,11 +70,11 @@ import { toCsv } from './columns'
 import { dateTime } from './format'
 import type { Key } from './i18n'
 import { matches, normalizeKey } from './keys'
-import { currentPageName, openPageMenu, undoRemove } from './pages'
+import { currentPageName, freeResetTarget, openPageMenu, pageShapeChoices, undoRemove } from './pages'
 import { paneApi } from './panes'
 import { exportHoldings, importBrokerCsv, importHoldings, undoHoldingsImport } from './portfolio'
 import { condsOf, confirmCloseScreen } from './screens'
-import { blockedInFree, FREE_WIDGETS, freeNo, IS_FREE, SLOT } from './windowSlot'
+import { blockedInFree, FREE_WIDGETS, freeNo, IS_FREE } from './windowSlot'
 
 export interface Action {
   id: string
@@ -234,8 +236,10 @@ export function doResetSizes(): void {
 export async function doResetLayout(): Promise<void> {
   // 戻すのは表示中のタブだけ。どのタブかを名前で示す（マイレイアウトはページの名前も。フリー N は窓の名前）
   const a = layout.doc.active
-  const tab = IS_FREE
-    ? t('win.freeTitle', { n: freeNo(SLOT) })
+  // フリー N でページから開いた窓は、ページの今の中身を読み直して写す（読むのは非同期なので、ここで読んで resetLayout に渡す）
+  const free = IS_FREE ? await freeResetTarget() : null
+  const tab = free
+    ? free.name
     : a === 'free'
       ? t('layout.pageTab', { tab: t('preset.free'), page: currentPageName() })
       : t(`preset.${a}` as Key)
@@ -246,7 +250,11 @@ export async function doResetLayout(): Promise<void> {
     danger: true,
   })
   if (!r.ok) return
-  resetLayout()
+  if (free) {
+    const back = freeEntryOf(freeWin.origin, free.pages)
+    resetLayout(back.doc.entries.free)
+    if (back.missing) toast(t('win.pageMissing'), undefined, 5000)
+  } else resetLayout()
   toast(t('layout.resetDone', { tab }))
 }
 
@@ -700,13 +708,17 @@ async function newWindowDialog(): Promise<void> {
   const info = await window.elecxstock.windowInfo()
   const next = (['free2', 'free3', 'free4'] as const).find((s) => !info?.open.includes(s))
   if (!next) return void toast(t('win.full'))
-  const raw = (await rpc('user.load', {})).layout as { windows?: Record<string, unknown> } | null
+  // マイレイアウトのページの写しも開ける。1 枚目は、保存していない変更をページに書いてから読む（FR-L14、§3.6）
+  await flushLayoutSave()
+  const u = await rpc('user.load', {})
+  const raw = u.layout as { windows?: Record<string, unknown> } | null
   const choices = [
     ...(raw?.windows?.[next] ? [{ id: 'last', label: t('win.shape.last', { n: freeNo(next) }), hint: t('win.shape.lastHint') }] : []),
     { id: 'grid', label: t('win.shape.grid'), hint: t('win.shape.gridHint') },
     { id: 'quad', label: t('win.shape.quad'), hint: t('win.shape.quadHint') },
     { id: 'detail', label: t('win.shape.detail'), hint: t('win.shape.detailHint') },
     { id: 'empty', label: t('win.shape.empty'), hint: t('win.shape.emptyHint') },
+    ...pageShapeChoices(u.layouts),
   ]
   const c = await choiceDialog(t('win.newTitle', { n: freeNo(next) }), choices)
   if (!c) return

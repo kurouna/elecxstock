@@ -5,6 +5,7 @@ import { onMount } from 'svelte'
 import { loadAlerts, notifyFired, toggleAlerts } from '../lib/alerts'
 import { clearBars } from '../lib/barsCache'
 import { checkUpdate, handleKey, sendSymbol, startUpdate } from '../lib/commands'
+import { noticeFreeOpened } from '../lib/pages'
 import { loadHoldings } from '../lib/portfolio'
 import { IS_FREE, SHAPE, SLOT } from '../lib/windowSlot'
 import {
@@ -20,7 +21,15 @@ import {
   toast,
   winZoom,
 } from '../stores/app.svelte'
-import { applyRemoteLink, flushLayoutSave, freeDoc, layout, noticeLoaded, saveLayout, useLoadedLayout } from '../stores/layout.svelte'
+import {
+  applyRemoteLink,
+  flushLayoutSave,
+  noticeLoaded,
+  openFreeWindow,
+  saveLayout,
+  useFreeWindow,
+  useLoadedLayout,
+} from '../stores/layout.svelte'
 import Overlays from './overlays/Overlays.svelte'
 import StatusBar from './StatusBar.svelte'
 import Toasts from './Toasts.svelte'
@@ -202,7 +211,8 @@ async function boot() {
     app.readOnly = u.readOnly
     if (u.error) app.userError = u.error
     // 1 枚目: マイレイアウトのページが正。表示中のページを entries.free に写す（FR-L14）
-    if (IS_FREE) layout.doc = freeDoc(u.layout, SLOT, SHAPE)
+    // フリー N: 選んだ形・ページの写し・前回の配置で開く（docs/design-mylayouts.md §3.6）
+    if (IS_FREE) noticeFreeOpened(useFreeWindow(openFreeWindow(u.layout, SLOT, SHAPE, u.layouts)), SHAPE)
     else noticeLoaded(useLoadedLayout(u.layout, u.layouts), u.recovered)
     if (IS_FREE) {
       // 窓の名前（タスクバー・Alt+Tab）。初期の形は 1 度だけ: URL から外し、選んだ形を保存する（読み込み直しで前の配置に戻す）

@@ -1,7 +1,7 @@
 // マルチモニタ（FR-L7, docs/design-multimonitor.md）: タブなしのフリー N。キーで開く・足す・送る・リンク・★・窓の移動・再起動・アラート。
 // OS の窓とフォーカスに頼るので、並列のあとの直列の project で回す
 import type { ElectronApplication, Page } from '@playwright/test'
-import { expect, expectDraggableTitleBar, jump, keys, pane, readUser, resizeWindow, tab, test } from './support'
+import { expect, expectDraggableTitleBar, jump, keys, pane, readUser, resizeWindow, tab, test, type } from './support'
 
 /** userData に保存したフリー 2 の配置に出てくる銘柄（並びの順） */
 const savedFree2 = (userData: string) =>
@@ -25,6 +25,38 @@ async function openFree(app: ElectronApplication, page: Page, label: string): Pr
   await expect(w.locator('.main [data-pane-id]').first()).toBeVisible()
   return w
 }
+
+test.describe('フリー N でマイレイアウトのページを開く（FR-L7, FR-L14）', () => {
+  test('ページの写しを開き（一覧はチャートにして知らせる）、初期状態に戻すとページの今の中身を写し直す', async ({ start }) => {
+    const { app, page } = await start()
+    // MTF のタブを写して「朝」のページを作る（メニューの「今のタブを写して足す」は削除の 1 つ上）
+    await tab(page, 'mtf')
+    await keys(page, 'Control+Shift+l', 'End', 'ArrowUp', 'Enter')
+    await type(page, '朝')
+    await keys(page, 'Enter')
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('朝')
+    const free = await openFree(app, page, 'マイレイアウト: 朝')
+    const panes = free.locator('.main [data-pane-id]')
+    // MTF の 5 枚（ウォッチリスト・スクリーナーはフリー N に置けないのでチャートに）
+    await expect(panes).toHaveCount(5)
+    await expect(free.locator('.main [data-widget="chart"]')).toHaveCount(5)
+    await expect(free.locator('.toasts')).toContainText('チャートにするか外しました')
+    // 1 枚閉じてから初期状態に戻すと、ページの中身を写し直す。確認には窓の名前と元のページを出す
+    await panes.first().click()
+    await keys(free, 'Control+Shift+w')
+    await expect(panes).toHaveCount(4)
+    await keys(free, 'Control+k')
+    await type(free, 'このタブのレイアウトを初期状態に戻す')
+    await keys(free, 'Enter')
+    await expect(free.getByRole('alertdialog')).toContainText('フリー 2（朝 から）')
+    await keys(free, 'ArrowRight', 'Enter')
+    await expect(free.locator('.toasts')).toContainText('「フリー 2（朝 から）」のレイアウトを初期状態に戻しました')
+    await expect(panes).toHaveCount(5)
+    // 1 枚目のページはフリー 2 の変更で変わらない
+    await expect(page.locator('.main [data-pane-id]')).toHaveCount(5)
+    await expect(page.locator('.main [data-widget="watchlist"]')).toHaveCount(1)
+  })
+})
 
 test.describe('フリー N（FR-L7）', () => {
   test('キーで開き、銘柄ジャンプで足し、タブ・設定は 1 枚目だけ。Ctrl+F6 で窓を移る', async ({ start }) => {

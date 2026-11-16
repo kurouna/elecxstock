@@ -362,3 +362,58 @@ describe('サイズを元に戻す（FR-L9, FR-L14 §3.5）', () => {
     expect(sizes()).toEqual([50, 50])
   })
 })
+
+describe('フリー 2〜4 でページを開く（FR-L7, FR-L14 §3.6, §5.8）', () => {
+  const mixed = page('mix', {
+    root: {
+      kind: 'split',
+      id: 'ms',
+      dir: 'row',
+      sizes: [40, 60],
+      children: [{ kind: 'pane', id: 'mw', widget: 'watchlist', link: 2, state: {} }, chart('mc')],
+    },
+    docks: { left: { panes: [{ kind: 'pane', id: 'md', widget: 'screener', link: 2, state: {} }], active: 0, pinned: false, width: 600 } },
+  })
+  it('ページの写しを開く: ペインの ID を振り直し、置けないペインはチャートに、ドロワーは外す（変えたと知らせる）', () => {
+    const r = L.openFreeWindow(null, 'free2', 'page:mix', [mixed])
+    expect(r.origin).toBe('page:mix')
+    expect(r.adjusted).toBe(true)
+    expect(r.missing).toBe(false)
+    const e = r.doc.entries.free
+    expect(L.allPanes(e).map((p) => p.widget)).toEqual(['chart', 'chart'])
+    expect(e.docks).toEqual({})
+    expect((e.root as { sizes: number[] }).sizes).toEqual([40, 60])
+    expect(paneIds(e).some((id) => ['mw', 'mc', 'md'].includes(id))).toBe(false)
+    // チャートだけのページは変えない
+    expect(L.openFreeWindow(null, 'free2', 'page:a', [page('a')]).adjusted).toBe(false)
+  })
+  it('ページが無い・開けないときはグリッドで開き、知らせる', () => {
+    for (const pages of [[], [future('x')]]) {
+      const r = L.openFreeWindow(null, 'free3', 'page:x', pages)
+      expect(r.missing).toBe(true)
+      expect(L.allPanes(r.doc.entries.free).map((p) => p.widget)).toEqual(['grid'])
+    }
+  })
+  it('前回の配置で開くときは、保存した元の形（origin）を読む。形を選んだときは free:<形>', () => {
+    const saved = { windows: { free2: { root: chart('w'), docks: {}, origin: 'page:mix' } } }
+    const r = L.openFreeWindow(saved, 'free2', null, [mixed])
+    expect(r.origin).toBe('page:mix')
+    expect(rootId(r.doc.entries.free)).toBe('w') // 前回の配置そのもの（ページを写し直さない）
+    expect(L.openFreeWindow(saved, 'free2', 'last').origin).toBe('page:mix')
+    expect(L.openFreeWindow(saved, 'free2', 'quad').origin).toBe('free:quad')
+    expect(L.openFreeWindow(null, 'free2', null).origin).toBe('free:grid')
+    // 前の版が書いた配置（origin なし）
+    expect(L.openFreeWindow({ windows: { free2: { root: chart('w'), docks: {} } } }, 'free2', null).origin).toBeNull()
+  })
+  it('初期状態に戻す先: ページから開いた窓はページの今の中身、ほかは元の形', () => {
+    const now = page('mix', { root: { kind: 'pane', id: 'n1', widget: 'info', link: 0, state: {} }, docks: {} })
+    expect(L.allPanes(L.freeEntryOf('page:mix', [now]).doc.entries.free).map((p) => p.widget)).toEqual(['info'])
+    expect(L.allPanes(L.freeEntryOf('free:quad', []).doc.entries.free)).toHaveLength(4)
+    expect(L.allPanes(L.freeEntryOf(null, []).doc.entries.free).map((p) => p.widget)).toEqual(['grid'])
+  })
+  it('新しいウィンドウの選択肢には、開けるページだけを「マイレイアウト: <名前>」で出す', async () => {
+    const { pageShapeChoices } = await import('../../../src/renderer/lib/pages')
+    const cs = pageShapeChoices([page('a'), future('x'), page('bad id')])
+    expect(cs.map((c) => [c.id, c.label])).toEqual([['page:a', 'マイレイアウト: a']])
+  })
+})

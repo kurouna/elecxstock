@@ -29,6 +29,7 @@ import {
 import { appUserModelId } from './appId'
 import { clockOffset } from './clock-init'
 import { type DisplayLike, type Placement, parseState, place, remember, type WindowStateV2 } from './placement'
+import { freeShapeArg } from './shapes'
 
 declare const __APP_VERSION__: string
 const here = dirname(fileURLToPath(import.meta.url))
@@ -471,14 +472,12 @@ ipcMain.handle('app:notify', (e, title: unknown, body: unknown) => {
 })
 
 // ---------------------------------------------------------------- windows IPC（マルチモニタ）
-const SHAPES = ['grid', 'quad', 'detail', 'empty', 'last']
-/** フリー N を開く。slot が無ければ空いている番号、shape は初期の形（last は前回の配置） */
+/** フリー N を開く。slot が無ければ空いている番号、shape は初期の形（無ければ前回の配置。マイレイアウトのページは page:<ID>） */
 ipcMain.handle('win:open', async (e, slot: unknown, shape: unknown) => {
   if (!fromApp(e)) return null
   const s = slot == null ? null : isSlot(slot) && slot !== 'main' ? slot : undefined
   if (s === undefined) return null
-  const sh = typeof shape === 'string' && SHAPES.includes(shape) && shape !== 'last' ? shape : undefined
-  return openFree(s, sh)
+  return openFree(s, freeShapeArg(shape))
 })
 /** 開いているウィンドウと、いま前にあるウィンドウ（Ctrl+F6 の確かめにも使う） */
 ipcMain.handle('win:info', (e) => {
