@@ -391,3 +391,43 @@ describe('レビュー 2 回目（Fable）', () => {
     expect(core.db.get(ID)![0]!.extend).toBe('left')
   })
 })
+
+describe('レビュー（消す操作の画面への反映・やり直せるか）', () => {
+  it('消すと、前の書き込みの返事を待たずに手元からすぐ消える', async () => {
+    await edits.create('p1', ID, line('a'))
+    await edits.create('p1', ID, line('b'))
+    const orig = core.io.update
+    let go: () => void = () => {}
+    const gate = new Promise<void>((res) => {
+      go = res
+    })
+    core.io.update = async (...a) => {
+      await gate
+      return orig(...a)
+    }
+    edits.edit('p1', ID, { ...store.list(ID).find((d) => d.id === 'b')!, extend: 'right' })
+    const f = edits.flush('b')
+    const r = edits.remove('p1', ID, 'a')
+    expect(ids()).toEqual(['b'])
+    go()
+    await Promise.all([f, r])
+    expect(core.db.get(ID)!.map((d) => d.id)).toEqual(['b'])
+  })
+  it('書きかけの線を消しても、書きかけの変更は書いてから消す（戻すと変更のある線が戻る）', async () => {
+    await edits.create('p1', ID, line('a'))
+    edits.edit('p1', ID, { ...store.list(ID)[0]!, extend: 'right' })
+    const r = edits.remove('p1', ID, 'a')
+    expect(ids()).toEqual([])
+    await r
+    expect(core.db.get(ID)).toEqual([])
+    expect(notices).toEqual([])
+    await edits.undo('p1')
+    expect(store.list(ID)[0]!.extend).toBe('right')
+  })
+  it('やり直せるかは、やり直しの段か書き込み中だけで決める（書きかけは数えない）', async () => {
+    await edits.create('p1', ID, line('a'))
+    edits.edit('p1', ID, { ...store.list(ID)[0]!, extend: 'right' })
+    expect(edits.canRedo('p1')).toBe(false)
+    expect(edits.canUndo('p1')).toBe(true)
+  })
+})

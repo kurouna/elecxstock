@@ -85,8 +85,10 @@ export class DrawController {
     pointer: number
   } | null = null
   private down: { x: number; y: number; i: number } | null = null
-  /** 引いている間に押している（離すまでスクロールを止める） */
-  private pressing = false
+  /** 引いている間に押しているポインタ（離すまでスクロールを止める） */
+  private pressing: number | null = null
+  /** ポインタをつないだ要素（ポインタを放すのに使う） */
+  private host: HTMLElement | null = null
   private away: { x: number; y: number } | null = null
 
   constructor(private c: DrawContext) {
@@ -182,6 +184,8 @@ export class DrawController {
       this.cur = null
       if (was === 'start' || was === 'end') this.c.showBar(null)
     }
+    // 通常に戻った（Esc・Delete・フォーカスが外れた・銘柄が変わった）: 押したまま・ドラッグの途中なら、止めたスクロールとポインタを解く
+    if (this.mode.m === 'idle') this.endPointer()
     this.redraw()
   }
   private redraw(): void {
@@ -453,6 +457,7 @@ export class DrawController {
       this.send({ t: 'space' })
       const p = s.target === 'none' ? d.a : s.target === 'all' ? d.a : s.target === 'a' ? d.b : null
       if (p) this.c.showBar(this.idx(p.date), this.shown(p) ?? undefined)
+      else this.c.showBar(null) // 見るだけに戻った: 十字線・凡例を戻す（Esc と同じ）
       return true
     }
     if (e.key === 'Escape') {
@@ -627,11 +632,12 @@ export class DrawController {
 
   /** host にポインタの操作をつなぐ（キャプチャ段階。チャートのスクロールより先に受ける）。外す関数を返す */
   bindPointer(host: HTMLElement): () => void {
+    this.host = host
     const opts = { capture: true }
     const down = (e: PointerEvent) => this.onDown(e, host)
     const move = (e: PointerEvent) => this.onMove(e, host)
     const up = (e: PointerEvent) => this.onUp(e, host)
-    const cancel = () => this.onCancel(host)
+    const cancel = () => this.endPointer()
     const ctx = (e: MouseEvent) => this.onContext(e, host)
     // 取り消された・ポインタを取り損なったときも、離したのと同じに終える（スクロールを止めたままにしない）
     const ev: [string, EventListener][] = [
@@ -645,13 +651,17 @@ export class DrawController {
     for (const [n, f] of ev) host.addEventListener(n, f, opts)
     return () => {
       for (const [n, f] of ev) host.removeEventListener(n, f, opts)
+      if (this.host === host) this.host = null
     }
   }
-  /** ポインタの位置（host の中の CSS の px。本体の段の中だけ） */
-  private local(e: MouseEvent, host: HTMLElement): { x: number; y: number } | null {
+  /** ポインタの位置（host の中の CSS の px。表示倍率を割り戻す。lib/pointer.ts） */
+  private xy(e: MouseEvent, host: HTMLElement): { x: number; y: number } {
     const r = host.getBoundingClientRect()
-    const x = localX(e.clientX, r, host.clientWidth)
-    const y = localX(e.clientY, { left: r.top, width: r.height }, host.clientHeight)
+    return { x: localX(e.clientX, r, host.clientWidth), y: localX(e.clientY, { left: r.top, width: r.height }, host.clientHeight) }
+  }
+  /** ポインタの位置（本体の段の中だけ） */
+  private local(e: MouseEvent, host: HTMLElement): { x: number; y: number } | null {
+    const { x, y } = this.xy(e, host)
     const ch = this.c.chart()
     const w = ch?.timeScale().width() ?? 0
     const h = ch?.panes()[0]?.getHeight() ?? 0
@@ -687,7 +697,7 @@ export class DrawController {
       e.stopPropagation()
       this.c.focus()
       this.freeze(true)
-      this.pressing = true
+      this.pressing = e.pointerId
       host.setPointerCapture?.(e.pointerId)
       const cur = this.pointAt(p, e.ctrlKey)
       if (!cur) return
@@ -726,11 +736,7 @@ export class DrawController {
     }
     const g = this.drag
     if (!g) return
-    const r = host.getBoundingClientRect()
-    const p = {
-      x: localX(e.clientX, r, host.clientWidth),
-      y: localX(e.clientY, { left: r.top, width: r.height }, host.clientHeight),
-    }
+    const p = this.xy(e, host)
     if (!g.moved && Math.hypot(p.x - g.x, p.y - g.y) < 3) return
     g.moved = true
     const next = this.dragged(g, p, e.ctrlKey)
@@ -779,8 +785,8 @@ export class DrawController {
     return { ...d, [g.part]: { date, raw } } as Drawing
   }
   private onUp(e: PointerEvent, host: HTMLElement): void {
-    if (this.pressing) {
-      this.pressing = false
+    if (this.pressing != null) {
+      this.pressing = null
       this.freeze(false)
     }
     const g = this.drag
@@ -814,24 +820,27 @@ export class DrawController {
       if (p && Math.hypot(p.x - a.x, p.y - a.y) < 3) {
         void drawingEdits.flush()
         this.send({ t: 'esc' })
+        this.c.showBar(null)
       }
     }
   }
-  /** 取り消された・ポインタを取り損なった: 止めたスクロールとドラッグを解くだけ（点は決めない） */
-  private onCancel(host: HTMLElement): void {
-    if (this.pressing) {
-      this.pressing = false
-      this.freeze(false)
-    }
+  /**
+   * 押したまま・ドラッグの途中を終える（点は決めない）: 止めたスクロールを戻し、ポインタを放し、ドラッグで動かした分を書く。
+   * 取り消された・ポインタを取り損なったとき（pointercancel・lostpointercapture）と、通常に戻ったとき（send）に呼ぶ
+   */
+  private endPointer(): void {
+    const g = this.drag
+    const pressed = this.pressing
+    this.drag = null
+    this.pressing = null
     this.down = null
     this.away = null
-    const g = this.drag
-    if (!g) return
-    this.drag = null
+    if (!g && pressed == null) return
     this.freeze(false)
-    host.releasePointerCapture?.(g.pointer)
-    void drawingEdits.flush(g.id)
-    this.redraw()
+    if (g) this.host?.releasePointerCapture?.(g.pointer)
+    if (pressed != null) this.host?.releasePointerCapture?.(pressed)
+    if (g) void drawingEdits.flush(g.id)
+    this.prim?.update()
   }
   private onContext(e: MouseEvent, host: HTMLElement): void {
     const p = this.local(e, host)

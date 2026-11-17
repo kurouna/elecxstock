@@ -26,6 +26,8 @@ interface Pending {
   id: string
   /** 書く前の値（Core の値。作った返事を待っている間は null） */
   before: Drawing | null
+  /** 手元の最新の値（消して手元から外したあとも、書きかけを書くのに使う） */
+  last: Drawing
   timer: ReturnType<typeof setTimeout> | null
 }
 /** 取り消しの段の上限（スコープごと） */
@@ -41,6 +43,8 @@ export class DrawingEdits {
   private creating = new Set<string>()
   /** 消す返事を待っている図形（その間の読み直しで手元に戻さない） */
   private removing = new Set<string>()
+  /** 消す途中に書きかけを書いたときの Core の値（消すときの expected に使う） */
+  private latest = new Map<string, Drawing>()
   private chain: Promise<unknown> = Promise.resolve()
   /** スコープごとの書き込み中の数 */
   private busy = new Map<string, number>()
@@ -120,8 +124,9 @@ export class DrawingEdits {
   canUndo(scope: string): boolean {
     return this.busyIn(scope) || !!this.hist.get(scope)?.undo.length
   }
+  /** やり直せるか（書き込み中は true。書きかけは新しい編集で、やり直しの段を消す側なので数えない） */
   canRedo(scope: string): boolean {
-    return this.busyIn(scope) || !!this.hist.get(scope)?.redo.length
+    return (this.busy.get(scope) ?? 0) > 0 || !!this.hist.get(scope)?.redo.length
   }
 
   create(scope: string, id: string, d: Drawing): Promise<Drawing | null> {
@@ -160,9 +165,10 @@ export class DrawingEdits {
     let p = this.pending.get(d.id)
     if (!p) {
       if (same(cur, d)) return
-      p = { scope, id, before: this.creating.has(d.id) ? null : cur, timer: null }
+      p = { scope, id, before: this.creating.has(d.id) ? null : cur, last: d, timer: null }
       this.pending.set(d.id, p)
     }
+    p.last = d
     this.set(id, d.id, d)
     if (p.timer) clearTimeout(p.timer)
     p.timer = opts.hold ? null : setTimeout(() => void this.flush(d.id), this.delay)
@@ -179,7 +185,8 @@ export class DrawingEdits {
       if (!p) continue
       if (p.timer) clearTimeout(p.timer)
       this.pending.delete(k)
-      const cur = this.find(p.id, k)
+      // 消す途中（手元から外した）なら、書きかけの最新の値を書く
+      const cur = this.find(p.id, k) ?? (this.removing.has(k) ? p.last : undefined)
       const before = p.before
       if (!cur || !before) continue
       if (same(cur, before)) {
@@ -193,6 +200,7 @@ export class DrawingEdits {
           // 書いている間にさらに動かしていたら、手元の値は残す（次のまとめで書く）
           const again = this.pending.get(k)
           if (again) again.before = r.drawing
+          else if (this.removing.has(k)) this.latest.set(k, r.drawing)
           else this.set(p.id, k, r.drawing)
           this.rebase(r.drawing, before.updated)
           this.push(p.scope, { t: 'update', id: p.id, before, after: r.drawing })
@@ -209,14 +217,19 @@ export class DrawingEdits {
     }
   }
   remove(scope: string, id: string, drawingId: string): Promise<void> {
+    // 手元からはすぐ消す（前の書き込みの返事を待たない。create と同じく先に画面へ）
     this.removing.add(drawingId)
-    const at = this.find(id, drawingId)
-    return this.run(scope, () => this.doRemove(scope, id, drawingId, at)).finally(() => this.removing.delete(drawingId))
+    const at = this.pending.get(drawingId)?.last ?? this.find(id, drawingId)
+    this.set(id, drawingId, null)
+    return this.run(scope, () => this.doRemove(scope, id, drawingId, at)).finally(() => {
+      this.removing.delete(drawingId)
+      this.latest.delete(drawingId)
+    })
   }
   private async doRemove(scope: string, id: string, drawingId: string, at?: Drawing): Promise<void> {
     await this.doFlush(drawingId)
-    // 列で待つ間に読み直しで手元から消えていても、押したときの図形で Core から消す
-    const cur = this.find(id, drawingId) ?? at
+    // 手元からは消してある。書きかけを書いた値か、押したときの図形で Core から消す（読み直しで戻っていれば手元の値）
+    const cur = this.find(id, drawingId) ?? this.latest.get(drawingId) ?? at
     if (!cur) return
     this.set(id, drawingId, null)
     try {
