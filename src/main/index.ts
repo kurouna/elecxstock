@@ -612,6 +612,17 @@ ipcMain.handle('win:zoom', (e, step: unknown) => {
   saveState()
   return z
 })
+/**
+ * この窓の全画面を切り替える（F11）。renderer の requestFullscreen は権限の要求をすべて拒否しているので使えない（下の setPermissionRequestHandler）。
+ * 窓そのものを全画面にするので、位置の記録（rememberWin の fullScreen）にもそのまま残る。切り替えたあとの状態を返す
+ */
+ipcMain.handle('win:fullscreen', (e) => {
+  if (!fromApp(e)) return null
+  const w = BrowserWindow.fromWebContents(e.sender)
+  if (!w) return null
+  w.setFullScreen(!w.isFullScreen())
+  return w.isFullScreen()
+})
 /** アプリを終える（Ctrl+Shift+Q。どの窓から押しても全部を閉じる） */
 ipcMain.handle('app:quit', (e) => {
   if (fromApp(e)) requestQuit()

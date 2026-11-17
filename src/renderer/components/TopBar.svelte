@@ -3,6 +3,7 @@ import { isMarketOpen, isTradingDay, jstNow } from '@shared/calendar'
 import { onMount } from 'svelte'
 import { doResetSizes, keyOf, runAction } from '../lib/commands'
 import type { Key } from '../lib/i18n'
+import { ink } from '../lib/ink'
 import { currentPageName, openPageMenu } from '../lib/pages'
 import { rootZoom } from '../lib/pointer'
 import { captionInset } from '../lib/titleBar'
@@ -12,6 +13,12 @@ import { layout, PRESET_IDS, setPreset, sizesAtDefault } from '../stores/layout.
 import Icon from './Icon.svelte'
 
 const pageLabel = $derived(currentPageName())
+// 下線（lib/ink.ts）: 選んだタブ。マイレイアウトはタブと ▾ の 2 つにまたがる
+let presetsEl = $state<HTMLElement>()
+const inkKey = $derived(layout.doc.active) // ページ名で幅が変わっただけなら滑らせない（幅は ResizeObserver が拾う）
+const inkPick = (): HTMLElement[] => [
+  ...(presetsEl?.querySelectorAll<HTMLElement>('[aria-current="true"], [aria-current="true"] + .page-menu-btn') ?? []),
+]
 
 let clock = $state('')
 let market = $state<'open' | 'closed' | 'holiday'>('closed')
@@ -56,7 +63,7 @@ onMount(() => {
   {#if IS_FREE}
     <span class="wname" title={t('win.freeHint')}>{t('win.freeTitle', { n: freeNo(SLOT) })}</span>
   {:else}
-  <nav class="presets" aria-label={t('a11y.layouts')}>
+  <nav class="presets" aria-label={t('a11y.layouts')} bind:this={presetsEl}>
     {#each PRESET_IDS as p, i (p)}
       <!-- マイレイアウト（FR-L14）: 表示中のときだけページの名前を出す（長い名前は CSS で切り、全体はツールチップ）。右の ▾ でページのメニュー -->
       {@const pg = p === 'free' && layout.doc.active === 'free' ? pageLabel : ''}
@@ -67,6 +74,7 @@ onMount(() => {
         <button type="button" class="page-menu-btn" data-page-menu aria-haspopup="menu" aria-label={t('lay.menu')} title={`${t('lay.menu')} (${keyOf('layouts')})`} onclick={openPageMenu}><Icon name="chevronDown" size={16} /></button>
       {/if}
     {/each}
+    <span class="ink" aria-hidden="true" use:ink={{ key: inkKey, pick: inkPick }}></span>
   </nav>
   {/if}
   <!-- 検索欄の左右は窓のドラッグに使う（縮まない。FR-L13） -->
@@ -171,6 +179,7 @@ onMount(() => {
     letter-spacing: 0.02em;
   }
   .presets {
+    position: relative;
     display: flex;
     height: 100%;
     flex: none;
@@ -190,7 +199,6 @@ onMount(() => {
   .presets button[aria-current='true'],
   .presets button[aria-current='true'] + .page-menu-btn {
     color: var(--text);
-    border-bottom-color: var(--focus);
     background: var(--panel-2);
   }
   /* ページの名前（マイレイアウトを表示中のとき）。長い名前は省略記号で切る */

@@ -55,7 +55,7 @@ async function session(lang, shots) {
     const target = (await fn({ k, type, page, app })) ?? page
     await wait(900)
     await target.evaluate(() => document.querySelectorAll('.toasts .toast').forEach((t) => t.remove()))
-    await target.screenshot({ path: join(out, `${name}.png`) })
+    await target.screenshot({ path: join(out, `${name}.png`), animations: 'disabled' })
     console.log('shot', name)
     if (target !== page) await target.close()
   }
@@ -94,7 +94,7 @@ async function folioSession() {
   const snap = async (name) => {
     await wait(1200)
     await page.evaluate(() => document.querySelectorAll('.toasts .toast').forEach((t) => t.remove()))
-    await page.screenshot({ path: join(out, `${name}.png`) })
+    await page.screenshot({ path: join(out, `${name}.png`), animations: 'disabled' })
     console.log('shot', name)
   }
   await page.keyboard.press('Control+Shift+Digit9')
@@ -223,7 +223,10 @@ await session('ja', [
       await k('Enter')
       await wait(2500)
       for (const p of [page, w]) await p.evaluate(() => document.querySelectorAll('.toasts .toast').forEach((t) => t.remove()))
-      const shots = [(await page.screenshot()).toString('base64'), (await w.screenshot()).toString('base64')]
+      const shots = [
+        (await page.screenshot({ animations: 'disabled' })).toString('base64'),
+        (await w.screenshot({ animations: 'disabled' })).toString('base64'),
+      ]
       await w.close()
       // まとめる窓（アプリの外の素の窓）
       const made = app.waitForEvent('window')

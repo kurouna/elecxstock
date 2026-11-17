@@ -1,8 +1,12 @@
 <script lang="ts">
+import { untrack } from 'svelte'
 // ドロワー（§6.12）: 閉じているときは細い帯だけ。ポインタを 200ms 載せるか Ctrl+B で本体の上にスライドインし、
 // フォーカスとポインタが外れたら閉じる。ピン留めすると本体の幅を詰めて並ぶ。帯にフォーカスがあれば ↑↓ が中の一覧に届く（FR-DR4）。
 import { keyOf, setFocus } from '../lib/commands'
 import type { Key } from '../lib/i18n'
+import { ink } from '../lib/ink'
+import { playIn, takeTabHint } from '../lib/paneMax'
+import { drawerSlide, identity } from '../lib/paneMotion'
 import { paneApi } from '../lib/panes'
 import { rootZoom } from '../lib/pointer'
 import { t } from '../stores/app.svelte'
@@ -14,6 +18,47 @@ let { dock, side = 'left' }: { dock: Dock; side?: DockSide } = $props()
 let wrap = $state<HTMLDivElement>()
 let timer: ReturnType<typeof setTimeout> | null = null
 const open = $derived(layout.dockOpen === side || dock.pinned)
+
+// タブを替えたときの動き（FR-V9。docs/design-motion.md）。このコンポーネントはレイアウトのタブをまたいで使い回され、
+// dock だけが別のタブのドロワーに替わるので、持ち主（dockId）が替わったら初めて出したのと同じに扱う（滑らせない）。
+// ドロワーが開いて落ち着いてからだけ動かす（閉じた状態からタブを選ぶと、開く動きと重なるため）
+const dockId = $derived(identity(dock))
+const activeId = $derived(dock.panes[dock.active]?.id ?? null)
+let shown = $state(false)
+$effect(() => {
+  if (!open) {
+    shown = false
+    return
+  }
+  const r = requestAnimationFrame(() => (shown = true))
+  return () => cancelAnimationFrame(r)
+})
+// 下線（lib/ink.ts）: 選んだタブ。ペインの出し入れでも測り直す
+let tabsEl = $state<HTMLElement>()
+const inkPick = (): HTMLElement[] => [...(tabsEl?.querySelectorAll<HTMLElement>('[role="tab"][aria-selected="true"]') ?? [])]
+// 出てきた中身を少し滑らせて入れる。比べるのは番号ではなくペインの ID（前のペインを外して番号が詰まっても動かさない）
+let bodyEl = $state<HTMLElement>()
+let lastId: string | null = null
+let lastDock = -1
+$effect(() => {
+  const id = activeId
+  const d = dockId
+  const ids = dock.panes.map((p) => p.id)
+  const hint = takeTabHint()
+  const dir =
+    d === lastDock
+      ? drawerSlide(
+          lastId,
+          id,
+          ids,
+          hint,
+          untrack(() => shown),
+        )
+      : null
+  if (dir !== null) playIn(bodyEl?.children[ids.indexOf(id!)], dir, bodyEl)
+  lastId = id
+  lastDock = d
+})
 
 function choose(i: number, focus = true) {
   dock.active = i
@@ -90,14 +135,15 @@ function resize(e: MouseEvent) {
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="panel" style:width={`${dock.width}px`} onmouseleave={leavePanel} onmouseenter={() => timer && clearTimeout(timer)}>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="tabs" ondragover={dragOver} ondrop={dropIn}>
+    <div class="tabs" bind:this={tabsEl} ondragover={dragOver} ondrop={dropIn}>
       {#each dock.panes as p, i (p.id)}
         <button type="button" role="tab" aria-selected={i === dock.active} onclick={() => choose(i)}>{t(`widget.${p.widget}` as Key)}</button>
       {/each}
       <span class="spacer"></span>
       <button type="button" class="pin" class:on={dock.pinned} title={keyOf('drawerPin')} onclick={pin}>⊿ {t('drawer.pin')}</button>
+      <span class="ink" aria-hidden="true" use:ink={{ key: activeId ?? '', group: String(dockId), slide: shown, pick: inkPick }}></span>
     </div>
-    <div class="body">
+    <div class="body" bind:this={bodyEl}>
       {#each dock.panes as p, i (p.id)}
         <div class="slot" hidden={i !== dock.active}>
           <Pane pane={p} />
@@ -171,7 +217,7 @@ function resize(e: MouseEvent) {
     transform: translateX(calc(-100% - 28px));
     visibility: hidden;
     transition:
-      transform var(--motion) cubic-bezier(0.2, 0.8, 0.2, 1),
+      transform var(--motion) var(--ease-out),
       box-shadow var(--motion) ease-out,
       visibility 0s linear var(--motion);
   }
@@ -180,7 +226,7 @@ function resize(e: MouseEvent) {
     visibility: visible;
     box-shadow: 12px 0 32px rgba(0, 0, 0, 0.45);
     transition:
-      transform var(--motion) cubic-bezier(0.2, 0.8, 0.2, 1),
+      transform var(--motion) var(--ease-out),
       box-shadow var(--motion) ease-out,
       visibility 0s;
   }
@@ -190,6 +236,7 @@ function resize(e: MouseEvent) {
     transition: none;
   }
   .tabs {
+    position: relative;
     display: flex;
     align-items: center;
     height: 28px;
@@ -208,7 +255,6 @@ function resize(e: MouseEvent) {
   }
   .tabs button[aria-selected='true'] {
     color: var(--text);
-    border-bottom-color: var(--focus);
   }
   .tabs .spacer {
     flex: 1;

@@ -1,8 +1,9 @@
 // chart-grid のタイルの描画（FR-G3, G8, G9）。30 枚を速く描くため、チャートライブラリではなく 2D Canvas に直接描く。
 import type { Bars, Timeframe } from '@shared/types'
 import { linesInRange, stackLabels, type YieldLine } from '@shared/yieldLines'
+import { rootZoom } from '../../lib/pointer'
 
-/** 右の目盛りの幅。描画もポインタも canvas の getBoundingClientRect の px（表示倍率が掛かった px）で数える（FR-V10） */
+/** 右の目盛りの幅。描画もポインタも表示倍率が掛かった px で数える（FR-V10）。描画は tileSize（CSS の幅 × 倍率）、ポインタは getBoundingClientRect で、止まっているときは同じ値 */
 export const TILE_PAD_R = 48
 /** i 本目の足の真ん中の x（rectW は getBoundingClientRect の幅） */
 export const tileX = (i: number, rectW: number, n: number): number => {
@@ -14,6 +15,21 @@ export function tileIndexAt(px: number, rectW: number, n: number): number {
   if (n < 1) return 0
   return Math.max(0, Math.min(n - 1, Math.floor((px / Math.max(1, rectW - TILE_PAD_R)) * n)))
 }
+
+/** getComputedStyle の幅・高さ（"123.5px"）を数にする。読めなければ代わりの値（clientWidth など） */
+export function cssPx(v: string, fallback: number): number {
+  const n = Number.parseFloat(v)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+/**
+ * タイルの大きさ（getBoundingClientRect と同じ、倍率が掛かった px）。getBoundingClientRect は transform も掛かるので、
+ * ペインの最大化の動きの途中（縮めて描いている間）に測ると小さく描いてしまう。transform の掛からない CSS の幅
+ * （getComputedStyle。clientWidth と違って小数を丸めないので、高 DPI で 1 デバイス px ずれない）と倍率から出す
+ */
+export const tileSize = (cssW: number, cssH: number, zoom: number): { width: number; height: number } => ({
+  width: cssW * zoom,
+  height: cssH * zoom,
+})
 
 export interface TileOpts {
   tf: Timeframe
@@ -30,7 +46,8 @@ const MA: Record<Timeframe, number[]> = { D: [25, 75], W: [13, 26], M: [12, 24] 
 
 /** タイルを描く。描いた目標利回りの線のラベルを返す（E2E が canvas の data-yield で確かめる） */
 export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars | undefined, o: TileOpts): string[] {
-  const r = cv.getBoundingClientRect()
+  const cs = getComputedStyle(cv)
+  const r = tileSize(cssPx(cs.width, cv.clientWidth), cssPx(cs.height, cv.clientHeight), rootZoom())
   const dpr = devicePixelRatio
   if (!r.width || !r.height) return []
   cv.width = Math.round(r.width * dpr)

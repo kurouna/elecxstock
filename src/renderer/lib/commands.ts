@@ -70,6 +70,7 @@ import { dateTime } from './format'
 import type { Key } from './i18n'
 import { matches, normalizeKey, reservedKey } from './keys'
 import { currentPageName, freeResetTarget, openPageMenu, pageShapeChoices, undoRemove } from './pages'
+import { clearMaximized, setMaximized, setTabHint } from './paneMax'
 import { paneApi } from './panes'
 import { exportHoldings, importBrokerCsv, importHoldings, undoHoldingsImport } from './portfolio'
 import { condsOf, confirmCloseScreen } from './screens'
@@ -483,11 +484,15 @@ export function openInGrid(): void {
 }
 /**
  * ペインを見せてフォーカスする。ドロワーの中なら、そのタブに切り替えてドロワーを開く（ピン留めしていなければ）。
- * 別のペインを最大化していたら戻す（最大化したペインがドロワー・ほかのペインの上に重なって隠すため）
+ * 別のペインを最大化していたら戻す（最大化したペインがドロワー・ほかのペインの上に重なって隠すため）。
+ * 見せるのが本体のペインなら、戻る動きでどこへ戻ったかを見せる。ドロワーの中なら、開く動きと重ねないよう動きなしで戻す
  */
 export function revealPane(p: PaneNode): void {
-  if (app.maximized && app.maximized !== p.id) app.maximized = null
   const side = dockOf(p.id)
+  if (app.maximized && app.maximized !== p.id) {
+    if (side) clearMaximized()
+    else setMaximized(null)
+  }
   if (side) {
     const d = layout.entry.docks[side]!
     d.active = d.panes.indexOf(p)
@@ -774,13 +779,13 @@ async function changeWidgetDialog(): Promise<void> {
   )
   if (w) changeWidget(id, w as (typeof WIDGETS)[number])
 }
+// 窓の全画面（F11）は main に頼む（renderer の requestFullscreen は権限の拒否で効かない）
 function toggleFullscreen(): void {
-  if (document.fullscreenElement) void document.exitFullscreen()
-  else void document.documentElement.requestFullscreen()
+  void window.elecxstock.toggleFullscreen()
 }
 export function toggleMax(): void {
   if (!app.focus || inDock(app.focus)) return
-  app.maximized = app.maximized === app.focus ? null : app.focus
+  setMaximized(app.maximized === app.focus ? null : app.focus)
 }
 
 // ---------------------------------------------------------------- focus movement
@@ -904,6 +909,7 @@ export function handleKey(e: KeyboardEvent): boolean {
   const side = dockOf(app.focus)
   const dk = side ? layout.entry.docks[side] : undefined
   if (ctrl && c === 'Tab' && dk && dk.panes.length > 1) {
+    setTabHint(e.shiftKey ? -1 : 1)
     dk.active = (dk.active + (e.shiftKey ? -1 : 1) + dk.panes.length) % dk.panes.length
     setFocus(dk.panes[dk.active]!.id)
     saveLayout()
@@ -912,7 +918,7 @@ export function handleKey(e: KeyboardEvent): boolean {
   if (c === 'Escape') {
     if (pane?.key?.(e)) return true
     if (app.maximized) {
-      app.maximized = null
+      setMaximized(null)
       return true
     }
     const open = layout.dockOpen

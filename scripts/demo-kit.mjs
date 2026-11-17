@@ -213,7 +213,7 @@ let shotNo = 0
 export const shot = async (p, name) => {
   if (!SHOTS) return
   const file = `${String(++shotNo).padStart(2, '0')}-${name}.png`
-  await p.screenshot({ path: join(SHOTS, file) })
+  await p.screenshot({ path: join(SHOTS, file), animations: 'disabled' })
   if (!CLEAN) return
   // 字幕と押したキーを隠して撮り直す（タイトル・終わりの画面と架空の値の注意はそのまま）
   mkdirSync(join(SHOTS, 'clean'), { recursive: true })
@@ -225,7 +225,7 @@ export const shot = async (p, name) => {
       }
     }, hide)
   await toggle(true)
-  await p.screenshot({ path: join(SHOTS, 'clean', file) })
+  await p.screenshot({ path: join(SHOTS, 'clean', file), animations: 'disabled' })
   await toggle(false)
 }
 /** DEMO_THEME があれば、準備の起動でテーマを保存する（2 回目の起動はそのテーマで始まる） */

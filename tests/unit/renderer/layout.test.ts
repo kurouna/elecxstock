@@ -367,3 +367,33 @@ describe('ポートフォリオのタブ（FR-PF1）', () => {
     expect((root.children[1] as Split).sizes).toEqual([40, 60])
   })
 })
+
+describe('最大化したペインを閉じる・ドロワーへ移す（FR-L3）', () => {
+  it('閉じたら最大化の状態も消す（残ると次の Esc が空振りし、サイズを戻すボタンが押せないまま）', async () => {
+    const { app } = await import('../../../src/renderer/stores/app.svelte')
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('mtf')
+    const [a] = L.allPanes(L.layout.entry, false)
+    app.maximized = a!.id
+    L.closePane(a!.id)
+    expect(app.maximized).toBeNull()
+  })
+  it('ドロワーへ移したら最大化の状態も消す', async () => {
+    const { app } = await import('../../../src/renderer/stores/app.svelte')
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('mtf')
+    const [a] = L.allPanes(L.layout.entry, false)
+    app.maximized = a!.id
+    L.moveToDock(a!.id, 'left')
+    expect(app.maximized).toBeNull()
+  })
+  it('ほかのペインを閉じても最大化は解かない', async () => {
+    const { app } = await import('../../../src/renderer/stores/app.svelte')
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('mtf')
+    const [a, b] = L.allPanes(L.layout.entry, false)
+    app.maximized = a!.id
+    L.closePane(b!.id)
+    expect(app.maximized).toBe(a!.id)
+  })
+})

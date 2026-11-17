@@ -512,7 +512,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
         const cv = (e.currentTarget as HTMLElement).querySelector('canvas')!
         const rc = cv.getBoundingClientRect()
         if (!b || !b.time.length) return
-        // 描画（gridDraw）と同じ getBoundingClientRect の px のまま足を選ぶ（CSS の px に直すと倍率でずれる）
+        // 描画（gridDraw の tileSize）と同じ、倍率が掛かった px のまま足を選ぶ（CSS の px に直すと倍率でずれる）
         const k = tileIndexAt(e.clientX - rc.left, rc.width, b.time.length)
         hoverDate = b.time[k]!
       }}

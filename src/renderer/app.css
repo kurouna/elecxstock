@@ -75,6 +75,15 @@
   --row: 24px;
   --radius: 2px;
   --motion: 150ms;
+  /* 最大化・戻す（FR-V9 の 150ms 以下）と、タブの切り替え（下線と中身。FR-V9 の例外で 200ms・同じ --ease-view でそろえる）。
+     docs/design-motion.md。動きを減らすときは 0ms */
+  --motion-max: 150ms;
+  --motion-restore: 120ms;
+  --motion-tab: 200ms;
+  --motion-view: 200ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* タブの中身: 始めに偏りすぎない減速（--ease-out だと最初の 1 フレームで 6 割進み、動きが見えない） */
+  --ease-view: cubic-bezier(0.2, 0, 0, 1);
   --font: "Noto Sans JP Variable", "Noto Sans JP", system-ui, sans-serif;
   --mono: "Noto Sans Mono", ui-monospace, monospace;
   color-scheme: dark;
@@ -140,11 +149,35 @@
 }
 :root[data-reduce-motion="true"] {
   --motion: 0ms;
+  --motion-max: 0ms;
+  --motion-restore: 0ms;
+  --motion-tab: 0ms;
+  --motion-view: 0ms;
 }
 @media (prefers-reduced-motion: reduce) {
   :root {
     --motion: 0ms;
+    --motion-max: 0ms;
+    --motion-restore: 0ms;
+    --motion-tab: 0ms;
+    --motion-view: 0ms;
   }
+}
+
+/* タブの下線（lib/ink.ts）。選んだタブへ滑る。入れ物は position: relative にする */
+.ink {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 2px;
+  background: var(--focus);
+  pointer-events: none;
+}
+.ink.slide {
+  transition:
+    transform var(--motion-tab) var(--ease-view),
+    width var(--motion-tab) var(--ease-view);
 }
 
 * {

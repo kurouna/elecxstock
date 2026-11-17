@@ -33,6 +33,8 @@ export interface ElecxstockBridge {
   windowInfo(): Promise<{ open: string[]; active: string; self: string | null } | null>
   /** 次・前のウィンドウへ（Ctrl+F6） */
   cycleWindow(dir: 1 | -1): Promise<string | null>
+  /** このウィンドウの全画面を切り替える（F11）。切り替えたあとの状態 */
+  toggleFullscreen(): Promise<boolean | null>
   /** このウィンドウの文字の大きさ（+1 / −1、0 で戻す） */
   zoomWindow(step: number | null): Promise<number | null>
   /** フリー N へ銘柄を送る（R4。開いていなければ開く）。送った先を返す */

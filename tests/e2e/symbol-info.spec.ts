@@ -1,7 +1,7 @@
 // 銘柄情報（FR-I1〜I4・I6〜I9）: 枠の幅で並びを変える（広いときは 1 段目に値段と主な数字、2 段目に配当と値動き）。
 // 配当のグラフはキーで棒を選び、年と回を切り替えられる（FR-KB4）。値はスタブ（架空）
 import type { Locator, Page } from '@playwright/test'
-import { expect, focusPane, freeTab, holdings, jump, keys, pane, row, rpc, tab, test } from './support'
+import { expect, focusPane, freeTab, holdings, jump, keys, motionDone, pane, row, rpc, tab, test } from './support'
 
 const box = async (l: Locator) => (await l.boundingBox())!
 const info = (page: Page) => page.locator('[data-widget="info"]')
@@ -15,6 +15,7 @@ test.describe('並び（FR-I6）', () => {
     await expect(si).toHaveClass(/focused/)
     await keys(page, 'Control+Shift+Enter') // 最大化して横に広げる
     await expect.poll(async () => (await box(si)).width).toBeGreaterThan(1100)
+    await motionDone(page) // 最大化の動き（transform）の途中の矩形を読まない
 
     // 1 段目: 値段の欄（左）と主な数字・予定（右）。2 段目: 配当（左）と値動きなど（右）
     const hero = await box(si.locator('.hero'))
@@ -113,6 +114,7 @@ test.describe('配当のグラフ（FR-I6, FR-KB4）', () => {
     await si.locator('.meta').click()
     await expect(si).toHaveClass(/focused/)
     await keys(page, 'Control+Shift+Enter')
+    await motionDone(page)
     const chart = si.locator('.dchart')
     const bars = chart.locator('.b i')
     await expect(bars.first()).toBeVisible()

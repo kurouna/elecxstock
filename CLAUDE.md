@@ -8,7 +8,7 @@ elecxstock は、日本株と J-REIT のデータを手元の PC に取り込み
 - 要求仕様: [docs/requirements.md](docs/requirements.md)（要求は `FR-` / `NFR-` の ID で参照する。P1 / P2 / P3）
 - 設計判断と実測値: [docs/decisions.md](docs/decisions.md)
 - 画面のモック: [docs/mock/](docs/mock/README.md)
-- P3 の設計: [docs/design-p3.md](docs/design-p3.md)・アラート: [docs/design-alerts.md](docs/design-alerts.md)・ポートフォリオ: [docs/design-portfolio.md](docs/design-portfolio.md)・マルチモニタ: [docs/design-multimonitor.md](docs/design-multimonitor.md)・マイレイアウト: [docs/design-mylayouts.md](docs/design-mylayouts.md)・常駐と自動起動: [docs/design-background.md](docs/design-background.md)・ニュース: [docs/design-news.md](docs/design-news.md)（フィードの一覧: [docs/news-feeds.md](docs/news-feeds.md)）
+- P3 の設計: [docs/design-p3.md](docs/design-p3.md)・アラート: [docs/design-alerts.md](docs/design-alerts.md)・ポートフォリオ: [docs/design-portfolio.md](docs/design-portfolio.md)・マルチモニタ: [docs/design-multimonitor.md](docs/design-multimonitor.md)・マイレイアウト: [docs/design-mylayouts.md](docs/design-mylayouts.md)・常駐と自動起動: [docs/design-background.md](docs/design-background.md)・ニュース: [docs/design-news.md](docs/design-news.md)（フィードの一覧: [docs/news-feeds.md](docs/news-feeds.md)）・最大化とタブの動き: [docs/design-motion.md](docs/design-motion.md)
 - 保有の JSON の形式: [docs/holdings-format.md](docs/holdings-format.md)
 - **テストの作り（層・部品・きまり・手順）: [docs/testing.md](docs/testing.md)**（計画と経緯: [docs/test-plan.md](docs/test-plan.md)）
 
@@ -95,6 +95,10 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 - **`patchState` は `pane.state` を丸ごと置き換える**。`$effect` で `pane.state.X` や、毎回作り直す `Set`・配列を直に読むと、関係のない変更でも走る
   （選択や表示の範囲が戻る）。`$derived` で値や中身のキー（`[...set].join()` など）にしてから読む。
 - **選んだときだけ出す行（キーの案内など）は出し入れせず、場所を取ったまま見えなくする**（`visibility: hidden`）。カードの高さが変わると、ツリーマップなどが並び直す。
+- **ペインの最大化・戻すは `lib/paneMax.ts` の `setMaximized`（動きあり）か `clearMaximized`（動きなし）を通す**（`app.maximized` を直に書かない。タブ・ページの切り替えと、ペインを閉じる・動かすときに `layout.svelte.ts` が消すのは例外。FLIP の動き。FR-L3・FR-V9）。
+  動きの時間は app.css のトークン（`--motion-max` など）で、動きを減らすときは 0ms。canvas の大きさを `getBoundingClientRect` で決めない（飛んでいる間は transform で縮んでいる。`gridDraw.ts` の `tileSize`）。
+  タブの下線は `lib/ink.ts`（`use:ink`）、タブの中身が入ってくる動きは `playIn`（Workspace・Dock）。最大化の動きは transform だけ（z-index・影は別の動き）にする。
+  Dock はレイアウトのタブをまたいで使い回されるので、ドロワーの動きは持ち主（`identity(dock)`）とペインの ID で判断する。全画面（F11）は main の `win:fullscreen`（権限の要求はすべて拒否しているので、renderer の `requestFullscreen` は使えない）。
 - **表示倍率はルートの CSS の `zoom`**（FR-V10）。`getBoundingClientRect`・`clientX` は倍率が掛かった px、`clientWidth`・`offsetWidth`・style の px は掛かっていない。混ぜずに `lib/pointer.ts`（`localX`・`tipBeside`・`rootZoom`）でそろえる。
 - **レイアウトの木の変更は `stores/layout.svelte.ts` の関数で行う**。ディスクから読んだ木は `normalizeDoc` を通す。
   マイレイアウト（8 番目のタブ）のページの正は `layout.pages`（layouts.json）で、`doc.entries.free` は表示中のページの作業用の写し。

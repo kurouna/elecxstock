@@ -21,6 +21,8 @@ export async function tab(page: Page, t: Tab, lang: 'ja' | 'en' = 'ja'): Promise
   const cur = await page.locator('.presets [aria-current="true"]').getAttribute('data-preset')
   if (cur !== t || t !== 'free') await keys(page, `Control+Shift+Digit${TABS[t].n}`)
   await expect(page.locator('.presets [aria-current="true"]')).toContainText(TABS[t][lang])
+  // 中身が入ってくる動き（16px・200ms）の途中に矩形を読むテストがずれないよう、終わるまで待つ
+  await motionDone(page)
 }
 
 /** 銘柄ジャンプでコードを打ち、選んでいる候補がその銘柄になるまで待つ（打った数字は候補より先に出るので、候補の行で確かめる） */
@@ -126,3 +128,8 @@ export const recordToasts = (page: Page) =>
     }).observe(box, { childList: true, subtree: true, characterData: true })
   })
 export const toastsSeen = (page: Page) => page.evaluate(() => ((window as unknown as { __toasts?: string[] }).__toasts ?? []).join('\n'))
+
+/** ペインの最大化・戻す（'pane-max'・'pane-max-lift'）とタブの中身（'view-in'）の動き（lib/paneMax.ts）が終わるまで待つ（固定の待ちを使わない。docs/design-motion.md） */
+export async function motionDone(page: Page): Promise<void> {
+  await page.waitForFunction(() => !document.getAnimations().some((a) => ['pane-max', 'pane-max-lift', 'view-in'].includes(a.id)))
+}

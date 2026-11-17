@@ -77,6 +77,7 @@ const api: ElecxstockBridge = {
   windowInfo: () => ipcRenderer.invoke('win:info') as Promise<{ open: string[]; active: string; self: string | null } | null>,
   cycleWindow: (dir: 1 | -1) => ipcRenderer.invoke('win:cycle', dir) as Promise<string | null>,
   zoomWindow: (step: number | null) => ipcRenderer.invoke('win:zoom', step) as Promise<number | null>,
+  toggleFullscreen: () => ipcRenderer.invoke('win:fullscreen') as Promise<boolean | null>,
   sendToFree: (ids: string[]) => ipcRenderer.invoke('win:send', ids) as Promise<string | null>,
   freeReady: () => ipcRenderer.invoke('win:ready') as Promise<string[]>,
   onReceive: (cb: (ids: string[]) => void) => {

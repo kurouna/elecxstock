@@ -1,7 +1,9 @@
 <script lang="ts">
 import { setFocus } from '../lib/commands'
+import { playIn } from '../lib/paneMax'
+import { slideDir } from '../lib/paneMotion'
 import { app, t } from '../stores/app.svelte'
-import { allPanes, findPane, layout, moveToEdge, PRESET_FOCUS, toggleDockOpen, viewKey } from '../stores/layout.svelte'
+import { allPanes, findPane, layout, moveToEdge, PRESET_FOCUS, PRESET_IDS, toggleDockOpen, viewKey } from '../stores/layout.svelte'
 import Dock from './Dock.svelte'
 import { DRAG_MIME } from './dragPane'
 import Node from './Node.svelte'
@@ -17,6 +19,15 @@ $effect(() => {
     const first = (want && panes.find((p) => p.widget === want)) || panes[0]
     if (first) setFocus(first.id)
   }
+})
+
+// タブ・ページを替えたら、新しい中身を少し滑らせて入れる（FR-V9。docs/design-motion.md）。起動したときは動かさない
+let mainEl = $state<HTMLElement>()
+let lastView: string | null = null
+$effect(() => {
+  const v = view
+  if (lastView !== null && lastView !== v) playIn(mainEl, slideDir(lastView, v, PRESET_IDS))
+  lastView = v
 })
 
 // 画面の外側の端（ドラッグ中だけ出る細い帯）: 落とすと、いちばん外に新しい列・行を足す（FR-L2）
@@ -58,7 +69,7 @@ function edgeDrop(e: DragEvent, side: Edge) {
     <Dock dock={layout.entry.docks.left} side="left" />
   {/if}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="main" onmousedown={() => toggleDockOpen(false)}>
+  <div class="main" bind:this={mainEl} onmousedown={() => toggleDockOpen(false)}>
     {#key view}
       <Node node={layout.entry.root} />
     {/key}

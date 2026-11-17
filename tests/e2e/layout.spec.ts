@@ -11,6 +11,7 @@ import {
   type Launched,
   type LaunchOpts,
   type LayoutDoc,
+  motionDone,
   pane,
   replaceSymbol,
   tab,
@@ -298,6 +299,7 @@ test.describe('狭いペインの見出し（FR-V5）', () => {
     await first.getByRole('button', { name: 'その他の操作' }).click()
     await dlg.getByText('ペインを最大化 / 戻す', { exact: true }).click()
     const wide = page.locator('.pane.maxed')
+    await motionDone(page)
     await expect.poll(async () => (await wide.boundingBox())?.width ?? 0).toBeGreaterThan(820)
     await expect(wide.locator('.ph .period')).toBeVisible()
     await expect(wide.locator('.ph .seg')).toBeVisible()
@@ -556,5 +558,195 @@ test.describe('マイレイアウトのメニューの位置とスクロール�
         return s.y >= m.y && s.y + s.height <= m.y + m.height + 1
       })
       .toBe(true)
+  })
+})
+
+test.describe('最大化とタブの動き（FR-L3・FR-V9）', () => {
+  test('最大化して動きが終わると、グリッドのタイルは着地した大きさで描かれている（飛んでいる間の縮んだ矩形で描かない）', async ({
+    start,
+  }) => {
+    const { page } = await start()
+    await tab(page, 'grid')
+    await expect(page.locator('.pane.focused')).toHaveAttribute('data-widget', 'grid')
+    await expect(page.locator('.pane.focused canvas').first()).toBeVisible()
+    // 動きを長くして、飛んでいる最中に描き直しが走る状況を確実に作る（時間はトークンから読む）
+    await page.addStyleTag({ content: ':root { --motion-max: 1500ms !important; --motion-restore: 1500ms !important; }' })
+    await keys(page, 'Control+Shift+Enter')
+    await expect(page.locator('.pane.maxed')).toHaveCount(1)
+    await expect.poll(() => page.evaluate(() => document.getAnimations().some((a) => a.id === 'pane-max'))).toBe(true)
+    await motionDone(page)
+    const sized = () =>
+      page.locator('.pane.maxed canvas').evaluateAll((cs) => {
+        const z = Number(document.documentElement.style.zoom) || 1
+        return cs.every((c) => {
+          const cv = c as HTMLCanvasElement
+          return cv.clientWidth > 0 && Math.abs(cv.width - Math.round(cv.clientWidth * z * devicePixelRatio)) <= 1
+        })
+      })
+    await expect.poll(sized).toBe(true)
+    // 戻すと動きのあとに元の場所へ着地する
+    await keys(page, 'Escape')
+    await expect(page.locator('.pane.maxed')).toHaveCount(0)
+    await motionDone(page)
+    await expect.poll(sized).toBe(true)
+  })
+
+  test('タブを替えると、新しい中身を右のタブなら右から入れ、動きの途中で最大化しても最大化の位置はずれない', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'market')
+    await motionDone(page)
+    await page.addStyleTag({ content: ':root { --motion-view: 1500ms !important; }' })
+    const playing = () =>
+      page.locator('.main').evaluate((m) =>
+        m
+          .getAnimations()
+          .filter((a) => a.id === 'view-in')
+          .map((a) => String((a as CSSAnimation & { effect: KeyframeEffect }).effect.getKeyframes()[0]!.transform)),
+      )
+    // tab() は動きの終わりを待つので、ここではキーを直に押す
+    await keys(page, 'Control+Shift+Digit3')
+    await expect.poll(playing).toEqual(['translateX(16px)'])
+    await keys(page, 'Control+Shift+Digit2')
+    await expect.poll(playing).toEqual(['translateX(-16px)'])
+    // 途中で最大化すると中身の動きは終わり、最大化したペインは作業域の上端（トップバーの下）に着く
+    await keys(page, 'Control+Shift+Enter')
+    await expect(page.locator('.pane.maxed')).toHaveCount(1)
+    await expect.poll(playing).toEqual([])
+    await motionDone(page)
+    const left = await page.locator('.pane.maxed').evaluate((e) => e.getBoundingClientRect().left)
+    expect(left).toBe(0)
+  })
+
+  test('タブの下線は選んだタブの下に 1 本だけ引く（マイレイアウトは ▾ まで）', async ({ start }) => {
+    const { page } = await start()
+    const under = () =>
+      page.evaluate(() => {
+        const ink = document.querySelector<HTMLElement>('.presets .ink')!
+        const sel = [
+          ...document.querySelectorAll<HTMLElement>('.presets [aria-current="true"], .presets [aria-current="true"] + .page-menu-btn'),
+        ]
+        const left = Math.min(...sel.map((e) => e.offsetLeft))
+        const right = Math.max(...sel.map((e) => e.offsetLeft + e.offsetWidth))
+        const m = new DOMMatrix(getComputedStyle(ink).transform)
+        return (
+          Math.abs(m.m41 - left) < 1 && Math.abs(ink.offsetWidth - (right - left)) < 1 && getComputedStyle(ink).visibility === 'visible'
+        )
+      })
+    await expect.poll(under).toBe(true)
+    await tab(page, 'grid')
+    await expect.poll(under).toBe(true)
+    await tab(page, 'free')
+    await expect.poll(under).toBe(true)
+  })
+})
+
+test.describe('ドロワー・動きを減らす・表示倍率・全画面（FR-L3・FR-V9・FR-V10・FR-DR4）', () => {
+  const frame = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(0))))
+  /** 要素の中で動いている中身の動き（view-in）の始めの transform */
+  const firstX = (els: Element[]) =>
+    els.flatMap((e) =>
+      e
+        .getAnimations({ subtree: true })
+        .filter((a) => a.id === 'view-in')
+        .map((a) => String((a.effect as KeyframeEffect).getKeyframes()[0]!.transform)),
+    )
+  test('ドロワーのタブを Ctrl+Tab で替えると、端で折り返しても進む向きから入り、下線は選んだタブの下に着く', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'grid')
+    // 左のドロワーを開き（選んでいるスクリーナーにフォーカスが移る）、ピン留めして開いたままにする
+    await keys(page, 'Control+KeyB')
+    await expect(page.locator('.dock [data-widget="screener"]')).toHaveClass(/focused/)
+    await keys(page, 'Control+Alt+KeyB')
+    await expect(page.locator('.dock.pinned')).toHaveCount(1)
+    await motionDone(page)
+    await frame(page)
+    await page.addStyleTag({ content: ':root { --motion-view: 1500ms !important; }' })
+    // スクリーナー（2 枚目・最後）から Ctrl+Tab → ウォッチリスト（1 枚目）へ折り返す。進む向き（右から）で入る
+    await keys(page, 'Control+Tab')
+    await expect(page.locator('.dock > .panel > .tabs > [aria-selected="true"]')).toContainText('ウォッチリスト')
+    await expect.poll(() => page.locator('.dock > .panel > .body').evaluateAll(firstX)).toEqual(['translateX(16px)'])
+    await motionDone(page)
+    const under = () =>
+      page.evaluate(() => {
+        const ink = document.querySelector<HTMLElement>('.dock > .panel > .tabs > .ink')!
+        const sel = document.querySelector<HTMLElement>('.dock > .panel > .tabs > [aria-selected="true"]')!
+        const m = new DOMMatrix(getComputedStyle(ink).transform)
+        return Math.abs(m.m41 - sel.offsetLeft) < 1 && Math.abs(ink.offsetWidth - sel.offsetWidth) < 1
+      })
+    await expect.poll(under).toBe(true)
+  })
+
+  test('レイアウトのタブを替えても、ピン留めしたドロワーの中身と下線は動かない（別のタブのドロワーに替わっただけ）', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'grid') // 左のドロワーはスクリーナーを選んでいる
+    await keys(page, 'Control+Alt+KeyB')
+    await tab(page, 'free') // 左のドロワーはウォッチリストを選んでいる
+    await keys(page, 'Control+Alt+KeyB')
+    await expect(page.locator('.dock.pinned')).toHaveCount(1)
+    await motionDone(page)
+    await frame(page)
+    await page.addStyleTag({ content: ':root { --motion-view: 1500ms !important; --motion-tab: 1500ms !important; }' })
+    await keys(page, 'Control+Shift+Digit3')
+    await expect(page.locator('.dock > .panel > .tabs > [aria-selected="true"]')).toContainText('スクリーナー')
+    // 作業域は動くが、ドロワーは動かない
+    await expect.poll(() => page.locator('.main').evaluateAll(firstX)).toEqual(['translateX(-16px)'])
+    expect(await page.locator('.dock > .panel > .body').evaluateAll(firstX)).toEqual([])
+    await expect(page.locator('.dock > .panel > .tabs > .ink')).not.toHaveClass(/slide/)
+  })
+
+  test('動きを減らす（OS の設定）ときは、最大化もタブの切り替えも動かない', async ({ start }) => {
+    const { page } = await start()
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    const ids = () =>
+      page.evaluate(() =>
+        document
+          .getAnimations()
+          .map((a) => a.id)
+          .filter((id) => ['pane-max', 'pane-max-lift', 'view-in'].includes(id)),
+      )
+    await keys(page, 'Control+Shift+Digit3')
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('グリッド')
+    expect(await ids()).toEqual([])
+    await keys(page, 'Control+Shift+Enter')
+    await expect(page.locator('.pane.maxed')).toHaveCount(1)
+    expect(await ids()).toEqual([])
+  })
+
+  test('表示倍率が 100% でなくても、最大化は元のペインの場所から始まり、作業域いっぱいに着く', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'mtf')
+    await keys(page, 'Control+Alt+Equal')
+    await keys(page, 'Control+Alt+Equal')
+    await expect.poll(() => page.evaluate(() => Number(document.documentElement.style.zoom) || 1)).toBeGreaterThan(1.1)
+    const pane = page.locator('.pane.focused')
+    const before = await pane.evaluate((e) => e.getBoundingClientRect().toJSON())
+    await page.addStyleTag({ content: ':root { --motion-max: 3000ms !important; }' })
+    await keys(page, 'Control+Shift+Enter')
+    await expect(page.locator('.pane.maxed')).toHaveCount(1)
+    // 動きを始めの位置で止めて、見た目の矩形が元のペインに重なることを確かめる
+    const start0 = await page.locator('.pane.maxed').evaluate((e) => {
+      for (const a of document.getAnimations()) {
+        a.pause()
+        a.currentTime = 0
+      }
+      return e.getBoundingClientRect().toJSON()
+    })
+    for (const k of ['left', 'top', 'width', 'height'] as const) expect(Math.abs(start0[k] - before[k])).toBeLessThan(1.5)
+    await page.evaluate(() => {
+      for (const a of document.getAnimations()) a.finish()
+    })
+    const landed = await page.locator('.pane.maxed').evaluate((e) => ({ ...e.getBoundingClientRect().toJSON(), vw: window.innerWidth }))
+    expect(landed.left).toBe(0)
+    expect(Math.abs(landed.width - landed.vw)).toBeLessThan(1.5)
+  })
+
+  test('F11 で窓が全画面になり、もう一度押すと戻る', async ({ start }) => {
+    const { app, page } = await start()
+    const full = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFullScreen() ?? null)
+    expect(await full()).toBe(false)
+    await keys(page, 'F11')
+    await expect.poll(full).toBe(true)
+    await keys(page, 'F11')
+    await expect.poll(full).toBe(false)
   })
 })

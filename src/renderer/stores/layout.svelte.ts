@@ -1082,10 +1082,15 @@ export function splitPane(paneId: string, dir: 'row' | 'col', widget: WidgetId =
   return fresh.id
 }
 /** ペインを閉じる（Ctrl+Shift+W）。最後の 1 枚は閉じない */
+/** 最大化したペインを閉じる・動かすときは最大化も解く（FR-L3。残ると次の Esc が空振りする）。ペインごと場所が変わるので動きは付けない */
+function dropMaximized(paneId: string): void {
+  if (app.maximized === paneId) app.maximized = null
+}
 export function closePane(paneId: string): void {
   if (inDock(paneId)) return
   const pp = parentOf(paneId)
   if (!pp) return
+  dropMaximized(paneId)
   pp.parent.children.splice(pp.index, 1)
   pp.parent.sizes.splice(pp.index, 1)
   if (pp.parent.children.length === 1) {
@@ -1112,6 +1117,7 @@ export function snapshotEntry(): LayoutEntry {
 }
 /** 木からペインを抜く（閉じるのと同じ形の整理をする）。抜いたペインを返す */
 function detach(paneId: string): PaneNode | null {
+  dropMaximized(paneId)
   const side = dockOf(paneId)
   if (side) {
     const d = layout.entry.docks[side]!
