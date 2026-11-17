@@ -41,11 +41,16 @@ function el(id: string, ring = 'none'): FakeEl {
   return e
 }
 let docAnims: FakeAnim[] = []
+/** 状態によって引ける要素を替える（木が変わって要素が作り直された場合） */
+const swap = new Map<string, () => FakeEl>()
 vi.stubGlobal('CSS', { escape: (s: string) => s })
 vi.stubGlobal('document', {
   documentElement: { style: { zoom: '' } },
   getAnimations: () => docAnims,
-  querySelector: (sel: string) => els.get(/data-pane-id="(.+)"/.exec(sel)?.[1] ?? '') ?? null,
+  querySelector: (sel: string) => {
+    const id = /data-pane-id="(.+)"/.exec(sel)?.[1] ?? ''
+    return swap.get(id)?.() ?? els.get(id) ?? null
+  },
 })
 vi.stubGlobal('getComputedStyle', (x: { ring?: string }) => ({
   boxShadow: x?.ring ?? 'none',
@@ -58,6 +63,7 @@ const { setMaximized, clearMaximized, playIn, liftShadow, MAX_IDS, setTabHint, t
 
 beforeEach(() => {
   els.clear()
+  swap.clear()
   app.maximized = null
   docAnims = []
   tokens = {
@@ -118,6 +124,17 @@ describe('最大化と戻すの動き（FR-L3・FR-V9）', () => {
     // MID（中心 340, 190）から SLOT（中心 200, 100）へ。比は 600/200・300/100
     const [frames] = calls(a, 'pane-max')[1]!
     expect(frames[0].transform).toBe('translate(140px, 90px) scale(3, 3)')
+  })
+  it('戻すときに木が変わって要素が作り直されていたら、新しい要素を元の矩形から飛ばす（分割で新しい分割に包まれた）', () => {
+    const old = el('a')
+    const fresh = el('a-new')
+    app.maximized = 'a'
+    Object.defineProperty(old, 'isConnected', { get: () => app.maximized === 'a' })
+    swap.set('a', () => (app.maximized === 'a' ? old : fresh))
+    setMaximized(null)
+    expect(calls(old, 'pane-max')).toHaveLength(0)
+    const [frames] = calls(fresh, 'pane-max')[0]!
+    expect(frames[0].transform).toBe('translate(300px, 187px) scale(5, 5)')
   })
   it('別のペインを最大化すると、前のペインの動きは止めて新しいペインだけ飛ばす', () => {
     const a = el('a')

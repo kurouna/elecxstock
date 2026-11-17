@@ -50,14 +50,16 @@ export function setMaximized(next: string | null): void {
   app.maximized = next
   if (!before || !el) return
   flushSync()
-  if (!el.isConnected) return
-  const f = flipFrom(before, box(el), rootZoom())
+  // 木が変わってペインの要素が作り直された（例: 最大化したまま別の向きに分割して、新しい分割で包まれた）ときは、新しい要素を飛ばす
+  const target = el.isConnected ? el : paneEl(next ?? prev)
+  if (!target?.isConnected || typeof target.animate !== 'function') return
+  const f = flipFrom(before, box(target), rootZoom())
   if (!f) return
   const timing = { duration: ms, easing: token('--ease-out') || 'ease-out' }
-  el.animate([{ transform: flipTransform(f) }, { transform: 'none' }], { ...timing, id: 'pane-max' })
+  target.animate([{ transform: flipTransform(f) }, { transform: 'none' }], { ...timing, id: 'pane-max' })
   // 飛んでいる間だけ前に出し、影で下のペインと見分ける（一定の値。影は動かさない）
   const lift = { zIndex: 31, boxShadow: liftShadow(ring, token('--shadow')) }
-  el.animate([lift, lift], { ...timing, id: 'pane-max-lift' })
+  target.animate([lift, lift], { ...timing, id: 'pane-max-lift' })
 }
 
 /** 動きなしで戻す（別のペインを見せるとき。ドロワーの開閉と重ねない） */

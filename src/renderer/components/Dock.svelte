@@ -269,6 +269,8 @@ function resize(e: MouseEvent) {
     flex: 1;
     min-height: 0;
     position: relative;
+    /* タブの中身が滑り込む間（16px）も、ドロワーの枠の外（本体の上）へはみ出さない。hidden と違いスクロールの入れ物を作らない（動きの途中の focus で 16px ずれない） */
+    overflow: clip;
   }
   .slot {
     position: absolute;

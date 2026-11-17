@@ -129,4 +129,71 @@ describe('タブの下線（FR-V9）', () => {
     s.mount(s.params('free'))
     expect(s.bar.style.width).toBe('110px')
   })
+
+  describe('滑った直後（--motion-tab の 200ms 以内）の切り替え', () => {
+    const slid = () => {
+      const a = { offsetLeft: 0, offsetWidth: 80 }
+      const b = { offsetLeft: 80, offsetWidth: 100 }
+      const c = { offsetLeft: 180, offsetWidth: 60 }
+      let cur = [a]
+      const s = setup([a, b, c], () => cur)
+      const act = s.mount(s.params('a', { group: '1' }))
+      cur = [b]
+      act.update(s.params('b', { group: '1' }))
+      s.flush()
+      expect(s.classes.has('slide')).toBe(true)
+      s.tick(50)
+      return { s, act, set: (x: FakeBtn[]) => (cur = x), c }
+    }
+    it('持ち主が替わったら、滑っている途中でも滑らせない（別のタブのドロワーに替わっただけ）', () => {
+      const { s, act, set, c } = slid()
+      set([c])
+      act.update(s.params('c', { group: '2' }))
+      s.flush()
+      expect(s.bar.style.transform).toBe('translateX(180px)')
+      expect(s.classes.has('slide')).toBe(false)
+      // そのあとの測り直しでも滑らない
+      c.offsetWidth = 70
+      s.resize()
+      expect(s.classes.has('slide')).toBe(false)
+    })
+    it('slide が false（閉じたドロワーから選んで開いた）なら、滑っている途中でも滑らせない', () => {
+      const { s, act, set, c } = slid()
+      set([c])
+      act.update(s.params('c', { group: '1', slide: false }))
+      s.flush()
+      expect(s.classes.has('slide')).toBe(false)
+    })
+    it('同じフラッシュでタブが替わってから持ち主が替わっても、まとめて滑らせない', () => {
+      const { s, act, set, c } = slid()
+      s.tick(500)
+      set([c])
+      act.update(s.params('c', { group: '1' }))
+      act.update(s.params('c', { group: '2' }))
+      s.flush()
+      expect(s.classes.has('slide')).toBe(false)
+    })
+    it('同じフラッシュで持ち主が替わってから、新しい持ち主の中でタブが替わっても滑らせない（順番によらない）', () => {
+      const { s, act, set, c } = slid()
+      s.tick(500)
+      set([c])
+      act.update(s.params('b', { group: '2' }))
+      act.update(s.params('c', { group: '2' }))
+      s.flush()
+      expect(s.bar.style.transform).toBe('translateX(180px)')
+      expect(s.classes.has('slide')).toBe(false)
+    })
+    it('選んだものが無くなって隠すときは滑りも消す（また出たときに前の滑りが残らない）', () => {
+      const { s, act, set, c } = slid()
+      set([])
+      act.update(s.params('', { group: '1' }))
+      s.flush()
+      expect(s.bar.style.visibility).toBe('hidden')
+      expect(s.classes.has('slide')).toBe(false)
+      set([c])
+      c.offsetWidth = 61
+      s.resize()
+      expect(s.classes.has('slide')).toBe(false)
+    })
+  })
 })

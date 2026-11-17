@@ -749,4 +749,89 @@ test.describe('ドロワー・動きを減らす・表示倍率・全画面（FR
     await keys(page, 'F11')
     await expect.poll(full).toBe(false)
   })
+
+  test('ドロワーのタブの中身が滑り込む間も、ドロワーの枠の外へはみ出さない', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'grid')
+    await keys(page, 'Control+KeyB')
+    await expect(page.locator('.dock [data-widget="screener"]')).toHaveClass(/focused/)
+    await keys(page, 'Control+Alt+KeyB')
+    await expect(page.locator('.dock.pinned')).toHaveCount(1)
+    await motionDone(page)
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(0)))))
+    await page.addStyleTag({ content: ':root { --motion-view: 3000ms !important; }' })
+    await keys(page, 'Control+Tab') // 右から 16px 滑り込む
+    // 動きを始めの位置（右へ 16px ずれた位置）で止め、枠のすぐ右（本体の上）にドロワーの中身が描かれていないことを見る
+    const outside = await page.evaluate(() => {
+      for (const a of document.getAnimations())
+        if (a.id === 'view-in') {
+          a.pause()
+          a.currentTime = 0
+        }
+      const body = document.querySelector('.dock > .panel > .body')!
+      const r = body.getBoundingClientRect()
+      const hit = document.elementFromPoint(r.right + 8, r.top + r.height / 2)
+      return { running: document.getAnimations().some((a) => a.id === 'view-in'), inDrawer: !!hit && body.contains(hit) }
+    })
+    expect(outside).toEqual({ running: true, inDrawer: false })
+  })
+})
+
+test.describe('最大化したままほかの操作をすると、結果が見えるように最大化を解く（FR-L3）', () => {
+  const maximize = async (page: Page) => {
+    await tab(page, 'mtf')
+    await keys(page, 'Control+Shift+Enter')
+    await expect(page.locator('.pane.maxed')).toHaveCount(1)
+    await motionDone(page)
+  }
+  test('分割すると最大化を解き、新しいペインが見える', async ({ start }) => {
+    const { page } = await start()
+    await maximize(page)
+    const before = await panes(page).count()
+    await keys(page, 'Control+Shift+KeyE')
+    await expect(panes(page)).toHaveCount(before + 1)
+    await expect(page.locator('.pane.maxed')).toHaveCount(0)
+    await expect(page.locator('.main .pane.focused')).toBeVisible()
+  })
+  test('まだ無いペインを開くと最大化を解き、開いたペインが見える', async ({ start }) => {
+    const { page } = await start()
+    await maximize(page)
+    await command(page, 'ジョブとログを開く')
+    await expect(page.locator('[data-widget="jobs"]')).toBeVisible()
+    await expect(page.locator('.pane.maxed')).toHaveCount(0)
+  })
+  test('ドロワーを開くと最大化を解く（最大化したペインの下にドロワーが隠れない）', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'grid')
+    await keys(page, 'Control+Shift+Enter')
+    await expect(page.locator('.pane.maxed')).toHaveCount(1)
+    await motionDone(page)
+    await keys(page, 'Control+KeyB')
+    await expect(page.locator('.dock.open')).toHaveCount(1)
+    await expect(page.locator('.pane.maxed')).toHaveCount(0)
+    await expect(page.locator('.dock [data-widget="screener"]')).toHaveClass(/focused/)
+  })
+  test('ドロワーをピン留めして開いても最大化を解く', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'grid')
+    await keys(page, 'Control+Shift+Enter')
+    await expect(page.locator('.pane.maxed')).toHaveCount(1)
+    await motionDone(page)
+    await keys(page, 'Control+Alt+KeyB')
+    await expect(page.locator('.dock.pinned')).toHaveCount(1)
+    await expect(page.locator('.pane.maxed')).toHaveCount(0)
+  })
+  for (const [key, how] of [
+    ['Control+Shift+KeyE', '右'],
+    ['Control+Shift+KeyO', '下'],
+  ] as const) {
+    test(`${how}に分割して最大化を解くと、ペインが作り直されても新しい場所へ戻る動きが付く`, async ({ start }) => {
+      const { page } = await start()
+      await maximize(page)
+      await page.addStyleTag({ content: ':root { --motion-restore: 3000ms !important; }' })
+      await keys(page, key)
+      await expect(page.locator('.pane.maxed')).toHaveCount(0)
+      await expect.poll(() => page.evaluate(() => document.getAnimations().some((a) => a.id === 'pane-max'))).toBe(true)
+    })
+  }
 })

@@ -1046,6 +1046,7 @@ export function resetLayout(entry?: LayoutEntry): void {
   layout.doc.entries[a] =
     entry ?? (IS_FREE ? freeEntryOf(freeWin.origin, []).doc.entries.free : a === 'free' ? shapeEntry(currentPage()?.shape) : presetEntry(a))
   app.focus = null
+  app.maximized = null // ペインは作り直すので、最大化も解く（残ると次の Esc が空振りする。FR-L3）
   saveLayout()
 }
 /**
@@ -1057,6 +1058,8 @@ export function resetAllLayouts(): void {
   if (IS_FREE) return
   for (const id of PRESET_IDS) if (id !== 'free') layout.doc.entries[id] = presetEntry(id)
   app.focus = null
+  // 表示中のタブを作り直したときだけ最大化を解く（マイレイアウトのページは書き換えないので、最大化もそのまま）
+  if (layout.doc.active !== 'free') app.maximized = null
   saveLayout()
 }
 /** 右・下に分割（Ctrl+Shift+E / O） */

@@ -208,6 +208,8 @@ export function toggleDock(side: DockSide = 'left'): void {
     return
   }
   const opening = layout.dockOpen !== side
+  // 最大化したペイン（z-index 30）がドロワー（20）を覆うので、開くときは戻す（ドロワーが開く動きと重ねないよう動きなし。revealPane と同じ）
+  if (opening && app.maximized) clearMaximized()
   layout.dockOpen = opening ? side : null
   if (opening) {
     if (app.focus && !inDock(app.focus)) beforeDock = app.focus
@@ -224,6 +226,8 @@ export function pinDock(): void {
     toast(t('layout.noDrawer'))
     return
   }
+  // ピン留めで開くときも、最大化したペインがドロワーを覆わないよう戻す（toggleDock と同じ）
+  if (!d.pinned && app.maximized) clearMaximized()
   d.pinned = !d.pinned
   layout.dockOpen = d.pinned ? side : null
   saveLayout()
@@ -742,8 +746,14 @@ async function sendToFree(): Promise<void> {
   if (to) toast(t('win.sent', { n: freeNo(to), count: ids.length }))
 }
 
+/**
+ * 分割・まだ無いペインを開いたあと、新しいペインへフォーカスする。最大化していたら戻す（最大化したペインが全面を覆ったまま、
+ * 裏にできたペインへフォーカスだけ移って何も起きないように見えるため）。木はもう変わっているので、戻る動きは新しい場所へ着く
+ */
 function focusNew(id: string | null): void {
-  if (id) setFocus(id)
+  if (!id) return
+  if (app.maximized) setMaximized(null)
+  setFocus(id)
 }
 function toDrawer(side: DockSide): void {
   const id = app.focus

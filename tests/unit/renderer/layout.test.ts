@@ -397,3 +397,34 @@ describe('最大化したペインを閉じる・ドロワーへ移す（FR-L3�
     expect(app.maximized).toBe(a!.id)
   })
 })
+
+describe('最大化したままレイアウトを初期状態に戻す（FR-L3・FR-L10）', () => {
+  it('このタブを戻すと最大化の状態も消す（ペインが無くなり、次の Esc が空振りする）', async () => {
+    const { app } = await import('../../../src/renderer/stores/app.svelte')
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('mtf')
+    app.maximized = L.allPanes(L.layout.entry, false)[0]!.id
+    L.resetLayout()
+    expect(app.maximized).toBeNull()
+  })
+  it('すべてのタブを戻すと最大化の状態も消す', async () => {
+    const { app } = await import('../../../src/renderer/stores/app.svelte')
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('mtf')
+    app.maximized = L.allPanes(L.layout.entry, false)[0]!.id
+    L.resetAllLayouts()
+    expect(app.maximized).toBeNull()
+  })
+})
+
+describe('マイレイアウトを表示中にすべてのタブを戻す（FR-L10・FR-L14）', () => {
+  it('マイレイアウトのページは書き換えないので、最大化もそのまま', async () => {
+    const { app } = await import('../../../src/renderer/stores/app.svelte')
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('free')
+    const id = L.allPanes(L.layout.entry, false)[0]!.id
+    app.maximized = id
+    L.resetAllLayouts()
+    expect(app.maximized).toBe(id)
+  })
+})

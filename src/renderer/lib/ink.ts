@@ -39,7 +39,10 @@ export function ink(bar: HTMLElement, params: InkParams, env: InkEnv = browserEn
   const place = (slide: boolean) => {
     const span = inkSpan(p.pick().map((e) => ({ left: e.offsetLeft, width: e.offsetWidth })))
     if (!span) {
+      // 隠すときは滑りも消す（また出たときに前の滑りが残らない）
       bar.style.visibility = 'hidden'
+      bar.classList.toggle('slide', false)
+      slidingUntil = 0
       last = ''
       return
     }
@@ -65,14 +68,32 @@ export function ink(bar: HTMLElement, params: InkParams, env: InkEnv = browserEn
   }
   watch()
   place(false)
+  // 同じフラッシュで何度か update が来ても、測るのは最後の値で 1 回だけ。滑らせるかは、最後に置いたとき（placed）と比べて
+  // 測る時点で決める（届いた順番によらない）。まとめている間に一度でも持ち主が替わった・閉じていたら滑らせない
+  let placedKey = params.key
+  let placedGroup = params.group ?? ''
+  let resetInBatch = false
+  let scheduled = false
   return {
     update(next: InkParams) {
-      const moved = next.key !== p.key && (next.group ?? '') === (p.group ?? '') && next.slide !== false
+      if ((next.group ?? '') !== (p.group ?? '') || next.slide === false) {
+        // 持ち主が替わった・閉じている: 滑っている途中でも滑らせない（滑りを保つ時間も捨てる）
+        resetInBatch = true
+        slidingUntil = 0
+      }
       p = next
+      if (scheduled) return
+      scheduled = true
       // aria-current などが書き換わったあとに測る
       env.defer(() => {
+        scheduled = false
+        const group = p.group ?? ''
+        const slide = !resetInBatch && p.slide !== false && p.key !== placedKey && group === placedGroup
+        resetInBatch = false
+        placedKey = p.key
+        placedGroup = group
         watch()
-        place(moved)
+        place(slide)
       })
     },
     destroy() {
