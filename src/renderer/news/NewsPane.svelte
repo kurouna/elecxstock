@@ -22,6 +22,7 @@ import {
   NEWS_TABS,
   type NewsTab,
   pageStep,
+  previewSummary,
   rowsOf,
   rowTime,
   statusText,
@@ -324,7 +325,7 @@ const status = $derived(statusText(list?.round, news.view?.settings.interval, t 
           {#if cur && curFeed}
             <div class="pm"><span class="nm">{curFeed.name[lang]}</span><span>{rowTime(cur)}</span>{#if cur.link}<span class="host">{hostOf(cur.link)}</span>{/if}</div>
             <div class="pt" lang={curFeed.lang !== lang ? curFeed.lang : undefined}>{cur.title}</div>
-            <div class="ps">{curFeed.summary ? (cur.summary ?? '') : t('news.noSummary')}</div>
+            <div class="ps">{previewSummary(cur, curFeed, t as Tr)}</div>
             <div class="pk">
               {#if cur.link}<span><kbd>Enter</kbd> {t('news.open')}</span>{/if}
               <span><kbd>Ctrl+C</kbd></span>

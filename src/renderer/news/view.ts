@@ -143,3 +143,9 @@ export function buttonKey(
   const t = e.target as Element | null
   return !!root && !!t?.closest && !!t.closest('button') && root.contains(t)
 }
+
+/** プレビューの要約の段: 要約を許していないフィードは「出しません」、許しているが空なら「ありません」（空白のままにしない） */
+export function previewSummary(it: NewsItem, f: NewsFeed, t: Tr): string {
+  if (!f.summary) return t('news.noSummary')
+  return it.summary || t('news.summaryNone')
+}

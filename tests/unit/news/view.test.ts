@@ -9,6 +9,7 @@ import {
   hm,
   hostOf,
   pageStep,
+  previewSummary,
   rowsOf,
   rowTime,
   statusText,
@@ -151,5 +152,18 @@ describe('FR-NW1 本文の中のボタンのキー', () => {
     expect(buttonKey(ev('KeyN', btn), root)).toBe(false)
     expect(buttonKey(ev('Enter', el(true)), root)).toBe(false)
     expect(buttonKey(ev('Enter', btn), undefined)).toBe(false)
+  })
+})
+
+describe('FR-NW9 プレビューの要約の段', () => {
+  const t: Tr = (k) => k
+  const f = FEEDS[1]!
+  it('要約を許しているフィードは要約を出し、空なら「要約はありません」', () => {
+    expect(previewSummary(mk('x', f.id, T, 'x', { summary: '架空の要約' }), f, t)).toBe('架空の要約')
+    expect(previewSummary(mk('x', f.id, T, 'x'), f, t)).toBe('news.summaryNone')
+    expect(previewSummary(mk('x', f.id, T, 'x', { summary: '' }), f, t)).toBe('news.summaryNone')
+  })
+  it('要約を許していないフィードは「要約は出しません（配信元の条件）」', () => {
+    expect(previewSummary(mk('x', f.id, T, 'x', { summary: '架空の要約' }), { ...f, summary: false }, t)).toBe('news.noSummary')
   })
 })
