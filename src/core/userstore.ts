@@ -102,6 +102,8 @@ const FILES = {
   holdings: { schema: S.holdings, def: () => [] },
   portfolioMeta: { schema: S.portfolioMeta, def: () => null },
   alerts: { schema: S.alerts, def: () => [] },
+  /** チャートの描画（docs/design-drawings.md §7）。銘柄 → 図形 */
+  drawings: { schema: S.drawings, def: () => ({}) },
 } as const
 /** レイアウトは作業に追従して頻繁に保存されるので、世代は 10 分に 1 つだけ残す */
 const LAYOUT_GEN_MS = 10 * 60_000
@@ -275,6 +277,7 @@ export class UserStore {
         screens: this.load('screens'),
         layouts: this.load('layouts'),
         alerts: this.load('alerts'),
+        drawings: this.load('drawings'),
       },
       null,
       1,
@@ -288,6 +291,7 @@ export class UserStore {
       settings?: unknown
       layouts?: unknown
       alerts?: unknown
+      drawings?: unknown
     }
     if (o.format !== 'elecxstock.userdata') throw new Error('not an elecxstock export')
     // すべて検証してから保存する（途中で失敗して半分だけ入ることが無いように）
@@ -296,9 +300,10 @@ export class UserStore {
     const ly = o.layouts ? S.layouts.parse(o.layouts) : null
     const st = o.settings ? settingsSchema.parse({ ...this.load('settings'), ...(o.settings as object) }) : null
     const al = o.alerts ? z.array(alertSchema).max(500).parse(o.alerts) : null
+    const dr = o.drawings ? S.drawings.parse(o.drawings) : null
     // 取り込む前の記録は、置き換えるファイルだけ残す（取り込まないファイルを「元に戻す」で巻き戻さない。前の取り込みの記録も消す）
-    const replaced = { watchlists: true, screens: true, layouts: !!ly, settings: !!st, alerts: !!al }
-    for (const n of ['watchlists', 'screens', 'layouts', 'settings', 'alerts'] as const)
+    const replaced = { watchlists: true, screens: true, layouts: !!ly, settings: !!st, alerts: !!al, drawings: !!dr }
+    for (const n of ['watchlists', 'screens', 'layouts', 'settings', 'alerts', 'drawings'] as const)
       if (replaced[n]) this.keepBefore(n, 'preimport')
       else rmSync(join(this.dir, 'backups', `${n}.preimport.json`), { force: true })
     this.save('watchlists', ensureBuiltins(wl))
@@ -306,6 +311,7 @@ export class UserStore {
     if (ly) this.save('layouts', ly, { generation: true })
     if (st) this.save('settings', st)
     if (al) this.save('alerts', al)
+    if (dr) this.save('drawings', dr)
     return { watchlists: wl.length, screens: sc.length }
   }
 }

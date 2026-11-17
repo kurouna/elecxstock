@@ -30,6 +30,8 @@ export type UserFile =
   | 'holdings'
   | 'portfolioMeta'
   | 'alerts'
+  /** チャートの描画（docs/design-drawings.md） */
+  | 'drawings'
   /** アラートの判定の状態と履歴（AlertBook。世代なし） */
   | 'alertState'
   | 'alertHistory'

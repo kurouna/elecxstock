@@ -39,6 +39,7 @@ onMount(() =>
   registerPane(pane.id, {
     current: () => id,
     receive: (x) => takeCompare(pane, x),
+    undo: (redo) => !!views[active]?.undo(redo),
     key(e) {
       const plain = !e.ctrlKey && !e.altKey && !e.metaKey
       if (plain && e.key === 'Tab') {

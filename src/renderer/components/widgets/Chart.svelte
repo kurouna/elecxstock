@@ -32,6 +32,7 @@ onMount(() =>
   registerPane(pane.id, {
     current: () => id,
     receive: (x) => takeCompare(pane, x),
+    undo: (redo) => !!view?.undo(redo),
     key(e) {
       if (!e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && (e.code === 'KeyD' || e.code === 'KeyW' || e.code === 'KeyM')) {
         patchState(pane, { tf: e.code.slice(3) })

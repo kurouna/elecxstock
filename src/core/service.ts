@@ -33,6 +33,7 @@ import type {
 import { AlertBook, decide, decideScreen, evaluateAlert, type ScreenEval } from './alerts'
 import { jstNow, lastClosedSession, retentionStart } from './calendar'
 import { Db } from './db'
+import { DrawingBook } from './drawings'
 import { atOf, contribOf, dividendsOf, FolioBook, type Market, recordPoint, seriesResult } from './folio'
 import { applyImport, exportHoldings, normalize, previewBrokerCsv, previewImport } from './holdings'
 import { computeInfoExtra, EXTRA_BARS, earningsOf, sectorStats } from './infoExtra'
@@ -92,6 +93,8 @@ export class CoreService {
   readonly alertBook: AlertBook
   /** 資産推移の記録（FR-PF2。作り直せないので .bak を残す） */
   readonly folio: FolioBook
+  /** チャートの描画（FR-C13。docs/design-drawings.md §7） */
+  readonly drawings: DrawingBook
 
   constructor(
     dataDir: string,
@@ -108,6 +111,7 @@ export class CoreService {
     this.user = new UserStore(join(dataDir, 'user'))
     this.alertBook = new AlertBook(join(dataDir, 'user'), () => this.user.readOnly)
     this.folio = new FolioBook(join(dataDir, 'user'), () => this.user.readOnly)
+    this.drawings = new DrawingBook(this.user, (id) => this.repo.splits(id))
     if (this.user.readOnly || this.user.load('settings') == null) {
       /* settings を最初に読んで読み取り専用かを決める */
     }
@@ -505,7 +509,7 @@ export class CoreService {
         return undefined as Results[M]
       case 'user.undoImport': {
         let any = false
-        for (const n of ['watchlists', 'screens', 'layouts', 'settings', 'alerts'] as const)
+        for (const n of ['watchlists', 'screens', 'layouts', 'settings', 'alerts', 'drawings'] as const)
           if (this.user.restoreBefore(n, 'preimport')) any = true
         if (any) {
           this.syncTracked()
@@ -766,6 +770,19 @@ export class CoreService {
         this.jobs.enqueue('initial', this.jobs.planFor('initial'))
         return rows.length as Results[M]
       }
+      // チャートの描画（docs/design-drawings.md §7.2）
+      case 'drawings.all':
+        return this.drawings.all() as Results[M]
+      case 'drawings.create':
+        return this.drawings.create(String(P.id), P.drawing as never) as Results[M]
+      case 'drawings.update':
+        return this.drawings.update(String(P.id), P.drawing as never, String(P.expected)) as Results[M]
+      case 'drawings.remove':
+        return this.drawings.remove(String(P.id), String(P.drawingId), String(P.expected)) as Results[M]
+      case 'drawings.clear':
+        return this.drawings.clear(String(P.id)) as Results[M]
+      case 'drawings.shown':
+        return this.drawings.shown(P.ids as string[]) as Results[M]
       default:
         throw { code: 'unknown-method', args: { method } } satisfies CoreError
     }

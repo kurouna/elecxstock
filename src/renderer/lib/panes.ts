@@ -13,6 +13,8 @@ export interface PaneApi {
   columns?: () => { ids: InstrumentId[]; cols: ListCol[]; name: string } | null
   /** コマンドバーから呼ぶ、ペインごとの操作（例: 'duplicate'・'columns'）。扱えたら true */
   run?: (action: string) => boolean
+  /** ペインの中の取り消し・やり直し（チャートの描画。Ctrl+Z / Ctrl+Y）。戻すものが無ければ false（全体の取り消しに回す） */
+  undo?: (redo: boolean) => boolean
 }
 const apis = new Map<string, PaneApi>()
 export function registerPane(id: string, api: PaneApi): () => void {

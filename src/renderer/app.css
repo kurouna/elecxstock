@@ -23,6 +23,14 @@
   --gold: #e3b341;
   /* 目標利回りの線（FR-C12） */
   --yield-line: #5c9ead;
+  /* チャートの描画（トレンドライン。docs/design-drawings.md）。--draw-1 が既定の色 */
+  --draw-1: #e8a33d;
+  --draw-2: #4fb3d9;
+  --draw-3: #c07fe0;
+  --draw-4: #5cc98a;
+  --draw-5: #ff7b8a;
+  --draw-6: #c9ced6;
+  --draw-handle: #ffffff;
   /* お気に入りの★: 入っていないときは控えめに、入っているときははっきり */
   --star-off: #5b6572;
   --star-on: #f2c04a;
@@ -114,6 +122,13 @@
   --ok: #18804f;
   --gold: #8f6700;
   --yield-line: #2f6f8f;
+  --draw-1: #b8690a;
+  --draw-2: #1f7fb0;
+  --draw-3: #8a4cb8;
+  --draw-4: #2a8a55;
+  --draw-5: #c4344a;
+  --draw-6: #59606b;
+  --draw-handle: #ffffff;
   --star-off: #c3cad3;
   --star-on: #e0a100;
   --ma1: #b57400;

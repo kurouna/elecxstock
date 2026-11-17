@@ -103,6 +103,10 @@ const G = $derived([
       [ja ? 'キーボード十字線' : 'Keyboard crosshair', 'X → ← →'],
       [ja ? '画像で保存（設定 > チャートで ON のとき）' : 'Save as image (when on in Settings > Charts)', 'S'],
       [ja ? 'マルチ時間軸: 段の移動 / 並べ方' : 'Multi-timeframe: row / arrangement', 'Tab / V'],
+      [ja ? 'トレンドラインを引く / 点を決める' : 'Draw a trend line / set a point', 'Alt+T / Enter'],
+      [ja ? '引く点: 山・谷へ / 高値〜安値' : 'Point: to swing / high–low', 'Ctrl+← → / ↑ ↓'],
+      [ja ? '描画を選ぶ / 動かす対象 / 延長 / 消す' : 'Select drawing / move target / extend / delete', 'G / Space / E / Delete'],
+      [ja ? '描画を戻す / やり直す' : 'Undo / redo drawing', 'Ctrl+Z / Ctrl+Y'],
     ],
   },
   {

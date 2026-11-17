@@ -59,10 +59,10 @@ export function matches(e: KeyboardEvent, key: string | undefined): boolean {
   return !!k && normalizeKey(k) === normalizeKey(key)
 }
 /**
- * ペインが使うので全体のアクションに割り当てないキー（ニュースのペインのコピー。FR-NW7）。
+ * ペインが使うので全体のアクションに割り当てないキー（ニュースのペインのコピー。FR-NW7。チャートの描画の Alt+T・Ctrl+Y。FR-C14）。
  * 全体のアクションはペインより先に照合するので、割り当てるとペインのキーが取られる
  */
-export const PANE_RESERVED: readonly string[] = ['Ctrl+C', 'Ctrl+Alt+C']
+export const PANE_RESERVED: readonly string[] = ['Ctrl+C', 'Ctrl+Alt+C', 'Alt+T', 'Ctrl+Y']
 export const reservedKey = (key: string) => PANE_RESERVED.includes(normalizeKey(key))
 
 /** 単キー（修飾なし）はペインの中の操作に使うので、アプリ全体の割り当てには使わせない（F1〜F12 は除く）。PANE_RESERVED も */

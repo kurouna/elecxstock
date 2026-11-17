@@ -5,6 +5,7 @@ import { onMount } from 'svelte'
 import { loadAlerts, notifyFired, toggleAlerts } from '../lib/alerts'
 import { clearBars } from '../lib/barsCache'
 import { checkUpdate, handleKey, runAction, sendSymbol, startUpdate } from '../lib/commands'
+import { drawingEdits } from '../lib/drawings/store.svelte'
 import { noticeFreeOpened } from '../lib/pages'
 import { loadHoldings } from '../lib/portfolio'
 import { privacy } from '../lib/privacy.svelte'
@@ -150,7 +151,7 @@ onMount(() => {
       for (const id of ids) sendSymbol(id)
     }),
     // 終了の前に main が頼む（Core を止める前に保存を終える）
-    window.elecxstock.onFlush(() => Promise.all([flushListSaves(), flushLayoutSave()])),
+    window.elecxstock.onFlush(() => Promise.all([flushListSaves(), flushLayoutSave(), drawingEdits.flush()])),
   )
   void boot()
   // Core が立ち上げ直されたら、状態を取り直す（NFR-Q11）
@@ -176,6 +177,8 @@ function onBus(m: { topic: string; data: unknown }) {
 }
 /** 利用者のデータが変わった（Core が全窓に配る）。自分の変更は、アラートの一覧を読み直すだけ */
 async function onUserChanged(d: { kind: string; from: string; op?: { list: string; id: string } }) {
+  // チャートの描画は描画のストア（lib/drawings/store.svelte.ts）が受ける。アラートと利用者のデータは変わらない
+  if (d.kind === 'drawings') return
   // 保有・★・ウォッチリスト・スクリーン・利用者の銘柄・アラートのどれが変わっても、Core はアラートの「いま」（保有の損益率・
   // スクリーンの件数）と判定の状態を数え直している（SCREEN_REBASE）。どの窓の変更でも読み直す（まとめて 1 回。FR-AL2, AL8）
   app.alertsRev++

@@ -27,6 +27,8 @@ import {
 import { onMount, untrack } from 'svelte'
 import { getBars } from '../../lib/barsCache'
 import { type ChartSnapshot, visibleSpan } from '../../lib/chartImage'
+import { DrawController } from '../../lib/drawings/controller.svelte'
+import { drawingsState } from '../../lib/drawings/store.svelte'
 import { cls, px, sgn } from '../../lib/format'
 import {
   type DigitsKind,
@@ -52,6 +54,8 @@ export interface ChartViewApi {
   key: (e: KeyboardEvent) => boolean
   /** 画像の保存（FR-C11）: 今の表示を描いたキャンバス（十字線は入れない）・見えている期間・描いている足の時間軸・倍率 */
   snapshot: () => ChartSnapshot | null
+  /** 描画の取り消し・やり直し（Ctrl+Z / Ctrl+Y。戻すものが無ければ false） */
+  undo: (redo: boolean) => boolean
 }
 
 let {
@@ -101,12 +105,69 @@ let paneObs: ResizeObserver | null = null
 let token = 0
 const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
 
+/** チャートの描画（トレンドライン。docs/design-drawings.md）。ChartView との接点はこの文脈だけ */
+const draw = new DrawController({
+  id: () => id,
+  tf: () => shownTf,
+  adj: () => shownAdj,
+  ctype: () => ctype,
+  log: () => log,
+  compare: () => cmp.length > 0,
+  bars: () => bars,
+  chart: () => chart,
+  series: () => main,
+  scope: () => `${pane.id}|${id}`,
+  kbIndex: () => kbIndex,
+  showBar(i, price) {
+    if (!chart || !main || !bars?.time.length) return
+    if (i == null) {
+      if (kbIndex != null) return moveKb(0)
+      chart.clearCrosshairPosition()
+      legendIdx = null
+      return
+    }
+    const j = Math.max(0, Math.min(bars.time.length - 1, i))
+    chart.setCrosshairPosition(price ?? bars.close[j]!, bars.time[j] as Time, main)
+    legendIdx = j
+  },
+  css,
+  fmt: (p) => main?.priceFormatter().format(p) ?? String(p),
+  host: () => host,
+  focus: () => {
+    app.focus = pane.id
+  },
+})
+// 銘柄が変わった・ほかの段へ・フォーカスが外れた・描けない表示になった・ストアが変わった
+$effect(() => {
+  void id
+  untrack(() => draw.symbol())
+})
+$effect(() => {
+  const on = active && app.focus === pane.id
+  untrack(() => {
+    draw.register(pane.id, active)
+    if (!on) draw.blur()
+  })
+})
+const drawHidden = $derived(cmp.length > 0 || adj === 'total')
+$effect(() => {
+  void drawHidden
+  untrack(() => draw.hiddenChanged())
+})
+$effect(() => {
+  void drawingsState.rev
+  untrack(() => draw.refresh())
+})
+
 /** 描いている足の時間軸（D/W/M を押してから読み終わるまでは前の足を出しているので、tf とずれる。画像の名前に使う） */
 let shownTf: Timeframe = untrack(() => tf)
+/** 描いている足の価格の調整（A を押してから読み終わるまでは前の足。描画の換算に使う） */
+let shownAdj: Adjustment = untrack(() => adj)
 
 async function load() {
   const my = ++token
   const reqTf = tf
+  const reqAdj = adj
   try {
     loading = true
     const b = await getBars(id, reqTf, adj)
@@ -115,6 +176,7 @@ async function load() {
     if (my !== token) return // 古い要求の結果は捨てる（NFR-A8）
     bars = b
     shownTf = reqTf
+    shownAdj = reqAdj
     cmpBars = others
     loading = false
     build()
@@ -426,6 +488,7 @@ function build() {
       ms.sort((x, y) => (String(x.time) < String(y.time) ? -1 : 1))
       markers.setMarkers(ms)
     }
+    draw.attach()
     const n = b.time.length
     const show = showCount(n)
     requestAnimationFrame(() => chart?.timeScale().setVisibleLogicalRange(keep ?? { from: Math.max(0, n - show), to: n + 3 }))
@@ -557,17 +620,21 @@ function wire() {
 
 onMount(() => {
   charts.add(handle)
+  const unbind = host ? draw.bindPointer(host) : () => {}
   build()
   onApi?.({
     snapshot() {
       if (!chart || !bars?.time.length) return null
       const r = chart.timeScale().getVisibleRange()
-      const canvas = chart.takeScreenshot(true, false)
+      const c = chart
+      const canvas = draw.bareShot(() => c.takeScreenshot(true, false))
       // 倍率はキャンバスとペインの幅の比（devicePixelRatio に、設定の文字の大きさ・窓の倍率の CSS zoom を掛けたもの）
       const scale = host && host.clientWidth > 0 ? canvas.width / host.clientWidth : window.devicePixelRatio || 1
       return { canvas, tf: shownTf, scale, ...visibleSpan(r?.from as string | undefined, r?.to as string | undefined, bars.time) }
     },
+    undo: (redo) => draw.undo(redo),
     key(e) {
+      if (draw.key(e)) return true
       if (e.ctrlKey || e.altKey || e.metaKey) return false
       const c = e.code
       if (c === 'KeyX') {
@@ -610,6 +677,9 @@ onMount(() => {
     },
   })
   return () => {
+    unbind()
+    draw.blur()
+    draw.register(pane.id, false)
     charts.delete(handle)
     paneObs?.disconnect()
     chart?.remove()
@@ -656,6 +726,7 @@ onMount(() => {
         </div>
       {/if}
     {/each}
+    <div class="draw-guide" style:visibility={draw.guide ? 'visible' : 'hidden'} data-draw-guide={draw.mode.m}>{draw.guide ?? ' '}</div>
   {:else if loading && !bars}
     <div class="state">{t('common.loading')}</div>
   {:else if bars && !bars.time.length}
@@ -735,6 +806,23 @@ onMount(() => {
   .badge {
     font-family: var(--font);
     color: var(--warn);
+  }
+  /* 描画の案内（出し入れせず、場所を取ったまま見えなくする） */
+  .draw-guide {
+    position: absolute;
+    left: 8px;
+    bottom: 30px;
+    z-index: 3;
+    pointer-events: none;
+    max-width: calc(100% - 90px);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: var(--fs-1);
+    color: var(--text-2);
+    background: color-mix(in srgb, var(--panel) 85%, transparent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .inactive .tfb {
     color: var(--text-3);

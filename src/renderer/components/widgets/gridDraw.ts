@@ -1,4 +1,5 @@
 // chart-grid のタイルの描画（FR-G3, G8, G9）。30 枚を速く描くため、チャートライブラリではなく 2D Canvas に直接描く。
+import { segment, type TileLine } from '@shared/drawings'
 import type { Bars, Timeframe } from '@shared/types'
 import { linesInRange, stackLabels, type YieldLine } from '@shared/yieldLines'
 import { rootZoom } from '../../lib/pointer'
@@ -38,6 +39,8 @@ export interface TileOpts {
   hoverDate: string | null
   /** 目標利回りの線（FR-C12）。目盛りの範囲に入るものだけを描く */
   yields?: YieldLine[]
+  /** チャートの描画（FR-C18。見るだけ）。比較% の目盛りでは描かない */
+  lines?: TileLine[]
   fmtPx: (v: number) => string
   fmtPct: (v: number) => string
 }
@@ -194,6 +197,25 @@ export function drawTile(cv: HTMLCanvasElement, b: Bars | undefined, all: Bars |
       g.fillStyle = panel
       g.fillText(l.label, W + 4, yy + 3)
     }
+  }
+  // チャートの描画（FR-C18）: 1px・価格ラベルなし。値段の段の中だけに描く（右の目盛り・出来高に掛けない）
+  if (!norm && o.lines?.length) {
+    g.save()
+    g.beginPath()
+    g.rect(0, top, W, ph)
+    g.clip()
+    g.lineWidth = 1
+    for (const l of o.lines) {
+      if (log && (l.ap <= 0 || l.bp <= 0)) continue
+      const [s0, s1] = segment({ x: x(l.ai), y: yv(l.ap) }, { x: x(l.bi), y: yv(l.bp) }, l.extend, W)
+      g.strokeStyle = css(l.color)
+      g.setLineDash(l.dash === 'dashed' ? [6, 4] : l.dash === 'dotted' ? [2, 3] : [])
+      g.beginPath()
+      g.moveTo(s0.x, s0.y)
+      g.lineTo(s1.x, s1.y)
+      g.stroke()
+    }
+    g.restore()
   }
   if (o.hoverDate) {
     let k = -1

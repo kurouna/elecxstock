@@ -1,6 +1,7 @@
 // renderer ⇄ core の API（§8.2）。名前・型・入力の zod スキーマを 1 か所で定義する（NFR-A3）。
 // renderer は window.elecxstock.call(method, params) だけで Core に話しかける。
 import { z } from 'zod'
+import { DRAWINGS_PARAMS, type DrawingsResults, drawingsFileSchema } from './drawings'
 import { NEWS_PARAMS, type NewsEvents, type NewsResults } from './news/api'
 import type {
   Adjustment,
@@ -197,6 +198,8 @@ export const USER_FILE_SCHEMAS = {
   portfolioMeta: portfolioMetaSchema.nullable(),
   /** アラートの定義（FR-AL10）。判定の状態と履歴は alerts.ts の AlertBook（世代なし） */
   alerts: z.array(alertSchema).max(500),
+  /** チャートの描画（FR-C13。docs/design-drawings.md §7）。図形ごとの検証は drawings.ts の readDrawings */
+  drawings: drawingsFileSchema,
 } as const
 
 /** メソッドごとの入力スキーマ。Core は受け取ったらまずここで検証する */
@@ -278,6 +281,8 @@ export const PARAMS = {
   'data.importJpx': z.object({ bytes: z.instanceof(Uint8Array) }),
   // ニュース（docs/design-news.md §5。dispatch.ts が NewsService に渡す）
   ...NEWS_PARAMS,
+  // チャートの描画（docs/design-drawings.md §7.2）
+  ...DRAWINGS_PARAMS,
 } as const
 
 export type Method = keyof typeof PARAMS
@@ -302,7 +307,7 @@ export interface RecoveredFile {
   dropped?: number
 }
 
-export interface Results extends NewsResults {
+export interface Results extends NewsResults, DrawingsResults {
   'app.info': AppInfo
   'instruments.search': Instrument[]
   'instruments.get': Instrument[]
@@ -378,9 +383,11 @@ export interface Events extends NewsEvents {
   'provider.state': { offline: boolean; paused: boolean; message?: string }
   /** 利用者のデータが変わった（マルチモニタ）。from は変えたウィンドウ。op は★・◆の切り替え */
   'user.changed': {
-    kind: 'settings' | 'watchlists' | 'holdings' | 'screens' | 'alerts' | 'all'
+    kind: 'settings' | 'watchlists' | 'holdings' | 'screens' | 'alerts' | 'drawings' | 'all'
     from: string
     op?: { list: string; id: string }
+    /** 描画を変えた銘柄（kind が drawings のとき） */
+    id?: string
   }
   /** アラートが鳴った（FR-AL5）。1 回の判定で 1 回。unread は未読の数 */
   'alerts.fired': { fires: AlertFire[]; unread: number }

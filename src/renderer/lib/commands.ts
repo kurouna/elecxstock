@@ -965,6 +965,9 @@ export function handleKey(e: KeyboardEvent): boolean {
     toast(t('layout.undone'))
     return true
   }
+  // ペインの中の取り消し（チャートの描画。docs/design-drawings.md §3.5）: 10 秒の間だけの全体の取り消し（上）が無いときに。
+  // やり直しは Ctrl+Y・Ctrl+Shift+Z。戻すものが無ければ全体のアクションに回す
+  if (ctrl && !e.altKey && (c === 'KeyZ' || c === 'KeyY') && pane?.undo?.(c === 'KeyY' || e.shiftKey)) return true
   if (runMatching(e, 'global')) return true
   if (c === 'F6') {
     cycle(e.shiftKey)

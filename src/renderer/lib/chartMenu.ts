@@ -5,6 +5,7 @@ import type { MoreItem } from '../components/PaneHeader.svelte'
 import type { ChartType, Indicator } from '../components/widgets/ChartView.svelte'
 import { app, checklistDialog, choiceDialog, nameOf, promptDialog, saveSettings, t, toast } from '../stores/app.svelte'
 import { type PaneNode, paneSymbol, patchState } from '../stores/layout.svelte'
+import { drawControllerOf } from './drawings/controller.svelte'
 import type { Key } from './i18n'
 import { PERIODS, periodOfKey } from './periods'
 
@@ -50,6 +51,7 @@ export async function chartMenu(pane: PaneNode): Promise<void> {
     { id: 'cmp', label: t('chart.menuCmp'), hint: cmp.map((c) => nameOf(c)).join(', ') },
     ...(cmp.length ? [{ id: 'cmpClear', label: t('chart.menuCmpClear') }] : []),
     { id: 'sync', label: t('chart.menuSync'), hint: pane.state.syncRange ? 'ON' : 'OFF' },
+    ...(drawControllerOf(pane.id) ? [{ id: 'draw', label: t('chart.menuDraw'), hint: 'Alt+T · G' }] : []),
   ])
   if (choice === 'ind') {
     const on = new Set(indicatorsOf(pane))
@@ -89,7 +91,18 @@ export async function chartMenu(pane: PaneNode): Promise<void> {
     comparing = pane.id
     app.overlay = { kind: 'palette', q: '', title: t('chart.cmpTitle') }
   } else if (choice === 'cmpClear') patchState(pane, { cmp: [] })
-  else if (choice === 'sync') {
+  else if (choice === 'draw') {
+    // 描画（docs/design-drawings.md §3.4）: 引く・選ぶ・この銘柄の描画をすべて消す
+    const dc = drawControllerOf(pane.id)
+    const c = await choiceDialog(t('chart.menuDraw'), [
+      { id: 'begin', label: t('draw.begin'), hint: 'Alt+T' },
+      { id: 'select', label: t('draw.select'), hint: 'G' },
+      { id: 'clear', label: t('draw.clear') },
+    ])
+    if (c === 'begin') dc?.begin()
+    else if (c === 'select') dc?.select(1)
+    else if (c === 'clear') void dc?.clearAll()
+  } else if (choice === 'sync') {
     patchState(pane, { syncRange: !pane.state.syncRange })
     toast(`${t('chart.menuSync')}: ${pane.state.syncRange ? 'ON' : 'OFF'}`)
   }

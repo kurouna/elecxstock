@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 /** 利用者のデータを書くメソッド（名前の形で見分ける） */
 const WRITES = Object.keys(PARAMS).filter((m) =>
-  /^(user\.(save|import|undo)|watchlists\.|portfolio\.(save|apply|undo)|alerts\.(save|remove|restore|setEnabled|markRead)|instruments\.(add|remove)User|jobs\.applyRetention|folio\.clear)/.test(
+  /^(user\.(save|import|undo)|watchlists\.|portfolio\.(save|apply|undo)|alerts\.(save|remove|restore|setEnabled|markRead)|instruments\.(add|remove)User|jobs\.applyRetention|folio\.clear|drawings\.(create|update|remove|clear))/.test(
     m,
   ),
 )
@@ -29,6 +29,10 @@ const NO_REBASE: Record<string, string> = {
   'alerts.setEnabled': '再開は、そのアラートの基準だけを取り直す',
   'user.importAll': '取り込みは、すべてのアラートの基準を取り直す（rebaseAllAlerts）',
   'user.undoImport': '元に戻すは、すべてのアラートの基準を取り直す（rebaseAllAlerts）',
+  'drawings.create': 'チャートの描画はスクリーンの条件に使わない',
+  'drawings.update': 'チャートの描画はスクリーンの条件に使わない',
+  'drawings.remove': 'チャートの描画はスクリーンの条件に使わない',
+  'drawings.clear': 'チャートの描画はスクリーンの条件に使わない',
 }
 
 describe('利用者のデータを書くメソッドの分類（FR-W, FR-AL2）', () => {

@@ -1,11 +1,13 @@
 <script lang="ts">
 import { addDays, jstNow } from '@shared/calendar'
+import { type ShownLine, tileLines } from '@shared/drawings'
 // チャートグリッド（§6.11）: 多数のチャートを並べ、時間軸・期間・表示を一括で操作し、売買候補に印を付ける。
 
 import type { Bars, Condition, InstrumentId, MetricsRow, Timeframe } from '@shared/types'
 import { yieldLines } from '@shared/yieldLines'
 import { onMount } from 'svelte'
 import { addToListDialog, keyOf, setFocus } from '../../lib/commands'
+import { drawingsState, ensureDrawings } from '../../lib/drawings/store.svelte'
 import { cls, fmt, px, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
@@ -67,6 +69,8 @@ let screenIds = $state<InstrumentId[]>([])
 let rets = $state<Record<string, number>>({})
 let bars = $state<Record<string, Bars>>({})
 let full = $state<Record<string, Bars>>({})
+/** チャートの描画（FR-C18。drawings.shown の結果） */
+let drawn = $state.raw<Record<string, ShownLine[]>>({})
 let tiles = $state<HTMLDivElement>()
 let raf = 0
 let tokenScr = 0
@@ -166,7 +170,26 @@ $effect(() => {
   void app.settings.yieldTargets
   void app.dataVersion
   void app.metrics.size
+  void drawn
   schedule()
+})
+// チャートの描画（FR-C18）: 見えているタイルの銘柄の線を、分割調整の価格で Core から受ける（変わるたびに）
+let tokenDrawn = 0
+ensureDrawings()
+const shownKey = $derived(shown.join())
+$effect(() => {
+  void shownKey
+  void drawingsState.rev
+  void app.dataVersion
+  const ids = shown
+  const my = ++tokenDrawn
+  if (!ids.length) return
+  bridge.call('drawings.shown', { ids: [...ids] }).then(
+    (r) => {
+      if (my === tokenDrawn) drawn = r
+    },
+    () => {},
+  )
 })
 function schedule() {
   cancelAnimationFrame(raf)
@@ -174,8 +197,10 @@ function schedule() {
     tiles?.querySelectorAll<HTMLCanvasElement>('canvas[data-id]').forEach((cv) => {
       const id = cv.dataset.id!
       const yields = yieldLines(metric(id as InstrumentId), app.settings)
-      const drawn = drawTile(cv, bars[id], full[id], { tf, scale, ma, hoverDate, yields, fmtPx: px, fmtPct: (v) => sgn(v, 0, '%') })
-      cv.dataset.yield = drawn.join(' ')
+      const lines = scale === 2 ? [] : tileLines(drawn[id], bars[id]?.time ?? [], tf)
+      const labels = drawTile(cv, bars[id], full[id], { tf, scale, ma, hoverDate, yields, lines, fmtPx: px, fmtPct: (v) => sgn(v, 0, '%') })
+      cv.dataset.yield = labels.join(' ')
+      cv.dataset.drawings = String(lines.length)
     })
   })
 }

@@ -63,7 +63,12 @@ export async function dispatch(
     const kind = CHANGES[method]
     if (!kind) return { reply: { id, result } }
     const p = parsed.data as { list?: string; id?: string }
-    const data = { kind, from: slot, ...(method === 'watchlists.toggleItem' ? { op: { list: p.list, id: p.id } } : {}) }
+    const data = {
+      kind,
+      from: slot,
+      ...(method === 'watchlists.toggleItem' ? { op: { list: p.list, id: p.id } } : {}),
+      ...(kind === 'drawings' ? { id: p.id } : {}),
+    }
     return { reply: { id, result }, notice: { event: 'user.changed', data: data as Events['user.changed'] } }
   } catch (e) {
     const err = e as Partial<CoreError> & { message?: string; code?: string }
