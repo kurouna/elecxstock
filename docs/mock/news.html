@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>モック: ニュースのペイン</title>
+<style>
+/* トークンは src/renderer/app.css の写し */
+:root {
+  --bg: #0b0d10; --panel: #101318; --panel-2: #151920; --panel-3: #1b2029;
+  --line: #20262f; --line-soft: #161a20; --line-strong: #2d3540;
+  --text: #dfe4ea; --text-2: #a3adb9; --text-3: #8b95a2;
+  --focus: #7aa7ff; --select: #1a2638; --select-strong: #22334b; --hover: #141921;
+  --up: #ff6b70; --down: #5aa2ee; --warn: #d9a400; --danger: #ff8a8d; --ok: #2fae74;
+  --accent-bg: #1d4f9e; --accent-fg: #fff; --scrim: rgba(5,6,8,.55); --shadow: 0 12px 32px rgba(0,0,0,.45);
+  --fs-0: 10px; --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 16px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --row: 24px; --radius: 2px;
+  --font: "Noto Sans JP Variable", "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
+  --mono: "Noto Sans Mono", Consolas, ui-monospace, monospace;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #e9ecf0; --panel: #fff; --panel-2: #f5f7fa; --panel-3: #eceff3;
+  --line: #d6dbe1; --line-soft: #e6e9ee; --line-strong: #c3cad3;
+  --text: #1a1f26; --text-2: #4a5562; --text-3: #5d6875;
+  --focus: #2f6fe0; --select: #e3ecfb; --select-strong: #e6eefb; --hover: #f0f3f7;
+  --up: #c62f37; --down: #1a62b0; --warn: #9a6b00; --danger: #c4282f; --ok: #18804f;
+  --accent-bg: #2f6fe0; --scrim: rgba(30,36,44,.35); --shadow: 0 12px 32px rgba(20,30,45,.18);
+  color-scheme: light;
+}
+:root[data-density="compact"] { --row: 20px; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: var(--fs-2)/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+body { display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
+button { font: inherit; color: inherit; }
+kbd { font: var(--fs-0)/16px var(--mono); color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 0 4px; background: var(--panel-2); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---- モックの操作の帯（アプリには無い） ---- */
+#mockbar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 6px 10px; background: #2a2340; color: #e8e3ff; font-size: var(--fs-1); border-bottom: 1px solid #4b3f74; }
+:root[data-theme="light"] #mockbar { background: #ece8fb; color: #2b2250; border-color: #c9c0ef; }
+#mockbar b { font-weight: 700; margin-right: 2px; }
+#mockbar .grp { display: flex; gap: 2px; align-items: center; }
+#mockbar button { background: transparent; border: 1px solid transparent; border-radius: 2px; padding: 1px 7px; cursor: pointer; }
+#mockbar button[aria-pressed="true"] { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.25); }
+:root[data-theme="light"] #mockbar button[aria-pressed="true"] { background: #fff; border-color: #b9aee8; }
+#mockbar .fict { margin-left: auto; opacity: .8; }
+
+#stage { position: relative; overflow: hidden; min-height: 0; }
+
+/* ---- アプリの外枠（マーケットのタブ） ---- */
+.app { display: grid; grid-template-rows: 36px 1fr 24px; height: 100%; }
+.topbar { display: flex; align-items: center; gap: 12px; padding: 0 8px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: var(--fs-3); }
+.logo { width: 20px; height: 20px; border-radius: 50%; background: #10a5e8; color: #fff; display: grid; place-items: center; font-size: var(--fs-2); box-shadow: 0 0 0 2px #fff inset; }
+.tabsTop { display: flex; height: 100%; }
+.tabsTop span { display: flex; align-items: center; gap: 6px; padding: 0 11px; color: var(--text-2); border-bottom: 2px solid transparent; }
+.tabsTop span.on { color: var(--text); border-bottom-color: var(--focus); background: var(--panel-2); }
+.tabsTop kbd { border: 0; background: none; padding: 0; }
+.statusbar { display: flex; align-items: center; gap: 14px; padding: 0 8px; background: var(--panel); border-top: 1px solid var(--line); color: var(--text-2); font-size: var(--fs-1); }
+.statusbar .sp { flex: 1; }
+.ok-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); display: inline-block; margin-right: 6px; }
+.ws { display: grid; gap: 1px; background: var(--line); min-height: 0;
+  grid-template-columns: 30fr 70fr; }
+.colL, .colR { display: grid; gap: 1px; min-height: 0; }
+/* v4: 左の列 = マーケット一覧 30 / ランキング 36 / ニュース 34。右の列は今のアプリのまま */
+.colL { grid-template-rows: 30fr 36fr 34fr; }
+.colR { grid-template-rows: 75fr 25fr; }
+.rowTop { display: grid; gap: 1px; grid-template-columns: 60fr 40fr; min-height: 0; }
+.chartCol { display: grid; gap: 1px; grid-template-rows: 70fr 30fr; min-height: 0; }
+.rowBot { display: grid; gap: 1px; grid-template-columns: 1fr; min-height: 0; }
+.ph { background: var(--panel); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.ph .pane-h { opacity: .75; }
+.ph .sk { flex: 1; margin: 8px; background: repeating-linear-gradient(180deg, var(--line-soft) 0 1px, transparent 1px var(--row)); opacity: .9; }
+.ph .hm { flex: 1; display: grid; grid-template-columns: 2fr 1.4fr 1fr; grid-template-rows: 1fr 1fr; gap: 1px; padding: 0; background: var(--line); }
+.ph .hm i { background: color-mix(in srgb, var(--up) 18%, var(--panel)); }
+.ph .hm i:nth-child(2n) { background: color-mix(in srgb, var(--down) 18%, var(--panel)); }
+.ph .spark { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); }
+.ph .spark i { background: var(--panel); position: relative; }
+.ph .spark i::after { content: ""; position: absolute; inset: 30% 10% 30% 10%; border-bottom: 1px solid var(--text-3); transform: skewY(-8deg); opacity: .5; }
+
+/* ---- ペインの共通 ---- */
+.pane { display: flex; flex-direction: column; background: var(--panel); min-height: 0; min-width: 0; height: 100%; position: relative; outline: none; }
+.pane-h { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border-top: 2px solid transparent; border-bottom: 1px solid var(--line); flex: none; }
+.pane.focused .pane-h { border-top-color: var(--focus); background: var(--panel-2); }
+.pane-title { font-size: var(--fs-2); font-weight: 700; color: var(--text-2); }
+.pane.focused .pane-title { color: var(--text); }
+.link { width: 7px; height: 7px; border-radius: 50%; background: var(--up); flex: none; }
+.spacer { flex: 1; }
+
+/* ---- ニュースのペイン ---- */
+.news .meta { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: var(--fs-1); white-space: nowrap; overflow: hidden; }
+.news .meta .sep { opacity: .6; }
+.news .meta .off { color: var(--warn); }
+.news .meta .err { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); border-radius: var(--radius); padding: 0 4px; line-height: 15px; }
+.ntabs { display: flex; align-items: stretch; height: 26px; padding: 0 4px; border-bottom: 1px solid var(--line); flex: none; gap: 0; }
+.ntabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 0 8px; color: var(--text-2); cursor: pointer; display: flex; gap: 5px; align-items: center; white-space: nowrap; }
+.ntabs button .n { color: var(--text-3); font: var(--fs-1) var(--mono); }
+.ntabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); font-weight: 600; }
+.ntabs .sp { flex: 1; }
+.ntool { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: var(--fs-1); }
+.chipbtn { display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: none; color: var(--text-2); cursor: pointer; font-size: var(--fs-1); white-space: nowrap; }
+.chipbtn[aria-pressed="true"] { background: var(--select-strong); border-color: var(--focus); color: var(--text); }
+.filter { display: none; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border-bottom: 1px solid var(--line); flex: none; }
+.filter.on { display: flex; }
+.filter input { flex: 1; background: var(--bg); border: 1px solid var(--focus); border-radius: var(--radius); color: var(--text); height: 20px; padding: 0 6px; font: inherit; outline: none; }
+.nbody { flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr auto auto; }
+.detail { height: 20px; line-height: 20px; padding: 0 10px; border-top: 1px solid var(--line); font-size: var(--fs-1); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail .nm { color: var(--text-2); }
+.detail span[lang] { color: var(--text-2); }
+.nbody.side .detail { display: none; }
+.pane-h .ntabs { border: 0; height: 100%; padding: 0; margin-left: 6px; }
+.pane-h .ntabs button { font-size: var(--fs-1); padding: 0 6px; }
+.nbody.side { grid-template-rows: 1fr; grid-template-columns: minmax(0, 1fr) minmax(280px, 38%); }
+.list { overflow: auto; min-height: 0; position: relative; scrollbar-width: thin; }
+.newer { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 8px; height: 22px; background: var(--panel-2); border-bottom: 1px solid var(--line); color: var(--focus); font-size: var(--fs-1); cursor: pointer; }
+.newer[hidden] { display: none; }
+.day { position: sticky; top: 0; z-index: 1; height: 20px; line-height: 20px; padding: 0 8px; font-size: var(--fs-1); color: var(--text-3); background: var(--panel); border-bottom: 1px solid var(--line-soft); }
+.newer:not([hidden]) ~ .day { top: 22px; }
+/* 行: 罫線なし・塗りのチップなし。未読と既読は文字の濃さだけ */
+.news { container-type: inline-size; }
+.row { display: grid; grid-template-columns: 42px 52px minmax(0, 1fr) auto; grid-template-areas: "t s h g"; align-items: center; gap: 0 8px; height: var(--row); padding: 0 10px; cursor: default; }
+.row:hover { background: var(--hover); }
+.row.sel { background: var(--select); box-shadow: inset 2px 0 0 var(--focus); }
+.pane:not(.focused) .row.sel { box-shadow: none; }
+.row .t { grid-area: t; font: var(--fs-1) var(--mono); color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row .src { grid-area: s; font-size: var(--fs-1); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: clip; }
+.row .h { grid-area: h; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.row.read .h { color: var(--text-3); }
+.row .tags { grid-area: g; display: flex; gap: 4px; }
+.tag { font-size: var(--fs-0); color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 0 4px; line-height: 14px; white-space: nowrap; }
+.seen { display: flex; align-items: center; gap: 8px; height: 16px; padding: 0 10px; color: var(--text-3); font-size: var(--fs-0); }
+.seen::before, .seen::after { content: ""; flex: 1; border-top: 1px solid var(--line-strong); }
+/* 狭いペイン（480px 未満）: 2 行の行（1 行目に時刻と出所、2 行目に見出し） */
+@container (max-width: 480px) {
+  .row { grid-template-columns: auto 1fr auto; grid-template-areas: "t s g" "h h h"; height: auto; padding: 4px 10px; row-gap: 1px; }
+  .row .h { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.45; }
+  .news .meta .wide { display: none; }
+}
+mark { background: color-mix(in srgb, var(--warn) 30%, transparent); color: inherit; border-radius: 1px; }
+.empty { display: grid; place-items: center; height: 100%; padding: 24px; text-align: center; color: var(--text-2); }
+.empty .box { max-width: 380px; display: grid; gap: 10px; justify-items: center; }
+.empty .ic { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line-strong); display: grid; place-items: center; color: var(--text-3); font: 16px var(--mono); }
+.empty .ttl { color: var(--text); font-weight: 600; font-size: var(--fs-3); }
+.empty .sub { color: var(--text-3); font-size: var(--fs-1); }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: var(--panel-2); color: var(--text); cursor: pointer; }
+.btn.primary { background: var(--accent-bg); border-color: var(--accent-bg); color: var(--accent-fg); }
+.btn.primary kbd { color: var(--accent-fg); border-color: rgba(255,255,255,.4); background: transparent; }
+.skel { height: var(--row); display: grid; grid-template-columns: 42px 52px 1fr; gap: 8px; align-items: center; padding: 0 10px; }
+.skel i { height: 8px; border-radius: 1px; background: var(--panel-3); }
+.quiet { display: grid; place-items: center; height: 100%; padding: 24px; }
+.quiet .box { max-width: 420px; display: grid; gap: 8px; text-align: left; }
+.quiet .ttl { color: var(--text); font-weight: 600; }
+.quiet .sub { color: var(--text-3); font-size: var(--fs-1); line-height: 1.6; }
+.quiet .keys { display: flex; gap: 14px; color: var(--text-2); font-size: var(--fs-1); margin-top: 4px; }
+
+.prev, .detail { user-select: text; }
+.prev { border-top: 1px solid var(--line); background: var(--panel); padding: 8px 10px 6px; display: grid; gap: 4px; align-content: start; min-height: 0; height: 112px; overflow: hidden; }
+.nbody.side .prev { border-top: 0; border-left: 1px solid var(--line); height: auto; padding: 12px 14px; gap: 8px; }
+.nbody.noprev .prev { display: none; }
+.prev .pm { display: flex; gap: 8px; align-items: center; color: var(--text-3); font-size: var(--fs-1); white-space: nowrap; overflow: hidden; }
+.prev .pm .nm { color: var(--text-2); font-weight: 600; }
+.prev .pt { font-weight: 600; font-size: var(--fs-3); line-height: 1.45; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.prev .ps { color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.nbody.side .prev .ps { -webkit-line-clamp: 6; }
+.prev .pk { display: flex; gap: 12px; align-items: center; color: var(--text-3); font-size: var(--fs-1); margin-top: auto; white-space: nowrap; overflow: hidden; }
+.prev .host { font-family: var(--mono); color: var(--text-3); }
+.prev.blank > * { visibility: hidden; }
+
+/* ---- 単体の大きさ ---- */
+.solo { display: grid; place-items: center; height: 100%; padding: 16px; background: var(--bg); }
+.solo .frame { border: 1px solid var(--line); box-shadow: var(--shadow); }
+.solo .cap { color: var(--text-3); font-size: var(--fs-1); margin-top: 8px; text-align: center; }
+
+/* ---- 設定 ---- */
+.scrim { position: absolute; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; }
+.dlg { width: min(920px, 94%); height: min(640px, 92%); background: var(--panel); border: 1px solid var(--line-strong); box-shadow: var(--shadow); display: grid; grid-template-rows: 36px 1fr 36px; border-radius: 3px; }
+.dlg-h { display: flex; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: var(--fs-3); gap: 8px; }
+.dlg-f { display: flex; align-items: center; gap: 14px; padding: 0 12px; border-top: 1px solid var(--line); color: var(--text-3); font-size: var(--fs-1); }
+.dlg-b { display: grid; grid-template-columns: 168px 1fr; min-height: 0; }
+.stabs { border-right: 1px solid var(--line); padding: 6px 0; display: grid; align-content: start; }
+.stabs span { padding: 0 14px; height: 28px; display: flex; align-items: center; color: var(--text-2); border-left: 2px solid transparent; }
+.stabs span.on { color: var(--text); background: var(--select); border-left-color: var(--focus); font-weight: 600; }
+.sbody { overflow: auto; padding: 14px 18px 18px; display: grid; gap: 14px; align-content: start; }
+.srow { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: center; padding: 6px 8px; border-radius: var(--radius); }
+.srow.foc { background: var(--select); box-shadow: inset 2px 0 0 var(--focus); }
+.srow .lb { color: var(--text); font-weight: 600; }
+.srow .ds { grid-column: 1; color: var(--text-3); font-size: var(--fs-1); }
+.toggle { width: 30px; height: 16px; border-radius: 8px; background: var(--line-strong); position: relative; border: 0; cursor: pointer; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); transition: left var(--motion, 150ms); }
+.toggle.on { background: var(--accent-bg); }
+.toggle.on::after { left: 16px; background: #fff; }
+.ivl { display: flex; align-items: center; gap: 6px; }
+.ivl input { width: 64px; height: 24px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--text); text-align: right; padding: 0 6px; font: var(--fs-2) var(--mono); }
+.ivl input:focus { outline: none; border-color: var(--focus); }
+.ivl .presets { display: flex; gap: 4px; margin-left: 8px; }
+.ivl .hint { color: var(--text-3); font-size: var(--fs-1); }
+.ivl .hint.bad { color: var(--warn); }
+.sh { display: flex; align-items: baseline; gap: 10px; border-bottom: 1px solid var(--line); padding: 0 8px 4px; margin-top: 6px; }
+.sh b { font-size: var(--fs-2); }
+.sh span { color: var(--text-3); font-size: var(--fs-1); }
+.sh .sp { flex: 1; }
+.feeds { display: grid; }
+.frow { display: grid; grid-template-columns: 30px 46px minmax(0, 1fr) 80px minmax(150px, 210px); align-items: center; gap: 10px; height: 28px; padding: 0 8px; border-bottom: 1px solid var(--line-soft); }
+.frow.foc { background: var(--select); box-shadow: inset 2px 0 0 var(--focus); }
+.frow .src { font-size: var(--fs-0); line-height: 16px; padding: 0 4px; border-radius: var(--radius); background: var(--panel-3); color: var(--text-2); text-align: center; white-space: nowrap; overflow: hidden; }
+.frow .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frow .nm small { color: var(--text-3); margin-left: 6px; }
+.frow .grp { color: var(--text-3); font-size: var(--fs-1); }
+.frow .st { color: var(--text-3); font: var(--fs-1) var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frow .st.bad { color: var(--warn); }
+.frow.dis .nm, .frow.dis .src { opacity: .55; }
+.hosts { font: var(--fs-1)/1.8 var(--mono); color: var(--text-2); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; columns: 3; column-gap: 24px; }
+.dimall { opacity: .45; pointer-events: none; }
+
+/* ---- 初回起動 ---- */
+.fr { width: 560px; background: var(--panel); border: 1px solid var(--line-strong); box-shadow: var(--shadow); border-radius: 3px; padding: 18px 20px; display: grid; gap: 12px; }
+.fr h2 { margin: 0; font-size: var(--fs-4); }
+.fr .opt { display: grid; grid-template-columns: 18px 1fr; gap: 4px 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); }
+.fr .opt.on { border-color: var(--focus); background: var(--select); }
+.fr .opt .rd { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line-strong); margin-top: 2px; }
+.fr .opt.on .rd { border: 4px solid var(--focus); }
+.fr .opt b { font-size: var(--fs-3); }
+.fr .opt span { grid-column: 2; color: var(--text-3); font-size: var(--fs-1); }
+.fr .ft { display: flex; justify-content: space-between; align-items: center; color: var(--text-3); font-size: var(--fs-1); }
+
+.toast { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); background: var(--panel-3); border: 1px solid var(--line-strong); box-shadow: var(--shadow); padding: 6px 12px; border-radius: var(--radius); font-size: var(--fs-1); color: var(--text); pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 50; }
+.toast.on { opacity: 1; }
+.fictional { position: absolute; left: 8px; bottom: 30px; font-size: var(--fs-0); color: var(--text-3); background: var(--panel); border: 1px solid var(--line); padding: 1px 6px; border-radius: var(--radius); z-index: 40; }
+</style>
+</head>
+<body>
+<div id="mockbar">
+  <span class="grp"><b>画面</b>
+    <button data-k="view" data-v="market">マーケットのタブ</button>
+    <button data-k="view" data-v="S">単体 S（2 行）</button>
+    <button data-k="view" data-v="M">単体 M</button>
+    <button data-k="view" data-v="L">単体 L</button>
+    <button data-k="view" data-v="settings">設定</button>
+    <button data-k="view" data-v="firstrun">初回起動</button></span>
+  <span class="grp"><b>状態</b>
+    <button data-k="state" data-v="normal">通常</button>
+    <button data-k="state" data-v="loading">初回取得中</button>
+    <button data-k="state" data-v="offline">オフライン</button>
+    <button data-k="state" data-v="error">一部失敗</button>
+    <button data-k="state" data-v="unanswered">未回答</button>
+    <button data-k="state" data-v="off">切っている</button>
+    <button data-k="state" data-v="policy">管理者が停止</button></span>
+  <span class="grp"><b>言語</b><button data-k="lang" data-v="ja">日本語</button><button data-k="lang" data-v="en">English</button></span>
+  <span class="grp"><b>テーマ</b><button data-k="theme" data-v="dark">ダーク</button><button data-k="theme" data-v="light">ライト</button></span>
+  <span class="grp"><b>密度</b><button data-k="density" data-v="normal">標準</button><button data-k="density" data-v="compact">詰める</button></span>
+  <span class="fict">F5: 新しい見出しが届く（擬似） ／ 見出しはすべて架空</span>
+</div>
+<div id="stage"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 架空のデータ（見出しはすべて架空。出所の名前だけ実在）。登録表は docs/news-feeds.md の v5 =====
+const NOW = Date.parse('2026-11-17T11:20:00+09:00')
+// def は「規約を確かめたあとの目標」。terms: 確かめたか（2026-11-17 に Bloomberg・日銀・JPX を確認。JPX と Bloomberg は要約なし）
+const FEEDS = [
+  { id: 'ja.jpxmkt', lang: 'ja', short: 'JPX', name: { ja: '日本取引所グループ マーケットニュース', en: 'JPX Market News (ja)' }, group: 'official', host: 'www.jpx.co.jp', link: 'www.jpx.co.jp', def: true, terms: true, nosum: true },
+  { id: 'ja.jpx', lang: 'ja', short: 'JPX', name: { ja: '日本取引所グループ ニュース', en: 'JPX News (ja)' }, group: 'official', host: 'www.jpx.co.jp', link: 'www.jpx.co.jp', def: true, terms: true, nosum: true },
+  { id: 'ja.boj', lang: 'ja', short: '日銀', name: { ja: '日本銀行 新着情報', en: 'Bank of Japan (ja)' }, group: 'official', host: 'www.boj.or.jp', link: 'www.boj.or.jp', def: true, terms: true },
+  { id: 'ja.nhk', lang: 'ja', short: 'NHK', name: { ja: 'NHK ニュース 経済', en: 'NHK News Business (ja)' }, group: 'market', host: 'news.web.nhk', link: 'news.web.nhk', def: true, terms: false },
+  { id: 'ja.yahoo', lang: 'ja', short: 'Y!', name: { ja: 'Yahoo!ニュース 経済トピックス', en: 'Yahoo! News Japan Business' }, group: 'market', host: 'news.yahoo.co.jp', link: 'news.yahoo.co.jp', def: true, terms: false },
+  { id: 'ja.jiji', lang: 'ja', short: '時事', name: { ja: '時事ドットコム', en: 'Jiji.com' }, group: 'market', host: 'www.jiji.com', link: 'www.jiji.com', def: true, terms: false },
+  { id: 'ja.asahi', lang: 'ja', short: '朝日', name: { ja: '朝日新聞 経済', en: 'Asahi Shimbun Business' }, group: 'market', host: 'www.asahi.com', link: 'www.asahi.com', def: false, terms: false, pay: true },
+  { id: 'ja.toyokeizai', lang: 'ja', short: '東洋', name: { ja: '東洋経済オンライン', en: 'Toyo Keizai Online' }, group: 'reading', host: 'toyokeizai.net', link: 'toyokeizai.net', def: false, terms: false },
+  { id: 'ja.diamond', lang: 'ja', short: 'DOL', name: { ja: 'ダイヤモンド・オンライン', en: 'Diamond Online' }, group: 'reading', host: 'diamond.jp', link: 'diamond.jp', def: false, terms: false },
+  { id: 'ja.nikkeibiz', lang: 'ja', short: '日経B', name: { ja: '日経ビジネス電子版', en: 'Nikkei Business' }, group: 'reading', host: 'business.nikkei.com', link: 'business.nikkei.com', def: false, terms: false, pay: true },
+  { id: 'ja.fsa', lang: 'ja', short: '金融庁', name: { ja: '金融庁 新着情報', en: 'FSA Japan (ja)' }, group: 'official', host: 'www.fsa.go.jp', link: 'www.fsa.go.jp', def: false, terms: true },
+  { id: 'ja.cao', lang: 'ja', short: '内閣府', name: { ja: '内閣府 新着情報', en: 'Cabinet Office (ja)' }, group: 'official', host: 'www.cao.go.jp', link: 'www.cao.go.jp', def: false, terms: true },
+  { id: 'en.nar', lang: 'en', short: 'NAR', name: { ja: 'Nikkei Asia', en: 'Nikkei Asia' }, group: 'market', host: 'asia.nikkei.com', link: 'asia.nikkei.com', def: true, terms: false, pay: true, undated: true },
+  { id: 'en.jt', lang: 'en', short: 'JT', name: { ja: 'The Japan Times Business', en: 'The Japan Times Business' }, group: 'market', host: 'www.japantimes.co.jp', link: 'www.japantimes.co.jp', def: true, terms: false },
+  { id: 'en.bbgmkt', lang: 'en', short: 'BBG', name: { ja: 'Bloomberg Markets', en: 'Bloomberg Markets' }, group: 'market', host: 'feeds.bloomberg.com', link: 'www.bloomberg.com', def: true, defFor: ['ja', 'en'], terms: true, nosum: true, copy: '© Bloomberg L.P.', alsoFor: ['ja'] },
+  { id: 'en.cnbcasia', lang: 'en', short: 'CNBC', name: { ja: 'CNBC Asia', en: 'CNBC Asia' }, group: 'market', host: 'www.cnbc.com', link: 'www.cnbc.com', def: true, terms: false, ttl: 60 },
+  { id: 'en.boj', lang: 'en', short: 'BOJ', name: { ja: 'Bank of Japan (English)', en: 'Bank of Japan' }, group: 'official', host: 'www.boj.or.jp', link: 'www.boj.or.jp', def: true, terms: true },
+  { id: 'en.jpx', lang: 'en', short: 'JPX', name: { ja: 'JPX News (English)', en: 'JPX News' }, group: 'official', host: 'www.jpx.co.jp', link: 'www.jpx.co.jp', def: true, terms: true, nosum: true },
+  { id: 'en.bbgeco', lang: 'en', short: 'BBG', name: { ja: 'Bloomberg Economics', en: 'Bloomberg Economics' }, group: 'market', host: 'feeds.bloomberg.com', link: 'www.bloomberg.com', def: false, terms: true, nosum: true, copy: '© Bloomberg L.P.', alsoFor: ['ja'] },
+  { id: 'en.ft', lang: 'en', short: 'FT', name: { ja: 'Financial Times Markets', en: 'Financial Times Markets' }, group: 'market', host: 'www.ft.com', link: 'www.ft.com', def: false, terms: false, pay: true, ttl: 15 },
+  { id: 'en.wsj', lang: 'en', short: 'WSJ', name: { ja: 'WSJ Markets', en: 'WSJ Markets' }, group: 'market', host: 'feeds.content.dowjones.io', link: 'www.wsj.com', def: false, terms: false, pay: true },
+  { id: 'en.fed', lang: 'en', short: 'Fed', name: { ja: 'Federal Reserve（金融政策）', en: 'Federal Reserve (monetary policy)' }, group: 'official', host: 'www.federalreserve.gov', link: 'www.federalreserve.gov', def: false, terms: true },
+  { id: 'en.ecb', lang: 'en', short: 'ECB', name: { ja: 'ECB Press', en: 'ECB Press' }, group: 'official', host: 'www.ecb.europa.eu', link: 'www.ecb.europa.eu', def: false, terms: true },
+]
+const GROUPS = ['all', 'market', 'reading', 'official']
+const T = {
+  ja: { news: 'ニュース', all: '全て', market: '市況', reading: '読み物', official: '公的機関', filter: '絞り込み', checked: '確認', next: '次', sources: 'ソース', startup: '起動時に確認', offline: 'オフライン', asof: '時点', checking: '確認中', today: '今日', open: 'ブラウザで開く', copy: 'コピー', newer: '新しい見出し', nolink: 'リンクなし', pay: '有料', seen: 'ここまで見た', preview: 'プレビュー',
+    offT: 'ニュースは切っています。', offS: 'ニュースのための通信はしません。', askT: 'ニュースの見出しを取りますか。', askS: '見出しとリンクだけを、同梱した出所から取ります。取るときは各配信元に IP アドレスが伝わります。出所と通信先は設定で見られます。', askY: '取る', policyT: '管理者がニュースを切っています。', policyS: 'この PC ではニュースを取れません（ELECXSTOCK_NEWS=off）。', set: '設定を開く', none: '該当する見出しはありません', noFeed: 'オンのフィードがありません', loadS: '最初の取得には数秒かかります。2 回目からは前回の見出しをすぐに出します。' },
+  en: { news: 'News', all: 'All', market: 'Markets', reading: 'Features', official: 'Official', filter: 'Filter', checked: 'Checked', next: 'next', sources: 'sources', startup: 'Checked at startup', offline: 'Offline', asof: 'as of', checking: 'Checking', today: 'Today', open: 'Open in browser', copy: 'Copy', newer: 'newer headlines', nolink: 'no link', pay: 'Paywall', seen: 'Seen up to here', preview: 'Preview',
+    offT: 'News is off.', offS: 'No requests are made for news.', askT: 'Fetch news headlines?', askS: 'Only headlines and links are fetched, from built-in sources. Each source will see your IP address. Sources and hosts are listed in Settings.', askY: 'Fetch', policyT: 'News is turned off by your administrator.', policyS: 'News cannot be fetched on this PC (ELECXSTOCK_NEWS=off).', set: 'Open settings', none: 'No matching headlines', noFeed: 'No feeds are on', loadS: 'The first check takes a few seconds. After that the last headlines show at once.' },
+}
+// 見出し（架空）。[分前, フィード, 見出し, 要約]
+const JA = [
+  [2, 'ja.jpxmkt', '売買単位の変更に関するお知らせ（架空）', '一部の銘柄について売買単位を変更します。対象の銘柄と適用日は本文をご覧ください。（モックの架空の文）'],
+  [9, 'ja.toyokeizai', '高配当株の選び方、利回りだけで決めないための 5 つの視点', '配当利回りが高いだけで選ぶと、減配や株価の下落で思わぬ損失につながることがある。配当性向、営業キャッシュフロー、自己資本比率、配当の推移を合わせて見る。（モックの架空の文）'],
+  [5, 'en.bbgmkt', 'Asian stocks edge lower as traders weigh rate outlook (fictional)', 'Equities in the region slipped in early trading as investors assessed comments from policymakers. (Mock text — fictional.)'],
+  [15, 'ja.yahoo', '円相場、一時 1 ドル＝151 円台に　米金利の低下で（架空）', '東京外国為替市場で円が対ドルで上昇した。米長期金利の低下を受けて円を買う動きが広がった。（モックの架空の文）'],
+  [27, 'en.bbgmkt', 'Japan REITs draw buyers as yield spread widens (fictional)', 'The gap between distribution yields and government bond yields is above its long-run average. (Mock text — fictional.)'],
+  [72, 'en.bbgmkt', 'Yen steadies as BOJ officials signal patience on rates (fictional)', null],
+  [22, 'ja.boj', '金融政策決定会合における主な意見（10 月開催分）', '日本銀行は、10 月に開催した金融政策決定会合における主な意見を公表しました。（モックの架空の文）'],
+  [31, 'ja.jiji', 'J-REIT 指数、続伸　長期金利の低下で買い戻し（架空）', '東証 REIT 指数は続伸した。長期金利の低下で分配金利回りとの差が意識された。（モックの架空の文）'],
+  [44, 'ja.nhk', '中間決算の発表が山場、増益を確保した業種と下方修正の業種（架空）', '3 月期決算企業の中間決算の発表がほぼ終わった。業種ごとに増益と減益の差がはっきりした。（モックの架空の文）'],
+  [58, 'ja.jpx', '年末年始の売買立会について', '年末年始の売買立会のスケジュールをお知らせします。（モックの架空の文）'],
+  [66, 'ja.yahoo', '日経平均、前場は小幅に反落　半導体株に利益確定売り（架空）', '17 日午前の東京株式市場で日経平均は小幅に反落した。前日に上げた半導体関連株に利益確定の売りが出た。（モックの架空の文）'],
+  [80, 'ja.toyokeizai', '株主優待の改廃が相次ぐ、個人投資家はどう向き合うか', '優待の廃止や長期保有の条件の追加が相次いでいる。優待を目的に買う場合の注意点を整理する。（モックの架空の文）'],
+  [95, 'ja.boj', '資金循環統計（速報）の公表', '2026 年 7〜9 月期の資金循環統計（速報）を公表しました。（モックの架空の文）'],
+  [120, 'ja.nhk', '新 NISA の口座数、10 月は前月比で増加（架空）', '金融機関の集計で、新 NISA の口座数が 10 月に増えた。（モックの架空の文）'],
+  [150, 'ja.jpxmkt', '監理銘柄（確認中）の指定に関するお知らせ（架空）', '上場廃止の基準に該当するおそれがあるため、監理銘柄（確認中）に指定します。（モックの架空の文）'],
+  [190, 'ja.jiji', '輸出企業、下期の想定為替レートを見直し（架空）', '下期の想定為替レートを見直す企業が増えている。（モックの架空の文）'],
+  [16 * 60 + 40, 'ja.yahoo', '米株式市場、ダウ平均は続伸　長期金利の低下を好感（架空）', '16 日の米国株式市場でダウ平均は続伸した。（モックの架空の文）'],
+  [17 * 60 + 5, 'ja.toyokeizai', '「連続増配」企業はなぜ強いのか、20 年のデータで検証', '連続増配の企業と市場平均の値動きを比べると、下落の局面での差が目立つ。（モックの架空の文）'],
+  [18 * 60, 'ja.nhk', '国内企業物価、前年比で伸びが鈍化（架空）', '企業間で取り引きされる物の価格の伸びが鈍った。（モックの架空の文）'],
+  [20 * 60, 'ja.jpx', '新規上場の承認（グロース市場）（架空）', '株式会社（架空）の新規上場を承認しました。（モックの架空の文）'],
+  [26 * 60, 'ja.boj', '企業物価指数（10 月速報）', '2026 年 10 月の企業物価指数（速報）を公表しました。（モックの架空の文）'],
+]
+const EN = [
+  [3, 'en.bbgmkt', 'Asian stocks edge lower as traders weigh rate outlook (fictional)', 'Equities in the region slipped in early trading as investors assessed comments from policymakers. (Mock text — fictional.)'],
+  [8, 'en.nar', 'Japanese banks lift dividend targets after strong half-year results (fictional)', 'Several lenders raised their payout guidance, citing higher interest income. (Mock text — fictional.)'],
+  [14, 'en.cnbcasia', 'Yen strengthens past 151 per dollar as U.S. yields fall (fictional)', 'The Japanese currency firmed against the dollar in Tokyo trading. (Mock text — fictional.)'],
+  [21, 'en.boj', 'Summary of Opinions at the Monetary Policy Meeting (October)', 'The Bank released the summary of opinions presented at its October meeting. (Mock text — fictional.)'],
+  [33, 'en.ft', 'Japan REITs draw buyers as yield spread widens (fictional)', 'The gap between distribution yields and government bond yields is above its long-run average. (Mock text — fictional.)'],
+  [47, 'en.jt', 'Tokyo firms revise forex assumptions as yen steadies (fictional)', 'Exporters are reassessing their second-half exchange-rate forecasts. (Mock text — fictional.)'],
+  [60, 'en.nar', 'Tokyo Stock Exchange tightens listing maintenance rules (fictional)', 'Companies falling short of thresholds will face a shorter grace period. (Mock text — fictional.)'],
+  [75, 'en.bbgmkt', 'Japan’s exports rise for a third month, led by chip equipment (fictional)', 'Shipments of semiconductor-making equipment drove the gain. (Mock text — fictional.)'],
+  [100, 'en.jpx', 'Trading schedule for the year-end and New Year holidays', 'JPX announces the trading schedule for the holiday period. (Mock text — fictional.)'],
+  [130, 'en.cnbcasia', 'Asia markets mixed ahead of key data (fictional)', null],
+  [160, 'en.jt', 'Retail investors pour into NISA accounts ahead of year-end (fictional)', 'Account openings rose sharply in October. (Mock text — fictional.)'],
+  [16 * 60, 'en.bbgmkt', 'Dividend funds see inflows as investors seek income (fictional)', 'Income-focused funds attracted new money for a fourth week. (Mock text — fictional.)'],
+  [19 * 60, 'en.ft', 'Small caps lag as investors favour large exporters (fictional)', null],
+  [24 * 60, 'en.boj', 'Monetary Base (October)', 'The Bank released monetary base statistics for October. (Mock text — fictional.)'],
+]
+const FRESH = {
+  ja: [[0, 'ja.yahoo', '日経平均、後場寄りは上げに転じる（架空）', '後場の取引開始直後に日経平均は上昇に転じた。（モックの架空の文）'], [0, 'ja.jpxmkt', '売買停止銘柄のお知らせ（架空）', '次の銘柄の売買を停止します。（モックの架空の文）'], [0, 'ja.nhk', '円相場、午後は小動き（架空）', null]],
+  en: [[0, 'en.bbgmkt', 'Japan stocks turn higher in afternoon trading (fictional)', 'The benchmark gauge reversed earlier losses. (Mock text — fictional.)'], [0, 'en.cnbcasia', 'Asia markets mixed as investors await data (fictional)', null], [0, 'en.jpx', 'Notice of trading halt (fictional)', 'JPX will halt trading in the following issue. (Mock text — fictional.)']],
+}
+const ERR = { 'ja.jiji': 'タイムアウト · 11:35 に再試行', 'en.cnbcasia': 'Timeout · retry 11:35', 'ja.boj': 'HTTP 503 · Retry-After 12:00', 'en.jt': 'HTTP 503 · Retry-After 12:00' }
+
+// ===== 状態 =====
+const S = {
+  view: 'market', state: 'normal', lang: 'ja', theme: 'dark', density: 'normal',
+  tab: 'all', q: '', filterOn: false, sel: null, newer: 0, preview: true,
+  readSet: new Set(), seenAt: NOW - 40 * 60000, interval: '10',
+  // 利用者が変えたフィードだけ（東洋経済・FT をオンにした例）
+  over: { 'ja.toyokeizai': true, 'en.ft': true },
+  sFocus: 0, frOn: true,
+}
+let items = []
+function build() {
+  const src = S.lang === 'ja' ? JA : EN
+  items = src.map(([m, f, h, s], i) => ({ key: `${S.lang}-${i}`, at: NOW - m * 60000, feed: f, title: h, summary: s, link: true }))
+  for (const it of items.slice(4, 7)) S.readSet.add(it.key)
+  items[9].link = false
+}
+build()
+const feedOf = (id) => FEEDS.find((f) => f.id === id)
+const isOn = (f) => (f.id in S.over ? S.over[f.id] : (f.defFor ?? (f.def ? [f.lang] : [])).includes(S.lang))
+const enabled = () => !['off', 'unanswered', 'policy'].includes(S.state)
+const tt = (k) => T[S.lang][k]
+const pad = (n) => String(n).padStart(2, '0')
+const jst = (ms) => { const d = new Date(ms + 9 * 3600e3); return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), hh: pad(d.getUTCHours()), mm: pad(d.getUTCMinutes()), wd: d.getUTCDay() } }
+const WD = { ja: ['日', '月', '火', '水', '木', '金', '土'], en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] }
+const dayLabel = (ms) => { const a = jst(ms), b = jst(NOW); const same = a.y === b.y && a.m === b.m && a.d === b.d; if (S.lang === 'en') return same ? `Today · ${WD.en[a.wd]} ${a.m}/${a.d}` : `${WD.en[a.wd]} ${a.m}/${a.d}`; return same ? `今日 · ${a.m}/${a.d}（${WD.ja[a.wd]}）` : `${a.m}/${a.d}（${WD.ja[a.wd]}）` }
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const hl = (s) => { const e = esc(s); if (!S.q) return e; const q = esc(S.q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); return e.replace(new RegExp(q, 'gi'), (m) => `<mark>${m}</mark>`) }
+const ivlMin = () => (S.interval.trim() === '' || Number(S.interval) === 0 ? 0 : Math.min(1440, Math.max(5, Number(S.interval) || 10)))
+const shown = (it) => ({ text: it.title }) // v5: 翻訳は持たない。見出しは配信元の文のまま
+const foreign = (it) => feedOf(it.feed).lang !== S.lang
+
+function visible() {
+  return items.filter((it) => {
+    const f = feedOf(it.feed)
+    if (!isOn(f)) return false
+    if (S.tab !== 'all' && f.group !== S.tab) return false
+    if (S.q && !(it.title + (it.summary ?? '') + f.name[S.lang] + f.short).toLowerCase().includes(S.q.toLowerCase())) return false
+    return true
+  }).sort((a, b) => b.at - a.at)
+}
+function counts() {
+  const c = Object.fromEntries(GROUPS.map((g) => [g, 0]))
+  for (const it of items) { const f = feedOf(it.feed); if (!isOn(f)) continue; c.all++; c[f.group]++ }
+  return c
+}
+const onFeeds = () => FEEDS.filter(isOn)
+const shownTabs = () => { const c = counts(); return GROUPS.filter((g) => g === 'all' || c[g] > 0) }
+
+// ===== ニュースのペイン =====
+function newsPane(size) {
+  const st = S.state
+  const on = onFeeds()
+  const ivl = ivlMin()
+  const c = counts()
+  const errs = st === 'error' ? on.filter((f) => ERR[f.id]).length : 0
+  let meta = ''
+  if (errs) meta += `<span class="err" title="${S.lang === 'ja' ? '取得できないソース' : 'Sources failing'}">⚠ ${errs}</span>`
+  if (st === 'off' || st === 'unanswered' || st === 'policy') meta += ''
+  else if (st === 'loading') meta += `<span>${tt('checking')}</span><span class="mono">3/${on.length}</span>`
+  else if (st === 'offline') meta += `<span class="off">${tt('offline')}</span><span class="sep">·</span><span class="mono">11:20</span><span>${tt('asof')}</span>`
+  else if (ivl === 0) meta += `<span title="${on.length} ${tt('sources')}">${tt('startup')} <span class="mono">11:20</span></span>`
+  else { const n = jst(NOW + ivl * 60000); meta += `<span title="${on.length} ${tt('sources')}"><span class="mono">11:20</span> ${tt('checked')}</span><span class="sep wide">·</span><span class="wide">${tt('next')} <span class="mono">${n.hh}:${n.mm}</span></span>` }
+  const live = enabled() && st !== 'loading'
+  const tabs = (live ? shownTabs() : ['all']).map((g) => `<button role="tab" data-tab="${g}" aria-selected="${S.tab === g || !live}">${tt(g)}<span class="n">${live ? c[g] : '–'}</span></button>`).join('')
+  const tools = live ? `<div class="ntool"><button class="chipbtn" data-act="preview" aria-pressed="${S.preview}" title="${tt('preview')} (P)">▭</button><button class="chipbtn" data-act="filter" aria-pressed="${S.filterOn}" title="${tt('filter')} (/)">⌕</button></div>` : ''
+
+  let body
+  const quiet = (t, s, keys) => `<div class="quiet"><div class="box"><div class="ttl">${t}</div><div class="sub">${s}</div>${keys ? `<div class="keys">${keys}</div>` : ''}</div></div>`
+  if (st === 'off') body = quiet(tt('offT'), tt('offS'), `<span><kbd>N</kbd> ${tt('set')}</span>`)
+  else if (st === 'unanswered') body = quiet(tt('askT'), tt('askS'), `<span><kbd>Enter</kbd> ${tt('askY')}</span><span><kbd>N</kbd> ${tt('set')}</span>`)
+  else if (st === 'policy') body = quiet(tt('policyT'), tt('policyS'), '')
+  else if (st === 'loading') {
+    body = `<div class="list">${Array.from({ length: 12 }, (_, i) => `<div class="skel"><i style="width:30px"></i><i style="width:34px"></i><i style="width:${40 + ((i * 37) % 50)}%"></i></div>`).join('')}</div><div class="prev"><div class="pm">${tt('checking')} 3/${on.length}</div><div class="ps">${tt('loadS')}</div></div>`
+  } else {
+    const v = visible()
+    if (S.sel === null || !v.some((x) => x.key === S.sel)) S.sel = v[0]?.key ?? null
+    let rows = ''
+    let lastDay = ''
+    let seenDrawn = false
+    for (const it of v) {
+      const dl = dayLabel(it.at)
+      if (dl !== lastDay) { rows += `<div class="day">${dl}</div>`; lastDay = dl }
+      if (!seenDrawn && it.at <= S.seenAt && v[0].at > S.seenAt) { rows += `<div class="seen">${tt('seen')}</div>`; seenDrawn = true }
+      const f = feedOf(it.feed)
+      const j = jst(it.at)
+      const tags = (foreign(it) ? `<span class="tag">${S.lang === 'ja' ? '英語' : 'JA'}</span>` : '') + (f.pay ? `<span class="tag">${tt('pay')}</span>` : '') + (it.link ? '' : `<span class="tag">${tt('nolink')}</span>`)
+      rows += `<div class="row${it.key === S.sel ? ' sel' : ''}${S.readSet.has(it.key) ? ' read' : ''}" role="option" aria-selected="${it.key === S.sel}" data-key="${it.key}"><span class="t">${f.undated ? '≈' : ''}${j.hh}:${j.mm}</span><span class="src" title="${esc(f.name[S.lang])}">${esc(f.short)}</span><span class="h"${foreign(it) ? ` lang="${f.lang}"` : ''}>${hl(it.title)}</span><span class="tags">${tags}</span></div>`
+    }
+    if (!v.length) rows = `<div class="quiet"><div class="box"><div class="sub">${on.length ? tt('none') : tt('noFeed')}</div>${on.length ? '' : `<div class="keys"><span><kbd>N</kbd> ${tt('set')}</span></div>`}</div></div>`
+    const it = v.find((x) => x.key === S.sel)
+    const f = it && feedOf(it.feed)
+    const prev = it
+      ? `<div class="prev"><div class="pm"><span class="nm">${esc(f.name[S.lang])}</span><span class="mono">${f.undated ? '≈ ' : ''}${jst(it.at).m}/${jst(it.at).d} ${jst(it.at).hh}:${jst(it.at).mm}</span><span>${tt(f.group)}</span>${f.pay ? `<span class="tag">${tt('pay')}</span>` : ''}</div>${size === 'L' ? `<div class="pt">${hl(it.title)}</div>` : ''}<div class="ps">${f.nosum ? `<span style="color:var(--text-3)">${S.lang === 'ja' ? '要約は出しません（配信元の条件）。Enter で記事を開けます。' : 'No summary (source terms). Press Enter to open the article.'}</span>` : it.summary ? hl(it.summary) : '<span style="color:var(--text-3)">—</span>'}</div><div class="pk">${it.link ? `<span class="host">${f.link}</span><span><kbd>Enter</kbd> ${tt('open')}</span><span><kbd>Ctrl+C</kbd> ${tt('copy')}</span>` : `<span>${tt('nolink')}</span>`}</div></div>`
+      : `<div class="prev blank"><div class="pm">.</div></div>`
+    // 詳細の行（常に 1 行）: プレビューが出ない高さでも、出所・開く先・権利の表記が見える（design-news.md §7.2）
+    const detail = it
+      ? `<div class="detail"><span class="nm">${esc(f.name[S.lang])}</span> · <span class="mono">${it.link ? f.link : tt('nolink')}</span>${f.copy ? ` · ${esc(f.copy)}` : ''}<span style="float:right"><kbd>Ctrl+C</kbd> ${S.lang === 'ja' ? 'コピー' : 'Copy'}</span></div>`
+      : '<div class="detail"></div>'
+    body = `<div class="list" id="nlist" role="listbox"><div class="newer" data-act="top" ${S.newer ? '' : 'hidden'}>↑ ${S.newer} ${tt('newer')} <kbd>Home</kbd></div>${rows}</div>${detail}${prev}`
+  }
+  const sideCls = size === 'L' ? ' side' : ''
+  const noprev = !S.preview || size === 'S' ? ' noprev' : ''
+  return `<section class="pane news focused" id="news" tabindex="0">
+    <header class="pane-h"><span class="pane-title">${tt('news')}</span><div class="ntabs" role="tablist">${tabs}</div><span class="spacer"></span><span class="meta">${meta}</span>${tools}</header>
+    <div class="filter${S.filterOn ? ' on' : ''}"><span style="color:var(--text-3)">⌕</span><input id="q" value="${esc(S.q)}" placeholder="${S.lang === 'ja' ? '見出し・要約・出所の文字' : 'Text in headline, summary or source'}"><kbd>Esc</kbd></div>
+    <div class="nbody${sideCls}${noprev}">${body}</div>
+  </section>`
+}
+
+const ph = (title, kind) => `<section class="ph"><header class="pane-h"><span class="pane-title">${title}</span></header><div class="${kind}">${kind === 'hm' ? '<i></i><i></i><i></i><i></i><i></i><i></i>' : kind === 'spark' ? '<i></i><i></i><i></i>' : ''}</div></section>`
+function marketTab() {
+  const L = S.lang === 'ja'
+  const tabs = (L ? ['マーケット', 'スクリーナー', 'グリッド', 'MTF', 'トリプル', 'インカム', '保有', 'マイレイアウト', 'ポートフォリオ'] : ['Market', 'Screener', 'Grid', 'MTF', 'Triple', 'Income', 'Holdings', 'My layouts', 'Portfolio'])
+    .map((n, i) => `<span class="${i === 0 ? 'on' : ''}">${n}<kbd>${i + 1}</kbd></span>`).join('')
+  return `<div class="app"><div class="topbar"><span class="brand"><span class="logo">E</span>elecxstock</span><div class="tabsTop">${tabs}</div></div>
+    <div class="ws"><div class="colL">${ph(L ? 'マーケット一覧' : 'Markets', 'sk')}${ph(L ? '前日比・上位' : 'Top movers', 'sk')}${newsPane('M')}</div>
+      <div class="colR"><div class="rowTop">${ph(L ? 'ヒートマップ' : 'Heatmap', 'hm')}<div class="chartCol">${ph(L ? 'チャート' : 'Chart', 'sk')}${ph(L ? '市場（騰落）' : 'Breadth', 'sk')}</div></div>
+      <div class="rowBot">${ph(L ? 'マーケット' : 'Market overview', 'spark')}</div></div></div>
+    <div class="statusbar"><span><span class="ok-dot"></span>${L ? '最終更新' : 'Last update'} 2026/11/13 18:00</span><span>${L ? 'データを更新' : 'Update data'} <kbd>F5</kbd></span><span class="sp"></span><span>${L ? 'ショートカット' : 'Shortcuts'} <kbd>F1</kbd></span></div></div>`
+}
+function solo(size) {
+  const dims = { S: [400, 480], M: [640, 460], L: [1080, 560] }[size]
+  const cap = { S: ['狭い（480px 未満）: 2 行の行・プレビューなし', 'narrow (< 480px): two-line rows, no preview'], M: ['標準: 下にプレビュー（P で出し入れ）', 'default: preview below (P toggles)'], L: ['広い（900px 以上）: 右にプレビュー', 'wide (≥ 900px): preview at right'] }[size][S.lang === 'ja' ? 0 : 1]
+  return `<div class="solo"><div><div class="frame" style="width:${dims[0]}px;height:${dims[1]}px">${newsPane(size)}</div><div class="cap">${size}: ${dims[0]}×${dims[1]} — ${cap}</div></div></div>`
+}
+
+// ===== 設定 =====
+const ivlHint = () => {
+  const L = S.lang === 'ja'
+  const v = S.interval.trim()
+  if (v === '' || v === '0') return [L ? '起動してペインが初めて見えたときに 1 回だけ確かめます' : 'Checked once, the first time the pane is shown after startup', false]
+  if (!/^\d+$/.test(v)) return [L ? '数字で入れてください' : 'Enter a number', true]
+  const n = Number(v)
+  if (n < 5) return [L ? '5 分より短くはできません（5 分にします）' : 'Minimum is 5 minutes (5 will be used)', true]
+  if (n > 1440) return [L ? '1440 分（1 日）までです' : 'Up to 1440 minutes (1 day)', true]
+  return [L ? `${n} 分ごとに、オンのフィードをまとめて確かめます（変わっていなければ受け取りません）` : `All feeds that are on are checked every ${n} min (nothing is downloaded if unchanged)`, false]
+}
+function settingsRows() {
+  const rows = [{ kind: 'master' }, { kind: 'interval' }]
+  // 表示言語の一覧には、alsoFor でその言語にも出すフィード（日本語なら Bloomberg）を含め、もう一方の一覧からは外す
+  const inList = (f, lang) => (lang === S.lang ? f.lang === lang || (f.alsoFor ?? []).includes(lang) : f.lang === lang && !(f.alsoFor ?? []).includes(S.lang))
+  for (const lang of [S.lang, S.lang === 'ja' ? 'en' : 'ja']) {
+    rows.push({ kind: 'head', lang, inList })
+    for (const f of FEEDS.filter((x) => inList(x, lang))) rows.push({ kind: 'feed', f })
+  }
+  return rows
+}
+function settings() {
+  const L = S.lang === 'ja'
+  const rows = settingsRows()
+  const [hint, bad] = ivlHint()
+  const pol = S.state === 'policy'
+  const dis = !enabled() ? ' dimall' : ''
+  let html = ''
+  rows.forEach((r, i) => {
+    const fc = i === S.sFocus ? ' foc' : ''
+    if (r.kind === 'master') {
+      const ds = pol ? (L ? '管理者が切っています（ELECXSTOCK_NEWS=off）。この PC では変えられません。' : 'Turned off by your administrator (ELECXSTOCK_NEWS=off).') : S.state === 'unanswered' ? (L ? 'まだ選んでいません。選ぶまでニュースのための通信はしません。' : 'Not chosen yet. No requests are made for news until you choose.') : (L ? '切ると、ニュースのための通信はしません（データの取得・新しい版の確認は別の設定）。' : 'When off, no requests are made for news (data updates and version checks are separate).')
+      html += `<div class="srow${fc}" data-i="${i}"><span class="lb">${L ? 'ニュースを取る' : 'Fetch news'}${pol ? ' 🔒' : ''}</span><button class="toggle${enabled() ? ' on' : ''}" data-act="master" ${pol ? 'disabled' : ''}></button><span class="ds">${ds}</span></div>`
+    } else if (r.kind === 'interval') html += `<div class="srow${fc}${dis}" data-i="${i}"><span class="lb">${L ? '確かめる間隔' : 'Check every'}</span><span class="ivl"><input id="ivl" value="${esc(S.interval)}" inputmode="numeric"><span>${L ? '分' : 'min'}</span><span class="presets">${['', '5', '10', '30', '60'].map((p) => `<button class="chipbtn" data-ivl="${p}" aria-pressed="${S.interval === p}">${p === '' ? (L ? '起動時だけ' : 'Startup') : p}</button>`).join('')}</span></span><span class="ds" style="${bad ? 'color:var(--warn)' : ''}">${hint}</span></div>`
+    else if (r.kind === 'head') {
+      const all = FEEDS.filter((x) => r.inList(x, r.lang))
+      const n = all.filter(isOn).length
+      html += `<div class="sh${dis}"><b>${r.lang === 'ja' ? (L ? '日本語のフィード' : 'Japanese feeds') : (L ? '英語のフィード' : 'English feeds')}</b><span>${n} / ${all.length} ${L ? 'オン' : 'on'}</span>${r.lang === S.lang ? `<span>${L ? '表示言語の既定' : 'default for your language'}</span>` : ''}<span class="sp"></span><span>${L ? 'Space 切り替え · D 既定に戻す' : 'Space toggles · D resets'}</span></div>`
+    } else {
+      const f = r.f
+      const on = isOn(f)
+      let st = '—', badSt = false
+      if (on && enabled()) st = `11:20 · ${f.lang === 'en' ? 20 : 15}${f.ttl ? (L ? ` · 配信元の指定 ${f.ttl} 分` : ` · source asks ${f.ttl} min`) : ''}`
+      if (on && S.state === 'error' && ERR[f.id]) { st = ERR[f.id]; badSt = true }
+      const tags = (f.lang !== S.lang ? `<span class="tag">${L ? '英語' : 'Japanese'}</span>` : '') + (f.nosum ? `<span class="tag">${L ? '要約なし' : 'No summary'}</span>` : '') + (f.pay ? `<span class="tag">${L ? '有料' : 'Paywall'}</span>` : '') + (f.terms ? '' : `<span class="tag">${L ? '規約未確認' : 'Terms unchecked'}</span>`) + (f.id in S.over ? `<span class="tag">${L ? '変更済み' : 'Changed'}</span>` : '')
+      html += `<div class="frow${fc}${on ? '' : ' dis'}${dis}" data-i="${i}"><button class="toggle${on ? ' on' : ''}" data-feed="${f.id}"></button><span class="src">${esc(f.short)}</span><span class="nm">${esc(f.name[S.lang])}<small>${f.host}</small> ${tags}</span><span class="grp">${tt(f.group)}</span><span class="st${badSt ? ' bad' : ''}">${badSt ? '⚠ ' : ''}${st}</span></div>`
+    }
+  })
+  const newsHosts = enabled() ? [...new Set(onFeeds().map((f) => f.host))] : []
+  const appHosts = [['query1.finance.yahoo.com', L ? '株価・指標（データの取得）' : 'Prices (data updates)'], ['www.jpx.co.jp', L ? '上場銘柄の一覧' : 'Listed issues'], ['api.github.com', L ? '新しい版の確認（一般の設定）' : 'Version check (General)']]
+  html += `<div class="sh" style="margin-top:12px"><b>${L ? 'このアプリの通信先' : 'Hosts this app contacts'}</b><span>https のみ</span><span class="sp"></span><span><kbd>Ctrl+C</kbd> ${L ? 'コピー' : 'Copy'}</span></div><div class="hosts">${appHosts.map(([h, p]) => `<div>${h} <span style="color:var(--text-3)">— ${p}</span></div>`).join('')}${newsHosts.map((h) => `<div>${h} <span style="color:var(--text-3)">— ${L ? 'ニュース' : 'News'}</span></div>`).join('') || `<div style="color:var(--text-3)">${L ? '（ニュース: なし）' : '(news: none)'}</div>`}</div>`
+  const tabs = (L ? ['一般', '表示', 'チャート', 'データ', 'キー', 'ニュース', 'このアプリについて'] : ['General', 'Display', 'Chart', 'Data', 'Keys', 'News', 'About']).map((n, i) => `<span class="${i === 5 ? 'on' : ''}">${n}</span>`).join('')
+  return `<div style="position:absolute;inset:0;opacity:.6">${marketTab()}</div><div class="scrim"><div class="dlg"><div class="dlg-h">${L ? '設定' : 'Settings'}<span class="spacer"></span><kbd>Esc</kbd></div><div class="dlg-b"><div class="stabs">${tabs}</div><div class="sbody" id="sbody">${html}</div></div><div class="dlg-f"><span><kbd>↑</kbd><kbd>↓</kbd> ${L ? '選ぶ' : 'Move'}</span><span><kbd>Space</kbd> ${L ? '切り替え' : 'Toggle'}</span><span><kbd>Ctrl+Tab</kbd> ${L ? 'タブ' : 'Tabs'}</span><span class="spacer"></span><span>${L ? '変更はすぐに保存されます' : 'Changes are saved immediately'}</span></div></div></div>`
+}
+
+// ===== 初回起動 =====
+function firstrun() {
+  const L = S.lang === 'ja'
+  const opt = (on, t, s) => `<div class="opt${on ? ' on' : ''}"><span class="rd"></span><b>${t}</b><span>${s}</span></div>`
+  const nOn = FEEDS.filter((f) => !(f.id in S.over) && isOn(f)).length
+  const hosts = new Set(FEEDS.filter((f) => f.lang === S.lang && f.def).map((f) => f.host)).size
+  return `<div class="scrim" style="background:var(--bg)"><div class="fr"><div style="color:var(--text-3);font-size:var(--fs-1)">${L ? 'はじめに 3 / 3' : 'Getting started 3 / 3'}</div><h2>${L ? 'ニュースの見出しを取りますか' : 'Fetch news headlines?'}</h2>
+    <div style="color:var(--text-2)">${L ? 'マーケットのタブに、投資に関わるニュースの見出しを出します。見出しとリンクだけを、同梱した出所（日本取引所グループ・日本銀行・Bloomberg など）から取ります。あとで設定のニュースのタブで変えられます。' : 'The Market tab can show investing headlines. Only headlines and links are fetched, from built-in sources (Nikkei Asia, Bloomberg, Bank of Japan, JPX and others). You can change this later in Settings › News.'}</div>
+    ${opt(S.frOn, L ? '取る（10 分ごと）' : 'Yes, check every 10 minutes', L ? `日本語のフィード ${nOn} 件（通信先 ${hosts} か所）。取るときは各配信元に IP アドレスが伝わります` : `${nOn} English feeds (${hosts} hosts). Each source will see your IP address`)}
+    ${opt(!S.frOn, L ? '取らない' : 'No', L ? 'ニュースのための通信はしません。株価などのデータの取得だけを行います' : 'No requests are made for news. Only market data is fetched')}
+    <div class="ft"><span><kbd>↑</kbd><kbd>↓</kbd> ${L ? '選ぶ' : 'Choose'}</span><button class="btn primary" data-act="frDone">${L ? 'はじめる' : 'Start'} <kbd>Enter</kbd></button></div></div></div>`
+}
+
+// ===== 描画 =====
+function render() {
+  document.documentElement.dataset.theme = S.theme
+  document.documentElement.dataset.density = S.density
+  document.documentElement.lang = S.lang
+  for (const b of document.querySelectorAll('#mockbar button')) b.setAttribute('aria-pressed', String(S[b.dataset.k] === b.dataset.v))
+  const st = document.getElementById('stage')
+  const keepScroll = document.getElementById('nlist')?.scrollTop ?? 0
+  const sScroll = document.getElementById('sbody')?.scrollTop ?? 0
+  st.innerHTML = (S.view === 'market' ? marketTab() : S.view === 'settings' ? settings() : S.view === 'firstrun' ? firstrun() : solo(S.view)) + `<div class="fictional">${S.lang === 'ja' ? '見出し・要約はすべて架空（出所の名前だけ実在）' : 'All headlines and summaries are fictional'}</div>`
+  // 高さが足りないとき（本体が 300px 未満）は下のプレビューを出さない（一覧の行数を優先する）
+  const nb = document.querySelector('#news .nbody')
+  if (nb && !nb.classList.contains('side') && nb.clientHeight < 300) nb.classList.add('noprev')
+  const l = document.getElementById('nlist')
+  if (l) { l.scrollTop = keepScroll; ensureVisible() }
+  const sb = document.getElementById('sbody')
+  if (sb) { sb.scrollTop = sScroll; sb.querySelector('.foc')?.scrollIntoView({ block: 'nearest' }) }
+  if (S.filterOn) { const q = document.getElementById('q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length) } }
+}
+function ensureVisible() {
+  const l = document.getElementById('nlist')
+  const r = l?.querySelector('.row.sel')
+  if (!r) return
+  const top = r.offsetTop - 42, bot = r.offsetTop + r.offsetHeight
+  if (top < l.scrollTop) l.scrollTop = top
+  else if (bot > l.scrollTop + l.clientHeight) l.scrollTop = bot - l.clientHeight
+}
+const toast = (m) => { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 1600) }
+function move(d) {
+  const v = visible()
+  if (!v.length) return
+  let i = v.findIndex((x) => x.key === S.sel)
+  i = d === 'home' ? 0 : d === 'end' ? v.length - 1 : Math.max(0, Math.min(v.length - 1, i + d))
+  S.sel = v[i].key
+  if (i === 0) S.newer = 0
+  render()
+}
+function openSel() {
+  const it = items.find((x) => x.key === S.sel)
+  if (!it) return
+  if (!it.link) return toast(tt('nolink'))
+  S.readSet.add(it.key)
+  toast(`${tt('open')}: https://${feedOf(it.feed).link}/…`)
+  render()
+}
+function arrive() {
+  if (S.state !== 'normal' && S.state !== 'error') return
+  S.seenAt = Math.max(...items.map((x) => x.at)) // ペインを見ていた時点が「ここまで見た」になる
+  const add = FRESH[S.lang].map(([, f, h, s], i) => ({ key: `fresh-${Date.now()}-${i}`, at: NOW + (i + 1) * 60000, feed: f, title: h, summary: s, link: true }))
+  items.push(...add)
+  S.newer += add.filter((a) => visible().some((x) => x.key === a.key)).length
+  toast(S.lang === 'ja' ? '新しい見出しが届きました（選んでいる行は動きません）' : 'New headlines arrived (your selection stays put)')
+  render()
+}
+// コピー（design-news.md §7.4。src/shared/news/copy.ts の copyOne / copyList にあたる）
+function copyOne(it) {
+  const f = feedOf(it.feed), j = jst(it.at)
+  const lines = [it.title]
+  if (!f.nosum && it.summary) lines.push(it.summary)
+  lines.push(`${f.name[S.lang]} · ${j.y}-${pad(j.m)}-${pad(j.d)} ${j.hh}:${j.mm} JST`)
+  if (it.link) lines.push(`https://${f.link}/news/…`)
+  if (f.copy) lines.push(f.copy)
+  return lines.join('\n')
+}
+function copyList(list) {
+  const top = list.slice(0, 100)
+  const lines = top.map((it) => { const f = feedOf(it.feed), j = jst(it.at); return `${f.undated ? "≈" : ""}${j.m}/${j.d} ${j.hh}:${j.mm}  ${f.short}  ${it.title}` })
+  const feeds = [...new Set(top.map((it) => it.feed))].map(feedOf)
+  lines.push('', `${S.lang === 'ja' ? '出所' : 'Sources'}: ${feeds.map((f) => f.name[S.lang]).join(' / ')}`)
+  const rights = [...new Set(feeds.map((f) => f.copy).filter(Boolean))]
+  if (rights.length) lines.push(rights.join(' / '))
+  return { text: lines.join('\n'), n: top.length }
+}
+function doCopy(all) {
+  if (!enabled() || S.state === 'loading') return
+  let text, n
+  if (all) ({ text, n } = copyList(visible()))
+  else { const it = items.find((x) => x.key === S.sel); if (!it) return; text = copyOne(it); n = 1 }
+  navigator.clipboard?.writeText(text).catch(() => {})
+  window.lastCopy = text // モックの確かめ用
+  toast(S.lang === "ja" ? `コピーしました（${n === 100 && all ? "100 件まで" : n + " 件"}）` : `Copied (${n})`)
+}
+function cycleTab(d) { const g = shownTabs(); S.tab = g[(g.indexOf(S.tab) + d + g.length) % g.length]; render() }
+
+document.getElementById('mockbar').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return
+  S[b.dataset.k] = b.dataset.v
+  if (b.dataset.k === 'lang') { S.readSet.clear(); S.sel = null; S.newer = 0; S.tab = 'all'; build() }
+  render()
+})
+document.getElementById('stage').addEventListener('click', (e) => {
+  const t = e.target
+  const row = t.closest('.row'); if (row) { S.sel = row.dataset.key; render(); return }
+  const tab = t.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; render(); return }
+  const a = t.closest('[data-act]')?.dataset.act
+  if (a === 'filter') { S.filterOn = !S.filterOn; if (!S.filterOn) S.q = ''; render() }
+  if (a === 'preview') { S.preview = !S.preview; render() }
+  if (a === 'top') move('home')
+  if (a === 'master' && S.state !== 'policy') { S.state = enabled() ? 'off' : 'normal'; render() }
+  if (a === 'frDone') { S.state = S.frOn ? 'loading' : 'off'; S.view = 'market'; render(); if (S.frOn) setTimeout(() => { S.state = 'normal'; render() }, 1400) }
+  const fd = t.closest('[data-feed]'); if (fd && enabled()) { const f = feedOf(fd.dataset.feed); S.over[f.id] = !isOn(f); render() }
+  const iv = t.closest('[data-ivl]'); if (iv) { S.interval = iv.dataset.ivl; render() }
+})
+document.getElementById('stage').addEventListener('dblclick', (e) => { if (e.target.closest('.row')) openSel() })
+document.getElementById('stage').addEventListener('input', (e) => {
+  if (e.target.id === 'q') { S.q = e.target.value; render() }
+  if (e.target.id === 'ivl') { S.interval = e.target.value; const pos = e.target.selectionStart; render(); const n = document.getElementById('ivl'); n.focus(); n.setSelectionRange(pos, pos) }
+})
+
+document.addEventListener('keydown', (e) => {
+  if (e.isComposing) return
+  if (e.key === 'F5') { e.preventDefault(); arrive(); return }
+  if (S.view === 'firstrun') {
+    if (e.code === 'ArrowUp' || e.code === 'ArrowDown') { S.frOn = !S.frOn; render() }
+    if (e.code === 'Enter') document.querySelector('[data-act="frDone"]').click()
+    return
+  }
+  if (S.view === 'settings') {
+    if (e.target.id === 'ivl' && !['ArrowUp', 'ArrowDown', 'Escape'].includes(e.code)) return
+    const rows = settingsRows()
+    if (e.code === 'Escape') { S.view = 'market'; render(); return }
+    if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
+      e.preventDefault()
+      let i = S.sFocus
+      do { i += e.code === 'ArrowDown' ? 1 : -1 } while (rows[i] && rows[i].kind === 'head')
+      if (rows[i]) S.sFocus = i
+      render()
+      if (rows[S.sFocus].kind === 'interval') document.getElementById('ivl').focus()
+      return
+    }
+    const r = rows[S.sFocus]
+    if (e.code === 'Space') {
+      e.preventDefault()
+      if (r.kind === 'master' && S.state !== 'policy') S.state = enabled() ? 'off' : 'normal'
+      if (r.kind === 'feed' && enabled()) S.over[r.f.id] = !isOn(r.f)
+      render()
+    }
+    if (e.code === 'KeyD' && r.kind === 'feed') { delete S.over[r.f.id]; render() }
+    if (e.ctrlKey && e.code === 'KeyC') toast(S.lang === 'ja' ? '通信先をコピーしました' : 'Hosts copied')
+    return
+  }
+  if (S.filterOn && e.target.id === 'q') {
+    if (e.code === 'Escape') { S.filterOn = false; S.q = ''; render() }
+    if (e.code === 'ArrowDown' || e.code === 'Enter') { e.preventDefault(); if (!S.q) S.filterOn = false; document.getElementById('q').blur(); render(); document.getElementById('news')?.focus() }
+    return
+  }
+  const k = e.code
+  if (k === 'KeyN' && !e.ctrlKey && !e.altKey) { S.view = 'settings'; S.sFocus = 0; render(); return }
+  if (S.state === 'unanswered') { if (k === 'Enter') { S.state = 'loading'; render(); setTimeout(() => { S.state = 'normal'; render() }, 1400) } return }
+  if (!enabled()) return
+  if ((e.ctrlKey && (k === 'PageDown' || k === 'PageUp')) || k === 'KeyG') { e.preventDefault(); cycleTab(k === 'PageUp' || e.shiftKey ? -1 : 1); return }
+  const page = Math.max(1, Math.floor((document.getElementById('nlist')?.clientHeight ?? 200) / 24) - 1)
+  const map = { ArrowDown: 1, ArrowUp: -1, PageDown: page, PageUp: -page, Home: 'home', End: 'end' }
+  if (k in map) { e.preventDefault(); move(map[k]); return }
+  if (k === 'Enter') { openSel(); return }
+  if (k === 'Slash') { e.preventDefault(); S.filterOn = true; render() }
+  if (k === 'KeyP' && !e.ctrlKey && !e.altKey) { S.preview = !S.preview; render() }
+  // 文字を選んでいるときの Ctrl+C は、選んだ文字をそのままコピーする（ペインのコピーにしない）
+  if (e.ctrlKey && k === 'KeyC') { if (!e.altKey && String(window.getSelection() ?? '') !== '') return; e.preventDefault(); doCopy(e.altKey) }
+  if (k === 'KeyR' && !e.ctrlKey) toast(S.lang === 'ja' ? '確かめています…（同じフィードは 60 秒に 1 回まで）' : 'Checking… (at most once a minute per feed)')
+  if (k === 'Escape' && S.q) { S.q = ''; render() }
+})
+render()
+</script>
+</body>
+</html>
