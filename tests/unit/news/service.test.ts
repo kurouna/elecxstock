@@ -505,6 +505,63 @@ describe('FR-NW5 巡回の頑健さ（レビューの指摘）', () => {
   })
 })
 
+describe('FR-NW1 画面への知らせ（巡回が走らないときも、変わったら知らせる）', () => {
+  const changed = (kind: string) => h.events.filter((e) => e.event === 'news.changed' && (e.data as { kind: string }).kind === kind)
+  it('表示言語を変えたら、取るものが無くても知らせる（ja → en → ja で、取得済みのフィードに戻る）', async () => {
+    h = harness([A, E])
+    h.set(A.url, ok('架空の見出し A'))
+    h.set(E.url, ok('fictional E'))
+    await answer()
+    await show()
+    await h.svc.call('news.watch', { on: true, lang: 'en' }, 'main')
+    await h.svc.idle()
+    h.events.length = 0
+    await h.svc.call('news.watch', { on: true, lang: 'ja' }, 'main')
+    await h.svc.idle()
+    expect(h.calls).toHaveLength(2) // ja・en を 1 回ずつ。戻っても取り直さない
+    expect(changed('settings')).toHaveLength(1)
+    expect((await h.svc.call('news.list', {}, 'main')).items.map((x) => x.feed)).toEqual([A.id])
+  })
+  it('「ここまで見た」を書き換えたら知らせる（隠したとき）', async () => {
+    await answer()
+    await show()
+    h.events.length = 0
+    await show(false)
+    expect(changed('seen')).toHaveLength(1)
+  })
+  it('巡回の時刻が来ても全部のフィードが失敗の待ちの最中なら取らないが、進んだ「次」を知らせる', async () => {
+    h.set(A.url, { status: 500 })
+    h.set(B.url, { status: 500 })
+    await answer()
+    await show() // T0: 失敗 → 5 分後に取り直す
+    await h.advance(5 * MIN) // 取り直しも失敗 → 15 分後（T0+20）
+    h.events.length = 0
+    const calls = h.calls.length
+    await h.advance(5 * MIN) // T0+10: 巡回の時刻だが、どちらも待ちの最中
+    expect(h.calls).toHaveLength(calls)
+    const up = h.events.filter((e) => e.event === 'news.updated').map((e) => (e.data as { round: { last?: number; next?: number } }).round)
+    expect(up.at(-1)).toMatchObject({ last: T0 + 10 * MIN, next: T0 + 20 * MIN })
+  })
+  it('隠したときの知らせは 1 つ（画面の読み直しを重ねない）', async () => {
+    await answer()
+    await show()
+    h.events.length = 0
+    await show(false)
+    expect(h.events).toHaveLength(1)
+  })
+  it('見せた・隠したときに巡回が走らなくても、次の巡回の時刻が変わったら知らせる', async () => {
+    await answer()
+    await show()
+    await show(false)
+    h.events.length = 0
+    await h.advance(MIN)
+    await show() // 前の巡回から 1 分なので取らない
+    expect(h.calls).toHaveLength(2)
+    const up = h.events.filter((e) => e.event === 'news.updated').map((e) => (e.data as { round: { next?: number } }).round)
+    expect(up.at(-1)?.next).toBe(T0 + 10 * MIN)
+  })
+})
+
 describe('FR-NW8 「ここまで見た」（レビューの指摘）', () => {
   it('見えたまま終了しても、終了の時点を線にする', async () => {
     await answer()

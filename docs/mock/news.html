@@ -285,9 +285,9 @@ const FEEDS = [
 const GROUPS = ['all', 'market', 'reading', 'official']
 const T = {
   ja: { news: 'ニュース', all: '全て', market: '市況', reading: '読み物', official: '公的機関', filter: '絞り込み', checked: '確認', next: '次', sources: 'ソース', startup: '起動時に確認', offline: 'オフライン', asof: '時点', checking: '確認中', today: '今日', open: 'ブラウザで開く', copy: 'コピー', newer: '新しい見出し', nolink: 'リンクなし', pay: '有料', seen: 'ここまで見た', preview: 'プレビュー',
-    offT: 'ニュースは切っています。', offS: 'ニュースのための通信はしません。', askT: 'ニュースの見出しを取りますか。', askS: '見出しとリンクだけを、同梱した出所から取ります。取るときは各配信元に IP アドレスが伝わります。出所と通信先は設定で見られます。', askY: '取る', policyT: '管理者がニュースを切っています。', policyS: 'この PC ではニュースを取れません（ELECXSTOCK_NEWS=off）。', set: '設定を開く', none: '該当する見出しはありません', noFeed: 'オンのフィードがありません', loadS: '最初の取得には数秒かかります。2 回目からは前回の見出しをすぐに出します。' },
+    offT: 'ニュースは切っています。', offS: 'ニュースのための通信はしません。', askT: 'ニュースの見出しを取りますか。', askS: '見出しとリンクだけを、同梱した出所から取ります。取るときは各配信元に IP アドレスが伝わります。出所と通信先は設定で見られます。', askY: '取る', askN: '取らない', policyT: '管理者がニュースを切っています。', policyS: 'この PC ではニュースを取れません（ELECXSTOCK_NEWS=off）。', set: '設定を開く', none: '該当する見出しはありません', noFeed: 'オンのフィードがありません', loadS: '最初の取得には数秒かかります。2 回目からは前回の見出しをすぐに出します。' },
   en: { news: 'News', all: 'All', market: 'Markets', reading: 'Features', official: 'Official', filter: 'Filter', checked: 'Checked', next: 'next', sources: 'sources', startup: 'Checked at startup', offline: 'Offline', asof: 'as of', checking: 'Checking', today: 'Today', open: 'Open in browser', copy: 'Copy', newer: 'newer headlines', nolink: 'no link', pay: 'Paywall', seen: 'Seen up to here', preview: 'Preview',
-    offT: 'News is off.', offS: 'No requests are made for news.', askT: 'Fetch news headlines?', askS: 'Only headlines and links are fetched, from built-in sources. Each source will see your IP address. Sources and hosts are listed in Settings.', askY: 'Fetch', policyT: 'News is turned off by your administrator.', policyS: 'News cannot be fetched on this PC (ELECXSTOCK_NEWS=off).', set: 'Open settings', none: 'No matching headlines', noFeed: 'No feeds are on', loadS: 'The first check takes a few seconds. After that the last headlines show at once.' },
+    offT: 'News is off.', offS: 'No requests are made for news.', askT: 'Fetch news headlines?', askS: 'Only headlines and links are fetched, from built-in sources. Each source will see your IP address. Sources and hosts are listed in Settings.', askY: 'Fetch', askN: 'Don’t fetch', policyT: 'News is turned off by your administrator.', policyS: 'News cannot be fetched on this PC (ELECXSTOCK_NEWS=off).', set: 'Open settings', none: 'No matching headlines', noFeed: 'No feeds are on', loadS: 'The first check takes a few seconds. After that the last headlines show at once.' },
 }
 // 見出し（架空）。[分前, フィード, 見出し, 要約]
 const JA = [
@@ -404,7 +404,7 @@ function newsPane(size) {
   let body
   const quiet = (t, s, keys) => `<div class="quiet"><div class="box"><div class="ttl">${t}</div><div class="sub">${s}</div>${keys ? `<div class="keys">${keys}</div>` : ''}</div></div>`
   if (st === 'off') body = quiet(tt('offT'), tt('offS'), `<span><kbd>N</kbd> ${tt('set')}</span>`)
-  else if (st === 'unanswered') body = quiet(tt('askT'), tt('askS'), `<span><kbd>Enter</kbd> ${tt('askY')}</span><span><kbd>N</kbd> ${tt('set')}</span>`)
+  else if (st === 'unanswered') body = quiet(tt('askT'), tt('askS'), `<span><kbd>Enter</kbd> ${tt('askY')}</span><span>${tt('askN')}</span><span><kbd>N</kbd> ${tt('set')}</span>`)
   else if (st === 'policy') body = quiet(tt('policyT'), tt('policyS'), '')
   else if (st === 'loading') {
     body = `<div class="list">${Array.from({ length: 12 }, (_, i) => `<div class="skel"><i style="width:30px"></i><i style="width:34px"></i><i style="width:${40 + ((i * 37) % 50)}%"></i></div>`).join('')}</div><div class="prev"><div class="pm">${tt('checking')} 3/${on.length}</div><div class="ps">${tt('loadS')}</div></div>`

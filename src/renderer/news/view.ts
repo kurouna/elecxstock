@@ -128,3 +128,18 @@ export const hostOf = (u?: string) => (u ? new URL(u).hostname : '')
 export const errText = (e: string | undefined, t: Tr) => (e ? (e.startsWith('http-') ? `HTTP ${e.slice(5)}` : t(`news.err.${e}`)) : '')
 /** PgUp・PgDn で動かす行の数（見えている行の数 − 1） */
 export const pageStep = (height: number | undefined, row = 24) => Math.max(1, Math.floor((height ?? 240) / row) - 1)
+
+/**
+ * ペインの本文（root）の中のボタンで押した Enter・Space（修飾なし）か。ペインのキーにせず、ボタンを押させる。
+ * 見出しの段のボタン（分類のタブ・⌕）は含めない: マウスで押すとフォーカスがそこに残るので、含めるとそのあとの Enter が
+ * 記事を開かずにタブの押し直しになる。見出しの段の操作にはキー（G・Ctrl+PgDn・/）がある。本文のボタンは押すと消えるか、ダイアログが開く
+ */
+export function buttonKey(
+  e: Pick<KeyboardEvent, 'code' | 'target' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>,
+  root: Element | undefined,
+): boolean {
+  if (e.code !== 'Enter' && e.code !== 'NumpadEnter' && e.code !== 'Space') return false
+  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return false
+  const t = e.target as Element | null
+  return !!root && !!t?.closest && !!t.closest('button') && root.contains(t)
+}

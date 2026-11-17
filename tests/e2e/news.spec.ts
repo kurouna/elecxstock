@@ -1,7 +1,7 @@
 // ニュース（FR-NW1〜NW9。docs/design-news.md）。スタブのフィード（src/core/news/stub.ts。見出しはすべて架空）を、キーだけで操作する。
 // クリップボードは main から読む。記事を開く操作は main の shell.openExternal を記録に差し替えて確かめる（ブラウザを開かない）
 import type { ElectronApplication, Page } from '@playwright/test'
-import { expect, focusPane, keys, recordToasts, rpc, tab, test, toastsSeen, type } from './support'
+import { command, expect, focusPane, keys, recordToasts, rpc, tab, test, toastsSeen, type } from './support'
 
 /** 答えた状態（取る）。既定オンは日銀・JPX・Bloomberg */
 const ON = {
@@ -128,6 +128,36 @@ test.describe('見えている間だけ取る（FR-NW4, FR-NW8）', () => {
     expect((await rpc<L>(page, 'news.list')).seenAt).toBeGreaterThanOrEqual(before)
     await tab(page, 'market')
     await expect.poll(async () => (await rpc<L>(page, 'news.list')).round.next).toBeGreaterThan(0)
+  })
+})
+
+test.describe('表示言語と未回答・オフの画面（FR-NW1, FR-NW3）', () => {
+  test('表示言語を切り替えると、取得済みの言語へ戻ったときも一覧がすぐ変わる', async ({ start }) => {
+    const { page } = await start({ news: ON })
+    await openNews(page)
+    const srcs = news(page).locator('.row .src')
+    await expect(srcs.filter({ hasText: '日銀' }).first()).toBeVisible()
+    await command(page, '言語を切り替え')
+    // 英語の表示: 日銀（日本語）ではなく BOJ（英語）のフィード
+    await expect(srcs.filter({ hasText: 'BOJ' }).first()).toBeVisible()
+    await expect(srcs.filter({ hasText: '日銀' })).toHaveCount(0)
+    await command(page, 'Switch language')
+    await expect(srcs.filter({ hasText: '日銀' }).first()).toBeVisible()
+    await expect(srcs.filter({ hasText: 'BOJ' })).toHaveCount(0)
+  })
+
+  test('未回答の画面の「取らない」で切り、オフの画面の「設定を開く」で設定のニュースのタブへ', async ({ start }) => {
+    const { page } = await start({ news: { enabled: null, interval: 10, feeds: {}, acceptedDefaults: [] } })
+    await openNews(page)
+    const no = news(page).getByRole('button', { name: '取らない' })
+    await no.focus() // ボタンは Tab で届く（ここでは Tab の回数に頼らない）
+    await keys(page, 'Enter')
+    await expect(news(page)).toContainText('ニュースは切っています。')
+    expect((await rpc<{ state: string }>(page, 'news.list')).state).toBe('off')
+    const open = news(page).getByRole('button', { name: /設定を開く/ })
+    await open.focus()
+    await keys(page, 'Enter')
+    await expect(page.getByRole('dialog', { name: '設定' }).getByRole('tab', { selected: true })).toHaveText('ニュース')
   })
 })
 

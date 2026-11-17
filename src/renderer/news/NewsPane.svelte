@@ -14,6 +14,7 @@ import { type PaneNode, patchState } from '../stores/layout.svelte'
 import { feedOf, initNews, langChanged, news, setNews, setPaneVisible } from './store.svelte'
 import {
   arrivals,
+  buttonKey,
   dayLabel,
   failedCount,
   hostOf,
@@ -148,6 +149,8 @@ function endFilter() {
 function onKey(e: KeyboardEvent): boolean {
   const ctrl = e.ctrlKey || e.metaKey
   const c = e.code
+  // 本文の中のボタン（取る・取らない・設定を開く・新しい見出しの帯）に Tab で来て押した Enter・Space は、ボタンに任せる
+  if (buttonKey(e, root)) return false
   if (ctrl && !e.shiftKey && c === 'KeyC') {
     if (e.altKey) {
       copyShown()
@@ -253,7 +256,8 @@ const status = $derived(statusText(list?.round, news.view?.settings.interval, t 
         <div class="sub">{t('news.ask.body')}</div>
         <div class="keys">
           <button type="button" class="btn primary" onclick={() => setNews({ enabled: true })}><kbd>Enter</kbd> {t('news.ask.yes')}</button>
-          <button type="button" class="btn" onclick={openSettings}><kbd>N</kbd> {t('set.news')}</button>
+          <button type="button" class="btn" onclick={() => setNews({ enabled: false })}>{t('news.ask.no')}</button>
+          <button type="button" class="btn" onclick={openSettings}><kbd>N</kbd> {t('news.settingsKey')}</button>
         </div>
       </div>
     </div>
@@ -262,7 +266,7 @@ const status = $derived(statusText(list?.round, news.view?.settings.interval, t 
       <div class="box">
         <div class="ttl">{nstate === 'off' ? t('news.off.title') : nstate === 'policy-off' ? t('news.policy.title') : t('news.unavailable')}</div>
         {#if nstate !== 'unavailable'}<div class="sub">{nstate === 'off' ? t('news.off.body') : t('news.policy.body')}</div>{/if}
-        {#if nstate === 'off'}<div class="keys"><span><kbd>N</kbd> {t('set.news')}</span></div>{/if}
+        {#if nstate === 'off'}<div class="keys"><button type="button" class="btn" onclick={openSettings}><kbd>N</kbd> {t('news.settingsKey')}</button></div>{/if}
       </div>
     </div>
   {:else}
@@ -275,7 +279,7 @@ const status = $derived(statusText(list?.round, news.view?.settings.interval, t 
           <button type="button" class="notice" onclick={openSettings}>{t('news.notice')}</button>
         {/if}
         {#if !onCount}
-          <div class="state">{t('news.noFeed')} · <kbd>N</kbd></div>
+          <div class="state"><div>{t('news.noFeed')} <button type="button" class="btn" onclick={openSettings}><kbd>N</kbd> {t('news.settingsKey')}</button></div></div>
         {:else if !all.length && list.round.running}
           {#each Array.from({ length: 6 }) as _, i (i)}<div class="skel"><i></i><i></i><i style:width={`${60 + ((i * 17) % 35)}%`}></i></div>{/each}
           <div class="sub loading">{t('news.loading')}</div>

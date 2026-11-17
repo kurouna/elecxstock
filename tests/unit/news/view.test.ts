@@ -3,6 +3,7 @@ import type { NewsFeed, NewsItem } from '@shared/news/schema'
 import { describe, expect, it } from 'vitest'
 import {
   arrivals,
+  buttonKey,
   dayLabel,
   errText,
   hm,
@@ -128,5 +129,27 @@ describe('FR-NW1 状態の文字・印・失敗の理由', () => {
     expect(errText(undefined, t)).toBe('')
     expect(pageStep(240)).toBe(9)
     expect(pageStep(10)).toBe(1)
+  })
+})
+
+describe('FR-NW1 本文の中のボタンのキー', () => {
+  // DOM の代わり: ボタンかどうかと、本文の中かどうかだけを持つ
+  const el = (button: boolean) => ({ closest: (s: string) => (s === 'button' && button ? {} : null) })
+  const btn = el(true)
+  const row = el(false)
+  const root = { contains: (t: unknown) => t === btn || t === row } as unknown as Element
+  const ev = (code: string, target: unknown, mods: Partial<KeyboardEvent> = {}) =>
+    ({ code, target, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...mods }) as KeyboardEvent
+  it('本文の中のボタンで押した Enter・Space はボタンに任せる', () => {
+    expect(buttonKey(ev('Enter', btn), root)).toBe(true)
+    expect(buttonKey(ev('Space', btn), root)).toBe(true)
+    expect(buttonKey(ev('NumpadEnter', btn), root)).toBe(true)
+  })
+  it('行の上・修飾キー付き・ほかのキー・本文の外（見出しのボタン）はペインのキー', () => {
+    expect(buttonKey(ev('Enter', row), root)).toBe(false)
+    expect(buttonKey(ev('Enter', btn, { ctrlKey: true }), root)).toBe(false)
+    expect(buttonKey(ev('KeyN', btn), root)).toBe(false)
+    expect(buttonKey(ev('Enter', el(true)), root)).toBe(false)
+    expect(buttonKey(ev('Enter', btn), undefined)).toBe(false)
   })
 })

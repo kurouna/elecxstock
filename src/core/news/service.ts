@@ -198,10 +198,13 @@ export class NewsService {
     if (was && !now) {
       this.cache.seenAt = this.d.now()
       this.saveCache()
+      this.d.emit('news.changed', { kind: 'seen' })
     }
     if (!was && now) this.start('show')
     else if (langChanged && now) this.start('new')
     else this.schedule()
+    // 表示言語が変わると、オンのフィード・一覧・案内が変わる（取るものが無く巡回が走らなくても、画面に読み直させる）
+    if (langChanged) this.d.emit('news.changed', { kind: 'settings' })
   }
 
   private list(): NewsList {
@@ -313,6 +316,9 @@ export class NewsService {
     }
     if (!due.length) {
       this.schedule()
+      // 巡回を走らせなくても、見せたとき（隠していた間は「次」が無い）と、巡回の時刻を進めたとき（全部が失敗の待ちの最中）は
+      // 「確認」「次 HH:MM」が変わるので知らせる。表示言語の切り替え（new）は news.changed で読み直させる
+      if (why === 'show' || this.lastRound === now) this.d.emit('news.updated', { round: this.round() })
       return
     }
     this.running = this.runRound(due).finally(() => {
