@@ -1,16 +1,25 @@
 <script lang="ts">
-// 初回起動（§6.13 FR-FR1〜FR4）: 免責の同意 → 取得の確認（対象・保存期間・リクエスト数と時間の見積もり）→ 取得の開始。
+// 初回起動（§6.13 FR-FR1〜FR4）: 免責の同意 → 取得の確認（対象・保存期間・リクエスト数と時間の見積もり。ニュースを取るか〔FR-NW3。答えていないときだけ〕）→ 取得の開始。
 import { LWC_NOTICE, LWC_NOTICE_PARTS, TRADINGVIEW_URL } from '@shared/attribution'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { onMount } from 'svelte'
-import { app, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
+import FirstRunNews from '../../news/FirstRunNews.svelte'
+import { setNews } from '../../news/store.svelte'
+import { app, bridge, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
 
 let step = $state<1 | 2>(1)
+/** ニュースをまだ答えていないか（管理者の停止・登録表を読めないときは聞かない） */
+let askNews = $state(false)
+let newsOn = $state(true)
 let years = $state(DEFAULT_SETTINGS.retentionYears)
 let first = $state<HTMLButtonElement>()
 onMount(() => {
   if (app.settings.disclaimerAccepted) step = 2
   years = app.settings.retentionYears
+  void bridge
+    .call('news.settings.get', {})
+    .then((v) => (askNews = v.state === 'unanswered'))
+    .catch(() => {})
   queueMicrotask(() => first?.focus())
 })
 function agree() {
@@ -18,18 +27,25 @@ function agree() {
   step = 2
   queueMicrotask(() => first?.focus())
 }
+/** ニュースの答えを保存する（「後で」でも答えたことにする。初めは取らないと決めた人にペインで聞き直さない） */
+function commitNews() {
+  if (askNews) void setNews({ enabled: newsOn })
+}
 async function start() {
+  commitNews()
   saveSettings({ retentionYears: years, firstRunDone: true })
   app.overlay = null
   await rpc('jobs.start', { kind: 'initial' })
 }
 function later() {
+  commitNews()
   saveSettings({ firstRunDone: true })
   app.overlay = null
 }
 async function importJpx() {
   const bytes = await window.elecxstock.openFile('xlsx')
   if (!(bytes instanceof Uint8Array)) return
+  commitNews()
   saveSettings({ retentionYears: years, firstRunDone: true })
   app.overlay = null
   const n = await rpc('data.importJpx', { bytes: new Uint8Array(bytes) })
@@ -57,6 +73,7 @@ async function importJpx() {
       </span>
     </div>
     <p class="muted small">{t('first.retentionNote')}</p>
+    {#if askNews}<FirstRunNews bind:on={newsOn} />{/if}
     <p class="muted small">{t('first.jpxFailed')} <button type="button" class="chip" onclick={importJpx}>{t('set.importJpx')}</button></p>
     <div class="actions">
       <button type="button" class="btn" onclick={later}>{t('first.later')}</button>

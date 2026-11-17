@@ -2,6 +2,7 @@
 // ショートカット一覧（F1。FR-KB7）。フォーカス中のペインで効くキーに印を付ける。
 // 割り当てを変えられるキー（アクションの登録表）は、今の割り当てを出す（FR-KB6）。
 import { keyOf } from '../../lib/commands'
+import { newsHelp } from '../../news/help'
 import { app, t } from '../../stores/app.svelte'
 import { findPane } from '../../stores/layout.svelte'
 
@@ -171,6 +172,7 @@ const G = $derived([
       [ja ? '閉じる' : 'Close', 'Esc'],
     ],
   },
+  newsHelp(ja, t('help.news')),
 ])
 const ctx = $derived(
   (
@@ -189,6 +191,7 @@ const ctx = $derived(
       breadth: 'market',
       market: 'market',
       portfolio: 'market',
+      news: 'news',
     } as Record<string, string>
   )[findPane(app.focus)?.widget ?? ''] ?? '',
 )

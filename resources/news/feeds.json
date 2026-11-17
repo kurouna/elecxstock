@@ -1,0 +1,512 @@
+{
+  "schemaVersion": 1,
+  "feeds": [
+    {
+      "id": "ja.jpxmkt",
+      "lang": "ja",
+      "name": {
+        "ja": "日本取引所グループ マーケットニュース",
+        "en": "JPX Market News (Japanese)"
+      },
+      "short": "JPX",
+      "url": "https://www.jpx.co.jp/rss/markets_news.xml",
+      "group": "official",
+      "linkHosts": ["www.jpx.co.jp"],
+      "defaultOnFor": ["ja"],
+      "summary": false,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": {
+        "url": "https://www.jpx.co.jp/term-of-use/",
+        "checked": "2026-11-17"
+      }
+    },
+    {
+      "id": "ja.jpxnews",
+      "lang": "ja",
+      "name": {
+        "ja": "日本取引所グループ ニュース",
+        "en": "JPX News (Japanese)"
+      },
+      "short": "JPX",
+      "url": "https://www.jpx.co.jp/rss/jpx-news.xml",
+      "group": "official",
+      "linkHosts": ["www.jpx.co.jp"],
+      "defaultOnFor": ["ja"],
+      "summary": false,
+      "keepDays": 30,
+      "staleDays": 90,
+      "terms": {
+        "url": "https://www.jpx.co.jp/term-of-use/",
+        "checked": "2026-11-17"
+      }
+    },
+    {
+      "id": "ja.boj",
+      "lang": "ja",
+      "name": {
+        "ja": "日本銀行 新着情報",
+        "en": "Bank of Japan (Japanese)"
+      },
+      "short": "日銀",
+      "url": "https://www.boj.or.jp/rss/whatsnew.xml",
+      "group": "official",
+      "linkHosts": ["www.boj.or.jp"],
+      "defaultOnFor": ["ja"],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": {
+        "url": "https://www.boj.or.jp/about/copyright.htm",
+        "checked": "2026-11-17"
+      }
+    },
+    {
+      "id": "ja.nhk",
+      "lang": "ja",
+      "name": {
+        "ja": "NHK ニュース 経済",
+        "en": "NHK News Business (Japanese)"
+      },
+      "short": "NHK",
+      "url": "https://news.web.nhk/n-data/conf/na/rss/cat5.xml",
+      "group": "market",
+      "linkHosts": ["news.web.nhk"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "ja.yahoo",
+      "lang": "ja",
+      "name": {
+        "ja": "Yahoo!ニュース 経済（トピックス）",
+        "en": "Yahoo! News Japan Business"
+      },
+      "short": "Y!",
+      "url": "https://news.yahoo.co.jp/rss/topics/business.xml",
+      "group": "market",
+      "linkHosts": ["news.yahoo.co.jp"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "ja.jiji",
+      "lang": "ja",
+      "name": {
+        "ja": "時事ドットコム",
+        "en": "Jiji.com (Japanese)"
+      },
+      "short": "時事",
+      "url": "https://www.jiji.com/rss/ranking.rdf",
+      "group": "market",
+      "linkHosts": ["www.jiji.com"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "ja.asahi",
+      "lang": "ja",
+      "name": {
+        "ja": "朝日新聞 経済",
+        "en": "Asahi Shimbun Business (Japanese)"
+      },
+      "short": "朝日",
+      "url": "https://www.asahi.com/rss/asahi/business.rdf",
+      "group": "market",
+      "linkHosts": ["www.asahi.com"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null,
+      "paywall": true
+    },
+    {
+      "id": "ja.toyo",
+      "lang": "ja",
+      "name": {
+        "ja": "東洋経済オンライン",
+        "en": "Toyo Keizai Online (Japanese)"
+      },
+      "short": "東洋",
+      "url": "https://toyokeizai.net/list/feed/rss",
+      "group": "reading",
+      "linkHosts": ["toyokeizai.net"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "ja.dol",
+      "lang": "ja",
+      "name": {
+        "ja": "ダイヤモンド・オンライン",
+        "en": "Diamond Online (Japanese)"
+      },
+      "short": "DOL",
+      "url": "https://diamond.jp/list/feed/rss/dol",
+      "group": "reading",
+      "linkHosts": ["diamond.jp"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "ja.nbo",
+      "lang": "ja",
+      "name": {
+        "ja": "日経ビジネス電子版",
+        "en": "Nikkei Business (Japanese)"
+      },
+      "short": "日経B",
+      "url": "https://business.nikkei.com/rss/sns/nb.rdf",
+      "group": "reading",
+      "linkHosts": ["business.nikkei.com"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null,
+      "paywall": true
+    },
+    {
+      "id": "ja.itmb",
+      "lang": "ja",
+      "name": {
+        "ja": "ITmedia ビジネスオンライン",
+        "en": "ITmedia Business (Japanese)"
+      },
+      "short": "ITmB",
+      "url": "https://rss.itmedia.co.jp/rss/2.0/business.xml",
+      "group": "reading",
+      "linkHosts": ["www.itmedia.co.jp"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "ja.fsa",
+      "lang": "ja",
+      "name": {
+        "ja": "金融庁 新着情報",
+        "en": "Financial Services Agency (Japanese)"
+      },
+      "short": "金融庁",
+      "url": "https://www.fsa.go.jp/fsaNewsListAll_rss2.xml",
+      "group": "official",
+      "linkHosts": ["www.fsa.go.jp"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "ja.cao",
+      "lang": "ja",
+      "name": {
+        "ja": "内閣府 新着情報",
+        "en": "Cabinet Office (Japanese)"
+      },
+      "short": "内閣府",
+      "url": "https://www.cao.go.jp/rss/news.rdf",
+      "group": "official",
+      "linkHosts": ["www.cao.go.jp", "www5.cao.go.jp", "www.esri.cao.go.jp", "www.fsc.go.jp"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "ja.mof",
+      "lang": "ja",
+      "name": {
+        "ja": "財務省 新着情報",
+        "en": "Ministry of Finance (Japanese)"
+      },
+      "short": "財務省",
+      "url": "https://www.mof.go.jp/news.rss",
+      "group": "official",
+      "linkHosts": ["www.mof.go.jp"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "en.nar",
+      "lang": "en",
+      "name": {
+        "ja": "Nikkei Asia",
+        "en": "Nikkei Asia"
+      },
+      "short": "NAR",
+      "url": "https://asia.nikkei.com/rss/feed/nar",
+      "group": "market",
+      "linkHosts": ["asia.nikkei.com"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null,
+      "undated": true,
+      "paywall": true
+    },
+    {
+      "id": "en.jt",
+      "lang": "en",
+      "name": {
+        "ja": "The Japan Times Business",
+        "en": "The Japan Times Business"
+      },
+      "short": "JT",
+      "url": "https://www.japantimes.co.jp/business/feed/",
+      "group": "market",
+      "linkHosts": ["www.japantimes.co.jp"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "en.bbgmkt",
+      "lang": "en",
+      "name": {
+        "ja": "Bloomberg Markets",
+        "en": "Bloomberg Markets"
+      },
+      "short": "BBG",
+      "url": "https://www.bloomberg.com/feeds/markets/news.rss",
+      "group": "market",
+      "linkHosts": ["www.bloomberg.com"],
+      "defaultOnFor": ["ja", "en"],
+      "summary": false,
+      "keepDays": 7,
+      "staleDays": 3,
+      "terms": {
+        "url": "https://www.bloomberg.com/notices/tos/",
+        "checked": "2026-11-17"
+      },
+      "listFor": ["ja", "en"],
+      "copyright": "© Bloomberg L.P."
+    },
+    {
+      "id": "en.cnbcasia",
+      "lang": "en",
+      "name": {
+        "ja": "CNBC Asia",
+        "en": "CNBC Asia"
+      },
+      "short": "CNBC",
+      "url": "https://www.cnbc.com/id/19832390/device/rss/rss.html",
+      "group": "market",
+      "linkHosts": ["www.cnbc.com"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "en.boj",
+      "lang": "en",
+      "name": {
+        "ja": "Bank of Japan",
+        "en": "Bank of Japan"
+      },
+      "short": "BOJ",
+      "url": "https://www.boj.or.jp/en/rss/whatsnew.xml",
+      "group": "official",
+      "linkHosts": ["www.boj.or.jp"],
+      "defaultOnFor": ["en"],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": {
+        "url": "https://www.boj.or.jp/about/copyright.htm",
+        "checked": "2026-11-17"
+      }
+    },
+    {
+      "id": "en.jpx",
+      "lang": "en",
+      "name": {
+        "ja": "JPX News",
+        "en": "JPX News"
+      },
+      "short": "JPX",
+      "url": "https://www.jpx.co.jp/english/rss/jpx-news.xml",
+      "group": "official",
+      "linkHosts": ["www.jpx.co.jp"],
+      "defaultOnFor": ["en"],
+      "summary": false,
+      "keepDays": 30,
+      "staleDays": 90,
+      "terms": {
+        "url": "https://www.jpx.co.jp/term-of-use/",
+        "checked": "2026-11-17"
+      }
+    },
+    {
+      "id": "en.bbgeco",
+      "lang": "en",
+      "name": {
+        "ja": "Bloomberg Economics",
+        "en": "Bloomberg Economics"
+      },
+      "short": "BBG",
+      "url": "https://www.bloomberg.com/feeds/economics/news.rss",
+      "group": "market",
+      "linkHosts": ["www.bloomberg.com"],
+      "defaultOnFor": [],
+      "summary": false,
+      "keepDays": 7,
+      "staleDays": 3,
+      "terms": {
+        "url": "https://www.bloomberg.com/notices/tos/",
+        "checked": "2026-11-17"
+      },
+      "listFor": ["ja", "en"],
+      "copyright": "© Bloomberg L.P."
+    },
+    {
+      "id": "en.cnbcmkt",
+      "lang": "en",
+      "name": {
+        "ja": "CNBC Markets",
+        "en": "CNBC Markets"
+      },
+      "short": "CNBC",
+      "url": "https://www.cnbc.com/id/20910258/device/rss/rss.html",
+      "group": "market",
+      "linkHosts": ["www.cnbc.com"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "en.ft",
+      "lang": "en",
+      "name": {
+        "ja": "Financial Times Markets",
+        "en": "Financial Times Markets"
+      },
+      "short": "FT",
+      "url": "https://www.ft.com/markets?format=rss",
+      "group": "market",
+      "linkHosts": ["www.ft.com"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null,
+      "paywall": true
+    },
+    {
+      "id": "en.wsj",
+      "lang": "en",
+      "name": {
+        "ja": "WSJ Markets",
+        "en": "WSJ Markets"
+      },
+      "short": "WSJ",
+      "url": "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain",
+      "group": "market",
+      "linkHosts": ["www.wsj.com"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null,
+      "paywall": true
+    },
+    {
+      "id": "en.mw",
+      "lang": "en",
+      "name": {
+        "ja": "MarketWatch Top Stories",
+        "en": "MarketWatch Top Stories"
+      },
+      "short": "MW",
+      "url": "https://feeds.content.dowjones.io/public/rss/mw_topstories",
+      "group": "market",
+      "linkHosts": ["www.marketwatch.com"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "en.fed",
+      "lang": "en",
+      "name": {
+        "ja": "Federal Reserve (monetary policy)",
+        "en": "Federal Reserve (monetary policy)"
+      },
+      "short": "Fed",
+      "url": "https://www.federalreserve.gov/feeds/press_monetary.xml",
+      "group": "official",
+      "linkHosts": ["www.federalreserve.gov"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 90,
+      "terms": null
+    },
+    {
+      "id": "en.ecb",
+      "lang": "en",
+      "name": {
+        "ja": "ECB Press",
+        "en": "ECB Press"
+      },
+      "short": "ECB",
+      "url": "https://www.ecb.europa.eu/rss/press.html",
+      "group": "official",
+      "linkHosts": ["www.ecb.europa.eu"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    },
+    {
+      "id": "en.ndaq",
+      "lang": "en",
+      "name": {
+        "ja": "Nasdaq Markets",
+        "en": "Nasdaq Markets"
+      },
+      "short": "NDAQ",
+      "url": "https://www.nasdaq.com/feed/rssoutbound?category=Markets",
+      "group": "market",
+      "linkHosts": ["www.nasdaq.com"],
+      "defaultOnFor": [],
+      "summary": true,
+      "keepDays": 30,
+      "staleDays": 14,
+      "terms": null
+    }
+  ]
+}

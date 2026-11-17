@@ -3,7 +3,7 @@
 // 同じキーを使うアクションがあれば知らせ、入れ替えるかを尋ねる。Delete で外し、Backspace で既定に戻す。
 import { onMount } from 'svelte'
 import { ACTIONS, conflicts, keyCapture, keyOf } from '../../lib/commands'
-import { assignable, eventKey, normalizeKey } from '../../lib/keys'
+import { assignable, eventKey, normalizeKey, reservedKey } from '../../lib/keys'
 import { app, confirmDialog, saveSettings, t, toast } from '../../stores/app.svelte'
 
 let sel = $state(0)
@@ -34,7 +34,7 @@ async function record(e: KeyboardEvent) {
   if (!a) return
   recording = false
   if (!assignable(k)) {
-    toast(t('keys.needModifier'), undefined, 4000)
+    toast(t(reservedKey(k) ? 'keys.reserved' : 'keys.needModifier', { key: k }), undefined, 4000)
     return
   }
   const clash = conflicts(a.id, k)

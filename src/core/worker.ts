@@ -7,12 +7,17 @@ import type { Events } from '@shared/api'
 import { jstNow } from '@shared/calendar'
 import { dispatch } from './dispatch'
 import { ALLOWED_HOSTS, guardFetch } from './netGuard'
+import { loadRegistry } from './news/registry'
+import { NewsService } from './news/service'
+import { createStubNewsFetch } from './news/stub'
 import { createStubProvider } from './providers/stub'
 import { createYahooProvider } from './providers/yahoo'
 import { CoreService } from './service'
 
-// 外部への通信は許可リストのホストだけ（NFR-S1。リダイレクトの行き先も確かめる。netGuard.ts）
-globalThis.fetch = guardFetch(globalThis.fetch, ALLOWED_HOSTS)
+// 外部への通信は許可リストのホストだけ（NFR-S1。リダイレクトの行き先も確かめる。netGuard.ts）。
+// ニュースは差し替える前の fetch から専用の fetch を作る（オンのフィードのホストだけ。docs/design-news.md §4.3）
+const realFetch = globalThis.fetch
+globalThis.fetch = guardFetch(realFetch, ALLOWED_HOSTS)
 
 const dataDir = process.env.ELECXSTOCK_DATA_DIR ?? join(process.cwd(), '.data')
 mkdirSync(join(dataDir, 'logs'), { recursive: true })
@@ -51,12 +56,32 @@ const service = new CoreService(
 )
 log(`core start provider=${provider.id}`)
 
+// ニュース（docs/design-news.md）。管理者の停止（main がレジストリと環境変数から決めて渡す）なら fetch を作らない
+const newsRegistry = loadRegistry(process.env, log)
+const newsPolicyOff = process.env.ELECXSTOCK_NEWS_POLICY === 'off' || process.env.ELECXSTOCK_NEWS === 'off'
+const newsNow = () => Date.now()
+const news: NewsService = new NewsService({
+  dir: join(dataDir, 'news'),
+  registry: newsRegistry,
+  fetch: newsPolicyOff
+    ? null
+    : guardFetch(provider.id === 'stub' ? createStubNewsFetch(() => newsRegistry ?? [], newsNow) : realFetch, (u) => news.allowed(u)),
+  now: newsNow,
+  setTimer: (fn, ms) => setTimeout(fn, ms),
+  clearTimer: (h) => clearTimeout(h as NodeJS.Timeout),
+  emit: (event, data) => broadcast({ event, data }),
+  log,
+  version: process.env.ELECXSTOCK_VERSION ?? '0.0.0',
+  canFetch: () => !service.user.readOnly,
+})
+
 const dispatchCtx = {
   prioritize: (slot: string, ids: string[]) => {
     shown.set(slot, ids)
     prioritizeAll()
   },
   log,
+  news,
 }
 async function handle(slot: string, port: PortLike, msg: { id: number; method: string; params: unknown }): Promise<void> {
   const { reply, notice } = await dispatch(service, dispatchCtx, slot, msg)
@@ -74,6 +99,7 @@ parentPort.on('message', (e) => {
   const d = e.data as { type?: string }
   if (d?.type === 'shutdown') {
     // 閉じる直前に renderer が送った保存（レイアウト・ウォッチリスト）を先に処理してから止める
+    news.shutdown() // 見えたまま終わるときの「ここまで見た」
     setTimeout(() => {
       void service
         .shutdown()
@@ -92,12 +118,14 @@ parentPort.on('message', (e) => {
     ports.get(slot)?.close?.()
     ports.set(slot, port)
     shown.delete(slot)
+    news.unwatch(slot) // 読み込み直した窓は、ペインが出たら news.watch を送り直す
     port.on('message', (m) => void handle(slot, port, m.data as { id: number; method: string; params: unknown }))
     // 窓が閉じたら、その窓の表示中の銘柄と送り先を外す
     port.on('close', () => {
       if (ports.get(slot) !== port) return
       ports.delete(slot)
       shown.delete(slot)
+      news.unwatch(slot)
       prioritizeAll()
     })
     port.start()
@@ -105,7 +133,8 @@ parentPort.on('message', (e) => {
 })
 service.start()
 // 準備ができたことを main に知らせる（main はこれを待ってから renderer とのポートを渡す）
-parentPort.postMessage({ type: 'ready' })
+// 記事を開いてよいホスト（全フィードの linkHosts。main は登録表を読まない。docs/design-news.md §9）も渡す
+parentPort.postMessage({ type: 'ready', newsLinkHosts: news.linkHosts() })
 
 process.on('uncaughtException', (e) => log(`uncaught ${e.stack ?? e}`))
 process.on('unhandledRejection', (e) => log(`unhandled ${String(e)}`))

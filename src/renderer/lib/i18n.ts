@@ -1,5 +1,6 @@
 // UI の文言（FR-N1）。日本語と英語のキーは型で一致させ、単体テストでも確かめる（FR-N6）。
 // {name} は引数で置き換える。
+import { NEWS_EN, NEWS_JA } from '@shared/news/i18n'
 
 export const ja = {
   'top.search': '銘柄・コマンドを検索（1〜9 を打つと銘柄ジャンプ）',
@@ -1163,6 +1164,8 @@ export const ja = {
   'chart.changeTitle': '「{name}」の代わりに表示する銘柄',
   'act.quit': 'アプリを終了',
   'dlg.confirmKeys': '← → で選ぶ · Enter で決定 · Esc で取り消し',
+  // ニュース（src/shared/news/i18n.ts）
+  ...NEWS_JA,
 }
 
 export type Key = keyof typeof ja
@@ -2327,6 +2330,7 @@ export const en: Record<Key, string> = {
   'chart.changeTitle': 'Show instead of {name}',
   'act.quit': 'Quit',
   'dlg.confirmKeys': '← → choose · Enter confirm · Esc cancel',
+  ...NEWS_EN,
 }
 
 export const DICTS = { ja, en }

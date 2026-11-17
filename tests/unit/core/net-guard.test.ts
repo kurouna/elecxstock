@@ -131,3 +131,28 @@ describe('NFR-S1 リダイレクトで送る見出し', () => {
     expect(auth).toEqual(['token x', null])
   })
 })
+
+describe('NFR-S1 許可を述語で渡す（ニュースの fetch。docs/design-news.md §4.3）', () => {
+  const BOJ = 'https://www.boj.example/rss/whatsnew.xml'
+  const onHosts = new Set(['www.boj.example'])
+  const allow = (u: URL) => u.protocol === 'https:' && onHosts.has(u.hostname)
+  it('述語が許すホストだけに出て、リダイレクトの行き先も述語で確かめる', async () => {
+    const { f, hits } = fakeFetch({ [BOJ]: { status: 302, location: EVIL }, [EVIL]: { status: 200 } })
+    await expect(guardFetch(f, allow)(BOJ)).rejects.toThrow(/blocked redirect: evil.example/)
+    expect(hits.map((h) => h.url)).toEqual([BOJ])
+  })
+  it('述語は要求のたびに読む（オンのフィードが変われば、次の要求から変わる）', async () => {
+    const { f } = fakeFetch({ [BOJ]: { status: 200 } })
+    const g = guardFetch(f, allow)
+    expect((await g(BOJ)).status).toBe(200)
+    onHosts.delete('www.boj.example')
+    await expect(g(BOJ)).rejects.toThrow(/blocked host/)
+    onHosts.add('www.boj.example')
+  })
+  it('ニュースの fetch は Yahoo へ、既存の fetch はフィードのホストへ出られない', async () => {
+    const { f, hits } = fakeFetch({ [Y]: { status: 200 }, [BOJ]: { status: 200 } })
+    await expect(guardFetch(f, allow)(Y)).rejects.toThrow(/blocked host/)
+    await expect(guardFetch(f, ALLOWED_HOSTS)(BOJ)).rejects.toThrow(/blocked host/)
+    expect(hits).toEqual([])
+  })
+})

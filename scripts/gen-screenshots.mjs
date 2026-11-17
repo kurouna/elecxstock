@@ -152,6 +152,8 @@ await session('ja', [
       await page.locator('[data-widget="board"] tbody tr').first().waitFor()
       await page.locator('[data-widget="market"] .tile').last().getByText('USDJPY').waitFor()
       await page.waitForFunction(() => !document.querySelector('[data-widget="market"] .state'), null, { timeout: 30_000 })
+      // ニュース（FR-NW1。初回起動で「取る」のまま始めたので、スタブの架空の見出しが並ぶ）
+      await page.locator('[data-widget="news"] .row').first().waitFor()
     },
   ],
   [

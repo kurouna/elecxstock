@@ -33,13 +33,19 @@ function checkBuild(): void {
     )
 }
 
-/** DB と利用者の JSON だけを写す（世代のバックアップ・ログ・Chromium のプロファイルは写さない） */
+/** DB と利用者の JSON とニュースの設定だけを写す（世代のバックアップ・ログ・ニュースのキャッシュ・Chromium のプロファイルは写さない） */
 function keepSeed(from: string, to: string): void {
   mkdirSync(join(to, 'data', 'user'), { recursive: true })
   cpSync(join(from, 'data', 'market.db'), join(to, 'data', 'market.db'))
   for (const f of readdirSync(join(from, 'data', 'user')))
     if (f.endsWith('.json')) cpSync(join(from, 'data', 'user', f), join(to, 'data', 'user', f))
   if (existsSync(join(from, 'window.json'))) cpSync(join(from, 'window.json'), join(to, 'window.json'))
+  // ニュースの答え（初回起動で「取る」のまま始めた。答えていないと、版を上げた利用者への案内のトーストが毎回出る）
+  const news = join(from, 'data', 'news', 'settings.json')
+  if (existsSync(news)) {
+    mkdirSync(join(to, 'data', 'news'), { recursive: true })
+    cpSync(news, join(to, 'data', 'news', 'settings.json'))
+  }
 }
 
 export default async function globalSetup(): Promise<void> {

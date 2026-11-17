@@ -58,10 +58,18 @@ export function matches(e: KeyboardEvent, key: string | undefined): boolean {
   const k = eventKey(e)
   return !!k && normalizeKey(k) === normalizeKey(key)
 }
-/** 単キー（修飾なし）はペインの中の操作に使うので、アプリ全体の割り当てには使わせない（F1〜F12 は除く） */
+/**
+ * ペインが使うので全体のアクションに割り当てないキー（ニュースのペインのコピー。FR-NW7）。
+ * 全体のアクションはペインより先に照合するので、割り当てるとペインのキーが取られる
+ */
+export const PANE_RESERVED: readonly string[] = ['Ctrl+C', 'Ctrl+Alt+C']
+export const reservedKey = (key: string) => PANE_RESERVED.includes(normalizeKey(key))
+
+/** 単キー（修飾なし）はペインの中の操作に使うので、アプリ全体の割り当てには使わせない（F1〜F12 は除く）。PANE_RESERVED も */
 export function assignable(key: string): boolean {
   const n = normalizeKey(key)
   if (!n) return true
+  if (reservedKey(n)) return false
   if (/^F([1-9]|1[0-2])$/.test(n.split('+').pop()!)) return true
   return n.includes('Ctrl+') || n.includes('Alt+')
 }

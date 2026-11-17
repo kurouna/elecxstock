@@ -68,7 +68,7 @@ import { canUndoRemoveAlert, createAlert, toggleAlerts, undoRemoveAlert } from '
 import { toCsv } from './columns'
 import { dateTime } from './format'
 import type { Key } from './i18n'
-import { matches, normalizeKey } from './keys'
+import { matches, normalizeKey, reservedKey } from './keys'
 import { currentPageName, freeResetTarget, openPageMenu, pageShapeChoices, undoRemove } from './pages'
 import { paneApi } from './panes'
 import { exportHoldings, importBrokerCsv, importHoldings, undoHoldingsImport } from './portfolio'
@@ -93,7 +93,8 @@ export function keyOf(a: Action | string): string {
   const act = typeof a === 'string' ? ACTIONS.find((x) => x.id === a) : a
   if (!act) return ''
   const o = app.settings.keymap[act.id]
-  return o != null ? o : (act.key ?? '')
+  // ペインが使うキー（Ctrl+C など）を割り当てた古い設定は無視する（FR-NW7）
+  return o != null && !reservedKey(o) ? o : (act.key ?? '')
 }
 /** 同じキーを使っているアクション（衝突の検出。FR-KB6） */
 export function conflicts(id: string, key: string): Action[] {

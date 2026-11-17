@@ -16,12 +16,15 @@ test.describe('初回起動（FR-F1, FR-S1, FR-FR1）', () => {
     await expect(dlg).toContainText('TradingView')
     // Lightweight Charts の NOTICE の 2 行（§10）
     await expect(dlg).toContainText('Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/')
+    // ニュースを取るか（FR-NW3）。初期値は「取る」で、取得を始めると答えたことになる
+    await expect(dlg.getByRole('button', { name: 'ニュースの見出しを取る' })).toHaveAttribute('aria-pressed', 'true')
     await keys(page, 'Enter') // 取得を始める
     await jobsDone(page)
     await expect(page.locator('footer')).toContainText(/待機/)
     const st = await rpc<{ instruments: number; withBars: number }>(page, 'data.status')
     expect(st.instruments).toBeGreaterThan(0)
     expect(st.withBars).toBe(st.instruments)
+    expect((await rpc<{ state: string }>(page, 'news.list')).state).toBe('on')
   })
 
   test('初回の取得中に Ctrl+Shift+Q で閉じても、次の起動で続きから終わる', async ({ launch }) => {

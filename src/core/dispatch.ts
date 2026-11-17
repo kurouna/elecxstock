@@ -2,12 +2,16 @@
 // worker（製品）と単体テストの窓口（tests/support/bridge.ts）が同じものを使う。electron を import しない（NFR-A1）。
 import { type CoreError, type Events, type Method, PARAMS } from '@shared/api'
 import { CHANGES } from './changes'
+import { ALLOWED_HOST_NAMES } from './netGuard'
+import type { NewsService } from './news/service'
 import type { CoreService } from './service'
 
 export interface DispatchContext {
   /** 表示中の銘柄（FR-F8）。スロットごとに受け、和集合で使う */
   prioritize(slot: string, ids: string[]): void
   log?(msg: string): void
+  /** ニュース（docs/design-news.md）。無ければ news.* は「使えない」 */
+  news?: Pick<NewsService, 'call' | 'hosts' | 'removeAll'>
 }
 export type Reply = { id: number; result: unknown } | { id: number; error: CoreError }
 /** 利用者のデータを変えたときに全窓へ送る知らせ。呼び出し元が返事を送ったあとに送る */
@@ -40,11 +44,22 @@ export async function dispatch(
     // フリー N は自分の配置だけを書ける
     if (method === 'user.saveWindowLayout' && (msg.params as { slot?: unknown } | null)?.slot !== slot)
       throw { code: 'invalid-params', message: 'slot' } satisfies CoreError
+    // ニュースのペインはフリー N に置かない。念のため、フリー N からは読むことだけ（docs/design-news.md §5）
+    if (slot !== 'main' && method.startsWith('news.') && method !== 'news.list')
+      throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
     const schema = PARAMS[method as Method]
     if (!schema) throw { code: 'unknown-method', args: { method } } satisfies CoreError
     const parsed = schema.safeParse(msg.params ?? {})
     if (!parsed.success) throw { code: 'invalid-params', message: parsed.error.issues[0]?.message } satisfies CoreError
+    if (method.startsWith('news.')) {
+      if (!ctx.news) throw { code: 'not-found', message: 'news' } satisfies CoreError
+      return { reply: { id, result: await ctx.news.call(method as never, parsed.data, slot) } }
+    }
+    // このアプリの通信先（設定。既存の許可リストとニュースのオンのフィードのホスト）
+    if (method === 'app.endpoints') return { reply: { id, result: { app: [...ALLOWED_HOST_NAMES], news: ctx.news?.hosts() ?? [] } } }
     const result = await service.call(method as Method, parsed.data as never)
+    // 全データの削除はニュースの見出しのキャッシュも消す
+    if (method === 'jobs.reset') ctx.news?.removeAll()
     const kind = CHANGES[method]
     if (!kind) return { reply: { id, result } }
     const p = parsed.data as { list?: string; id?: string }

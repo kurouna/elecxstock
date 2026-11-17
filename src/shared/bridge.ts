@@ -11,6 +11,8 @@ export interface ElecxstockBridge {
   /** 起動の最初のテーマ（保存した設定から main が読む）。renderer の入口で html に当て、最初の描画からその色にする */
   initialTheme?: 'light' | 'dark'
   openExternal(url: string): Promise<boolean>
+  /** 文字をクリップボードへ（ニュースの見出しのコピー。docs/design-news.md §7.4） */
+  copyText(text: string): Promise<boolean>
   saveText(name: string, text: string): Promise<boolean>
   /** チャートの画像（PNG のバイト列）を保存ダイアログで選んだ場所へ書く（FR-C11） */
   savePng(name: string, bytes: Uint8Array): Promise<boolean>

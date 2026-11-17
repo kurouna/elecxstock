@@ -10,7 +10,8 @@
       "!test-results",
       "!playwright-report",
       "!coverage",
-      "!docs/screener-fields.md"
+      "!docs/screener-fields.md",
+      "!docs/news-feeds.md"
     ]
   },
   "formatter": {

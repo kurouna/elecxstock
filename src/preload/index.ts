@@ -63,6 +63,7 @@ const api: ElecxstockBridge = {
     if (port) port.postMessage(msg)
   },
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url) as Promise<boolean>,
+  copyText: (text: string) => ipcRenderer.invoke('app:copyText', text) as Promise<boolean>,
   saveText: (name: string, text: string) => ipcRenderer.invoke('app:saveText', name, text) as Promise<boolean>,
   savePng: (name: string, bytes: Uint8Array) => ipcRenderer.invoke('app:savePng', name, bytes) as Promise<boolean>,
   notices: () => ipcRenderer.invoke('app:notices') as Promise<string>,

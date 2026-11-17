@@ -18,7 +18,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
-          include: ['tests/unit/{shared,core,registry,renderer,main}/**/*.test.ts'],
+          include: ['tests/unit/{shared,core,registry,renderer,main,news}/**/*.test.ts'],
         },
       },
       {

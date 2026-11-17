@@ -4,8 +4,18 @@
 /** 許可するホスト。api.github.com は新しい版の確認だけ（NFR-Q9。設定で切れる） */
 export const ALLOWED_HOSTS: readonly RegExp[] = [/(^|\.)yahoo\.com$/, /^www\.jpx\.co\.jp$/, /^api\.github\.com$/]
 
+/** 設定の「このアプリの通信先」に出す名前（ALLOWED_HOSTS と同じ並び） */
+export const ALLOWED_HOST_NAMES: readonly string[] = ['*.yahoo.com', 'www.jpx.co.jp', 'api.github.com']
+
+/**
+ * 許可。ホストの表か、要求のたびに判断する述語（ニュースの fetch。オンのフィードは設定で変わる。docs/design-news.md §4.3）。
+ * 述語は https かどうかも自分で判断する
+ */
+export type Allow = readonly RegExp[] | ((url: URL) => boolean)
+
 /** https で、ホストが許可リストに入るか */
-export function isAllowedUrl(url: URL, allow: readonly RegExp[]): boolean {
+export function isAllowedUrl(url: URL, allow: Allow): boolean {
+  if (typeof allow === 'function') return allow(url)
   return url.protocol === 'https:' && allow.some((r) => r.test(url.hostname))
 }
 
@@ -23,7 +33,7 @@ const REDIRECT = new Set([301, 302, 303, 307, 308])
  * 許可リストで確かめてから次を送る（方法と本文の扱いは Fetch の仕様と同じ: 303 と、POST の 301・302 は GET にして本文を落とす）。
  * 呼んだ側が 'manual' を指定したら 3xx をそのまま返す（次の要求もこの関数を通るので確かめられる）。'error' ならリダイレクトを失敗にする。
  */
-export function guardFetch(realFetch: typeof fetch, allow: readonly RegExp[]): typeof fetch {
+export function guardFetch(realFetch: typeof fetch, allow: Allow): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     let url = urlOf(input)
     if (!isAllowedUrl(url, allow)) throw new Error(`blocked host: ${url.hostname}`)

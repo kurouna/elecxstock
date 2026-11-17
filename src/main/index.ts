@@ -20,10 +20,12 @@ import { dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { launchAction, savedBackground, secondInstance, startHiddenNow } from '@shared/background'
 import { jstNow } from '@shared/calendar'
+import { isNewsLink } from '@shared/news/links'
 import { savedTheme, THEME_COLORS } from '@shared/settings'
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   Menu,
@@ -41,6 +43,8 @@ import {
 import { appUserModelId } from './appId'
 import { createBackground } from './background'
 import { clockOffset } from './clock-init'
+import { cleanCopyText } from './news/clipboard'
+import { readNewsPolicy } from './news/policy'
 import { type DisplayLike, type Placement, parseState, place, remember, type WindowStateV2 } from './placement'
 import { freeShapeArg } from './shapes'
 
@@ -92,6 +96,11 @@ const EXTERNAL_ALLOW = [
   /^https:\/\/(www\.)?jpx\.co\.jp\//,
   /^https:\/\/finance\.yahoo\.co(m|\.jp)\//,
 ]
+/** 記事を開いてよいホスト（Core が準備のときに全フィードの linkHosts を渡す。docs/design-news.md §9） */
+let newsLinkHosts = new Set<string>()
+const externalOk = (url: string) => EXTERNAL_ALLOW.some((r) => r.test(url)) || isNewsLink(url, newsLinkHosts)
+/** 管理者がニュースを止めているか（起動のときに 1 回読む。§3.2） */
+let newsPolicyOff = false
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
@@ -173,12 +182,14 @@ function startCore(): void {
       ELECXSTOCK_VERSION: __APP_VERSION__,
       ...(clockOffset != null ? { ELECXSTOCK_CLOCK_OFFSET: String(clockOffset) } : {}),
       NODE_USE_ENV_PROXY: '1', // プロキシは環境変数 HTTPS_PROXY で指定できる（NFR-S1）
+      ...(newsPolicyOff ? { ELECXSTOCK_NEWS_POLICY: 'off' } : {}),
     },
   })
   coreReady = false
-  core.on('message', (msg: { type?: string }) => {
+  core.on('message', (msg: { type?: string; newsLinkHosts?: unknown }) => {
     if (msg?.type === 'ready') {
       coreReady = true
+      if (Array.isArray(msg.newsLinkHosts)) newsLinkHosts = new Set(msg.newsLinkHosts.filter((h): h is string => typeof h === 'string'))
       for (const s of wins.keys()) wirePort(s)
     }
   })
@@ -363,7 +374,7 @@ async function createWindow(slot: Slot, shape?: string, hidden = false): Promise
   })
   // 画面遷移と新しいウィンドウを禁止し、外部リンクは許可リストだけ OS のブラウザで開く（NFR-S3）
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (EXTERNAL_ALLOW.some((r) => r.test(url))) void shell.openExternal(url)
+    if (externalOk(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (e) => e.preventDefault())
@@ -442,8 +453,15 @@ function fromApp(e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolea
 }
 ipcMain.handle('app:openExternal', (e, url: unknown) => {
   if (!fromApp(e) || typeof url !== 'string') return false
-  if (!EXTERNAL_ALLOW.some((r) => r.test(url))) return false
+  if (!externalOk(url)) return false
   void shell.openExternal(url)
+  return true
+})
+// 見出しのコピー（docs/design-news.md §7.4）。文字列だけ・100 KB まで・改行とタブ以外の制御文字を除く
+ipcMain.handle('app:copyText', (e, text: unknown) => {
+  const t = fromApp(e) ? cleanCopyText(text) : null
+  if (t == null) return false
+  clipboard.writeText(t)
   return true
 })
 ipcMain.handle('app:saveText', async (e, name: unknown, text: unknown) => {
@@ -673,6 +691,7 @@ async function start(): Promise<void> {
   pruneLogs()
   log(`start ${__APP_VERSION__} ${process.platform} electron ${process.versions.electron}`)
   loadState()
+  newsPolicyOff = await readNewsPolicy(process.env, process.platform)
   startCore()
   // サインインで「通知領域に入れておく」起動（FR-BG7）: 初回が済んでいれば窓を出さずにトレイだけ出す
   const hidden = startHiddenNow(launch, savedBackground(settingsText()))

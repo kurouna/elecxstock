@@ -1,5 +1,5 @@
 <script lang="ts">
-// 設定（Ctrl+,）: 一般・表示・チャート（FR-C12）・データ（FR-S5〜S9, FR-D6）・キー・このアプリについて。↑↓ で項目、Tab で中へ。
+// 設定（Ctrl+,）: 一般・表示・チャート（FR-C12）・データ（FR-S5〜S9, FR-D6）・キー・ニュース（FR-NW3・NW4）・このアプリについて。↑↓ で項目、Tab で中へ。
 import { LWC_NOTICE, LWC_NOTICE_PARTS, splitToken, TRADINGVIEW_URL, yahooUrl } from '@shared/attribution'
 import { type LoginState, loginView } from '@shared/background'
 import { CODE_RE } from '@shared/code'
@@ -8,11 +8,12 @@ import { onMount } from 'svelte'
 import { ACTIONS, checkUpdate, doResetAllLayouts, exportUser, importUser } from '../../lib/commands'
 import { dateTime } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
+import NewsSettings from '../../news/NewsSettings.svelte'
 import { app, bridge, confirmDialog, loadInstruments, nameOf, promptDialog, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
 import KeysSettings from './KeysSettings.svelte'
 
 let { tab = 'general' }: { tab?: string } = $props()
-const TABS = ['general', 'display', 'chart', 'data', 'keys', 'about'] as const
+const TABS = ['general', 'display', 'chart', 'data', 'keys', 'news', 'about'] as const
 let cur = $state<string>('general')
 let notices = $state('')
 // データ源の文の「Yahoo Finance」をリンクにする
@@ -275,6 +276,8 @@ async function importJpx() {
       </div>
     {:else if cur === 'keys'}
       <KeysSettings />
+    {:else if cur === 'news'}
+      <NewsSettings />
     {:else}
       <div class="field"><span>{t('set.version')}</span><span class="num">{app.info?.version ?? __APP_VERSION__}</span></div>
       <div class="field"><span>{t('set.licenseLabel')}</span><span>{t('set.license')}</span></div>

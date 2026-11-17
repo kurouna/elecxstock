@@ -3,6 +3,7 @@
 
 import { setFocus } from '../lib/commands'
 import { dropOnChart, symbolDrop } from '../lib/symbolDrag'
+import NewsPane from '../news/NewsPane.svelte'
 import { app, t, toast } from '../stores/app.svelte'
 import { inDock, movePane, type PaneNode } from '../stores/layout.svelte'
 import { DRAG_MIME, type DropZone, zoneOf } from './dragPane'
@@ -94,6 +95,8 @@ function onerror(e: unknown) {
       <MarketBoard {pane} />
     {:else if pane.widget === 'market'}
       <MarketOverview {pane} />
+    {:else if pane.widget === 'news'}
+      <NewsPane {pane} />
     {:else if pane.widget === 'jobs'}
       <Jobs {pane} />
     {/if}

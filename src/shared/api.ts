@@ -1,6 +1,7 @@
 // renderer ⇄ core の API（§8.2）。名前・型・入力の zod スキーマを 1 か所で定義する（NFR-A3）。
 // renderer は window.elecxstock.call(method, params) だけで Core に話しかける。
 import { z } from 'zod'
+import { NEWS_PARAMS, type NewsEvents, type NewsResults } from './news/api'
 import type {
   Adjustment,
   Alert,
@@ -275,6 +276,8 @@ export const PARAMS = {
   'data.status': z.object({}),
   'data.failures': z.object({}),
   'data.importJpx': z.object({ bytes: z.instanceof(Uint8Array) }),
+  // ニュース（docs/design-news.md §5。dispatch.ts が NewsService に渡す）
+  ...NEWS_PARAMS,
 } as const
 
 export type Method = keyof typeof PARAMS
@@ -299,7 +302,7 @@ export interface RecoveredFile {
   dropped?: number
 }
 
-export interface Results {
+export interface Results extends NewsResults {
   'app.info': AppInfo
   'instruments.search': Instrument[]
   'instruments.get': Instrument[]
@@ -368,7 +371,7 @@ export interface Results {
 }
 
 /** Core から renderer への通知 */
-export interface Events {
+export interface Events extends NewsEvents {
   'jobs.progress': JobProgress
   'data.updated': { ids: InstrumentId[]; metrics: boolean }
   'user.error': { message: string }

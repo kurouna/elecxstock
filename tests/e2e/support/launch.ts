@@ -70,6 +70,8 @@ export interface LaunchOpts {
   layout?: (doc: LayoutDoc) => void
   /** 起動と同時に開くフリー N の窓と、その配置（support/layout.ts の Node） */
   freeWindows?: Record<string, Node>
+  /** 起動の前にニュースの設定（data/news/settings.json）を書く。種は答えていない状態（ニュースを取らない） */
+  news?: Record<string, unknown>
   /** 起動の前に利用者の JSON を書く（キーで準備するより安いとき） */
   user?: Partial<Record<UserFile, unknown>>
   /** 窓の大きさ（既定 1600×960） */
@@ -131,6 +133,10 @@ export async function launch(opts: LaunchOpts = {}): Promise<Launched> {
     writeUser(userData, 'layout', doc)
   }
   for (const [name, data] of Object.entries(opts.user ?? {})) writeUser(userData, name as UserFile, data)
+  if (opts.news) {
+    mkdirSync(join(userData, 'data', 'news'), { recursive: true })
+    writeFileSync(join(userData, 'data', 'news', 'settings.json'), JSON.stringify(opts.news))
+  }
   const app = await electron.launch({
     args: [...CHROMIUM_ARGS, '.', ...(opts.args ?? [])],
     cwd: ROOT,

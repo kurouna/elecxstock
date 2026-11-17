@@ -9,6 +9,7 @@ import { noticeFreeOpened } from '../lib/pages'
 import { loadHoldings } from '../lib/portfolio'
 import { privacy } from '../lib/privacy.svelte'
 import { IS_FREE, SHAPE, SLOT } from '../lib/windowSlot'
+import { introNews } from '../news/intro'
 import {
   app,
   applyDataUpdated,
@@ -253,6 +254,7 @@ async function boot() {
       void loadHoldings()
       if (app.settings.checkUpdates) setTimeout(() => void checkUpdate(), 5000)
       autoUpdate()
+      void introNews()
     }
   } catch (e) {
     bootError = String((e as { message?: string; code?: string })?.message || (e as { code?: string })?.code || e)

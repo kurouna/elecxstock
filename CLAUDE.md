@@ -8,7 +8,7 @@ elecxstock は、日本株と J-REIT のデータを手元の PC に取り込み
 - 要求仕様: [docs/requirements.md](docs/requirements.md)（要求は `FR-` / `NFR-` の ID で参照する。P1 / P2 / P3）
 - 設計判断と実測値: [docs/decisions.md](docs/decisions.md)
 - 画面のモック: [docs/mock/](docs/mock/README.md)
-- P3 の設計: [docs/design-p3.md](docs/design-p3.md)・アラート: [docs/design-alerts.md](docs/design-alerts.md)・ポートフォリオ: [docs/design-portfolio.md](docs/design-portfolio.md)・マルチモニタ: [docs/design-multimonitor.md](docs/design-multimonitor.md)・マイレイアウト: [docs/design-mylayouts.md](docs/design-mylayouts.md)・常駐と自動起動: [docs/design-background.md](docs/design-background.md)
+- P3 の設計: [docs/design-p3.md](docs/design-p3.md)・アラート: [docs/design-alerts.md](docs/design-alerts.md)・ポートフォリオ: [docs/design-portfolio.md](docs/design-portfolio.md)・マルチモニタ: [docs/design-multimonitor.md](docs/design-multimonitor.md)・マイレイアウト: [docs/design-mylayouts.md](docs/design-mylayouts.md)・常駐と自動起動: [docs/design-background.md](docs/design-background.md)・ニュース: [docs/design-news.md](docs/design-news.md)（フィードの一覧: [docs/news-feeds.md](docs/news-feeds.md)）
 - 保有の JSON の形式: [docs/holdings-format.md](docs/holdings-format.md)
 - **テストの作り（層・部品・きまり・手順）: [docs/testing.md](docs/testing.md)**（計画と経緯: [docs/test-plan.md](docs/test-plan.md)）
 
@@ -27,9 +27,10 @@ npm run build          # out/ に製品版のバンドル（E2E はこれに対�
 npx playwright test    # E2E（スタブのプロバイダ・使い捨ての userData。キーボードだけで操作する）
 npm run package        # Windows のインストーラ（release/）
 npm run test:packaged  # パッケージした exe を CDP で一度起動して描画を確かめる
-LIVE=1 npm run contract  # 実際の Yahoo・JPX に対する契約テスト（ネットワークを使う）
+LIVE=1 npm run contract  # 実際の Yahoo・JPX とニュースのフィードに対する契約テスト（ネットワークを使う）
 npm run gen:screenshots  # README 用のスクリーンショット（スタブのデータ）
 npm run gen:fields-doc   # docs/screener-fields.md（スクリーナーの項目の一覧）を指標の登録表から作る
+npm run gen:news-feeds-doc  # docs/news-feeds.md（ニュースのフィードの一覧）を resources/news/feeds.json から作る
 npm run demo:0.1.1     # 版ごとのデモ（録画は利用者が行う。下の「デモ」）
 npm run gen:icon       # build/icon.svg から PNG・ICO
 ```
@@ -103,7 +104,14 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 - **色・文字・余白は `app.css` のトークン（CSS 変数）から取る**。陽線・陰線は `--up` / `--down`（日本式が既定）。
 - 依存はすべて `devDependencies` に置き、バンドルに入れる（yahoo-finance2 の MCP 用の依存を配布物に入れないため）。
   バンドルに入る OSS を足したら `scripts/gen-notices.mjs` の `bundled` にも足す。GPL 系は入れない（`scripts/check-licenses.mjs`）。
-- 通信先は Core の許可リスト（`src/core/worker.ts`）だけ。renderer の CSP は `connect-src 'none'`。
+- 通信先は Core の許可リスト（`src/core/netGuard.ts` の `ALLOWED_HOSTS`。`worker.ts` が `globalThis.fetch` を `guardFetch` で差し替える。リダイレクトの行き先も確かめる）だけ。renderer の CSP は `connect-src 'none'`。
+- **ニュース**（[docs/design-news.md](docs/design-news.md)。FR-NW1〜NW9）: コードは `news/` のフォルダ（`src/shared/news/`・`src/core/news/`・`src/main/news/`・`src/renderer/news/`・`tests/unit/news/`）に閉じ、
+  既存のファイルへの差し込みは設計 §11 の箇所だけ（`tests/unit/news/registry.test.ts` が import を読んで確かめる。差し込みを足したら `GATES` にも足す）。
+  - フィードは `resources/news/feeds.json`（asar の中）にだけ足す。直したら `npm run gen:news-feeds-doc`（docs/news-feeds.md）。既定でオンにできるのは規約を確かめたフィードだけ（`terms.checked`）。候補を選んだ記録は docs/news-feeds-notes.md。
+  - 通信は `worker.ts` が作るニュースの専用の fetch（`guardFetch` に述語。オンのフィードのホストだけ）。`src/core/news/` は `globalThis.fetch` に触れない。既存の許可リストにフィードのホストを足さない。
+  - 未回答・オフ・管理者の停止（レジストリ・`ELECXSTOCK_NEWS=off`）では fetch を 1 回も呼ばない。ペインが見えている間（renderer の `news.watch`）だけ取る。
+  - 翻訳はしない。見出しは文字として描き（`{@html}` を使わない）、コピーは `window.elecxstock.copyText`（main の `app:copyText`）。Ctrl+C・Ctrl+Alt+C は全体のアクションに割り当てない（`lib/keys.ts` の `PANE_RESERVED`）。
+  - ニュースの設定・キャッシュは `data/news/`（アプリの `Settings`・DB・利用者のデータの JSON には入れない）。スタブのプロバイダのときは `src/core/news/stub.ts` の架空の見出しを返す。E2E の種はニュースを「取る」で答えた状態（`tests/e2e/support/global-setup.ts`）。
 - **マルチモニタ**（[docs/design-multimonitor.md](docs/design-multimonitor.md)）: 2 枚目以降はタブなしの「フリー 2〜4」。窓の種類は
   `lib/windowSlot.ts`（`SLOT`・`IS_FREE`・`FREE_WIDGETS`・`blockedInFree`）。利用者のデータの持ち主は 1 枚目で、フリー N は読むだけ
   （★・◆は Core の `watchlists.toggleItem`、アラートは新しく作ることだけ `alerts.save`）。Core は利用者のデータを変えたら `user.changed` を全窓に配るので、利用者のデータを書く

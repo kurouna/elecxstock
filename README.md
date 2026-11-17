@@ -53,6 +53,8 @@
 - **アラート**: 銘柄に条件（終値 ≤ 17,500、実績利回り ≥ 5%、終値 ≤ 75 日移動平均、保有の損益率など。最大 3 つの「かつ」）を付けるか、保存したスクリーニング条件に新しく入った銘柄を知らせます。取得のジョブの終わりに判定し、トースト・Windows の通知・トップバーのベルで知らせます。分割があってもしきい値を換算して比べ、チャートにしきい値の点線を引きます。Ctrl+Alt+A で作り、Ctrl+Alt+L の一覧と履歴から銘柄を開けます。外部への送信（メールなど）はしません。
 - **マーケット**: 日本・米国・アジアの指数、為替・米国債10年利回り、原油・金・銀、ビットコインの値を 1 枚の表で見るマーケット一覧（区分のタブで絞り込み、ウォッチリストと同じ列とキー）、騰落（プライム・J-REIT の値上がり・値下がり・新高値・新安値・売買代金と、33 業種の騰落率。Enter で業種の中の銘柄へ。[設計](docs/design-breadth.md)）、33 業種のヒートマップ（面積 = 時価総額、色 = 騰落率）、ランキング、指数・指数連動 ETF の小さなチャート（[設計](docs/design-market-board.md)）。
   **TOPIX・JPX日経400・グロース250・東証REIT指数は Yahoo で取れないため、連動 ETF の値で代えています**（指数そのものの値ではありません）: TOPIX → NEXT FUNDS TOPIX連動型上場投信（1306）、JPX日経400 → NEXT FUNDS JPX日経インデックス400連動型上場投信（1591）、グロース250 → 東証グロース250ETF（2516）、東証REIT指数 → NEXT FUNDS 東証REIT指数連動型上場投信（1343）。一覧には「連動ETF」と ETF の名前を出します。値は日足の終値（取得したときの最後の足）で、リアルタイムではありません。
+- **ニュース**（取るかは初回起動で選べ、設定でいつでも切れます）: マーケットのタブの左下に、日本銀行・日本取引所グループ・Bloomberg などの見出しを時刻順に並べます。見出しとリンクだけを同梱の一覧（[docs/news-feeds.md](docs/news-feeds.md)）から取り、本文・画像は取りません。分類のタブ・絞り込み（/）・Enter でブラウザで開く。Ctrl+C で選んだ見出し、Ctrl+Alt+C で表示中の見出し（100 件まで）を文字でコピーでき、別のアプリで訳したりメモしたりできます（アプリは翻訳しません）。間隔は既定 10 分（下限 5 分、0 は起動時だけ）で、ペインが見えている間だけ取ります。切るとニュースのための通信はしません。管理者はレジストリ（`HKLM\Software\Policies\elecxstock` の `News`=0）か環境変数 `ELECXSTOCK_NEWS=off` で止められます（[設計](docs/design-news.md)）。
+  見出しは各配信元のものです。記事の利用は各配信元の規約に従ってください（Bloomberg などは**個人の非商用の利用**に限られます。業務の PC で読むと「非商用」から外れることがあります）。ニュースの選択はこの PC に保存し、データの書き出しには入りません（PC を移すと選び直しになります）。
 - **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、9 つのプリセット（マーケット・スクリーナー・グリッド・MTF・トリプル・インカム・保有・マイレイアウト・ポートフォリオ）、名前を付けたページを何枚も持てるマイレイアウト（タブの ▾ で切り替え）、サイズのリセット、レイアウトを初期状態に戻す（このタブ・すべてのタブ）。ペインの種類は Ctrl+Shift+N で変えられます（チャートをスクリーナーや銘柄情報にする など）。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。
 - **マルチモニタ**: Ctrl+Alt+N（またはタイトルバーのボタン）でタブなしの「フリー」のウィンドウを最大 3 枚開き（チャートグリッド・4 分割・MTF + 銘柄情報）、2 枚目のモニタにチャートを並べられます。銘柄は 1 枚目の一覧からのドラッグか Ctrl+Alt+Enter で送ります。リンク色を付けたチャートは 1 枚目で選んだ銘柄を追います。並び・位置・文字の大きさは窓ごとに覚え、次の起動で開き直します。
 - **配当カレンダー**、取得ジョブの進捗と一時停止。
@@ -61,24 +63,24 @@
 - **常駐と自動起動**（どれも既定でオフ）: 閉じても通知領域で動かし続け、窓を出していなくても自動の更新とアラートを続けます。Windows へのサインインで起動し、窓を出さずに通知領域に入れておくこともできます。終了は Ctrl+Shift+Q か、通知領域のアイコンのメニューから。
 - 新しい版の通知、市場データの DB のバックアップ、日足の CSV 書き出し。
 
-|                                             |                                                        |
-| ------------------------------------------- | ------------------------------------------------------ |
-| ![Portfolio](docs/screenshots/folio.png)    | ![Portfolio dividends](docs/screenshots/folio-div.png) |
-| ポートフォリオ（Ctrl+Shift+9）              | ポートフォリオの配当の分析（PgDn）                     |
-| ![Grid](docs/screenshots/grid.png)          | ![Screener](docs/screenshots/screener.png)             |
-| チャートグリッド                            | スクリーナー                                           |
-| ![Income](docs/screenshots/income.png)      | ![Command bar](docs/screenshots/palette.png)           |
-| インカム（配当カレンダー）                  | コマンドバー（Ctrl+K）                                 |
-| ![Drawer](docs/screenshots/grid-drawer.png) | ![Help](docs/screenshots/help.png)                     |
-| ドロワー（Ctrl+B）                          | ショートカット一覧（F1）                               |
-| ![Market](docs/screenshots/market.png)      | ![Light](docs/screenshots/light.png)                   |
-| マーケット（ヒートマップ・ランキング）      | ライトテーマ                                           |
-| ![Alerts](docs/screenshots/alerts.png)      | ![Alert line](docs/screenshots/alert-line.png)         |
-| アラート（Ctrl+Alt+L）                      | チャートのアラートの点線                               |
-| ![Free window](docs/screenshots/free.png)   | ![Field picker](docs/screenshots/fields.png)           |
-| フリーのウィンドウ（2 枚目のモニタ）        | スクリーナーの条件を選ぶ（Insert）                     |
-| ![Pane type](docs/screenshots/widget.png)   | ![Triple](docs/screenshots/triple.png)                 |
-| ペインの種類を変える（Ctrl+Shift+N）        | トリプル（日足・週足・月足と銘柄情報）                 |
+|                                                  |                                                        |
+| ------------------------------------------------ | ------------------------------------------------------ |
+| ![Portfolio](docs/screenshots/folio.png)         | ![Portfolio dividends](docs/screenshots/folio-div.png) |
+| ポートフォリオ（Ctrl+Shift+9）                   | ポートフォリオの配当の分析（PgDn）                     |
+| ![Grid](docs/screenshots/grid.png)               | ![Screener](docs/screenshots/screener.png)             |
+| チャートグリッド                                 | スクリーナー                                           |
+| ![Income](docs/screenshots/income.png)           | ![Command bar](docs/screenshots/palette.png)           |
+| インカム（配当カレンダー）                       | コマンドバー（Ctrl+K）                                 |
+| ![Drawer](docs/screenshots/grid-drawer.png)      | ![Help](docs/screenshots/help.png)                     |
+| ドロワー（Ctrl+B）                               | ショートカット一覧（F1）                               |
+| ![Market](docs/screenshots/market.png)           | ![Light](docs/screenshots/light.png)                   |
+| マーケット（ヒートマップ・ランキング・ニュース） | ライトテーマ                                           |
+| ![Alerts](docs/screenshots/alerts.png)           | ![Alert line](docs/screenshots/alert-line.png)         |
+| アラート（Ctrl+Alt+L）                           | チャートのアラートの点線                               |
+| ![Free window](docs/screenshots/free.png)        | ![Field picker](docs/screenshots/fields.png)           |
+| フリーのウィンドウ（2 枚目のモニタ）             | スクリーナーの条件を選ぶ（Insert）                     |
+| ![Pane type](docs/screenshots/widget.png)        | ![Triple](docs/screenshots/triple.png)                 |
+| ペインの種類を変える（Ctrl+Shift+N）             | トリプル（日足・週足・月足と銘柄情報）                 |
 
 ![Multiple monitors](docs/screenshots/multi.png)
 
@@ -100,25 +102,26 @@
 
 ### 主なキー
 
-| 操作                                                 | キー                                         |
-| ---------------------------------------------------- | -------------------------------------------- |
-| コマンドバー（銘柄・スクリーニング条件・操作を探す） | Ctrl+K                                       |
-| 銘柄ジャンプ                                         | 数字キー（証券コード）→ Enter                |
-| ジャンプの候補をお気に入りに / リストに足す          | Ctrl+D / Ctrl+Enter                          |
-| ペイン間の移動                                       | Alt+← → ↑ ↓                                  |
-| レイアウトの切り替え / マイレイアウトのページ        | Ctrl+Shift+1〜9 / Ctrl+Shift+L               |
-| 左 / 右のドロワー                                    | Ctrl+B / Ctrl+Shift+B（ピン留め Ctrl+Alt+B） |
-| お気に入り / リストに追加                            | Ctrl+D / Ctrl+Shift+A                        |
-| 日足 / 週足 / 月足・チャートの指標                   | D / W / M・I                                 |
-| 列の選択（一覧）                                     | Ctrl+Shift+C                                 |
-| ペインの種類を変える                                 | Ctrl+Shift+N                                 |
-| チャート / グリッドのタイルの銘柄を変える            | C                                            |
-| データの更新                                         | F5                                           |
-| アラートを作る / 一覧と履歴                          | Ctrl+Alt+A / Ctrl+Alt+L                      |
-| フリーのウィンドウを開く / 窓を移る                  | Ctrl+Alt+N / Ctrl+F6                         |
-| 選んだ銘柄をフリーのウィンドウへ送る                 | Ctrl+Alt+Enter                               |
-| ショートカット一覧                                   | F1                                           |
-| アプリを終了                                         | Ctrl+Shift+Q                                 |
+| 操作                                                      | キー                                         |
+| --------------------------------------------------------- | -------------------------------------------- |
+| コマンドバー（銘柄・スクリーニング条件・操作を探す）      | Ctrl+K                                       |
+| 銘柄ジャンプ                                              | 数字キー（証券コード）→ Enter                |
+| ジャンプの候補をお気に入りに / リストに足す               | Ctrl+D / Ctrl+Enter                          |
+| ペイン間の移動                                            | Alt+← → ↑ ↓                                  |
+| レイアウトの切り替え / マイレイアウトのページ             | Ctrl+Shift+1〜9 / Ctrl+Shift+L               |
+| 左 / 右のドロワー                                         | Ctrl+B / Ctrl+Shift+B（ピン留め Ctrl+Alt+B） |
+| お気に入り / リストに追加                                 | Ctrl+D / Ctrl+Shift+A                        |
+| 日足 / 週足 / 月足・チャートの指標                        | D / W / M・I                                 |
+| 列の選択（一覧）                                          | Ctrl+Shift+C                                 |
+| ペインの種類を変える                                      | Ctrl+Shift+N                                 |
+| ニュース: 開く / タブ / 絞り込み / コピー（1 件・表示中） | Enter / G / / / Ctrl+C・Ctrl+Alt+C           |
+| チャート / グリッドのタイルの銘柄を変える                 | C                                            |
+| データの更新                                              | F5                                           |
+| アラートを作る / 一覧と履歴                               | Ctrl+Alt+A / Ctrl+Alt+L                      |
+| フリーのウィンドウを開く / 窓を移る                       | Ctrl+Alt+N / Ctrl+F6                         |
+| 選んだ銘柄をフリーのウィンドウへ送る                      | Ctrl+Alt+Enter                               |
+| ショートカット一覧                                        | F1                                           |
+| アプリを終了                                              | Ctrl+Shift+Q                                 |
 
 すべてのキーは F1 の一覧と [docs/requirements.md](docs/requirements.md) §6.5 にあります。アプリ全体のキーは「設定 > キー」で変えられます。
 
@@ -183,6 +186,7 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 - **Alerts**: put conditions on a symbol (close ≤ 17,500, trailing yield ≥ 5%, close ≤ 75-day MA, P/L of a holding and so on; up to three, all must hold), or get notified of symbols that newly match a saved screen. Alerts are evaluated when a fetch job ends and shown as a toast, a Windows notification and a badge on the bell. Price thresholds are converted across stock splits, and drawn as dashed lines on charts. Create with Ctrl+Alt+A; open the list and history with Ctrl+Alt+L. Nothing is sent outside the app (no e-mail).
 - **Market**: a market board with Japanese, US and Asian indices, FX and the US 10-year yield, oil, gold, silver and Bitcoin in one table (filter by group with tabs; same columns and keys as watchlists), market breadth (advancers, decliners, new highs and lows and turnover for Prime and J-REITs, and returns by TSE 33 sector; press Enter to list a sector's stocks), a sector heatmap, rankings and index mini-charts.
   **TOPIX, JPX-Nikkei 400, Growth 250 and the TSE REIT Index are not available from Yahoo, so the board shows tracking ETFs instead** (not the index values): NEXT FUNDS TOPIX ETF (1306), NEXT FUNDS JPX-Nikkei Index 400 ETF (1591), TSE Growth 250 ETF (2516) and NEXT FUNDS REIT INDEX ETF (1343), labeled as ETFs. Values are daily closes (the latest bar at fetch time), not real-time.
+- **News** (you choose at first run; can be turned off any time in Settings): headlines from the Bank of Japan, JPX, Bloomberg and other built-in sources ([list](docs/news-feeds.md)) in time order at the bottom left of the Market tab. Only headlines and links are fetched, no article bodies or images. Category tabs, filter (/), Enter opens the article in your browser. Ctrl+C copies the selected headline and Ctrl+Alt+C the shown headlines (up to 100) as text, so you can translate or note them in another app (the app does not translate). Checked every 10 minutes by default (minimum 5, 0 = at startup only), only while the pane is visible. When off, no requests are made for news. Administrators can turn it off with the registry (`News`=0 under `HKLM\Software\Policies\elecxstock`) or `ELECXSTOCK_NEWS=off`. Headlines belong to each source; use articles under each source's terms (Bloomberg and others allow personal, non-commercial use only).
 - **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, nine presets (Market, Screener, Grid, MTF, Triple, Income, Holdings, Pages, where each unlinked chart keeps its own symbol, and Portfolio), any number of named pages in the Pages tab (switch with the ▾ next to the tab), size reset, and resetting the layout of this tab or all tabs. Change a pane into another kind with Ctrl+Shift+N (e.g. a chart into a screener or symbol info). Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol.
 - **Multiple monitors**: open up to three tabless Free windows with Ctrl+Alt+N or the title-bar button (chart grid, four charts, or MTF + symbol info) to line up charts on a second monitor. Drag symbols from the main window's lists or send them with Ctrl+Alt+Enter; linked charts follow the symbol picked in the main window. Layout, position and text size are remembered per window and reopened at the next start.
 - **Dividend calendar**, fetch jobs with progress and pause.

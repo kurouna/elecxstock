@@ -21,6 +21,7 @@ export type WidgetId =
   | 'board'
   | 'breadth'
   | 'folio'
+  | 'news'
 export const WIDGETS: WidgetId[] = [
   'chart',
   'mtf',
@@ -36,6 +37,7 @@ export const WIDGETS: WidgetId[] = [
   'board',
   'breadth',
   'market',
+  'news',
   'jobs',
 ]
 export type DockSide = 'left' | 'right'
@@ -167,12 +169,12 @@ export function presetEntry(id: PresetId): LayoutEntry {
         docks: {},
       }
     case 'market':
-      // §6.4 Market（P2）: 左の列にマーケット一覧（ウォッチリストの代わり。FR-L12, FR-MB5）とランキング（このタブの一覧）、
+      // §6.4 Market（P2）: 左の列にマーケット一覧（ウォッチリストの代わり。FR-L12, FR-MB5）とランキング（このタブの一覧）とニュース（FR-NW1。銘柄を持たないのでリンク色なし）、
       // 右の上に heatmap と、その右の列にチャート（上）・騰落（下。FR-BR1）、右の下に market-overview（heatmap と騰落の下に広く）
       return {
         root: R(
           [30, 70],
-          C([40, 60], P('board', 1), P('ranking', 1)),
+          C([30, 36, 34], P('board', 1), P('ranking', 1), P('news', 0)),
           C([75, 25], R([60, 40], P('heatmap', 1), C([70, 30], P('chart', 1, { tf: 'D' }), P('breadth', 1))), P('market', 1)),
         ),
         docks: {},
