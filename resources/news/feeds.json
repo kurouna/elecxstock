@@ -73,44 +73,13 @@
       "group": "market",
       "linkHosts": ["news.web.nhk"],
       "defaultOnFor": [],
-      "summary": true,
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null
-    },
-    {
-      "id": "ja.yahoo",
-      "lang": "ja",
-      "name": {
-        "ja": "Yahoo!ニュース 経済（トピックス）",
-        "en": "Yahoo! News Japan Business"
-      },
-      "short": "Y!",
-      "url": "https://news.yahoo.co.jp/rss/topics/business.xml",
-      "group": "market",
-      "linkHosts": ["news.yahoo.co.jp"],
-      "defaultOnFor": [],
-      "summary": true,
-      "keepDays": 30,
-      "staleDays": 14,
-      "terms": null
-    },
-    {
-      "id": "ja.jiji",
-      "lang": "ja",
-      "name": {
-        "ja": "時事ドットコム",
-        "en": "Jiji.com (Japanese)"
-      },
-      "short": "時事",
-      "url": "https://www.jiji.com/rss/ranking.rdf",
-      "group": "market",
-      "linkHosts": ["www.jiji.com"],
-      "defaultOnFor": [],
-      "summary": true,
-      "keepDays": 30,
-      "staleDays": 14,
-      "terms": null
+      "terms": {
+        "url": "https://www.nhk.or.jp/toppage/rss/",
+        "checked": "2026-11-17"
+      }
     },
     {
       "id": "ja.asahi",
@@ -124,10 +93,13 @@
       "group": "market",
       "linkHosts": ["www.asahi.com"],
       "defaultOnFor": [],
-      "summary": true,
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null,
+      "terms": {
+        "url": "https://www.asahi.com/information/service/rss.html",
+        "checked": "2026-11-17"
+      },
       "paywall": true
     },
     {
@@ -142,10 +114,13 @@
       "group": "reading",
       "linkHosts": ["toyokeizai.net"],
       "defaultOnFor": [],
-      "summary": true,
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null
+      "terms": {
+        "url": "https://toyokeizai.net/list/base-terms",
+        "checked": "2026-11-17"
+      }
     },
     {
       "id": "ja.dol",
@@ -159,10 +134,13 @@
       "group": "reading",
       "linkHosts": ["diamond.jp"],
       "defaultOnFor": [],
-      "summary": true,
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null
+      "terms": {
+        "url": "https://www.diamond.co.jp/tos/dol.html",
+        "checked": "2026-11-17"
+      }
     },
     {
       "id": "ja.nbo",
@@ -176,28 +154,14 @@
       "group": "reading",
       "linkHosts": ["business.nikkei.com"],
       "defaultOnFor": [],
-      "summary": true,
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null,
-      "paywall": true
-    },
-    {
-      "id": "ja.itmb",
-      "lang": "ja",
-      "name": {
-        "ja": "ITmedia ビジネスオンライン",
-        "en": "ITmedia Business (Japanese)"
+      "terms": {
+        "url": "https://www.nikkeibp.co.jp/atcl/corporate/copyright/",
+        "checked": "2026-11-17"
       },
-      "short": "ITmB",
-      "url": "https://rss.itmedia.co.jp/rss/2.0/business.xml",
-      "group": "reading",
-      "linkHosts": ["www.itmedia.co.jp"],
-      "defaultOnFor": [],
-      "summary": true,
-      "keepDays": 30,
-      "staleDays": 14,
-      "terms": null
+      "paywall": true
     },
     {
       "id": "ja.fsa",
@@ -210,28 +174,14 @@
       "url": "https://www.fsa.go.jp/fsaNewsListAll_rss2.xml",
       "group": "official",
       "linkHosts": ["www.fsa.go.jp"],
-      "defaultOnFor": [],
+      "defaultOnFor": ["ja"],
       "summary": true,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null
-    },
-    {
-      "id": "ja.cao",
-      "lang": "ja",
-      "name": {
-        "ja": "内閣府 新着情報",
-        "en": "Cabinet Office (Japanese)"
-      },
-      "short": "内閣府",
-      "url": "https://www.cao.go.jp/rss/news.rdf",
-      "group": "official",
-      "linkHosts": ["www.cao.go.jp", "www5.cao.go.jp", "www.esri.cao.go.jp", "www.fsc.go.jp"],
-      "defaultOnFor": [],
-      "summary": true,
-      "keepDays": 30,
-      "staleDays": 14,
-      "terms": null
+      "terms": {
+        "url": "https://www.fsa.go.jp/rules/index.html",
+        "checked": "2026-11-17"
+      }
     },
     {
       "id": "ja.mof",
@@ -248,7 +198,10 @@
       "summary": true,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null
+      "terms": {
+        "url": "https://www.mof.go.jp/about_mof/notice/index.html",
+        "checked": "2026-11-17"
+      }
     },
     {
       "id": "en.nar",
@@ -261,30 +214,16 @@
       "url": "https://asia.nikkei.com/rss/feed/nar",
       "group": "market",
       "linkHosts": ["asia.nikkei.com"],
-      "defaultOnFor": [],
-      "summary": true,
+      "defaultOnFor": ["en"],
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null,
+      "terms": {
+        "url": "https://info.asia.nikkei.com/rss",
+        "checked": "2026-11-17"
+      },
       "undated": true,
       "paywall": true
-    },
-    {
-      "id": "en.jt",
-      "lang": "en",
-      "name": {
-        "ja": "The Japan Times Business",
-        "en": "The Japan Times Business"
-      },
-      "short": "JT",
-      "url": "https://www.japantimes.co.jp/business/feed/",
-      "group": "market",
-      "linkHosts": ["www.japantimes.co.jp"],
-      "defaultOnFor": [],
-      "summary": true,
-      "keepDays": 30,
-      "staleDays": 14,
-      "terms": null
     },
     {
       "id": "en.bbgmkt",
@@ -320,10 +259,13 @@
       "group": "market",
       "linkHosts": ["www.cnbc.com"],
       "defaultOnFor": [],
-      "summary": true,
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null
+      "terms": {
+        "url": "https://versantmedia.com/terms",
+        "checked": "2026-11-17"
+      }
     },
     {
       "id": "en.boj",
@@ -399,10 +341,13 @@
       "group": "market",
       "linkHosts": ["www.cnbc.com"],
       "defaultOnFor": [],
-      "summary": true,
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null
+      "terms": {
+        "url": "https://versantmedia.com/terms",
+        "checked": "2026-11-17"
+      }
     },
     {
       "id": "en.ft",
@@ -419,8 +364,12 @@
       "summary": true,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null,
-      "paywall": true
+      "terms": {
+        "url": "https://help.ft.com/legal-privacy/copyright-policy/",
+        "checked": "2026-11-17"
+      },
+      "paywall": true,
+      "copyright": "© The Financial Times Limited"
     },
     {
       "id": "en.wsj",
@@ -434,10 +383,13 @@
       "group": "market",
       "linkHosts": ["www.wsj.com"],
       "defaultOnFor": [],
-      "summary": true,
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null,
+      "terms": {
+        "url": "https://www.dowjones.com/terms-of-use/",
+        "checked": "2026-11-17"
+      },
       "paywall": true
     },
     {
@@ -452,10 +404,13 @@
       "group": "market",
       "linkHosts": ["www.marketwatch.com"],
       "defaultOnFor": [],
-      "summary": true,
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null
+      "terms": {
+        "url": "https://www.dowjones.com/terms-of-use/",
+        "checked": "2026-11-17"
+      }
     },
     {
       "id": "en.fed",
@@ -468,11 +423,14 @@
       "url": "https://www.federalreserve.gov/feeds/press_monetary.xml",
       "group": "official",
       "linkHosts": ["www.federalreserve.gov"],
-      "defaultOnFor": [],
+      "defaultOnFor": ["en"],
       "summary": true,
       "keepDays": 30,
       "staleDays": 90,
-      "terms": null
+      "terms": {
+        "url": "https://www.federalreserve.gov/disclaimer.htm",
+        "checked": "2026-11-17"
+      }
     },
     {
       "id": "en.ecb",
@@ -485,11 +443,14 @@
       "url": "https://www.ecb.europa.eu/rss/press.html",
       "group": "official",
       "linkHosts": ["www.ecb.europa.eu"],
-      "defaultOnFor": [],
+      "defaultOnFor": ["en"],
       "summary": true,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null
+      "terms": {
+        "url": "https://www.ecb.europa.eu/services/disclaimer/html/index.en.html",
+        "checked": "2026-11-17"
+      }
     },
     {
       "id": "en.ndaq",
@@ -503,10 +464,13 @@
       "group": "market",
       "linkHosts": ["www.nasdaq.com"],
       "defaultOnFor": [],
-      "summary": true,
+      "summary": false,
       "keepDays": 30,
       "staleDays": 14,
-      "terms": null
+      "terms": {
+        "url": "https://www.nasdaq.com/legal",
+        "checked": "2026-11-17"
+      }
     }
   ]
 }

@@ -1,7 +1,7 @@
-# ニュースのフィードの候補と確かめた結果（手で書く注）
+# ニュースのフィードの候補（手で書く注）
 
 登録したフィードの一覧は [news-feeds.md](news-feeds.md)（登録表 `resources/news/feeds.json` から `npm run gen:news-feeds-doc` で作る）。
-このファイルは、候補を選んだときの記録（入れなかった候補と理由・確かめた結果・規約を確かめる順）を手で書く。
+このファイルは、候補を選んだときの記録（取れるか・件数・ホスト・入れなかった候補と理由）を手で書く。規約の調査と判断は [news-feeds-terms.md](news-feeds-terms.md)。
 
 2026-11-17 に実際に取って確かめた（状態・件数・最新の日付・記事のリンクのホスト）。取った見出しは保存していない。
 **規約を確かめたのは Bloomberg・日本銀行・日本取引所グループ**（2026-11-17。[design-news.md](design-news.md) §2.1・§2.2）。規約を確かめたフィードだけを既定オンにできる（L2 のテスト）。下の「判定」の ◎ は
@@ -70,15 +70,9 @@
 | ×    | MarketWatch Market Pulse      |      |          | https://feeds.content.dowjones.io/public/rss/mw_marketpulse |                        | 30   | 最新が 2025-07（止まっている）                                                                                                                                                                     |
 | ×    | Yahoo Finance（全体）         |      |          | https://finance.yahoo.com/news/rssindex                     |                        |      | 404                                                                                                                                                                                                |
 
-## 規約を確かめる順（既定オンにしたいもの）
+## 規約を確かめた結果
 
-1. 済み（2026-11-17）: Bloomberg・日銀（日本語・英語）・JPX（日本語・英語）。design-news.md §2.1・§2.2。
-2. Fed（米国の連邦機関の著作物）・金融庁・内閣府など、残りの公的機関。
-3. NHK・Yahoo!ニュース トピックス・時事（日本語の市況の柱）。
-4. Nikkei Asia・Japan Times・CNBC（英語の柱）。
-5. 読み物（東洋経済・ダイヤモンド・日経ビジネス）は既定オフのまま。
-
-確かめるのは: 配るアプリに同梱して見出しとリンクを出してよいか、要約（description）を出してよいか、商用・非商用の別、出所の書き方。
+[news-feeds-terms.md](news-feeds-terms.md) に移した（調べ方・判断の基準・配信元ごとの結果・登録しなかったものの見直し・最終の構成）。
 
 ## 別案（後から）: 銘柄のニュース
 

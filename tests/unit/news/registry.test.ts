@@ -39,6 +39,15 @@ describe('FR-NW2 登録表（同梱の JSON）', () => {
     expect(bbg).toMatchObject({ copyright: '© Bloomberg L.P.', keepDays: 7, defaultOnFor: ['ja', 'en'] })
     expect(bbg.listFor).toContain('ja')
   })
+  it('規約が配るアプリでの利用・再配信・蓄積を断っている配信元は登録しない（2026-11-17 に確認。docs/news-feeds-notes.md）', () => {
+    // Yahoo!ニュース: RSS を使ったアプリの公開を許可しない／時事: プログラムによる再配信・蓄積を許可しない／
+    // 内閣府: RSS の情報の再配布などを断る／ITmedia: アプリへの組み込みは要相談
+    const hosts = feeds.map((f) => new URL(f.url).hostname)
+    for (const h of ['news.yahoo.co.jp', 'www.jiji.com', 'www.cao.go.jp', 'rss.itmedia.co.jp']) expect(hosts, h).not.toContain(h)
+  })
+  it('どのフィードも規約を確かめてある（読めなかった配信元は登録しない。The Japan Times は規約のページを読めなかった）', () => {
+    expect(feeds.filter((f) => !f.terms).map((f) => f.id)).toEqual([])
+  })
   it('知らない schemaVersion は全体を使わない。合わない行と重なる ID・規約の無い既定オンは捨てる', () => {
     expect(readRegistry({ schemaVersion: 2, feeds: raw.feeds })).toBeNull()
     expect(readRegistry(null)).toBeNull()

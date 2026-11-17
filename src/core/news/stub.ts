@@ -5,7 +5,11 @@ import type { NewsFeed } from '@shared/news/schema'
 
 type Row = [minutesAgo: number, title: string, summary?: string]
 const JA: Record<string, Row[]> = {
-  'ja.yahoo': [
+  'ja.fsa': [
+    [48, '金融商品取引業者に対する行政処分について（架空のテスト見出し）'],
+    [6 * 60, '「金融システムレポート」の公表について（架空のテスト見出し）'],
+  ],
+  'ja.asahi': [
     [
       15,
       '円相場、一時 1 ドル＝151 円台に　米金利の低下で（架空）',
@@ -27,7 +31,7 @@ const JA: Record<string, Row[]> = {
     [95, '資金循環統計（速報）の公表（架空のテスト見出し）', '資金循環統計（速報）を公表しました。（テスト用の架空の文）'],
     [26 * 60, '企業物価指数（速報）（架空のテスト見出し）', '企業物価指数（速報）を公表しました。（テスト用の架空の文）'],
   ],
-  'ja.jiji': [
+  'ja.dol': [
     [
       31,
       'J-REIT 指数、続伸　長期金利の低下で買い戻し（架空）',
@@ -89,13 +93,7 @@ const EN: Record<string, Row[]> = {
     ],
     [60, 'Exchange tightens listing maintenance rules (fictional)'],
   ],
-  'en.jt': [
-    [
-      47,
-      'Tokyo firms revise forex assumptions as yen steadies (fictional)',
-      'Exporters are reassessing their forecasts. (Fictional test text.)',
-    ],
-  ],
+  'en.fed': [[47, 'Federal Reserve issues FOMC statement (fictional test headline)', 'Fictional test headline. (Fictional test text.)']],
   'en.cnbcasia': [
     [14, 'Yen strengthens as U.S. yields fall (fictional)'],
     [130, 'Asia markets mixed ahead of key data (fictional)'],

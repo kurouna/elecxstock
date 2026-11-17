@@ -111,7 +111,7 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 - 通信先は Core の許可リスト（`src/core/netGuard.ts` の `ALLOWED_HOSTS`。`worker.ts` が `globalThis.fetch` を `guardFetch` で差し替える。リダイレクトの行き先も確かめる）だけ。renderer の CSP は `connect-src 'none'`。
 - **ニュース**（[docs/design-news.md](docs/design-news.md)。FR-NW1〜NW9）: コードは `news/` のフォルダ（`src/shared/news/`・`src/core/news/`・`src/main/news/`・`src/renderer/news/`・`tests/unit/news/`）に閉じ、
   既存のファイルへの差し込みは設計 §11 の箇所だけ（`tests/unit/news/registry.test.ts` が import を読んで確かめる。差し込みを足したら `GATES` にも足す）。
-  - フィードは `resources/news/feeds.json`（asar の中）にだけ足す。直したら `npm run gen:news-feeds-doc`（docs/news-feeds.md）。既定でオンにできるのは規約を確かめたフィードだけ（`terms.checked`）。候補を選んだ記録は docs/news-feeds-notes.md。
+  - フィードは `resources/news/feeds.json`（asar の中）にだけ足す。直したら `npm run gen:news-feeds-doc`（docs/news-feeds.md）。既定でオンにできるのは規約を確かめたフィードだけ（`terms.checked`）。規約の調査と判断は docs/news-feeds-terms.md（フィードを足す・既定でオンにするときは、規約を読んでここに書き、`terms` に URL と日付を入れる）。候補を選んだ記録は docs/news-feeds-notes.md。
   - 通信は `worker.ts` が作るニュースの専用の fetch（`guardFetch` に述語。オンのフィードのホストだけ）。`src/core/news/` は `globalThis.fetch` に触れない。既存の許可リストにフィードのホストを足さない。
   - 未回答・オフ・管理者の停止（レジストリ・`ELECXSTOCK_NEWS=off`）では fetch を 1 回も呼ばない。ペインが見えている間（renderer の `news.watch`）だけ取る。
   - 翻訳はしない。見出しは文字として描き（`{@html}` を使わない）、コピーは `window.elecxstock.copyText`（main の `app:copyText`）。Ctrl+C・Ctrl+Alt+C は全体のアクションに割り当てない（`lib/keys.ts` の `PANE_RESERVED`）。
