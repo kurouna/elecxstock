@@ -714,7 +714,9 @@ async function start(): Promise<void> {
   })
 }
 // 閉じるとき: 開いている窓の位置を残し、Core に止めるよう頼み、取得中の項目を止めて DB を閉じるのを待つ（続きは次の起動で再開。FR-F1）。
-// 応答が無ければ 4 秒で強制終了する（項目の書き込みはトランザクションなので、途中で切っても半端な状態は残らない）
+// 応答が無ければ CORE_STOP_TIMEOUT で強制終了する（項目の書き込みはトランザクションなので、途中で切っても半端な状態は残らない）。
+// 初回の取り込みの最中は Core が 3〜4.5 秒応えないことがあるので 6 秒。インストーラは終わるのを最長 10 秒待つ（保存の確定 2 秒 + 6 秒で収まる）
+const CORE_STOP_TIMEOUT = 6000
 let coreStopped = false
 let flushed = false
 /** 全窓に、遅らせている保存（レイアウト・ウォッチリスト）を Core に書かせ、返事を待つ（最長 2 秒） */
@@ -765,7 +767,7 @@ app.on('before-quit', (e) => {
     log('core did not stop in time; killing')
     c.kill()
     done()
-  }, 4000)
+  }, CORE_STOP_TIMEOUT)
   c.once('exit', done)
   c.postMessage({ type: 'shutdown' })
 })
