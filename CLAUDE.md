@@ -31,7 +31,7 @@ LIVE=1 npm run contract  # 実際の Yahoo・JPX とニュースのフィード�
 npm run gen:screenshots  # README 用のスクリーンショット（スタブのデータ）
 npm run gen:fields-doc   # docs/screener-fields.md（スクリーナーの項目の一覧）を指標の登録表から作る
 npm run gen:news-feeds-doc  # docs/news-feeds.md（ニュースのフィードの一覧）を resources/news/feeds.json から作る
-npm run demo:0.1.1     # 版ごとのデモ（録画は利用者が行う。下の「デモ」）
+npm run demo:0.1.9     # 版ごとのデモ（録画は利用者が行う。下の「デモ」）
 npm run gen:icon       # build/icon.svg から PNG・ICO
 ```
 
@@ -157,6 +157,8 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 - E2E とスクリーンショットは `npm run build` のあとに動かす（out/ を起動する）。E2E を流している間に `npm run build` しない（ビルドが src/ より古いと E2E は始まらない）。
 - キャンバスの中（チャートの線・タイル）は読めないので、凡例の文字か、描いたものを出す `data-*`（グリッドのタイルの `canvas[data-yield]`）で確かめる。
   スタブには境界を試す銘柄がある（8002 は無配に転じた・1605 は上場 12 か月未満。`stub.ts` の `EDGE`）。
+- 最大化・タブの切り替えには動きがある（docs/design-motion.md）。E2E で矩形を読む前は `motionDone`（`tests/e2e/support/ops.ts`）で動きの終わりを待つ（`tab()` は待つ）。
+  動きそのものを確かめるときは、時間のトークン（`--motion-max` など）を `addStyleTag` で延ばすか、`getAnimations()` を止めて測る。スクリーンショット・デモの撮影は `animations: 'disabled'`。
 - マウスの位置に頼らない。CI のマシンでは実際のカーソルが窓の上にあると十字線や hover の値が変わるので、`ci.yml` で E2E の前にカーソルを窓の外へ動かし、
   `tests/e2e/support/launch.ts` も窓が出てからテストのマウスを角へ置いている。
 
