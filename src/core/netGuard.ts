@@ -1,0 +1,61 @@
+// 外部への通信の制限（NFR-S1）。Core の fetch を、許可リストのホストへの https だけに絞る。
+// worker.ts が globalThis.fetch を差し替えるときに使う（Electron に依存しない純 TS。単体テストで確かめる）
+
+/** 許可するホスト。api.github.com は新しい版の確認だけ（NFR-Q9。設定で切れる） */
+export const ALLOWED_HOSTS: readonly RegExp[] = [/(^|\.)yahoo\.com$/, /^www\.jpx\.co\.jp$/, /^api\.github\.com$/]
+
+/** https で、ホストが許可リストに入るか */
+export function isAllowedUrl(url: URL, allow: readonly RegExp[]): boolean {
+  return url.protocol === 'https:' && allow.some((r) => r.test(url.hostname))
+}
+
+const urlOf = (input: RequestInfo | URL): URL => new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+
+/** 追うリダイレクトの数の上限（本物の fetch の既定は 20） */
+export const MAX_REDIRECTS = 20
+const REDIRECT = new Set([301, 302, 303, 307, 308])
+
+/**
+ * 許可リストで絞った fetch。
+ *
+ * 本物の fetch は既定（redirect: 'follow'）で 3xx を自分で追い、行き先を確かめない。最初の URL だけを見ると、許可したホストから
+ * 許可していないホストへ転送されたとき通ってしまう。そこで、追うのはこちらで行う: 本物には redirect: 'manual' で渡し、Location を
+ * 許可リストで確かめてから次を送る（方法と本文の扱いは Fetch の仕様と同じ: 303 と、POST の 301・302 は GET にして本文を落とす）。
+ * 呼んだ側が 'manual' を指定したら 3xx をそのまま返す（次の要求もこの関数を通るので確かめられる）。'error' ならリダイレクトを失敗にする。
+ */
+export function guardFetch(realFetch: typeof fetch, allow: readonly RegExp[]): typeof fetch {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    let url = urlOf(input)
+    if (!isAllowedUrl(url, allow)) throw new Error(`blocked host: ${url.hostname}`)
+    const mode = init?.redirect ?? (input instanceof Request ? input.redirect : 'follow')
+    if (mode === 'manual') return realFetch(input, init)
+
+    let res = await realFetch(input, { ...init, redirect: 'manual' })
+    // 2 回目からは Request ではなく URL と init で送る（本文はリダイレクトで送り直せる形のときだけ。下）
+    let method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+    let body = init?.body ?? null
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+    const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
+    for (let hops = 0; REDIRECT.has(res.status); hops++) {
+      const location = res.headers.get('location')
+      if (location === null) return res
+      if (mode === 'error') throw new TypeError(`redirect not allowed: ${url.hostname}`)
+      if (hops >= MAX_REDIRECTS) throw new TypeError('too many redirects')
+      const next = new URL(location, url)
+      if (!isAllowedUrl(next, allow)) throw new Error(`blocked redirect: ${next.hostname}`)
+      if (res.status === 303 || ((res.status === 301 || res.status === 302) && method === 'POST')) {
+        if (method !== 'HEAD') method = 'GET'
+        body = null
+        for (const h of ['content-type', 'content-length', 'content-encoding', 'content-language', 'content-location']) headers.delete(h)
+      } else if (body instanceof ReadableStream) {
+        // 読み終えたストリームは送り直せない（本物の fetch も同じく失敗にする）
+        throw new TypeError('cannot follow redirect with a streamed body')
+      }
+      if (next.origin !== url.origin) headers.delete('authorization')
+      await res.body?.cancel().catch(() => {})
+      url = next
+      res = await realFetch(url.href, { ...init, method, body, headers, signal, redirect: 'manual' })
+    }
+    return res
+  }
+}

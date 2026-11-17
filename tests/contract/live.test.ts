@@ -3,11 +3,14 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { ALLOWED_HOSTS, guardFetch } from '@core/netGuard'
 import { createYahooProvider } from '@core/providers/yahoo'
 import { CoreService } from '@core/service'
 import { afterAll, describe, expect, it } from 'vitest'
 
 const live = process.env.LIVE === '1'
+// アプリ（worker.ts）と同じ通信の制限を掛ける。実際のリダイレクト（Yahoo の同意・crumb）が許可リストの中で済むことも確かめる（NFR-S1）
+if (live) globalThis.fetch = guardFetch(globalThis.fetch, ALLOWED_HOSTS)
 const dir = mkdtempSync(join(tmpdir(), 'elecxstock-live-'))
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
 

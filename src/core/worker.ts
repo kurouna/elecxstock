@@ -6,20 +6,13 @@ import { join } from 'node:path'
 import type { Events } from '@shared/api'
 import { jstNow } from '@shared/calendar'
 import { dispatch } from './dispatch'
+import { ALLOWED_HOSTS, guardFetch } from './netGuard'
 import { createStubProvider } from './providers/stub'
 import { createYahooProvider } from './providers/yahoo'
 import { CoreService } from './service'
 
-// 外部への通信は許可リストのホストだけ（NFR-S1）
-// api.github.com は新しい版の確認だけ（NFR-Q9。設定で切れる）
-const ALLOW = [/(^|\.)yahoo\.com$/, /^www\.jpx\.co\.jp$/, /^api\.github\.com$/]
-const realFetch = globalThis.fetch
-globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-  const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
-  if (url.protocol !== 'https:' || !ALLOW.some((r) => r.test(url.hostname)))
-    return Promise.reject(new Error(`blocked host: ${url.hostname}`))
-  return realFetch(input, init)
-}
+// 外部への通信は許可リストのホストだけ（NFR-S1。リダイレクトの行き先も確かめる。netGuard.ts）
+globalThis.fetch = guardFetch(globalThis.fetch, ALLOWED_HOSTS)
 
 const dataDir = process.env.ELECXSTOCK_DATA_DIR ?? join(process.cwd(), '.data')
 mkdirSync(join(dataDir, 'logs'), { recursive: true })
