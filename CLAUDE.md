@@ -8,7 +8,7 @@ elecxstock は、日本株と J-REIT のデータを手元の PC に取り込み
 - 要求仕様: [docs/requirements.md](docs/requirements.md)（要求は `FR-` / `NFR-` の ID で参照する。P1 / P2 / P3）
 - 設計判断と実測値: [docs/decisions.md](docs/decisions.md)
 - 画面のモック: [docs/mock/](docs/mock/README.md)
-- P3 の設計: [docs/design-p3.md](docs/design-p3.md)・アラート: [docs/design-alerts.md](docs/design-alerts.md)・ポートフォリオ: [docs/design-portfolio.md](docs/design-portfolio.md)・マルチモニタ: [docs/design-multimonitor.md](docs/design-multimonitor.md)・マイレイアウト: [docs/design-mylayouts.md](docs/design-mylayouts.md)・常駐と自動起動: [docs/design-background.md](docs/design-background.md)・ニュース: [docs/design-news.md](docs/design-news.md)（フィードの一覧: [docs/news-feeds.md](docs/news-feeds.md)）・最大化とタブの動き: [docs/design-motion.md](docs/design-motion.md)
+- P3 の設計: [docs/design-p3.md](docs/design-p3.md)・アラート: [docs/design-alerts.md](docs/design-alerts.md)・ポートフォリオ: [docs/design-portfolio.md](docs/design-portfolio.md)・マルチモニタ: [docs/design-multimonitor.md](docs/design-multimonitor.md)・マイレイアウト: [docs/design-mylayouts.md](docs/design-mylayouts.md)・常駐と自動起動: [docs/design-background.md](docs/design-background.md)・ニュース: [docs/design-news.md](docs/design-news.md)（フィードの一覧: [docs/news-feeds.md](docs/news-feeds.md)）・最大化とタブの動き: [docs/design-motion.md](docs/design-motion.md)・チャートの描画（トレンドライン）: [docs/design-drawings.md](docs/design-drawings.md)
 - 保有の JSON の形式: [docs/holdings-format.md](docs/holdings-format.md)
 - **テストの作り（層・部品・きまり・手順）: [docs/testing.md](docs/testing.md)**（計画と経緯: [docs/test-plan.md](docs/test-plan.md)）
 
@@ -118,7 +118,7 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
   - ニュースの設定・キャッシュは `data/news/`（アプリの `Settings`・DB・利用者のデータの JSON には入れない）。スタブのプロバイダのときは `src/core/news/stub.ts` の架空の見出しを返す。E2E の種はニュースを「取る」で答えた状態（`tests/e2e/support/global-setup.ts`）。
 - **マルチモニタ**（[docs/design-multimonitor.md](docs/design-multimonitor.md)）: 2 枚目以降はタブなしの「フリー 2〜4」。窓の種類は
   `lib/windowSlot.ts`（`SLOT`・`IS_FREE`・`FREE_WIDGETS`・`blockedInFree`）。利用者のデータの持ち主は 1 枚目で、フリー N は読むだけ
-  （★・◆は Core の `watchlists.toggleItem`、アラートは新しく作ることだけ `alerts.save`）。Core は利用者のデータを変えたら `user.changed` を全窓に配るので、利用者のデータを書く
+  （★・◆は Core の `watchlists.toggleItem`、アラートは新しく作ることだけ `alerts.save`、チャートの描画は `drawings.*` で 1 本ずつ書ける）。Core は利用者のデータを変えたら `user.changed` を全窓に配るので、利用者のデータを書く
   メソッドを足したら `src/core/changes.ts` の `CHANGES` にも足す。フリー N のレイアウトは `user.saveWindowLayout` で自分の分だけ保存する。
   フリー N で使えない操作を足したら `blockedInFree` に足す。
 - **常駐と自動起動**（[docs/design-background.md](docs/design-background.md)）: 判断は `src/shared/background.ts` の純粋な関数、実行（窓の出し入れ・トレイ・
