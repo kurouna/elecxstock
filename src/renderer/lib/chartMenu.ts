@@ -96,8 +96,13 @@ export async function chartMenu(pane: PaneNode): Promise<void> {
     const dc = drawControllerOf(pane.id)
     const c = await choiceDialog(t('chart.menuDraw'), [
       { id: 'begin', label: t('draw.begin'), hint: 'Alt+T' },
-      { id: 'select', label: t('draw.select'), hint: 'G' },
-      { id: 'clear', label: t('draw.clear') },
+      // 選ぶ・すべて消すは、この銘柄にトレンドラインがあるときだけ
+      ...(dc?.count()
+        ? [
+            { id: 'select', label: t('draw.select'), hint: 'G' },
+            { id: 'clear', label: t('draw.clear') },
+          ]
+        : []),
     ])
     if (c === 'begin') dc?.begin()
     else if (c === 'select') dc?.select(1)

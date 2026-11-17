@@ -153,7 +153,26 @@ test.describe('選ぶ・動かす・消す・戻す（FR-C14）', () => {
     await expect.poll(async () => (await drawings(chart))[0]?.extend).toBe('both')
   })
 
-  test('I のメニューの「描画」から、この銘柄の描画をすべて消す（Ctrl+Z で戻せる）', async ({ start }) => {
+  test('I のメニューの「トレンドライン」: 線が無いときは「トレンドラインを選ぶ」「すべて消す」を出さない', async ({ start }) => {
+    const { page } = await start()
+    const chart = await topChart(page)
+    const dlg = page.locator('.dialog')
+    await keys(page, 'i', 'End', 'Enter')
+    await expect(dlg).toContainText('トレンドラインを引く')
+    await expect(dlg).not.toContainText('トレンドラインを選ぶ')
+    await expect(dlg).not.toContainText('すべて消す')
+    await keys(page, 'Escape')
+    await expect(dlg).toHaveCount(0)
+    await drawOne(page, chart)
+    await keys(page, 'Escape', 'i', 'End', 'Enter')
+    await expect(dlg).toContainText('トレンドラインを選ぶ')
+    await expect(dlg).toContainText('この銘柄のトレンドラインをすべて消す')
+    // 選ぶ（2 つ目）で、引いた線が選ばれる
+    await keys(page, 'ArrowDown', 'Enter')
+    await expect.poll(async () => (await state(chart)).m).toBe('sel')
+  })
+
+  test('I のメニューの「トレンドライン」から、この銘柄のトレンドラインをすべて消す（Ctrl+Z で戻せる）', async ({ start }) => {
     const { page } = await start()
     const chart = await topChart(page)
     await drawOne(page, chart)
@@ -161,11 +180,11 @@ test.describe('選ぶ・動かす・消す・戻す（FR-C14）', () => {
     await drawOne(page, chart)
     await keys(page, 'Escape')
     expect(await drawings(chart)).toHaveLength(2)
-    // 「描画」はメニューの最後、「すべて消す」はその中の最後
+    // 「トレンドライン」はメニューの最後、「すべて消す」はその中の最後
     await keys(page, 'i')
-    await expect(page.locator('.dialog')).toContainText('描画（トレンドライン）')
+    await expect(page.locator('.dialog')).toContainText('トレンドライン')
     await keys(page, 'End', 'Enter')
-    await expect(page.locator('.dialog')).toContainText('この銘柄の描画をすべて消す')
+    await expect(page.locator('.dialog')).toContainText('この銘柄のトレンドラインをすべて消す')
     await keys(page, 'End', 'Enter')
     await expect(page.getByRole('alertdialog')).toContainText('2 本')
     await keys(page, 'ArrowRight', 'Enter')
@@ -203,7 +222,7 @@ test.describe('時間軸・再起動・表示の切り替え（FR-C13, FR-C16）
     await keys(page, 'a') // → 配当込み
     await expect.poll(async () => (await drawings(chart)).length).toBe(0)
     await keys(page, 'Alt+t')
-    await expect(page.locator('.toasts')).toContainText('配当込みの表示では描画を引けません')
+    await expect(page.locator('.toasts')).toContainText('配当込みの表示ではトレンドラインを引けません')
     expect((await state(chart)).m).toBe('idle')
   })
 })

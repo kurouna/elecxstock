@@ -106,6 +106,10 @@ export class DrawController {
       return s.target === 'none' ? t('draw.guideSel') : t('draw.guideMove', { target: t(`draw.target.${s.target}` as Key) })
     return null
   }
+  /** この銘柄のトレンドラインの本数（I のメニューが「選ぶ」を出すか決める） */
+  count(): number {
+    return drawingsOf(this.c.id()).length
+  }
   register(paneId: string, on: boolean): void {
     if (on) controllers.set(paneId, this)
     else if (controllers.get(paneId) === this) controllers.delete(paneId)
