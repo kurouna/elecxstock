@@ -1,11 +1,12 @@
 <script lang="ts">
 // 初回起動（§6.13 FR-FR1〜FR4）: 免責の同意 → 取得の確認（対象・保存期間・リクエスト数と時間の見積もり）→ 取得の開始。
 import { LWC_NOTICE, LWC_NOTICE_PARTS, TRADINGVIEW_URL } from '@shared/attribution'
+import { DEFAULT_SETTINGS } from '@shared/settings'
 import { onMount } from 'svelte'
 import { app, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
 
 let step = $state<1 | 2>(1)
-let years = $state(5)
+let years = $state(DEFAULT_SETTINGS.retentionYears)
 let first = $state<HTMLButtonElement>()
 onMount(() => {
   if (app.settings.disclaimerAccepted) step = 2
@@ -55,6 +56,7 @@ async function importJpx() {
         {/each}
       </span>
     </div>
+    <p class="muted small">{t('first.retentionNote')}</p>
     <p class="muted small">{t('first.jpxFailed')} <button type="button" class="chip" onclick={importJpx}>{t('set.importJpx')}</button></p>
     <div class="actions">
       <button type="button" class="btn" onclick={later}>{t('first.later')}</button>

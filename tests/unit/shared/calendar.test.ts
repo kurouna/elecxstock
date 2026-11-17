@@ -1,4 +1,15 @@
-import { isTradingDay, japaneseHolidays, lastClosedSession, prevTradingDay, toJstDate } from '@shared/calendar'
+import { NEED } from '@core/metrics'
+import {
+  addDays,
+  isTradingDay,
+  japaneseHolidays,
+  lastClosedSession,
+  prevTradingDay,
+  RETENTION_MARGIN_DAYS,
+  retentionStart,
+  toJstDate,
+} from '@shared/calendar'
+import { DEFAULT_SETTINGS } from '@shared/settings'
 import { describe, expect, it } from 'vitest'
 
 describe('calendar（FR-T1, T2）', () => {
@@ -34,5 +45,18 @@ describe('calendar（FR-T1, T2）', () => {
     expect(lastClosedSession(Date.parse('2026-11-13T07:00:00Z'))).toBe('2026-11-13')
     // 同日 10:00 JST は場中 → 前の取引日
     expect(lastClosedSession(Date.parse('2026-11-13T01:00:00Z'))).toBe('2026-11-12')
+  })
+})
+
+describe('日足の保存期間の始まり（FR-D6）', () => {
+  it('N 年に余裕を足した日から。境は年と日の計算だけで決まる', () => {
+    expect(retentionStart('2026-11-13', 3)).toBe(addDays('2023-11-13', -RETENTION_MARGIN_DAYS))
+  })
+  it('既定の 3 年でも、3 年の指標に要る本数（NEED.ret3y + 1）の営業日がある', () => {
+    for (const today of ['2026-11-13', '2026-01-05', '2027-05-07'] as const) {
+      let n = 0
+      for (let d = retentionStart(today, DEFAULT_SETTINGS.retentionYears); d <= today; d = addDays(d, 1)) if (isTradingDay(d)) n++
+      expect(n).toBeGreaterThan(NEED.ret3y)
+    }
   })
 })

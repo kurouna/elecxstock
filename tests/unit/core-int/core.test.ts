@@ -46,14 +46,15 @@ describe('Core（スタブのプロバイダで端から端まで）', () => {
 
   it('週足・月足（月次系列で長期を補う）と価格の調整（FR-D2, FR-T3）', async () => {
     const w = await call('bars.get', { id: 'JP:7203', tf: 'W' })
-    expect(w.time.length).toBeGreaterThan(200)
+    const { retentionYears } = await call('data.status', {})
+    expect(w.time.length).toBeGreaterThan(50 * retentionYears) // 週足は年に約 52 本（保存期間の分）
     const m = await call('bars.get', { id: 'JP:7203', tf: 'M' })
-    expect(m.time[0]! < '2010-01-01').toBe(true) // 5 年より前は月次系列
+    expect(m.time[0]! < '2010-01-01').toBe(true) // 保存期間より前は月次系列
     expect(m.monthlyUntil).toBeGreaterThan(0)
     const un = await call('bars.get', { id: 'JP:7203', tf: 'D', adjustment: 'unadjusted' })
     const sp = await call('bars.get', { id: 'JP:7203', tf: 'D' })
-    // スタブの 7203 は 2023-04-26 に 1:3 の架空の分割（日足の期間の中）
-    const i = sp.time.findIndex((t) => t < '2023-04-26')
+    // スタブの 7203 は 2024-04-26 に 1:3 の架空の分割（日足の期間の中）
+    const i = sp.time.findIndex((t) => t < '2024-04-26')
     expect(i).toBeGreaterThanOrEqual(0)
     expect(un.close[i]! / sp.close[i]!).toBeCloseTo(3)
   })

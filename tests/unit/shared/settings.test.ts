@@ -1,6 +1,12 @@
 // 起動の最初の色（テーマ。NFR-Q3）: main が窓を作る前に、保存した設定のファイルからテーマを読む
-import { savedTheme, THEME_COLORS } from '@shared/settings'
+import { DEFAULT_SETTINGS, savedTheme, THEME_COLORS } from '@shared/settings'
 import { describe, expect, it } from 'vitest'
+
+describe('日足の保存期間の既定（FR-D6, FR-FR2）', () => {
+  it('既定は 3 年（1〜10 年の範囲）', () => {
+    expect(DEFAULT_SETTINGS.retentionYears).toBe(3)
+  })
+})
 
 describe('保存した設定のテーマ（NFR-Q3, FR-V8）', () => {
   it('利用者のデータの形（{ version, data }）と素の形のどちらも読む', () => {

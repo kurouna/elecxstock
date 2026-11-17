@@ -68,6 +68,7 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
   `adjclose` は保存しない。分割を検知したら全期間を取り直す（FR-D3）。
 - **取得に成功してから置き換える**（FR-S11）。消してから取り直すのは、利用者が明示した全データの削除だけ。
 - **日付は日本時間の `YYYY-MM-DD`**（FR-T1）。営業日は `src/shared/calendar.ts`。PC の時刻帯に依存させない。
+- **日足の保存期間の始まりは `retentionStart()`（`src/shared/calendar.ts`）だけで決める**（取得と削除の境をそろえる。N 年の指標に足りるよう 31 日の余裕を足している。既定は 3 年・FR-D6）。
 - **キー操作はアクションの登録表（`lib/commands.ts` の `ACTIONS` と `handleKey`）に足す**。単キーは `KeyboardEvent.code`
   で判定し、IME の変換中は無視する（FR-KB5）。マウスでしかできない操作を作らない（FR-KB4）。キーを変えたら
   F1 の一覧（`components/overlays/Help.svelte`）と requirements.md §6.5 も直す。

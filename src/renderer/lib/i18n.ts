@@ -381,6 +381,7 @@ export const ja = {
   'first.fetchBody':
     '東証プライムの全銘柄と J-REIT（約 1,600 銘柄）の日足・配当・分割・指標を取得します。Yahoo へ約 3,300 回のリクエストを 1 秒間隔で送り、約 35〜40 分かかります（月足の長期系列はそのあと、さらに約 30 分）。取得中も、取得済みの銘柄から使えます。',
   'first.retention': '日足の保存期間',
+  'first.retentionNote': '保存期間（年）は、あとから設定の「データ」でいつでも変更できます。',
   'first.start': '取得を始める',
   'first.later': 'あとで（F5 で開始）',
   'first.jpxFailed': 'JPX の一覧を取得できませんでした。JPX のサイトから data_j.xlsx を落として取り込めます。',
@@ -1547,6 +1548,7 @@ export const en: Record<Key, string> = {
   'first.fetchBody':
     'Fetches daily bars, dividends, splits and metrics for all TSE Prime stocks and J-REITs (about 1,600 symbols). It sends about 3,300 requests to Yahoo at one-second intervals and takes about 35–40 minutes (the long monthly series follows, about 30 more minutes). Fetched symbols are usable right away.',
   'first.retention': 'Daily history',
+  'first.retentionNote': 'You can change the history length (years) at any time in Settings > Data.',
   'first.start': 'Start fetching',
   'first.later': 'Later (press F5)',
   'first.jpxFailed': 'Could not fetch the JPX list. Download data_j.xlsx from the JPX site and import it.',

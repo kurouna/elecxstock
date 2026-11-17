@@ -2,7 +2,17 @@
 // 進捗の通知（F4）、表示中の銘柄を先に（F8）、日々の更新方式（F9）、分割の検知と取り直し（FR-D3, S11）。
 import { isExternal } from '@shared/markets'
 import type { InstrumentId, InstrumentKind, JobKind, JobProgress, JstDate } from '@shared/types'
-import { addDays, addYears, CLOSE_MINUTES, isTradingDay, jstNow, lastClosedSession, prevTradingDay, toJstDate } from './calendar'
+import {
+  addDays,
+  addYears,
+  CLOSE_MINUTES,
+  isTradingDay,
+  jstNow,
+  lastClosedSession,
+  prevTradingDay,
+  retentionStart,
+  toJstDate,
+} from './calendar'
 import { computeMetrics, METRIC_BARS } from './metrics'
 import { type Provider, ProviderError, type RawBar } from './providers/types'
 import { idOf, N225, type Repo } from './repo'
@@ -351,7 +361,7 @@ export class JobRunner {
   }
 
   retentionStart(): JstDate {
-    return addYears(jstNow().date, -this.h.retentionYears())
+    return retentionStart(jstNow().date, this.h.retentionYears())
   }
 
   // ---------------------------------------------------------------- items

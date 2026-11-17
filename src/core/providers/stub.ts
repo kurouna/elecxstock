@@ -163,7 +163,7 @@ function series(code: string) {
     }
   }
   // 分割の検知・調整を試すための架空の分割（日付・比率は実際とは無関係）
-  const splits: Split[] = code === '7203' ? [{ date: '2023-04-26', ratio: 3 }] : code === '9434' ? [{ date: '2024-06-26', ratio: 4 }] : []
+  const splits: Split[] = code === '7203' ? [{ date: '2024-04-26', ratio: 3 }] : code === '9434' ? [{ date: '2024-06-26', ratio: 4 }] : []
   const out = { bars, dividends, splits }
   cache.set(key, out)
   return out

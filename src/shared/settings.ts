@@ -6,7 +6,7 @@ export const DEFAULT_SETTINGS: Settings = {
   candleStyle: 'jp',
   density: 'normal',
   uiScale: 1,
-  retentionYears: 5,
+  retentionYears: 3,
   disclaimerAccepted: false,
   firstRunDone: false,
   userInstruments: [],

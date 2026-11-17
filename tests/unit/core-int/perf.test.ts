@@ -1,4 +1,4 @@
-// 性能（NFR-P2）: ローカルにある銘柄のチャートの切り替え（日足 5 年 + 週・月の集計込み）が 100ms 以内。種の DB（既定の保存期間 5 年）で測る
+// 性能（NFR-P2）: ローカルにある銘柄のチャートの切り替え（日足 5 年 + 週・月の集計込み）が 100ms 以内。種の DB（既定の保存期間 3 年）で測る
 import { afterAll, describe, expect, it } from 'vitest'
 import { makeCore } from '../../support/core'
 

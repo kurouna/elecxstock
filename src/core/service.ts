@@ -31,7 +31,7 @@ import type {
   Timeframe,
 } from '@shared/types'
 import { AlertBook, decide, decideScreen, evaluateAlert, type ScreenEval } from './alerts'
-import { addYears, jstNow, lastClosedSession } from './calendar'
+import { jstNow, lastClosedSession, retentionStart } from './calendar'
 import { Db } from './db'
 import { atOf, contribOf, dividendsOf, FolioBook, type Market, recordPoint, seriesResult } from './folio'
 import { applyImport, exportHoldings, normalize, previewBrokerCsv, previewImport } from './holdings'
@@ -704,7 +704,7 @@ export class CoreService {
       case 'jobs.planRetention': {
         const years = Number(P.years)
         const cur = this.user.load('settings').retentionYears
-        const cutoff = addYears(jstNow().date, -years)
+        const cutoff = retentionStart(jstNow().date, years)
         const rows = years < cur ? r.countDailyBefore(cutoff) : 0
         return { years, deleteBefore: years < cur ? cutoff : null, rows, approxBytes: rows * 60 } as Results[M]
       }
@@ -715,7 +715,7 @@ export class CoreService {
         this.user.save('settings', { ...s, retentionYears: years })
         if (years < cur) {
           // 確認のあと、範囲外の日足を削除して空き領域を回収する（FR-D6）
-          r.deleteDailyBefore(addYears(jstNow().date, -years))
+          r.deleteDailyBefore(retentionStart(jstNow().date, years))
           this.db.vacuum()
           await this.jobs.recomputeAll()
           this.evaluateAlerts()

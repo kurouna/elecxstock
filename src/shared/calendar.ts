@@ -26,6 +26,14 @@ export function addYears(d: JstDate, n: number): JstDate {
   return `${y}${d.slice(4)}`
 }
 
+/** 日足の保存期間の始まりに足す余裕（日）。N 年ちょうどでは営業日が N 年の指標（3 年の騰落率は 736 本）に少し足りないため */
+export const RETENTION_MARGIN_DAYS = 31
+
+/** 日足の保存期間（N 年）の始まり。取得と削除の境が同じになるよう、この関数だけで決める（FR-D6） */
+export function retentionStart(today: JstDate, years: number): JstDate {
+  return addDays(addYears(today, -years), -RETENTION_MARGIN_DAYS)
+}
+
 const holidayCache = new Map<number, Set<JstDate>>()
 
 /** 日本の祝日（内閣府の規則。春分・秋分は近似式）。1980〜2099 で使う */
