@@ -86,3 +86,64 @@ describe('FR-SIM5 上場廃止の銘柄（sim.run）', () => {
     core.svc.sim.clear()
   })
 })
+
+describe('FR-SIM2 2 回目のレビューの反映（Core）', () => {
+  it('上場廃止の銘柄には月次系列の取得を頼まない', async () => {
+    const { SimData } = await import('@core/sim')
+    const asked: string[] = []
+    const db = core.svc.repo.db
+    db.run(`UPDATE instruments SET status = 'delisted' WHERE id = 'JP:8031'`)
+    db.run(`UPDATE fetch_state SET last_monthly = NULL WHERE id IN ('JP:8031', 'JP:8001')`)
+    const sd = new SimData(
+      core.svc.repo,
+      () => 3,
+      (id) => asked.push(id),
+    )
+    sd.run(['JP:8031', 'JP:8001'], S)
+    expect(asked).toContain('JP:8001')
+    expect(asked).not.toContain('JP:8031')
+    db.run(`UPDATE instruments SET status = 'active' WHERE id = 'JP:8031'`)
+  })
+  it('データの基準の日が変わったら、配当の記録の始まり・ストレスの母集団のキャッシュを作り直す', async () => {
+    const { SimData } = await import('@core/sim')
+    const db = core.svc.repo.db
+    const sd = new SimData(core.svc.repo, () => 3)
+    const last = db.get<{ d: string }>(`SELECT MAX(d) d FROM daily_bars WHERE id = 'JP:8058'`)!.d
+    const saved = db.all<{ id: string; d: string; o: number; h: number; l: number; c: number; v: number; prov: number }>(
+      `SELECT * FROM daily_bars WHERE id = 'JP:8058' AND d = ?`,
+      last,
+    )
+    db.run(`DELETE FROM daily_bars WHERE id = 'JP:8058' AND d = ?`, last)
+    const a = sd.run(['JP:8058'], S)
+    expect(a.asOf < last).toBe(true)
+    const b = sd.run(['JP:8001'], S)
+    expect(b.asOf).toBe(last)
+    expect(sd.cachedFor).toBe(last)
+    for (const r of saved)
+      db.run(
+        `INSERT INTO daily_bars(id, d, o, h, l, c, v, prov) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+        r.id,
+        r.d,
+        r.o,
+        r.h,
+        r.l,
+        r.c,
+        r.v,
+        r.prov,
+      )
+  })
+  it('同業種の相手の月末の終値は、0 以下の終値を飛ばしてその月の最後の有効な終値', async () => {
+    const { SimData } = await import('@core/sim')
+    const db = core.svc.repo.db
+    const sd = new SimData(core.svc.repo, () => 3)
+    const end = db.get<{ d: string }>(`SELECT MAX(d) d FROM daily_bars WHERE id = 'JP:8001' AND d < '2026-10-01'`)!.d
+    const prev = db.get<{ c: number }>(`SELECT c FROM daily_bars WHERE id = 'JP:8001' AND d < ? ORDER BY d DESC LIMIT 1`, end)!.c
+    const orig = db.get<{ c: number }>(`SELECT c FROM daily_bars WHERE id = 'JP:8001' AND d = ?`, end)!.c
+    db.run(`UPDATE daily_bars SET c = 0 WHERE id = 'JP:8001' AND d = ?`, end)
+    const px = (sd as unknown as { litePx: (id: string) => { d: string[]; c: number[] } }).litePx('JP:8001')
+    const i = px.d.indexOf(`${end.slice(0, 7)}-01`)
+    expect(i).toBeGreaterThanOrEqual(0)
+    expect(px.c[i]).toBe(prev)
+    db.run(`UPDATE daily_bars SET c = ? WHERE id = 'JP:8001' AND d = ?`, orig, end)
+  })
+})

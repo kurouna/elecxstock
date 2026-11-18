@@ -15,6 +15,7 @@ import { onMount, untrack } from 'svelte'
 import { fitColumns } from '../../lib/columns'
 import {
   basisNotes,
+  blockedWhileLoading,
   cycle,
   FWD_SORTS,
   indexAt,
@@ -22,6 +23,7 @@ import {
   PAST_SORTS,
   parseAmount,
   pct,
+  pillGeom,
   receiptMonths,
   SIM_COMPARES,
   SIM_MIN_LOADING,
@@ -34,6 +36,7 @@ import {
   simViewOf,
   sortFwd,
   sortPast,
+  sourceStep,
   splitTemplate,
   spreadLabels,
   toPct,
@@ -83,12 +86,17 @@ $effect(() => {
   let conds: Condition[] | null = null
   if (src === 'live') conds = liveConditions()
   else if (src.startsWith('scr:')) conds = app.screens.find((s) => `scr:${s.id}` === src)?.conditions ?? []
-  if (!conds) return
-  // 出どころを替えたら、前の出どころの結果のまま計算しない（新しい結果が来るまで読み込み中）
-  if (src !== lastSrc) {
-    lastSrc = src
+  // 出どころを替えたら、前の出どころの結果のまま計算しない（新しい結果が来るまで読み込み中）。ウォッチリストへ替えたときも覚える
+  const step = sourceStep(lastSrc, src)
+  lastSrc = step.last
+  if (step.reset && step.screen) {
     screenIds = null
     loading = true
+  }
+  if (!conds) {
+    // ウォッチリスト: 走っているスクリーナーの古い結果を受けない
+    tokenScr++
+    return
   }
   const my = ++tokenScr
   const favs = app.watchlists.find((w) => w.builtin === 'favorites')?.items ?? []
@@ -197,6 +205,7 @@ async function run(ids: InstrumentId[], st: typeof settings, key: string, my = +
     error = null
     cross = -1
     fcross = -1
+    msel = -1
     announce = t('sim.done')
   } catch (e) {
     if (my !== token) return
@@ -415,6 +424,7 @@ function key(e: KeyboardEvent): boolean {
   const c = e.code
   const k = e.key
   if (c === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    if (loading || !result) return true
     const cs = CARDS[tab]
     const i = card ? cs.indexOf(card) : -1
     selectCard(cs[(i + (e.shiftKey ? -1 : 1) + cs.length + (i < 0 && e.shiftKey ? 1 : 0)) % cs.length]!)
@@ -427,6 +437,12 @@ function key(e: KeyboardEvent): boolean {
     return true
   }
   if (e.ctrlKey || e.altKey || e.metaKey) return false
+  if (k === 'Enter' && error) {
+    retry()
+    return true
+  }
+  // 読み込み中・結果が無いときは、画面に出ていないカード・行を動かさない（設定のキーは受ける）
+  if ((loading || !result) && blockedWhileLoading(c)) return true
   const n = rows.length
   const page = Math.max(1, Math.floor((body?.clientHeight ?? 400) / 48))
   if ((k === 'PageUp' || k === 'PageDown') && card !== 'table') {
@@ -714,8 +730,9 @@ onMount(() =>
                 <text x={g.x(0)} y={g.yb(fwd.y1) - 4} class="ax mid num">{yen(fwd.y1, lang)}</text>
                 {#if g.payback >= 0}
                   <line x1={g.x(g.payback)} x2={g.x(g.payback)} y1={g.pad.t} y2={fh - g.pad.b} class="cross" />
-                  <rect class="pill" x={g.x(g.payback) + 2} y={g.pad.t - 2} width="70" height="14" rx="3" />
-                  <text x={g.x(g.payback) + 6} y={g.pad.t + 8} class="ax">{t('sim.payback')}</text>
+                  {@const pg = pillGeom(g.x(g.payback), fw - g.pad.r, t('sim.payback'))}
+                  <rect class="pill" x={pg.x} y={g.pad.t - 2} width={pg.w} height="14" rx="3" />
+                  <text x={pg.x + 4} y={g.pad.t + 8} class="ax">{t('sim.payback')}</text>
                 {/if}
               </svg>
               {#if fci >= 0}
@@ -762,6 +779,7 @@ onMount(() =>
       </section>
       <section class="card c-table" class:sel={card === 'table'} data-card="table" role="group" aria-label={t('sim.table')} aria-current={card === 'table'}>
         <h3>{t('sim.table')} <span class="dim">{t('sim.tableSub')}</span>
+          <span class="dim" data-testid="sim-sort">{t('sim.sortBy', { k: cols.find((c) => c.id === (tab === 'past' ? psort : fsort))?.label() ?? '' })}</span>
           {#if tab === 'past' && past?.rows.some((r) => r.rank?.s17)}<span class="right dim">{t('sim.rank17')}</span>{/if}
         </h3>
         <div class="tbl" bind:clientWidth={tableW}>

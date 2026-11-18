@@ -51,6 +51,21 @@ export function cycle<T>(xs: readonly T[], v: T, d = 1): T {
   const i = xs.indexOf(v)
   return xs[(((Math.max(i, 0) + d) % xs.length) + xs.length) % xs.length]!
 }
+/**
+ * 出どころの切り替え: 前の出どころ（last）と今（src）から、覚える値・結果を捨てて読み込み中から始めるか・スクリーナーを走らせるか。
+ * ウォッチリストへ替えたときも覚える（スクリーナーへ戻したときに、前のスクリーナーの結果で計算しない）
+ */
+export function sourceStep(last: string, src: string): { last: string; reset: boolean; screen: boolean } {
+  return { last: src, reset: src !== last, screen: src === 'live' || src.startsWith('scr:') }
+}
+/** 読み込み中・結果が無いときに受けないキー（画面に出ていないカード・表の行を動かさない。設定のキーは受ける） */
+const MOVE_KEYS = new Set(['Tab', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Home', 'End', 'KeyN', 'KeyS', 'Escape'])
+export const blockedWhileLoading = (code: string): boolean => MOVE_KEYS.has(code)
+/** 縦線に添える札（「元本を回収」）: 文字の幅に合わせ、右端に近ければ縦線の左に出す */
+export function pillGeom(x: number, right: number, label: string): { x: number; w: number } {
+  const w = [...label].reduce((s, ch) => s + (ch.charCodeAt(0) > 0x7f ? 10 : 5.6), 0) + 8
+  return { x: x + 2 + w > right - 2 ? x - 2 - w : x + 2, w }
+}
 /** 計算し直すかを決める鍵: 計算する銘柄の集合と順（上限で切る順に効く）と設定。表示の状態は入れない */
 export function simKey(ids: InstrumentId[], s: SimSettings): string {
   return `${ids.join(',')}|${s.years}|${s.amount}|${s.reinvest}|${s.tax}|${s.sector}|${s.horizon}`
@@ -132,6 +147,8 @@ export function basisNotes(r: SimResult, tab: SimTab, screen: boolean): Note[] {
   } else {
     out.push({ k: 'sim.n.estimate' })
     if (r.fwd.stress) out.push({ k: 'sim.n.stress', a: { y: r.fwd.stress.year, p: pct(r.fwd.stress.ratio - 1) } })
+    const gone = r.excluded.filter((x) => x.reason === 'delisted').length
+    if (gone) out.push({ k: 'sim.n.delistedFwd', a: { n: gone }, warn: true })
     const short = r.fwd.rows.filter((x) => x.short).length
     if (short) out.push({ k: 'sim.n.short', a: { n: short }, warn: true })
   }

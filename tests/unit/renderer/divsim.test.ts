@@ -205,3 +205,38 @@ describe('FR-SIM4 FR-SIM5 表の印（期間不足・業種の値・月次）と
     expect(basisNotes(r, 'past', true).find((n) => n.k === 'sim.n.excluded')?.a).toMatchObject({ n: 1, c: 1 })
   })
 })
+
+describe('FR-SIM1 FR-SIM6 FR-SIM7 2 回目のレビューの反映', () => {
+  it('出どころ: ウォッチリストへ替えても覚え、スクリーナーへ戻したら読み込み中から始める', async () => {
+    const { sourceStep } = await import('../../../src/renderer/lib/divsim')
+    let st = sourceStep('', 'live')
+    expect(st).toEqual({ last: 'live', reset: true, screen: true })
+    st = sourceStep(st.last, 'live')
+    expect(st.reset).toBe(false)
+    st = sourceStep(st.last, 'favorites')
+    expect(st).toEqual({ last: 'favorites', reset: true, screen: false })
+    st = sourceStep(st.last, 'live')
+    expect(st).toEqual({ last: 'live', reset: true, screen: true })
+  })
+  it('読み込み中・結果が無いときは、画面の中を動かすキー（Tab・矢印・Enter など）を受けない。設定のキーは受ける', async () => {
+    const { blockedWhileLoading } = await import('../../../src/renderer/lib/divsim')
+    for (const k of ['Tab', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Home', 'End', 'KeyN', 'KeyS'])
+      expect(blockedWhileLoading(k), k).toBe(true)
+    for (const k of ['KeyR', 'KeyX', 'KeyB', 'KeyL', 'KeyA', 'PageDown', 'PageUp']) expect(blockedWhileLoading(k), k).toBe(false)
+  })
+  it('これから: 上場廃止で外した銘柄があれば、前提に理由を出す', () => {
+    const r = result({ stocks: [stock('A'), stock('D', { delisted: true })] })
+    const n = basisNotes(r, 'fwd', true).find((x) => x.k === 'sim.n.delistedFwd')
+    expect(n).toMatchObject({ a: { n: 1 }, warn: true })
+    expect(basisNotes(result(), 'fwd', true).some((x) => x.k === 'sim.n.delistedFwd')).toBe(false)
+  })
+  it('「元本を回収」の札: 文字の幅に合わせ、右端に近ければ縦線の左に出す', async () => {
+    const { pillGeom } = await import('../../../src/renderer/lib/divsim')
+    const ja = pillGeom(100, 600, '元本を回収')
+    expect(ja.x).toBeGreaterThan(100)
+    const en = pillGeom(100, 600, 'Principal recovered')
+    expect(en.w).toBeGreaterThan(ja.w)
+    const right = pillGeom(580, 600, '元本を回収')
+    expect(right.x + right.w).toBeLessThanOrEqual(578)
+  })
+})

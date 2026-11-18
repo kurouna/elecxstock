@@ -34,12 +34,15 @@ export class SimData {
 
   /** 取得の完了で捨てる */
   clear(): void {
+    this.cachedFor = null
     this.full.clear()
     this.lite.clear()
     this.insts = null
     this.pool = null
     this.divFromCache.clear()
   }
+  /** キャッシュを作ったデータの基準の日（変わったら作り直す。配当の記録の始まり・ストレスの母集団がこの日で決まるため） */
+  cachedFor: JstDate | null = null
   /** キャッシュしている銘柄の数（テスト用） */
   get cached(): number {
     return this.full.size + this.lite.size
@@ -54,6 +57,13 @@ export class SimData {
       if (d && (!today || d > today)) today = d
     }
     today ??= lastClosedSession()
+    if (today !== this.cachedFor) {
+      this.full.clear()
+      this.lite.clear()
+      this.pool = null
+      this.divFromCache.clear()
+      this.cachedFor = today
+    }
     this.today = today
     const stocks = pick.map((id) => this.stock(id, true)).filter((s): s is SimStock => !!s)
     const byKey = new Map<string, Instrument[]>()
@@ -102,7 +112,8 @@ export class SimData {
     let s: SimStock | null = null
     if (i) {
       const px = full ? this.fullPx(id) : this.litePx(id)
-      if (full && !this.repo.fetchState(id).lastMonthly && this.repo.yahooOf(id)) this.needMonthly(id)
+      // 上場廃止の銘柄は計算に入れないので、取得も頼まない
+      if (full && i.status === 'active' && !this.repo.fetchState(id).lastMonthly && this.repo.yahooOf(id)) this.needMonthly(id)
       s = {
         id,
         ...this.attrs(i),
@@ -124,7 +135,7 @@ export class SimData {
   /** 月末の終値だけ: 日足の月ごとの最後の終値と、日足より前の月次系列（1 回の検索ずつ。日足は読み込まない） */
   private litePx(id: InstrumentId): Px {
     const ends = this.repo.db.all<{ m: string; c: number }>(
-      'SELECT substr(d, 1, 7) AS m, MAX(d) AS d, c FROM daily_bars WHERE id = ? GROUP BY m ORDER BY m',
+      'SELECT substr(d, 1, 7) AS m, MAX(d) AS d, c FROM daily_bars WHERE id = ? AND c > 0 GROUP BY m ORDER BY m',
       id,
     )
     const first = ends[0]?.m ?? '9999-99'

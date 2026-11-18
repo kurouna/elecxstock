@@ -30,7 +30,7 @@ export function annualOf(divs: Dividend[], asOf: JstDate, reit: boolean): { d0: 
 /** 直近 1 年の権利落ち（古い順） */
 export function lastYearEvents(divs: Dividend[], asOf: JstDate): Dividend[] {
   const y1 = addYears(asOf, -1)
-  return divs.filter((d) => d.date > y1 && d.date <= asOf && d.amount > 0).sort((a, b) => (a.date < b.date ? -1 : 1))
+  return divs.filter((d) => d.date > y1 && d.date <= asOf && d.amount > 0).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 }
 
 /**
@@ -44,7 +44,7 @@ export function monthShares(divs: Dividend[], asOf: JstDate, reit: boolean): num
   if (reit) {
     const xs = divs
       .filter((d) => d.date <= asOf && d.amount > 0)
-      .sort((a, b) => (a.date < b.date ? -1 : 1))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
       .slice(-4)
     for (const m of new Set(last.map((d) => Number(d.date.slice(5, 7)) - 1)))
       out[m] = median(xs.filter((d) => Number(d.date.slice(5, 7)) - 1 === m).map((d) => d.amount)) ?? 0

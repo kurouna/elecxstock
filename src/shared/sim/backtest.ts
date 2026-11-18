@@ -112,7 +112,9 @@ export function hold(inp: HoldIn, ends: JstDate[]): HoldOut | null {
   const monthlyBuy = isMonthlyAt(inp.px, inp.base)
   const from = monthlyBuy ? endOfMonth(inp.base) : inp.base
   const last = ends.at(-1) ?? inp.base
-  const divs = inp.divs.filter((x) => x.date > from && x.date <= last && x.amount > 0).sort((a, b) => (a.date < b.date ? -1 : 1))
+  const divs = inp.divs
+    .filter((x) => x.date > from && x.date <= last && x.amount > 0)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
   const shares0 = inp.amount / buy
   let shares = shares0
   let received = 0

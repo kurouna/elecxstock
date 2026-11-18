@@ -118,6 +118,10 @@ test.describe('配当シミュレータのキー操作（FR-SIM3・SIM4・SIM6�
     expect(id).toBeTruthy()
     await keys(page, 'Enter')
     await expect(page.locator('[data-widget="info"]').first()).toContainText(id!.replace('JP:', ''))
+    // 並べ替えの名前を見出しに出す（狭い幅で列が隠れても何順か分かる）
+    await expect(s.getByTestId('sim-sort')).toContainText('1 年目')
+    await keys(page, 's')
+    await expect(s.getByTestId('sim-sort')).toContainText('利回り')
     // N で前提のカードを選ぶ
     await keys(page, 'n')
     await expect(s.locator('[data-card="basis"]')).toHaveClass(/sel/)
