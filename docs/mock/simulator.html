@@ -55,11 +55,20 @@ kbd { font: 500 var(--fs-0) var(--mono); color: var(--text-3); border: 1px solid
 
 /* ペインの枠 */
 .pane { container-type: inline-size; width: var(--w, 1480px); height: var(--h, 900px); background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; position: relative; }
-.ph { height: 24px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-2); border-bottom: 1px solid var(--line); background: var(--panel-2); color: var(--text-2); flex: none; white-space: nowrap; overflow: hidden; }
+.ph { height: 28px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-2); border-bottom: 1px solid var(--line); background: var(--panel-2); color: var(--text-2); flex: none; white-space: nowrap; overflow: hidden; }
 .ph .link { width: 14px; height: 14px; border-radius: 3px; background: #2fae74; color: #000; font-size: 9px; display: grid; place-items: center; font-weight: 700; flex: none; }
 .ph .title { color: var(--text); font-weight: 500; flex: none; }
 .ph .virtual, .ph .nav, .ph .badge { flex: none; }
-@container (max-width: 699px) { .ph .asof, .ph .virtual { display: none; } .ph .nav { margin-left: auto; } }
+@container (max-width: 699px) { .ph .asof, .ph .virtual { display: none; } .ph .tools { margin-left: auto; } }
+.ph .tools { display: inline-flex; gap: 2px; flex: none; opacity: .45; }
+.ph .tools i { font-style: normal; width: 20px; height: 20px; display: grid; place-items: center; color: var(--text-3); font-size: 12px; border-radius: var(--radius); }
+.ph:hover .tools { opacity: 1; }
+/* 2 段目: 段のタブ（縮めない）と、文で読める設定の帯（入らなければ帯だけ次の行へ） */
+.sub { display: flex; align-items: center; gap: 4px 14px; padding: 0 12px 0 6px; border-bottom: 1px solid var(--line); background: var(--panel); flex: none; flex-wrap: wrap; }
+.sub .nav { margin-left: 0; flex: none; align-self: stretch; align-items: center; }
+.sub .nav span { line-height: 34px; border-radius: 0; }
+.sub .nav span.on { background: transparent; box-shadow: inset 0 -2px 0 var(--focus); }
+.sub .cfg { flex: 1 1 340px; border-bottom: 0; padding: 4px 0; background: transparent; }
 .virtual { font-size: var(--fs-0); color: var(--sim-virtual); border: 1px solid color-mix(in srgb, var(--sim-virtual) 55%, transparent); border-radius: var(--radius); padding: 0 5px; line-height: 15px; letter-spacing: .04em; }
 .src { display: block; flex: 0 1 auto; white-space: nowrap; gap: 6px; font-size: var(--fs-1); color: var(--text-2); border: 1px solid var(--line-strong); border-radius: 9px; padding: 0 8px; line-height: 17px; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .src .dot { width: 7px; height: 7px; border-radius: 2px; background: #2fae74; display: inline-block; margin-right: 6px; vertical-align: 0; }
@@ -277,10 +286,13 @@ kbd { font: 500 var(--fs-0) var(--mono); color: var(--text-3); border: 1px solid
       <span class="virtual" title="保有ではなく、仮想の銘柄群の試算">仮想</span>
       <span class="src" id="src" title="出どころ（L）"><span class="dot"></span><span id="srcName"></span></span>
       <span class="badge" id="badge" title="前提（N）"></span>
-      <span class="nav" id="nav" role="tablist"><span data-sec="past" class="on" role="tab">過去 <kbd>PgUp</kbd></span><span data-sec="fwd" role="tab">これから <kbd>PgDn</kbd></span></span>
       <span class="asof num">基準 2026-11-13 大引け</span>
+      <span class="tools" aria-hidden="true" title="アプリの PaneHeader の操作のボタン（モックでは飾り）"><i>⋯</i><i>◫</i><i>⊟</i><i>▾</i><i>⇤</i><i>⤢</i><i>✕</i></span>
     </div>
-    <div class="cfg" id="cfg"></div>
+    <div class="sub">
+      <span class="nav" id="nav" role="tablist"><span data-sec="past" class="on" role="tab">過去 <kbd>PgUp</kbd></span><span data-sec="fwd" role="tab">これから <kbd>PgDn</kbd></span></span>
+      <div class="cfg" id="cfg"></div>
+    </div>
     <div class="body" id="body">
       <div class="loader" role="status" aria-live="polite"><div class="box"><div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="ttl">計算しています</div><div class="what" id="loaderWhat"></div><div class="prog"></div></div></div>
       <div class="empty">
@@ -842,7 +854,7 @@ function heroFwd() {
     <div class="lead">今 <b class="num">${man(st.amt)}</b> を ${items.length} 銘柄へ均等に入れたら、<b>${st.fcross != null ? `${years[k]} 年` : '1 年目'}</b>（${METHODS[st.method].l}）</div>
     <div class="big num gold">${man(y1)}<small>/ 年</small></div>
     <div class="stats">
-      <div class="stat"><span class="k">元本に対する利回り</span><span class="v num">${pc(y1 / st.amt, 2)}</span></div>
+      <div class="stat"><span class="k">元本に対する利回り</span><span class="v num">${y1 > 0 ? pc(y1 / st.amt, 2) : '—'}</span></div>
       <div class="stat"><span class="k">${years.length} 年の累計</span><span class="v num gold">${man(cumL.at(-1))}</span></div>
       <div class="stat"><span class="k">${FC.worst} 年の前年比を当てたら</span><span class="v num"><span class="down">${man(ys)}</span> <span class="mute" style="font-size:var(--fs-1)">${pct(ys / FC.flat[0] - 1)}</span></span></div>
       <div class="stat"><span class="k">月あたり（目安）</span><span class="v num">${yen(y1 / 12)}</span></div>
@@ -905,7 +917,7 @@ function calChart() {
   s += '</svg>'; el.innerHTML = s
   const nz = tot.filter((v) => v > 0).length
   const sel = st.calSel != null ? cal[st.calSel] : null
-  $('#calNote').innerHTML = sel ? `<b style="color:var(--text)">${MN[st.calSel]}</b> ${man(tot[st.calSel])}: ${sel.slice(0, 4).map((p) => `${esc(p.it.s.name)} ${(p.v / 1e4).toFixed(1)}万`).join('・') || 'なし'}${sel.length > 4 ? ` ほか ${sel.length - 4}` : ''}` : `配当のある月: <b style="color:var(--text)">${nz}/12</b>。いちばん多い月は ${MN[tot.indexOf(Math.max(...tot))]}（年の ${pc(Math.max(...tot) / tot.reduce((a, b) => a + b, 0), 0)}）`
+  $('#calNote').innerHTML = sel ? `<b style="color:var(--text)">${MN[st.calSel]}</b> ${man(tot[st.calSel])}: ${sel.slice(0, 4).map((p) => `${esc(p.it.s.name)} ${(p.v / 1e4).toFixed(1)}万`).join('・') || 'なし'}${sel.length > 4 ? ` ほか ${sel.length - 4}` : ''}` : `配当のある月: <b style="color:var(--text)">${nz}/12</b>。${nz ? `いちばん多い月は ${MN[tot.indexOf(Math.max(...tot))]}（年の ${pc(Math.max(...tot) / tot.reduce((a, b) => a + b, 0), 0)}）` : '（配当の合計が 0 円）'}`
   seg('#segV', ['受取の目安', '権利確定月'], st.calView, 'V', (i) => (st.calView = i))
 }
 function sensChart() {
@@ -916,7 +928,7 @@ function sensChart() {
   const list = items.map((it) => ({ it, zero: it.sh * it.D0 * t, stress: it.sh * it.D0 * t * (1 - Math.min(1, it.sy.r)) })).sort((a, b) => b.zero - a.zero).slice(0, Math.max(3, Math.floor((H - 6) / 19)))
   $('#sensSub').textContent = `1 年目 ${man(tot)} のうち`
   const mx = list[0]?.zero || 1
-  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px;position:absolute;inset:0;overflow:hidden">${list.map((x) => `<div style="display:grid;grid-template-columns:minmax(80px,1.1fr) 2fr 92px;gap:8px;align-items:center;font-size:var(--fs-1);height:16px"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-2)"><span class="code num mute" style="margin-right:5px">${x.it.s.code}</span>${esc(x.it.s.name)}</span><span style="position:relative;height:8px;background:var(--panel-3);border-radius:1px"><i style="position:absolute;left:0;top:0;bottom:0;width:${(x.zero / mx) * 100}%;background:var(--sim-bar);border-radius:1px"></i><i style="position:absolute;left:0;top:0;bottom:0;width:${(x.stress / mx) * 100}%;background:var(--down);border-radius:1px"></i></span><span class="num" style="text-align:right">−${man(x.zero)} <span class="mute">${pc(x.zero / tot, 0)}</span></span></div>`).join('')}</div>`
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px;position:absolute;inset:0;overflow:hidden">${list.map((x) => `<div style="display:grid;grid-template-columns:minmax(80px,1.1fr) 2fr 92px;gap:8px;align-items:center;font-size:var(--fs-1);height:16px"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-2)"><span class="code num mute" style="margin-right:5px">${x.it.s.code}</span>${esc(x.it.s.name)}</span><span style="position:relative;height:8px;background:var(--panel-3);border-radius:1px"><i style="position:absolute;left:0;top:0;bottom:0;width:${(x.zero / mx) * 100}%;background:var(--sim-bar);border-radius:1px"></i><i style="position:absolute;left:0;top:0;bottom:0;width:${(x.stress / mx) * 100}%;background:var(--down);border-radius:1px"></i></span><span class="num" style="text-align:right">−${man(x.zero)} <span class="mute">${tot > 0 ? pc(x.zero / tot, 0) : '—'}</span></span></div>`).join('')}</div>`
 }
 const FSORT = [{ l: '1 年目', f: (x) => -x.sh * x.D0 }, { l: '試算の伸び', f: (x) => -x.g }, { l: 'ストレス', f: (x) => x.sy.r }, { l: 'コード', f: (x) => +x.s.code }]
 function fwdTable() {
