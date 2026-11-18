@@ -268,16 +268,21 @@ export const PARAMS = {
   'sim.run': z.object({
     ids: z.array(id).max(5000),
     settings: z.object({
-      years: z.union([z.literal(1), z.literal(3), z.literal(5)]),
+      years: z.union([z.literal(1), z.literal(3), z.literal(5), z.literal(10)]),
+      from: jstDate.nullable(),
+      monthly: z.number().min(0).max(1e9),
+      weight: z.enum(['equal', 'yield']),
       amount: z.number().min(10_000).max(1e10),
       reinvest: z.boolean(),
       tax: z.enum(['gross', 'taxed', 'nisa']),
       sector: z.enum(['s33', 's17']),
       horizon: z.union([z.literal(5), z.literal(10), z.literal(20), z.literal(30)]),
-      method: z.enum(['flat', 'growth']),
+      method: z.enum(['flat', 'growth', 'trend']),
     }),
     /** 保有を出どころに（これからは Core が読む保有の株数と口座ごとの税で計算する。設計 §23） */
     held: z.boolean().optional(),
+    /** 当時の条件で選び直す（過去の銘柄を、基準日の値で条件を当て直して選ぶ。P2） */
+    rescreen: z.object({ conditions: z.array(cond).max(40), favorites: ids, watchlists: z.record(z.string(), ids) }).optional(),
   }),
   'data.backup': z.object({}),
   'app.checkUpdate': z.object({}),

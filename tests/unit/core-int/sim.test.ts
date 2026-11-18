@@ -171,3 +171,64 @@ describe('FR-SIM11 保有を出どころに（sim.run）', () => {
     await call('portfolio.save', { holdings: before })
   })
 })
+
+describe('FR-SIM7 同業種の相手をまとめて読む（性能。21.11）', () => {
+  it('まとめて読んだ月末の終値・配当は、1 銘柄ずつ読んだものと同じ（11 年前から）', async () => {
+    const { SimData } = await import('@core/sim')
+    const sd = new SimData(core.svc.repo, () => 3) as unknown as {
+      run: (ids: string[], s: typeof S) => unknown
+      prefetchLite: (xs: { id: string }[]) => void
+      litePx: (id: string) => { d: string[]; c: number[] }
+      lite: Map<string, { px: { d: string[]; c: number[] }; divs: unknown[] } | null>
+      instruments: () => { id: string }[]
+    }
+    sd.run(['JP:8058'], S)
+    const ids = ['JP:8001', 'JP:8031', 'JP:8951']
+    sd.prefetchLite(sd.instruments().filter((i) => ids.includes(i.id)))
+    for (const id of ids) {
+      const a = sd.lite.get(id)!.px
+      const b = sd.litePx(id)
+      const from = a.d[0]!
+      const bi = b.d.indexOf(from)
+      expect(bi, id).toBeGreaterThanOrEqual(0)
+      expect(a.d, id).toEqual(b.d.slice(bi))
+      expect(a.c, id).toEqual(b.c.slice(bi))
+      expect(sd.lite.get(id)!.divs, id).toEqual(core.svc.repo.dividends(id))
+    }
+  })
+})
+
+describe('FR-SIM8 配当の記録の始まり（10 年の基準日のため）', () => {
+  it('月次系列を取った日の 10 年前から（今日より後の日付なら今日の 10 年前）。取っていなければ日足の保存期間の始まり', async () => {
+    const { divCoverFrom } = await import('@core/sim')
+    expect(divCoverFrom('2026-11-15T03:00:00.000Z', '2026-11-20', '2023-10-13')).toBe('2016-11-15')
+    expect(divCoverFrom('2027-01-01T03:00:00.000Z', '2026-11-20', '2023-10-13')).toBe('2016-11-20')
+    // 10 年分の配当を入れる前の版で月次系列を取った銘柄は、日足の保存期間の分しか配当を持たない
+    expect(divCoverFrom('2026-11-01T03:00:00.000Z', '2026-11-13', '2023-10-13')).toBe('2023-10-13')
+    expect(divCoverFrom(null, '2026-11-13', '2023-10-13')).toBe('2023-10-13')
+  })
+})
+
+describe('FR-SIM8 当時の条件で選び直す（sim.run）', () => {
+  it('過去は基準日の値で条件を当て直した銘柄で計算し、これからは今の銘柄のまま。使えなかった条件を返す', async () => {
+    const now = await call('sim.run', { ids: IDS, settings: S })
+    const r = await call('sim.run', {
+      ids: IDS,
+      settings: S,
+      rescreen: {
+        conditions: [
+          { field: 'income.yield', op: '>=', value: 3 },
+          { field: 'attr.market', op: 'in', value: ['P', 'R'] },
+          { field: 'value.per', op: '<=', value: 99 },
+        ],
+        favorites: [],
+        watchlists: {},
+      },
+    })
+    expect(r.past!.rescreen).toMatchObject({ ignored: ['value.per'] })
+    expect(r.past!.rescreen!.count).toBe(r.past!.rows.length + r.excluded.length)
+    expect(r.fwd.rows.map((x) => x.id)).toEqual(now.fwd.rows.map((x) => x.id))
+    // 基準日に利回り 3% 以上だった銘柄だけ（今の銘柄とは違ってよい）
+    expect(r.past!.rows.length).toBeGreaterThan(0)
+  })
+})

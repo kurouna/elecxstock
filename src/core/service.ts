@@ -44,7 +44,7 @@ import type { Provider } from './providers/types'
 import { idOf, Repo } from './repo'
 import { runScreen, type ScreenInput, screenable } from './screener'
 import { adjust, adjustMonthly, aggregate, mergeMonthly, toBars } from './series'
-import { SimData } from './sim'
+import { DIV10_SINCE, type RescreenInput, SimData } from './sim'
 import { defaultScreens, UserStore } from './userstore'
 
 /**
@@ -94,9 +94,6 @@ export function heldForSim(hs: Holding[]): Map<InstrumentId, { qty: number; net:
 
 export type Emit = <E extends keyof Events>(event: E, data: Events[E]) => void
 
-/** 月次系列の取得で 10 年分の配当を持つようにした版の日付（これより前に取った銘柄は取り直す） */
-const DIV10_SINCE = '2026-11-14'
-
 export class CoreService {
   /** この起動で配当の取り直しを頼んだ銘柄 */
   private divAsked = new Set<InstrumentId>()
@@ -113,6 +110,10 @@ export class CoreService {
   readonly drawings: DrawingBook
   /** 配当シミュレータの材料のキャッシュ（取得の完了で捨てる） */
   readonly sim: SimData
+  /** 10 年分の配当を入れた版の日付。スタブは時刻を固定していて（ELECXSTOCK_NOW）この日より前なので、取り直しの判断をしない */
+  private get div10Since(): string {
+    return this.provider.id === 'stub' ? '' : DIV10_SINCE
+  }
 
   constructor(
     dataDir: string,
@@ -134,6 +135,7 @@ export class CoreService {
       this.repo,
       () => this.user.load('settings').retentionYears,
       (id) => this.jobs.enqueue('monthly', [`M:${id}`]),
+      this.div10Since,
     )
     if (this.user.readOnly || this.user.load('settings') == null) {
       /* settings を最初に読んで読み取り専用かを決める */
@@ -372,6 +374,7 @@ export class CoreService {
           P.ids as InstrumentId[],
           P.settings as SimSettings,
           P.held ? heldForSim(this.holdings()) : undefined,
+          P.rescreen as RescreenInput | undefined,
         ) as Results[M]
       case 'data.backup': {
         // 市場データの DB のバックアップ（FR-S3）。data/backups に VACUUM INTO で書き、直近 3 つを残す
@@ -427,7 +430,7 @@ export class CoreService {
         const id = String(P.id)
         // 10 年分の配当は月次系列の取得で入る。この版より前に月次系列を取った銘柄は、見たときに一度だけ取り直す
         const lm = r.fetchState(id).lastMonthly
-        if (lm && lm < DIV10_SINCE && !this.divAsked.has(id) && r.fetchSet().some((x) => x.id === id)) {
+        if (lm && lm < this.div10Since && !this.divAsked.has(id) && r.fetchSet().some((x) => x.id === id)) {
           this.divAsked.add(id)
           this.jobs.enqueue('refetch', [`M:${id}`])
         }

@@ -34,9 +34,21 @@ import {
   simKey,
   simSettingsOf,
   simTargets,
+  defaultSource,
+  allowsLive,
+  saveScenario,
+  scenariosOf,
+  parseFrom,
+  parseMonthly,
+  sensitivity,
+  decompSteps,
+  goalOf,
   fwdChart,
   fwdReadout,
+  altApplies,
   keyApplies,
+  rescreenInput,
+  rescreenSig,
   heldIds,
   noPastHintKey,
   simViewOf,
@@ -45,12 +57,13 @@ import {
   sourceStep,
   splitTemplate,
   spreadLabels,
-  toPct,
   yen,
 } from '../../lib/divsim'
 import type { Key } from '../../lib/i18n'
+import { runAction } from '../../lib/commands'
 import { registerPane } from '../../lib/panes'
 import { setMaximized } from '../../lib/paneMax'
+import { IS_FREE } from '../../lib/windowSlot'
 import { MASK, privacy } from '../../lib/privacy.svelte'
 import { localX } from '../../lib/pointer'
 import { SelectionFollow } from '../../lib/selection'
@@ -77,7 +90,7 @@ const settings = $derived(simSettingsOf(S))
 const view = $derived(simViewOf(S))
 const tab = $derived(view.tab)
 const lang = $derived(app.settings.lang)
-const src = $derived((S.src as string | undefined) ?? 'live')
+const src = $derived((S.src as string | undefined) ?? defaultSource(IS_FREE))
 const psort = $derived((PAST_SORTS as readonly string[]).includes(S.psort as string) ? (S.psort as string) : 'total')
 const fsort = $derived(fwdSorts(settings.method).includes(S.fsort as string) ? (S.fsort as string) : 'y1')
 const set = (patch: Record<string, unknown>) => patchState(pane, patch)
@@ -188,7 +201,19 @@ let lastIdsKey = ''
 /** 保有を出どころにしている（群のとき） */
 const useHeld = $derived(isHeld && !isOne)
 const holdSig = $derived(useHeld ? app.holdings.map((h) => `${h.code}:${h.account}:${h.quantity}`).join(',') : '')
-const keyOf = (xs: InstrumentId[], st: typeof settings) => `${simKey(xs, st)}|${holdSig}`
+/** 当時の条件で選び直す（H。スクリーナー・保存スクリーンの出どころで、群のときだけ） */
+const useRescreen = $derived(S.rescreen === true && isScreen && !isOne)
+/** 選び直しの入力（条件・★・ウォッチリスト）。中身が変わったら計算し直す */
+const rescreenIn = $derived(
+  useRescreen
+    ? rescreenInput(
+        $state.snapshot(src === 'live' ? liveConditions() : (app.screens.find((s) => `scr:${s.id}` === src)?.conditions ?? [])) as Condition[],
+        $state.snapshot(app.watchlists) as { id: string; builtin?: string; items: InstrumentId[] }[],
+      )
+    : null,
+)
+const rsSig = $derived(rescreenSig(rescreenIn))
+const keyOf = (xs: InstrumentId[], st: typeof settings) => `${simKey(xs, st)}|${holdSig}|${rsSig}`
 const runKey = $derived(ids ? `${keyOf(ids, settings)}|${dataTick}` : null)
 $effect(() => {
   const k = runKey
@@ -226,7 +251,13 @@ async function run(ids: InstrumentId[], st: typeof settings, key: string, my = +
   const t0 = performance.now()
   announce = ''
   try {
-    const r = await bridge.call('sim.run', { ids: [...ids], settings: { ...st }, ...(held ? { held: true } : {}) })
+    const rs = rescreenIn
+    const r = await bridge.call('sim.run', {
+      ids: [...ids],
+      settings: { ...st },
+      ...(held ? { held: true } : {}),
+      ...(rs ? { rescreen: rs } : {}),
+    })
     const rest = SIM_MIN_LOADING - (performance.now() - t0)
     if (rest > 0) await new Promise((ok) => setTimeout(ok, rest))
     if (my !== token) return
@@ -258,7 +289,7 @@ onMount(() => () => clearTimeout(timer))
 const past = $derived(result?.past ?? null)
 const fwd = $derived(result?.fwd ?? null)
 // 後知恵は選び方の問題なので、1 銘柄でも出す
-const notes = $derived(result ? basisNotes(result, tab, isScreen || isOne) : [])
+const notes = $derived(result ? basisNotes(result, tab, isScreen || isOne, lang) : [])
 const warnCount = $derived(notes.filter((n) => n.warn).length)
 const nameFor = (id: InstrumentId) => nameOf(id)
 const sectorOf = (id: InstrumentId) => {
@@ -281,7 +312,7 @@ const rows = $derived<InstrumentId[]>(
       : sortFwd(result.fwd.rows, fsort).map((r) => r.id),
 )
 const staleOf = $derived(new Map((result?.stale ?? []).map((s) => [s.id, s.d])))
-const CARDS: Record<SimTab, string[]> = { past: ['hero', 'hist', 'years', 'basis', 'table'], fwd: ['hero', 'fy', 'cal', 'basis', 'table'] }
+const CARDS: Record<SimTab, string[]> = { past: ['hero', 'hist', 'years', 'wf', 'luck', 'basis', 'table'], fwd: ['hero', 'fy', 'cal', 'sens', 'basis', 'table'] }
 let card = $state<string | null>(null)
 let row = $state(0)
 let cross = $state(-1)
@@ -324,13 +355,50 @@ function scrollRow() {
 }
 async function pickSource() {
   const items = [
-    { id: 'live', label: t('sim.src.live') },
+    ...(allowsLive(IS_FREE) ? [{ id: 'live', label: t('sim.src.live') }] : []),
     { id: 'holdings', label: t('sim.src.holdings'), hint: t('sim.items', { n: heldIds(app.holdings).length }) },
     ...app.screens.map((s) => ({ id: `scr:${s.id}`, label: screenName(s), hint: t('sim.src.screen') })),
     ...app.watchlists.map((w) => ({ id: w.id, label: listName(w), hint: t('sim.src.list') })),
   ]
   const c = await choiceDialog(t('sim.src.title'), items)
   if (c) set({ src: c })
+}
+/** 基準日を日付で打つ（Alt+5。空にすると N 年前に戻す） */
+async function pickFrom() {
+  const v = await promptDialog(t('sim.fromTitle'), settings.from ?? '')
+  if (v == null) return
+  if (!v.trim()) return set({ from: null })
+  const d = parseFrom(v, result?.asOf ?? '9999-12-31')
+  if (d == null) toast(t('sim.fromBad'), undefined, 3000, 'error')
+  else set({ from: d })
+}
+/** 積立の額（月・万円。D。0 で止める） */
+async function pickMonthly() {
+  const v = await promptDialog(t('sim.dcaTitle'), String(settings.monthly / 10_000))
+  if (v == null) return
+  const m = parseMonthly(v)
+  if (m == null) toast(t('sim.dcaBad'), undefined, 3000, 'error')
+  else set({ monthly: m })
+}
+/** シナリオ（K）: 今の設定を名前で保存・読み込む・消す（ペインの状態に持つ） */
+async function pickScenario() {
+  const list = scenariosOf(S)
+  const items = [
+    { id: 'save', label: t('sim.sc.save') },
+    ...list.map((x) => ({ id: `load:${x.name}`, label: x.name, hint: t('sim.sc.load') })),
+    ...list.map((x) => ({ id: `del:${x.name}`, label: t('sim.sc.del', { name: x.name }) })),
+  ]
+  const c = await choiceDialog(t('sim.sc.title'), items)
+  if (!c) return
+  if (c === 'save') {
+    const name = (await promptDialog(t('sim.sc.name'), ''))?.trim().slice(0, 40)
+    if (!name) return
+    set({ scenarios: saveScenario(list, name, S) })
+    toast(t('sim.sc.saved', { name }))
+  } else if (c.startsWith('load:')) {
+    const x = list.find((y) => y.name === c.slice(5))
+    if (x) set({ ...x.state })
+  } else if (c.startsWith('del:')) set({ scenarios: list.filter((y) => y.name !== c.slice(4)) })
 }
 async function pickAmount() {
   const v = await promptDialog(t('sim.amountTitle'), String(settings.amount / 10_000))
@@ -340,7 +408,8 @@ async function pickAmount() {
   else set({ amount: yenV })
 }
 const steps = {
-  years: (d = 1) => set({ years: cycle(SIM_YEARS, settings.years, d) }),
+  years: (d = 1) => set({ years: settings.from ? settings.years : cycle(SIM_YEARS, settings.years, d), from: null }),
+  weight: () => set({ weight: settings.weight === 'equal' ? 'yield' : 'equal' }),
   horizon: (d = 1) => set({ horizon: cycle(SIM_HORIZONS, settings.horizon, d) }),
   div: () => set({ reinvest: !settings.reinvest }),
   tax: () => set({ tax: cycle(SIM_TAXES, settings.tax) }),
@@ -367,7 +436,14 @@ const steps = {
 /** 文の形の設定の帯の語（押すかキーで次の値。§7.1） */
 const tokens = $derived.by(
   (): Record<string, { label: string; key: string; run?: () => void }> => ({
-    years: { label: t('sim.yearsAgo', { n: settings.years }), key: 'Alt+1〜3', run: () => steps.years() },
+    years: {
+      label: settings.from ? t('sim.fromTok', { d: settings.from }) : t('sim.yearsAgo', { n: settings.years }),
+      key: 'Alt+1〜4 · Alt+5',
+      run: () => steps.years(),
+    },
+    w: { label: t(`sim.w.${settings.weight}` as Key), key: 'W', run: steps.weight },
+    rs: { label: t(useRescreen ? 'sim.rs.on' : 'sim.rs.off'), key: 'H', run: () => isScreen && !isOne && set({ rescreen: !useRescreen }) },
+    dca: { label: settings.monthly > 0 ? t('sim.dcaOn', { v: yen(settings.monthly, lang) }) : t('sim.dcaOff'), key: 'D', run: () => void pickMonthly() },
     amount: { label: t('sim.amountTok', { v: yen(settings.amount, lang) }), key: 'A', run: () => void pickAmount() },
     n: { label: t('sim.items', { n: srcIds?.length ?? 0 }), key: 'L', run: () => void pickSource() },
     // 1 銘柄の名前は押せない（すぐ左の「1 銘柄 ｜ 群」で切り替える。押して群に替わると驚くため）
@@ -389,17 +465,17 @@ const showEtf = $derived(view.cmp === 'both' || view.cmp === 'etf')
 const showPeer = $derived(view.cmp === 'both' || view.cmp === 'peer')
 const hs = $derived.by(() => {
   if (!past) return null
-  const p = past.principal
-  const conv = (xs: number[] | null) => (view.pct ? toPct(xs, p) : xs)
+  const pp = past.principalPath
+  const conv = (xs: number[] | null) => (xs ? (view.pct ? xs.map((v, k) => (pp[k]! > 0 ? v / pp[k]! - 1 : 0)) : xs) : null)
   return {
     port: conv(past.port)!,
     value: conv(past.value)!,
     etf: showEtf ? conv(past.etf) : null,
     peer: showPeer ? conv(past.peer) : null,
-    base: view.pct ? 0 : p,
+    base: view.pct ? pp.map(() => 0) : pp,
   }
 })
-const hsc = $derived(hs && hw > 40 && hh > 40 ? lineScale([hs.port, hs.value, hs.etf, hs.peer, [hs.base, hs.base]], hw, hh) : null)
+const hsc = $derived(hs && hw > 40 && hh > 40 ? lineScale([hs.port, hs.value, hs.etf, hs.peer, hs.base], hw, hh) : null)
 const fmtV = (v: number) => (view.pct ? pct(v) : yen(v, lang))
 const ends = $derived.by(() => {
   if (!hs || !hsc) return []
@@ -429,7 +505,7 @@ const bandPath = $derived(
         .join('')}Z`
     : '',
 )
-const tot = $derived(past ? Math.max(past.principal, past.principal + past.hero.gain) + Math.max(0, past.hero.received) : 1)
+const tot = $derived(past ? Math.max(past.hero.invested, past.hero.invested + past.hero.gain) + Math.max(0, past.hero.received) : 1)
 const ci = $derived(past && cross >= 0 ? Math.min(cross, past.dates.length - 1) : -1)
 
 let yw = $state(0)
@@ -439,15 +515,19 @@ const ymax = $derived(past ? Math.max(1, ...past.years.map((y) => y.received)) :
 let fw = $state(0)
 let fh = $state(0)
 /** 年ごとの見込み: 累計を 1 つの軸で（lib/divsim.ts の fwdChart） */
-const fyGeom = $derived(fwd && fw >= 60 && fh >= 60 ? fwdChart(fwd.years, fwd.amount, fw, fh) : null)
+const fyGeom = $derived(fwd && fw >= 60 && fh >= 60 ? fwdChart(fwd.years, fwd.amount, fw, fh, fwd.band) : null)
 function fyMove(e: MouseEvent) {
   if (!fyGeom) return
   card = 'fy'
   fcross = fyGeom.indexAt(localX(e.clientX, (e.currentTarget as HTMLElement).getBoundingClientRect(), fw))
 }
 const fci = $derived(fwd && fcross >= 0 ? Math.min(fcross, fwd.years.length - 1) : -1)
-const fyRead = $derived(fwd && fci >= 0 ? fwdReadout(fwd.years, fci, fwd.amount) : null)
+const fyRead = $derived(fwd && fci >= 0 ? fwdReadout(fwd.years, fci, fwd.amount, fwd.band) : null)
 
+/** 減配の感応度（群のときだけ） */
+const sens = $derived(fwd && !isOne ? sensitivity(fwd.rows) : [])
+/** 目標の配当（設定の「配当の目標」。ポートフォリオと同じ値） */
+const goal = $derived(fwd ? goalOf(app.settings.divGoal, fwd.y1, fwd.amount) : null)
 const monthTotals = $derived(fwd ? (view.receipt ? receiptMonths(fwd.months) : fwd.months) : [])
 const monthBy = $derived(
   fwd ? fwd.rows.filter((r) => r.y1 > 0).map((r) => ({ id: r.id, ms: view.receipt ? receiptMonths(r.months) : r.months })) : [],
@@ -464,14 +544,20 @@ function key(e: KeyboardEvent): boolean {
   const k = e.key
   if (c === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
     if (loading || !result) return true
-    const cs = isOne ? CARDS[tab].filter((x) => x !== 'table') : CARDS[tab]
+    // 1 銘柄: 表と感応度（1 銘柄では意味が無い）は無い
+    const cs = isOne ? CARDS[tab].filter((x) => !['table', 'sens', 'wf', 'luck'].includes(x)) : CARDS[tab]
     const i = card ? cs.indexOf(card) : -1
     selectCard(cs[(i + (e.shiftKey ? -1 : 1) + cs.length + (i < 0 && e.shiftKey ? 1 : 0)) % cs.length]!)
     return true
   }
+  if (e.altKey && !e.ctrlKey && !e.metaKey && c === 'Digit5') {
+    if (!altApplies(c, tab)) return false
+    void pickFrom()
+    return true
+  }
   if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-4]$/.test(c)) {
     const i = Number(c.slice(5)) - 1
-    if (tab === 'past' && SIM_YEARS[i]) set({ years: SIM_YEARS[i] })
+    if (tab === 'past' && SIM_YEARS[i]) set({ years: SIM_YEARS[i], from: null })
     else if (tab === 'fwd' && SIM_HORIZONS[i]) set({ horizon: SIM_HORIZONS[i] })
     return true
   }
@@ -555,6 +641,10 @@ function key(e: KeyboardEvent): boolean {
     KeyV: steps.receipt,
     KeyM: steps.method,
     KeyS: () => (isOne ? undefined : steps.sort()),
+    KeyW: steps.weight,
+    KeyK: () => void pickScenario(),
+    KeyH: () => (isScreen && !isOne ? set({ rescreen: !useRescreen }) : toast(t('sim.rsNa'), undefined, 3000)),
+    KeyD: () => void pickMonthly(),
     KeyO: steps.scope,
   }
   const f = !e.shiftKey ? act[c] : undefined
@@ -629,6 +719,7 @@ onMount(() =>
         {#each splitTemplate(t('sim.s.cmp')) as p, i (i)}
           {@render word(p)}
         {/each}
+        {#if isScreen && !isOne}{#each splitTemplate(t('sim.s.rs')) as p, i (i)}{@render word(p)}{/each}{/if}
       </span>
     {/if}
   </div>
@@ -667,7 +758,7 @@ onMount(() =>
       {#if tab === 'past' && past && hs}
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <section class="card c-hero" class:sel={card === 'hero'} data-card="hero" role="group" aria-label={t('sim.h.now')} aria-current={card === 'hero'} onmousedown={() => (card = 'hero')}>
-          <h3>{t('sim.h.title', { y: settings.years, a: yen(past.principal, lang) })} <span class="dim">→ {t('sim.h.now')}</span></h3>
+          <h3>{settings.from ? t('sim.h.titleFrom', { d: past.base, a: yen(past.principal, lang) }) : t('sim.h.title', { y: settings.years, a: yen(past.principal, lang) })}{#if settings.monthly > 0}{t('sim.h.titleDca', { m: yen(settings.monthly, lang) })}{/if} <span class="dim">→ {t('sim.h.now')}</span></h3>
           <div class="big num" data-testid="sim-wealth">{yen(past.hero.wealth, lang)}<span class="unit">{lang === 'ja' ? '円' : ''}</span>
             <span class={`chg ${past.hero.totalPct >= 0 ? 'up' : 'down'}`}>{pct(past.hero.totalPct)}</span>
           </div>
@@ -675,13 +766,14 @@ onMount(() =>
             {t('sim.h.sentence', { g: yen(past.hero.gain, lang, true), d: yen(past.hero.received, lang, true), r: pct(past.hero.annual) })}
           </div>
           <div class="stack" aria-hidden="true">
-            <span class="principal" style:width={`${(Math.min(past.principal, past.principal + past.hero.gain) / tot) * 100}%`}></span>
+            <span class="principal" style:width={`${(Math.min(past.hero.invested, past.hero.invested + past.hero.gain) / tot) * 100}%`}></span>
             {#if past.hero.gain > 0}<span class="cap" style:width={`${(past.hero.gain / tot) * 100}%`}></span>{/if}
             <span class="inc" style:width={`${(past.hero.received / tot) * 100}%`}></span>
-            <i class="mark" style:left={`${(past.principal / tot) * 100}%`}></i>
+            <i class="mark" style:left={`${(past.hero.invested / tot) * 100}%`}></i>
           </div>
           <div class="legend"><span class="sw cap"></span>{t('sim.h.capital')} {yen(past.hero.gain, lang, true)}<span class="sw inc"></span>{t('sim.h.income')} {yen(past.hero.received, lang, true)}</div>
           <dl class="kpi">
+            {#if settings.monthly > 0}<div><dt>{t('sim.h.invested')}</dt><dd class="num">{yen(past.hero.invested, lang)}</dd></div>{/if}
             <div><dt>{t('sim.h.total')}</dt><dd class="num">{pct(past.hero.totalPct)}</dd></div>
             <div><dt>{t('sim.h.annual')}</dt><dd class="num">{pct(past.hero.annual)}</dd></div>
             <div><dt title={t('sim.h.yocHint')}>{t('sim.h.yoc')} ⓘ</dt><dd class="num">{pct(past.hero.yoc, 2, false)}</dd></div>
@@ -716,7 +808,7 @@ onMount(() =>
                   <line x1={hsc.pad.l} x2={hw - hsc.pad.r} y1={hsc.y(v)} y2={hsc.y(v)} class="grid" />
                   <text x={hw - 4} y={hsc.y(v) + 3} class="ax end">{fmtV(v)}</text>
                 {/each}
-                <line x1={hsc.pad.l} x2={hw - hsc.pad.r} y1={hsc.y(hs.base)} y2={hsc.y(hs.base)} class="base" />
+                <path class="base" fill="none" d={hs.base.map((v, k) => `${k ? `L${hsc.x(k).toFixed(1)},${hsc.y(hs.base[k - 1]!).toFixed(1)}L` : 'M'}${hsc.x(k).toFixed(1)},${hsc.y(v).toFixed(1)}`).join('')} />
                 {#if !settings.reinvest}
                   <path class="band" d={bandPath} />
                 {/if}
@@ -768,6 +860,47 @@ onMount(() =>
             {/if}
           </div>
         </section>
+        {#if !isOne}
+          <section class="card c-wf" class:sel={card === 'wf'} data-card="wf" role="group" aria-label={t('sim.wf')} aria-current={card === 'wf'} data-testid="sim-wf">
+            <h3>{t('sim.wf')} <span class="dim">{t('sim.wfSub')}</span></h3>
+            {#if past.decomp}
+              {@const steps = decompSteps(past.decomp)}
+              {@const lo = Math.min(0, ...steps.map((x) => Math.min(x.from, x.to)))}
+              {@const hi = Math.max(0, ...steps.map((x) => Math.max(x.from, x.to)))}
+              {@const sx = (v: number) => (hi > lo ? ((v - lo) / (hi - lo)) * 100 : 0)}
+              <div class="wf">
+                {#each steps as x (x.k)}
+                  <div class="wfrow" class:total={x.k === 'total'}>
+                    <span class="wfl">{t(`sim.wf.${x.k}` as Key)}</span>
+                    <span class="wfbar"><i class={x.k === 'total' || x.k === 'etf' ? 'base' : x.v >= 0 ? 'pos' : 'neg'} style:left={`${sx(Math.min(x.from, x.to))}%`} style:width={`${Math.max(0.6, Math.abs(sx(x.to) - sx(x.from)))}%`}></i><b class="zero" style:left={`${sx(0)}%`}></b></span>
+                    <span class="wfv num" class:up={x.k !== 'etf' && x.k !== 'total' && x.v > 0} class:down={x.k !== 'etf' && x.k !== 'total' && x.v < 0}>{pct(x.v)}</span>
+                  </div>
+                {/each}
+              </div>
+              <div class="dim small">{t('sim.wfNote')}</div>
+            {:else}
+              <div class="dim">{t(settings.monthly > 0 ? 'sim.dcaNone' : 'sim.wfNone')}</div>
+            {/if}
+          </section>
+          <section class="card c-luck" class:sel={card === 'luck'} data-card="luck" role="group" aria-label={t('sim.luck')} aria-current={card === 'luck'} data-testid="sim-luck">
+            <h3>{t('sim.luck')} <span class="dim">{t('sim.luckSub')}</span></h3>
+            {#if past.luck}
+              {@const l = past.luck}
+              {@const bmax = Math.max(1, ...l.bins)}
+              {@const sx = (v: number) => (l.hi > l.lo ? ((v - l.lo) / (l.hi - l.lo)) * 100 : 50)}
+              <div class="luckline">{t('sim.luckPos', { p: pct(l.pct, 0, false), q: pct(1 - l.pct, 0, false) })}</div>
+              <div class="hist" aria-hidden="true">
+                {#each l.bins as b, i (i)}<i style:height={`${(b / bmax) * 100}%`}></i>{/each}
+                <b class="mk mine" style:left={`${sx(l.mine)}%`} title={`${t('sim.l.port')} ${pct(l.mine)}`}></b>
+                {#if past.etfPct != null && past.etfPct >= l.lo && past.etfPct <= l.hi}<b class="mk etf" style:left={`${sx(past.etfPct)}%`} title={`1306 ${pct(past.etfPct)}`}></b>{/if}
+              </div>
+              <div class="luckax num dim"><span>{pct(l.lo)}</span><span>{pct(l.hi)}</span></div>
+              <div class="dim small">{t('sim.luckNote')}</div>
+            {:else}
+              <div class="dim">{t(settings.monthly > 0 ? 'sim.dcaNone' : 'sim.n.noPeer')}</div>
+            {/if}
+          </section>
+        {/if}
       {/if}
       {#if tab === 'fwd' && fwd}
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -791,12 +924,20 @@ onMount(() =>
               <div><dt>{t('sim.c.months')}</dt><dd class="num">{f0.exMonths.join('・') || '—'}</dd></div>
             {/if}
           </dl>
+          <div class="goal" data-testid="sim-goal">
+            {#if goal}
+              {t(fwd.held ? 'sim.goalHeld' : 'sim.goal', { m: money(app.settings.divGoal), p: pct(goal.pct, 0, false), need: goal.need == null ? '—' : money(goal.need) })}
+            {:else}
+              {#if IS_FREE}<span class="dim">{t('sim.goalSetFree')}</span>{:else}<button type="button" class="linkbtn" onclick={() => runAction('folioGoal')}>{t('sim.goalSet')}</button>{/if}
+            {/if}
+          </div>
         </section>
         <section class="card c-fy" class:sel={card === 'fy'} data-card="fy" role="group" aria-label={t('sim.fy')} aria-current={card === 'fy'}>
           <h3>{t('sim.fy')} <span class="dim">{t('sim.fySub')}</span>
             <span class="right legend">
               <span class="sw inc"></span>{t('sim.fy.lYear')}<span class="sw cumf"></span>{t('sim.fy.lCum')}
               {#if fyGeom && !fyGeom.stressSame}<span class="sw stress"></span>{t('sim.fy.lStress')}{/if}
+              {#if fyGeom?.band}<span class="sw band"></span>{t('sim.fy.lBand')}{/if}
               {#if fyGeom?.principal != null}<span class="sw principal"></span>{t('sim.l.principal')}{/if}
             </span>
           </h3>
@@ -810,6 +951,13 @@ onMount(() =>
                 <line x1={g.pad.l} x2={fw - g.pad.r} y1={g.top.y0} y2={g.top.y0} class="grid" />
                 <line x1={g.pad.l} x2={fw - g.pad.r} y1={g.top.y(g.top.vmax)} y2={g.top.y(g.top.vmax)} class="grid" />
                 <text x={fw - 4} y={g.top.y(g.top.vmax) + 3} class="ax end">{money(g.top.vmax)}</text>
+                {#if g.band}
+                  {#each g.band.p10 as lo, i (i)}
+                    <line x1={g.x(i)} x2={g.x(i)} y1={g.top.y(lo)} y2={g.top.y(g.band.p90[i]!)} class="whisk" />
+                    <line x1={g.x(i) - 3} x2={g.x(i) + 3} y1={g.top.y(g.band.p90[i]!)} y2={g.top.y(g.band.p90[i]!)} class="whisk" />
+                    <line x1={g.x(i) - 3} x2={g.x(i) + 3} y1={g.top.y(lo)} y2={g.top.y(lo)} class="whisk" />
+                  {/each}
+                {/if}
                 {#each fwd.years as yr, i (i)}
                   <rect x={g.x(i) - g.bw / 2} y={g.top.y(yr.value)} width={g.bw} height={Math.max(0, g.top.y0 - g.top.y(yr.value))} class="bar inc" class:hl={i === fci} />
                   {#if !g.stressSame}<line x1={g.x(i) - g.bw / 2} x2={g.x(i) + g.bw / 2} y1={g.top.y(yr.stress)} y2={g.top.y(yr.stress)} class="ln stress" />{/if}
@@ -822,6 +970,10 @@ onMount(() =>
                   <text x={fw - 4} y={g.bot.y(v) + 3} class="ax end">{money(v)}</text>
                 {/each}
                 <path class="area cumf" d={`M${g.slot(0).l},${g.bot.y0}${g.cum.map((v, i) => `L${g.slot(i).l},${g.bot.y(v)}L${g.slot(i).r},${g.bot.y(v)}`).join('')}L${g.slot(g.n - 1).r},${g.bot.y0}Z`} />
+                {#if g.band}
+                  {@const b = g.band}
+                  <path class="bandarea" d={`M${b.c90.map((v, i) => `${i ? 'L' : ''}${g.slot(i).l},${g.bot.y(v)}L${g.slot(i).r},${g.bot.y(v)}`).join('')}${[...b.c10].reverse().map((v, k) => { const i = b.c10.length - 1 - k; return `L${g.slot(i).r},${g.bot.y(v)}L${g.slot(i).l},${g.bot.y(v)}` }).join('')}Z`} />
+                {/if}
                 {#if !g.stressSame}
                   <path class="ln stress" d={g.cumStress.map((v, i) => `${i ? 'L' : 'M'}${g.slot(i).l},${g.bot.y(v)}L${g.slot(i).r},${g.bot.y(v)}`).join('')} />
                 {/if}
@@ -845,6 +997,7 @@ onMount(() =>
                   <div>{t('sim.yearN', { n: fyRead.year })}</div>
                   <div><span class="sw inc"></span>{t('sim.fy.lYear')} <b class="num">{money(fyRead.value)}</b></div>
                   <div><span class="sw cumf"></span>{t('sim.fy.lCum')} <b class="num">{money(fyRead.cum)}</b>{#if fyRead.pct != null && !hide}<span class="dim">{t('sim.fy.readPct', { p: pct(fyRead.pct, 1, false) })}</span>{/if}</div>
+                  {#if fyRead.lo != null && fyRead.hi != null}<div><span class="sw band"></span>{t('sim.fy.band', { lo: money(fyRead.lo), hi: money(fyRead.hi), clo: money(fyRead.cumLo ?? 0), chi: money(fyRead.cumHi ?? 0) })}</div>{/if}
                   {#if fyRead.stress != null}<div><span class="sw stress"></span>{t('sim.l.stress')} <b class="num">{money(fyRead.stress)}</b> · {t('sim.fy.lCum')} <b class="num">{money(fyRead.cumStress ?? 0)}</b></div>{/if}
                 </div>
               {/if}
@@ -878,6 +1031,24 @@ onMount(() =>
             {/if}
           </div>
         </section>
+        {#if !isOne}
+          <section class="card c-sens" class:sel={card === 'sens'} data-card="sens" role="group" aria-label={t('sim.sens')} aria-current={card === 'sens'} data-testid="sim-sens">
+            <h3>{t('sim.sens')} <span class="dim">{t('sim.sensSub')}</span></h3>
+            {#if sens.length}
+              <ul class="sens">
+                {#each sens as x (x.id)}
+                  <li>
+                    <span class="nm" title={nameOf(x.id)}>{codeOf(x.id)} {nameOf(x.id)}</span>
+                    <span class="num down" title={t('sim.sensZero')}>−{money(x.y1)}<span class="dim">（{pct(x.share, 0, false)}）</span></span>
+                    <span class="num dim" title={t('sim.sensCut')}>{x.cut > 0 ? `−${money(x.cut)}` : '±0'}</span>
+                  </li>
+                {/each}
+              </ul>
+            {:else}
+              <div class="dim">{t('sim.cal.none')}</div>
+            {/if}
+          </section>
+        {/if}
       {/if}
       <section class="card c-basis" class:sel={card === 'basis'} data-card="basis" role="group" aria-label={t('sim.basisTitle')} aria-current={card === 'basis'} data-testid="sim-basis">
         <h3>{t('sim.basisTitle')}</h3>
@@ -1171,22 +1342,22 @@ onMount(() =>
     }
   }
   .grid.past {
-    grid-template-areas: 'hero' 'hist' 'years' 'basis' 'table';
+    grid-template-areas: 'hero' 'hist' 'years' 'wf' 'luck' 'basis' 'table';
   }
   .grid.fwd {
-    grid-template-areas: 'hero' 'fy' 'cal' 'basis' 'table';
+    grid-template-areas: 'hero' 'fy' 'cal' 'sens' 'basis' 'table';
   }
   @container (min-width: 760px) {
     .grid {
       grid-template-columns: repeat(6, 1fr);
     }
     .grid.past {
-      grid-template-areas: 'hero hero hist hist hist hist' 'years years years basis basis basis' 'table table table table table table';
-      grid-template-rows: minmax(280px, auto) minmax(200px, auto) auto;
+      grid-template-areas: 'hero hero hist hist hist hist' 'years years years wf wf wf' 'luck luck luck basis basis basis' 'table table table table table table';
+      grid-template-rows: minmax(280px, auto) minmax(200px, auto) auto auto;
     }
     .grid.fwd {
-      grid-template-areas: 'hero hero fy fy fy fy' 'cal cal cal basis basis basis' 'table table table table table table';
-      grid-template-rows: minmax(260px, auto) minmax(200px, auto) auto;
+      grid-template-areas: 'hero hero fy fy fy fy' 'cal cal cal sens sens sens' 'basis basis basis basis basis basis' 'table table table table table table';
+      grid-template-rows: minmax(260px, auto) minmax(200px, auto) auto auto;
     }
   }
   @container (min-width: 1180px) {
@@ -1194,12 +1365,12 @@ onMount(() =>
       grid-template-columns: repeat(12, 1fr);
     }
     .grid.past {
-      grid-template-areas: 'hero hero hero hero hist hist hist hist hist hist hist hist' 'years years years years years basis basis basis basis basis basis basis' 'table table table table table table table table table table table table';
-      grid-template-rows: minmax(318px, auto) minmax(236px, auto) auto;
+      grid-template-areas: 'hero hero hero hero hist hist hist hist hist hist hist hist' 'years years years years wf wf wf wf luck luck luck luck' 'basis basis basis basis basis basis basis basis basis basis basis basis' 'table table table table table table table table table table table table';
+      grid-template-rows: minmax(318px, auto) minmax(236px, auto) auto auto;
     }
     .grid.fwd {
-      grid-template-areas: 'hero hero hero hero fy fy fy fy fy fy fy fy' 'cal cal cal cal cal cal cal basis basis basis basis basis' 'table table table table table table table table table table table table';
-      grid-template-rows: minmax(300px, auto) minmax(236px, auto) auto;
+      grid-template-areas: 'hero hero hero hero fy fy fy fy fy fy fy fy' 'cal cal cal cal cal cal sens sens sens sens sens sens' 'basis basis basis basis basis basis basis basis basis basis basis basis' 'table table table table table table table table table table table table';
+      grid-template-rows: minmax(300px, auto) minmax(236px, auto) auto auto;
     }
   }
   .scope {
@@ -1266,6 +1437,134 @@ onMount(() =>
   }
   .c-cal {
     grid-area: cal;
+  }
+  .c-wf {
+    grid-area: wf;
+  }
+  .c-luck {
+    grid-area: luck;
+  }
+  .wf {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: var(--fs-1);
+  }
+  .wfrow {
+    display: grid;
+    grid-template-columns: 9em minmax(0, 1fr) 5em;
+    gap: 8px;
+    align-items: center;
+  }
+  .wfrow.total {
+    border-top: 1px solid var(--line);
+    padding-top: 4px;
+    color: var(--text);
+  }
+  .wfl {
+    color: var(--text-2);
+  }
+  .wfbar {
+    position: relative;
+    height: 12px;
+  }
+  .wfbar i {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-radius: 2px;
+  }
+  .wfbar i.base {
+    background: var(--line-strong);
+  }
+  .wfbar i.pos {
+    background: var(--up);
+  }
+  .wfbar i.neg {
+    background: var(--down);
+  }
+  .wfbar .zero {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 1px;
+    background: var(--text-3);
+  }
+  .wfv {
+    text-align: right;
+  }
+  .small {
+    font-size: var(--fs-0);
+  }
+  .luckline {
+    font-size: var(--fs-2);
+    color: var(--text);
+  }
+  .hist {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    height: 90px;
+  }
+  .hist i {
+    flex: 1;
+    background: var(--line-strong);
+    min-height: 1px;
+  }
+  .hist .mk {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+  }
+  .hist .mk.mine {
+    background: var(--gold);
+  }
+  .hist .mk.etf {
+    background: var(--ind1);
+  }
+  .luckax {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--fs-0);
+  }
+  .c-sens {
+    grid-area: sens;
+  }
+  .sens {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: var(--fs-1);
+  }
+  .sens li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 10px;
+    align-items: baseline;
+  }
+  .sens .nm {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-2);
+  }
+  .goal {
+    font-size: var(--fs-1);
+    color: var(--text-2);
+  }
+  .linkbtn {
+    font: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--text-3);
+    border-bottom: 1px dotted var(--text-3);
+    cursor: pointer;
   }
   .c-basis {
     grid-area: basis;
@@ -1344,6 +1643,20 @@ onMount(() =>
   }
   .sw.stress {
     background: var(--down);
+  }
+  .sw.band {
+    background: var(--text-2);
+    opacity: 0.35;
+    height: 8px;
+  }
+  .whisk {
+    stroke: var(--text-2);
+    stroke-width: 1;
+    opacity: 0.7;
+  }
+  .bandarea {
+    fill: var(--text-2);
+    opacity: 0.16;
   }
   .sw.principal {
     background: var(--text-3);

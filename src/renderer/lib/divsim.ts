@@ -1,5 +1,8 @@
 // 配当シミュレータのペイン（docs/design-simulator.md §6〜§9）の画面の側の計算: 設定の読み取りと切り替え・前提の文・表の列・図の座標。
 // 純粋な関数（テストは tests/unit/renderer/divsim.test.ts）。計算そのものは src/shared/sim/（Core の sim.run）。
+
+import { FIELD_BY_ID } from '@shared/fields'
+import type { Band } from '@shared/sim/forecast'
 import {
   DEFAULT_SIM,
   SIM_HORIZONS,
@@ -12,7 +15,7 @@ import {
   type SimSettings,
   type SimTax,
 } from '@shared/sim/types'
-import type { InstrumentId } from '@shared/types'
+import type { Condition, InstrumentId, Lang } from '@shared/types'
 import type { Cell, ListCol } from './columns'
 import { niceTicks } from './folio'
 import type { Key } from './i18n'
@@ -38,6 +41,9 @@ export function simSettingsOf(s: Record<string, unknown>): SimSettings {
     sector: pick(s.sector, SIM_SECTORS, DEFAULT_SIM.sector),
     horizon: pick(s.horizon, SIM_HORIZONS, DEFAULT_SIM.horizon),
     method: pick(s.method, SIM_METHODS, DEFAULT_SIM.method),
+    from: typeof s.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.from) ? s.from : null,
+    monthly: typeof s.monthly === 'number' && Number.isFinite(s.monthly) && s.monthly > 0 ? Math.min(1e9, s.monthly) : 0,
+    weight: s.weight === 'yield' ? 'yield' : 'equal',
   }
 }
 /** 画面だけの表示の状態（変えても計算し直さない） */
@@ -89,11 +95,15 @@ export function heldIds(hs: { code: string; quantity: number }[]): InstrumentId[
  */
 export function keyApplies(code: string, tab: SimTab, held: boolean): boolean {
   if (tab === 'past') return code !== 'KeyV' && code !== 'KeyM'
+  // 積立（D）・当時の条件で選び直す（H）は過去だけに効く
+  if (code === 'KeyD' || code === 'KeyH') return false
   if (['KeyR', 'KeyG', 'KeyB', 'KeyP'].includes(code)) return false
   return !(held && (code === 'KeyA' || code === 'KeyX'))
 }
 /** 過去が 0 件のときの案内（これからの銘柄も無ければ別の文） */
 export const noPastHintKey = (fwdRows: number): Key => (fwdRows > 0 ? 'sim.noPastHint' : 'sim.noPastHintNone')
+/** Alt+数字のキーが今のタブで効くか（Alt+5 の基準日の日付は過去だけ。効かないキーはペインで受けない） */
+export const altApplies = (code: string, tab: SimTab): boolean => (code === 'Digit5' ? tab === 'past' : /^Digit[1-4]$/.test(code))
 /** 読み込み中・結果が無いときに受けないキー（画面に出ていないカード・表の行を動かさない。設定のキーは受ける） */
 const MOVE_KEYS = new Set(['Tab', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Home', 'End', 'KeyN', 'KeyS', 'Escape'])
 export const blockedWhileLoading = (code: string): boolean => MOVE_KEYS.has(code)
@@ -104,7 +114,7 @@ export function pillGeom(x: number, right: number, label: string): { x: number; 
 }
 /** 計算し直すかを決める鍵: 計算する銘柄の集合と順（上限で切る順に効く）と設定。表示の状態は入れない */
 export function simKey(ids: InstrumentId[], s: SimSettings): string {
-  return `${ids.join(',')}|${s.years}|${s.amount}|${s.reinvest}|${s.tax}|${s.sector}|${s.horizon}|${s.method}`
+  return `${ids.join(',')}|${s.years}|${s.amount}|${s.reinvest}|${s.tax}|${s.sector}|${s.horizon}|${s.method}|${s.from ?? ''}|${s.monthly}|${s.weight}`
 }
 /** 元本の入力（万円で打つ）。読めなければ null */
 export function parseAmount(text: string): number | null {
@@ -118,6 +128,30 @@ export function parseAmount(text: string): number | null {
   if (!Number.isFinite(v) || v <= 0) return null
   const yen = Math.round(v * 10_000)
   return yen >= 10_000 && yen <= 1e10 ? yen : null
+}
+/** 基準日の日付の入力（YYYY-MM-DD・/ 区切り・全角）。今日より後・2000 年より前・読めなければ null */
+export function parseFrom(text: string, today: string): string | null {
+  const m = text
+    .normalize('NFKC')
+    .trim()
+    .match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/)
+  if (!m) return null
+  const d = `${m[1]}-${m[2]!.padStart(2, '0')}-${m[3]!.padStart(2, '0')}`
+  const t = Date.parse(`${d}T00:00:00Z`)
+  if (!Number.isFinite(t) || new Date(t).toISOString().slice(0, 10) !== d) return null
+  return d >= '2000-01-01' && d < today ? d : null
+}
+/** 積立の額の入力（月・万円で打つ。0 で止める）。読めなければ null */
+export function parseMonthly(text: string): number | null {
+  const v = Number(
+    text
+      .normalize('NFKC')
+      .replaceAll(',', '')
+      .replace(/万円?$/, '')
+      .trim(),
+  )
+  if (!Number.isFinite(v) || v < 0 || v > 100_000) return null
+  return Math.round(v * 10_000)
 }
 /** 受取の目安（権利確定月 + 3 か月）へ月をずらす（0 が 1 月） */
 export function receiptMonths(xs: number[]): number[] {
@@ -156,7 +190,7 @@ export interface Note {
  * 前提のカードの項目（§6）。計算に効いているものだけ。warn は見出しの札（⚠ 前提 N）の数に入る。
  * screen は出どころがスクリーナー・保存スクリーン（後知恵の注記を出す）
  */
-export function basisNotes(r: SimResult, tab: SimTab, screen: boolean): Note[] {
+export function basisNotes(r: SimResult, tab: SimTab, screen: boolean, lang: Lang = 'ja'): Note[] {
   const out: Note[] = []
   const s = r.settings
   if (tab === 'past') {
@@ -176,17 +210,27 @@ export function basisNotes(r: SimResult, tab: SimTab, screen: boolean): Note[] {
         warn: true,
       })
     if (s.reinvest) out.push({ k: 'sim.n.reinvest' })
-    if (p && !p.peer) out.push({ k: 'sim.n.noPeer', warn: true })
+    if (p?.rescreen) {
+      // 使えなかった条件は指標の名前で（ID は出さない）
+      const x = p.rescreen.ignored.map((id) => FIELD_BY_ID.get(id)?.label[lang] ?? id).join(lang === 'ja' ? '・' : ', ')
+      out.push({ k: 'sim.n.rescreen', a: { n: p.rescreen.count, x: x || '—' }, warn: true })
+    }
+    if (s.monthly > 0) out.push({ k: 'sim.n.dca' })
+    if (s.weight === 'yield') out.push({ k: 'sim.n.weightYield' })
+    // 積立のときは同業種と比べない（理由は積立の前提が言う）
+    if (p && !p.peer && s.monthly === 0) out.push({ k: 'sim.n.noPeer', warn: true })
     else if (p) out.push({ k: 'sim.n.sector', a: { c: p.peerInfo.compared, t: p.peerInfo.total, n: p.peerInfo.s17 } })
     if (r.etfMissing) out.push({ k: 'sim.n.etfMissing', warn: true })
     if (r.reitShare > 0.2) out.push({ k: 'sim.n.reit', warn: true })
   } else {
     out.push({ k: 'sim.n.estimate' })
     if (r.fwd.held) out.push({ k: 'sim.n.held' })
+    if (r.fwd.band) out.push({ k: 'sim.n.band', a: { n: r.fwd.band.years } })
     if (r.settings.method === 'growth') {
       out.push({ k: 'sim.n.growth' })
       out.push({ k: 'sim.n.boom', warn: true })
     }
+    if (r.settings.method === 'trend') out.push({ k: 'sim.n.trend', warn: true })
     if (r.fwd.stress) out.push({ k: 'sim.n.stress', a: { y: r.fwd.stress.year, p: pct(r.fwd.stress.ratio - 1) } })
     const gone = r.excluded.filter((x) => x.reason === 'delisted').length
     if (gone) out.push({ k: 'sim.n.delistedFwd', a: { n: gone }, warn: true })
@@ -204,7 +248,7 @@ export function basisNotes(r: SimResult, tab: SimTab, screen: boolean): Note[] {
 export const PAST_SORTS = ['total', 'contrib', 'received', 'yoc', 'rank'] as const
 export const FWD_SORTS = ['y1', 'yield', 'growth', 'g', 'stress'] as const
 /** これからの表の並べ替えの候補（S で巡る）。横ばいのときは「試算の伸び」（すべて —）を巡らない */
-export const fwdSorts = (method: 'flat' | 'growth'): readonly string[] =>
+export const fwdSorts = (method: SimSettings['method']): readonly string[] =>
   method === 'growth' ? FWD_SORTS : FWD_SORTS.filter((k) => k !== 'g')
 const pastKey = (r: SimPastRow, k: string): number =>
   k === 'contrib'
@@ -367,13 +411,18 @@ export function simColumns(
       f((x) => x.shares),
       (v) => ({ t: o.mask ?? v.toFixed(1) }),
     ),
-    num(
-      'g',
-      'sim.c.g',
-      64,
-      f((x) => (r.settings.method === 'growth' ? Math.exp(x.g) - 1 : null)),
-      (v) => ({ t: pct(v), c: signCls(v) }),
-    ),
+    // 試算の伸びは「伸びを見込む」のときだけ（横ばいではすべて —）
+    ...(r.settings.method === 'growth'
+      ? [
+          num(
+            'g',
+            'sim.c.g',
+            64,
+            f((x) => Math.exp(x.g) - 1),
+            (v) => ({ t: pct(v), c: signCls(v) }),
+          ),
+        ]
+      : []),
     num(
       'y1',
       'sim.c.y1',
@@ -461,7 +510,13 @@ export function spreadLabels(ys: number[], gap: number, lo: number, hi: number):
  * 上段はその年の配当（棒。ストレスは棒に重ねる段）、下段は累計（階段の面。ストレスの累計は破線）。
  * 元本は累計の 1.5 倍以内のときだけ下段に線を引き、届く年に印。遠ければ届く年数（横ばいで）を文で出す
  */
-export function fwdChart(years: { value: number; stress: number; cum: number }[], amount: number, w: number, h: number) {
+export function fwdChart(
+  years: { value: number; stress: number; cum: number }[],
+  amount: number,
+  w: number,
+  h: number,
+  band: Band | null = null,
+) {
   const pad = { l: 8, r: 64, t: 16, b: 18 }
   const gap = 20
   const n = Math.max(1, years.length)
@@ -476,9 +531,9 @@ export function fwdChart(years: { value: number; stress: number; cum: number }[]
   const cumMax = cum.at(-1) ?? 0
   const principal = amount > 0 && cumMax > 0 && amount <= cumMax * 1.5 ? amount : null
   // 上段の上には、データラベルの余白（最大の 40%）
-  const vmax = Math.max(0, ...years.map((y) => Math.max(y.value, y.stress)))
+  const vmax = Math.max(0, ...years.map((y) => Math.max(y.value, y.stress)), ...(band?.p90 ?? []))
   const tMax = Math.max(1, vmax) * 1.4
-  const bMax = Math.max(cumMax, principal ?? 0, 1) * 1.08
+  const bMax = Math.max(cumMax, principal ?? 0, band?.c90.at(-1) ?? 0, 1) * 1.08
   const ty0 = pad.t + th
   const by0 = pad.t + th + gap + bh
   const x = (i: number) => pad.l + (iw * (i + 0.5)) / n
@@ -495,6 +550,7 @@ export function fwdChart(years: { value: number; stress: number; cum: number }[]
     bot: { y0: by0, h: bh, max: bMax, y: (v: number) => by0 - (bh * v) / bMax, ticks: niceTicks(0, bMax, 3) },
     cum,
     cumStress,
+    band,
     principal,
     payback: principal == null ? -1 : years.findIndex((yr) => yr.cum >= amount),
     stressSame: years.every((yr) => Math.abs(yr.stress - yr.value) < 1e-6),
@@ -505,7 +561,7 @@ export function fwdChart(years: { value: number; stress: number; cum: number }[]
   }
 }
 /** 図の下の固定の 1 行（十字線の年）: その年・累計・元本に対する割合・ストレス（横ばいと違う年だけ） */
-export function fwdReadout(years: { value: number; stress: number; cum: number }[], i: number, amount: number) {
+export function fwdReadout(years: { value: number; stress: number; cum: number }[], i: number, amount: number, band: Band | null = null) {
   const y = years[i]!
   const cumStress = years.slice(0, i + 1).reduce((a, x) => a + x.stress, 0)
   const same = Math.abs(y.stress - y.value) < 1e-6 && Math.abs(cumStress - y.cum) < 1e-6
@@ -516,5 +572,100 @@ export function fwdReadout(years: { value: number; stress: number; cum: number }
     pct: amount > 0 ? y.cum / amount : null,
     stress: same ? null : y.stress,
     cumStress: same ? null : cumStress,
+    lo: band ? band.p10[i]! : null,
+    hi: band ? band.p90[i]! : null,
+    cumLo: band ? band.c10[i]! : null,
+    cumHi: band ? band.c90[i]! : null,
   }
 }
+
+/**
+ * 減配の感応度（§7.3）: 1 年目の配当の多い順に、その銘柄が無配になったら減る額と全体に対する割合、減配シナリオで減る額。
+ * 配当の無い銘柄は出さない。全体が 0 なら空。判定はしない（どれを売るべきかは言わない）
+ */
+export function sensitivity(
+  rows: { id: InstrumentId; y1: number; r: number }[],
+  n = 5,
+): { id: InstrumentId; y1: number; share: number; cut: number }[] {
+  const total = rows.reduce((a, x) => a + x.y1, 0)
+  if (!(total > 0)) return []
+  return rows
+    .filter((x) => x.y1 > 0)
+    .sort((a, b) => b.y1 - a.y1)
+    .slice(0, n)
+    .map((x) => ({ id: x.id, y1: x.y1, share: x.y1 / total, cut: x.y1 * (1 - Math.min(1, x.r)) }))
+}
+/** 目標の配当（月・円）: 年の目標、届くのに要る元本（今の見込みの利回りで）、今の見込みが目標の何 %。目標が 0 なら null */
+export function goalOf(monthly: number, y1: number, amount: number): { annual: number; need: number | null; pct: number } | null {
+  if (!(monthly > 0)) return null
+  const annual = monthly * 12
+  return { annual, need: y1 > 0 && amount > 0 ? (annual * amount) / y1 : null, pct: y1 / annual }
+}
+
+/** 超過分の分解の段（滝。§4.3）: 1306 から規模・業種の配分・銘柄選びを順に足し、最後に合計（選んだ群） */
+export function decompSteps(d: { etf: number; size: number; sector: number; pick: number }) {
+  const out: { k: 'etf' | 'size' | 'sector' | 'pick' | 'total'; from: number; to: number; v: number }[] = []
+  let at = 0
+  for (const k of ['etf', 'size', 'sector', 'pick'] as const) {
+    out.push({ k, from: at, to: at + d[k], v: d[k] })
+    at += d[k]
+  }
+  out.push({ k: 'total', from: 0, to: at, v: at })
+  return out
+}
+
+/** シナリオに入れる状態のキー（計算の設定と、出どころ・対象。表示の状態（タブ・円と % など）は入れない） */
+const SCENARIO_KEYS = [
+  'years',
+  'amount',
+  'reinvest',
+  'tax',
+  'sector',
+  'horizon',
+  'method',
+  'from',
+  'monthly',
+  'weight',
+  'rescreen',
+  'src',
+  'scope',
+] as const
+const SCENARIO_MAX = 20
+export interface Scenario {
+  name: string
+  state: Record<string, unknown>
+}
+/** ペインの状態から保存したシナリオを読む（形の崩れたものは捨てる） */
+export function scenariosOf(s: Record<string, unknown>): Scenario[] {
+  const xs = s.scenarios
+  if (!Array.isArray(xs)) return []
+  return xs.filter(
+    (x): x is Scenario => !!x && typeof x === 'object' && typeof x.name === 'string' && !!x.state && typeof x.state === 'object',
+  )
+}
+/** 今の状態を名前で保存（同じ名前は上書き。20 件まで、古いものから消す） */
+export function saveScenario(list: Scenario[], name: string, state: Record<string, unknown>): Scenario[] {
+  const pick: Record<string, unknown> = {}
+  for (const k of SCENARIO_KEYS) pick[k] = k in state ? state[k] : null
+  return [...list.filter((x) => x.name !== name), { name, state: pick }].slice(-SCENARIO_MAX)
+}
+
+/** 当時の条件で選び直す入力（スクリーンの条件と、★・ウォッチリストの中身。今の値のまま） */
+export interface RescreenIn {
+  conditions: Condition[]
+  favorites: InstrumentId[]
+  watchlists: Record<string, InstrumentId[]>
+}
+export function rescreenInput(conditions: Condition[], watchlists: { id: string; builtin?: string; items: InstrumentId[] }[]): RescreenIn {
+  return {
+    conditions,
+    favorites: watchlists.find((w) => w.builtin === 'favorites')?.items ?? [],
+    watchlists: Object.fromEntries(watchlists.map((w) => [w.id, w.items])),
+  }
+}
+/** 入力の署名（条件の値・★・ウォッチリストが変われば計算し直す）。選び直さないときは空 */
+export const rescreenSig = (x: RescreenIn | null): string => (x ? JSON.stringify(x) : '')
+/** 既定の出どころ: 1 枚目の窓は今のスクリーナー、フリーの窓は★お気に入り（フリーの窓にはスクリーナーを置けない。§8） */
+export const defaultSource = (free: boolean): string => (free ? 'favorites' : 'live')
+/** 出どころの一覧に「今のスクリーナー」を出すか（フリーの窓では出さない） */
+export const allowsLive = (free: boolean): boolean => !free

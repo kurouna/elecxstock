@@ -7,12 +7,24 @@ const sim = (page: Page) => page.locator('[data-widget="divsim"]')
 
 /** スクリーナーのタブを開き、右下の配当シミュレータへフォーカスを移して、最初の計算が終わるまで待つ。group なら O で群へ切り替える */
 async function openSim(page: Page, scope: 'one' | 'group' = 'group') {
+  // 開く前から読み込み中の回数を数える（最初の計算と、取得の完了での 1 回の計算し直しを待つため）
+  const loads = await countLoads(page, '__simOpen')
   await tab(page, 'screener')
   const s = sim(page)
   await expect(s).toHaveCount(1)
   await keys(page, 'Alt+ArrowRight', 'Alt+ArrowRight', 'Alt+ArrowDown')
   await expect(s).toHaveClass(/focused/)
   await expect(s.getByTestId('sim-past')).toBeVisible({ timeout: 15_000 })
+  // 最初の取得（月次系列など）が終わってから進める（取得の完了で 1 回計算し直すので、読み込み中のキーの扱いとぶつからないように）
+  await expect
+    .poll(() =>
+      rpc<{ status: string }[]>(page, 'jobs.list').then((js) => js.every((j) => ['done', 'failed', 'cancelled'].includes(j.status))),
+    )
+    .toBe(true)
+  // 最初の計算で月次系列の取得を頼んだら（refetch）、その完了の知らせ（少し遅れて届く）で 1 回計算し直すので、それも待つ
+  const refetched = (await rpc<{ kind: string }[]>(page, 'jobs.list')).some((j) => j.kind === 'refetch')
+  await expect.poll(loads).toBeGreaterThanOrEqual(refetched ? 2 : 1)
+  await expect(s.getByTestId('sim-loading')).toHaveCount(0)
   if (scope === 'group') await toGroup(page)
   return s
 }
@@ -32,6 +44,9 @@ test.describe('配当シミュレータ（FR-SIM1・SIM2・SIM5・SIM7・SIM9）
     await expect(s.getByTestId('sim-wealth')).toHaveText(/\d/)
     await expect(s.getByTestId('sim-basis')).toContainText('今上場している銘柄だけです')
     await expect(s.getByTestId('sim-disclaimer')).toContainText('投資助言ではありません。')
+    // 超過分の分解と偶然との比較（群のとき）
+    await expect(s.getByTestId('sim-wf')).toContainText('業種の配分')
+    await expect(s.getByTestId('sim-luck')).toContainText('下から')
     // 設定を変える（R: 受け取る → 再投資）と、読み込み中を出してから計算し直す
     const before = await s.getByTestId('sim-wealth').textContent()
     await keys(page, 'r')
@@ -49,18 +64,18 @@ test.describe('配当シミュレータ（FR-SIM1・SIM2・SIM5・SIM7・SIM9）
 })
 
 /** 読み込み中が出た回数を数え始める（一瞬でも出たら数える。expect の待ち合わせで見逃さない） */
-async function countLoads(page: Page) {
-  await page.evaluate(() => {
-    const w = window as unknown as { __simLoads: number }
-    w.__simLoads = 0
+async function countLoads(page: Page, name = '__simLoads') {
+  await page.evaluate((name) => {
+    const w = window as unknown as Record<string, number>
+    w[name] = 0
     let shown = false
     new MutationObserver(() => {
       const now = !!document.querySelector('[data-testid="sim-loading"]')
-      if (now && !shown) w.__simLoads++
+      if (now && !shown) w[name]!++
       shown = now
     }).observe(document.body, { subtree: true, childList: true })
-  })
-  return () => page.evaluate(() => (window as unknown as { __simLoads: number }).__simLoads)
+  }, name)
+  return () => page.evaluate((name) => (window as unknown as Record<string, number>)[name] ?? 0, name)
 }
 
 test.describe('表示の切り替えでは計算し直さない（FR-SIM7）', () => {
@@ -129,6 +144,12 @@ test.describe('配当シミュレータのキー操作（FR-SIM3・SIM4・SIM6�
     await keys(page, 'ArrowRight', 'ArrowRight')
     await expect(s.getByTestId('sim-fy-read')).toContainText('2 年目')
     await expect(s.getByTestId('sim-fy-read')).toContainText('その年の配当')
+    // 帯（10〜90%）: 凡例とツールチップ
+    await expect(s.locator('.c-fy h3')).toContainText('帯（10〜90%）')
+    await expect(s.getByTestId('sim-fy-read')).toContainText('10〜90%')
+    // 減配への感応度（群のとき）と、目標の配当（未設定なら設定の案内）
+    await expect(s.getByTestId('sim-sens').locator('li').first()).toBeVisible()
+    await expect(s.getByTestId('sim-goal')).toContainText('配当の目標')
     await expect(s.getByTestId('sim-fy-read')).toContainText('累計')
     await keys(page, 'Escape', 'Escape')
     await expect(s.locator('.c-cal h3')).toContainText('受取の目安')
@@ -141,6 +162,7 @@ test.describe('配当シミュレータのキー操作（FR-SIM3・SIM4・SIM6�
     // ↓ で行を動かすだけでは最大化を解かない（表を見ている途中で画面が替わらない）
     await expect(s).toHaveClass(/maxed/)
     // 最大化したまま Enter: 最大化を解いてから送る（チャート・銘柄情報が見えるように。FR-L3）
+    await expect(s.getByTestId('sim-loading')).toHaveCount(0)
     await keys(page, 'Enter')
     await expect(s).not.toHaveClass(/maxed/)
     await expect(page.locator('[data-widget="info"]').first()).toBeVisible()
@@ -311,5 +333,66 @@ test.describe('保有のタブ（FR-H11・FR-SIM11）', () => {
     await tab(page, 'holdings')
     for (const w of ['portfolio', 'info', 'chart', 'divsim']) await expect(page.locator(`[data-widget="${w}"]`)).toHaveCount(1)
     await expect(page.locator('[data-widget="divsim"] .link')).toHaveText('4')
+  })
+})
+
+test.describe('基準日 10 年・日付・配分・積立（FR-SIM8）', () => {
+  test('Alt+4 で 10 年前、Alt+5 で日付、W で利回りに比例、D で毎月の積立', async ({ start }) => {
+    const { page } = await start()
+    const s = await openSim(page)
+    await keys(page, 'Alt+Digit4')
+    await expect(s.locator('.cfg')).toContainText('10 年前')
+    await expect(s.getByTestId('sim-past')).toBeVisible()
+    // 日付
+    await keys(page, 'Alt+Digit5')
+    const dlg = page.locator('.dialog').last()
+    await expect(dlg).toContainText('基準日')
+    await keys(page, 'Control+a')
+    await page.keyboard.type('2022-04-03')
+    await keys(page, 'Enter')
+    await expect(s.locator('.cfg')).toContainText('2022-04-03')
+    await expect(s.locator('.c-hero h3')).toContainText('2022-04-01 に')
+    // 配分
+    await keys(page, 'w')
+    await expect(s.locator('.cfg')).toContainText('利回りに比例')
+    await expect(s.getByTestId('sim-basis')).toContainText('利回り（その時点の直近 1 年の 1 株配当')
+    // 積立
+    await keys(page, 'd')
+    await expect(page.locator('.dialog').last()).toContainText('毎月の積立')
+    await keys(page, 'Control+a')
+    await page.keyboard.type('3')
+    await keys(page, 'Enter')
+    await expect(s.locator('.cfg')).toContainText('毎月 3.00万円を積み立て')
+    await expect(s.locator('.c-hero')).toContainText('入れた元本（積立を含む）')
+    await expect(s.getByTestId('sim-basis')).toContainText('積立は毎月末に')
+  })
+})
+
+test.describe('当時の条件で選び直す・シナリオ（FR-SIM8）', () => {
+  test('H で過去を当時の条件で選び直す。K で今の設定を名前で保存し、あとで読み込む', async ({ start }) => {
+    const { page } = await start()
+    const s = await openSim(page)
+    await expect(s.locator('.cfg')).toContainText('当時の条件で選び直さない')
+    await keys(page, 'h')
+    await expect(s.locator('.cfg')).toContainText('当時の条件で選び直す')
+    await expect(s.getByTestId('sim-past')).toBeVisible()
+    await expect(s.getByTestId('sim-basis')).toContainText('当時の条件で選び直す')
+    // シナリオ: 保存
+    await keys(page, 'k')
+    const dlg = page.locator('.dialog').last()
+    await expect(dlg).toContainText('今の設定を名前を付けて保存')
+    await keys(page, 'Enter')
+    await expect(page.locator('.dialog').last()).toContainText('シナリオの名前')
+    await page.keyboard.type('税引前で選び直し')
+    await keys(page, 'Enter')
+    await expect(page.locator('.dialog')).toHaveCount(0)
+    // 設定を変えてから読み込むと戻る
+    await keys(page, 'h')
+    await expect(s.locator('.cfg')).toContainText('選び直さない')
+    await keys(page, 'k')
+    await expect(page.locator('.dialog').last()).toContainText('税引前で選び直し')
+    await keys(page, 'ArrowDown', 'Enter')
+    await expect(page.locator('.dialog')).toHaveCount(0)
+    await expect(s.locator('.cfg')).toContainText('当時の条件で選び直す')
   })
 })

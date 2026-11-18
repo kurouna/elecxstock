@@ -167,13 +167,19 @@ const G = $derived([
         ja
           ? '配当シミュレータ: 1 銘柄 ⇔ 群 / カードを巡る / 過去 ⇔ これから / 基準日・期間 / 十字線・月'
           : 'Dividend simulator: one stock ⇔ group / cycle cards / past ⇔ ahead / base · horizon / crosshair · month',
-        'O / Tab / PgUp PgDn / Alt+1–4 / ← →',
+        'O / Tab / PgUp PgDn / Alt+1–4 · Alt+5 / ← →',
       ],
       [
         ja
-          ? '配当シミュレータ: 前提 / 出どころ / 元本 / 受取・再投資 / 税 / 比べる相手 / 業種 / 円と % / 受取月 / 横ばい ⇔ 伸びを見込む / 並べ替え'
-          : 'Dividend simulator: notes / source / principal / reinvest / tax / compare / sector / ¥ and % / pay month / flat ⇔ growth / sort',
-        'N / L / A / R / X / B / G / P / V / M / S',
+          ? '配当シミュレータ: 前提 / 出どころ / 元本 / 受取・再投資 / 税 / 比べる相手 / 業種 / 円と %'
+          : 'Dividend simulator: notes / source / principal / reinvest / tax / compare / sector / ¥ and %',
+        'N / L / A / R / X / B / G / P',
+      ],
+      [
+        ja
+          ? '配当シミュレータ: 受取月 / 試算の方式 / 配分 / 積立 / 当時の条件で選び直す / シナリオ / 並べ替え'
+          : 'Dividend simulator: pay month / method / weighting / monthly additions / re-screen / scenarios / sort',
+        'V / M / W / D / H / K / S',
       ],
     ],
   },

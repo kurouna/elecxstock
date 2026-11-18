@@ -368,11 +368,18 @@ describe('FR-SIM4 年ごとの見込みの図（上段: その年の配当・下
     expect(g.indexAt(g.x(3))).toBe(3)
     expect(g.indexAt(-10)).toBe(0)
   })
-  it('図の下の固定の 1 行: その年・累計・元本に対する割合・ストレス（違うときだけ）', async () => {
+  it('ツールチップの値: その年・累計・元本に対する割合・減配シナリオ（違うときだけ）', async () => {
     const { fwdReadout } = await import('../../../src/renderer/lib/divsim')
     const ys = years(20_400, 15_000)
-    expect(fwdReadout(ys, 4, 1_000_000)).toEqual({ year: 5, value: 20_400, cum: 102_000, pct: 0.102, stress: 15_000, cumStress: 75_000 })
-    expect(fwdReadout(years(20_400, 20_400), 0, 1_000_000)).toEqual({
+    expect(fwdReadout(ys, 4, 1_000_000)).toMatchObject({
+      year: 5,
+      value: 20_400,
+      cum: 102_000,
+      pct: 0.102,
+      stress: 15_000,
+      cumStress: 75_000,
+    })
+    expect(fwdReadout(years(20_400, 20_400), 0, 1_000_000)).toMatchObject({
       year: 1,
       value: 20_400,
       cum: 20_400,
@@ -400,5 +407,185 @@ describe('FR-SIM6 FR-SIM12 4 回目のレビューの反映と言い方', () => 
     const bad = Object.entries(ja).filter(([k, v]) => k.startsWith('sim.') && v.includes('ストレス'))
     expect(bad).toEqual([])
     expect(ja['sim.f.stress']).toContain('減配シナリオ')
+  })
+})
+
+describe('FR-SIM8 帯を図に入れる', () => {
+  const years = (n = 10) => Array.from({ length: n }, (_, i) => ({ year: i + 1, value: 100, stress: 100, cum: 100 * (i + 1) }))
+  const band = (n = 10) => ({
+    p10: Array.from({ length: n }, () => 60),
+    p50: Array.from({ length: n }, () => 100),
+    p90: Array.from({ length: n }, () => 180),
+    c10: Array.from({ length: n }, (_, i) => 60 * (i + 1)),
+    c50: Array.from({ length: n }, (_, i) => 100 * (i + 1)),
+    c90: Array.from({ length: n }, (_, i) => 180 * (i + 1)),
+    years: 8,
+  })
+  it('目盛りの上端は帯の 90% 点まで入る（帯が図の外に出ない）', async () => {
+    const { fwdChart } = await import('../../../src/renderer/lib/divsim')
+    const g = fwdChart(years(), 10_000, 600, 250, band())
+    expect(g.top.y(180)).toBeGreaterThanOrEqual(g.top.y0 - g.top.h)
+    expect(g.bot.y(1800)).toBeGreaterThanOrEqual(g.bot.y0 - g.bot.h)
+    expect(g.band).not.toBeNull()
+    expect(fwdChart(years(), 10_000, 600, 250).band).toBeNull()
+  })
+  it('ツールチップの値に帯（10〜90%）を入れる', async () => {
+    const { fwdReadout } = await import('../../../src/renderer/lib/divsim')
+    expect(fwdReadout(years(), 4, 1000, band())).toMatchObject({ lo: 60, hi: 180, cumLo: 300, cumHi: 900 })
+    expect(fwdReadout(years(), 4, 1000)).toMatchObject({ lo: null, hi: null })
+  })
+})
+
+describe('FR-SIM8 減配の感応度と目標の配当', () => {
+  const row = (id: string, y1: number, r: number) => ({ id, y1, r })
+  it('感応度: 1 年目の配当の多い順に、無配になったときに減る額（全体に対する割合）と減配シナリオで減る額', async () => {
+    const { sensitivity } = await import('../../../src/renderer/lib/divsim')
+    const s = sensitivity([row('A', 100, 1), row('B', 300, 0.5), row('C', 0, 1), row('D', 600, 1.2)], 2)
+    expect(s.map((x) => x.id)).toEqual(['D', 'B'])
+    expect(s[0]).toEqual({ id: 'D', y1: 600, share: 0.6, cut: 0 })
+    expect(s[1]).toEqual({ id: 'B', y1: 300, share: 0.3, cut: 150 })
+    expect(sensitivity([row('A', 0, 1)], 5)).toEqual([])
+  })
+  it('目標の配当（月）: 届くのに要る元本と、今の見込みが目標の何 %', async () => {
+    const { goalOf } = await import('../../../src/renderer/lib/divsim')
+    expect(goalOf(50_000, 120_000, 3_000_000)).toEqual({ annual: 600_000, need: 15_000_000, pct: 0.2 })
+    expect(goalOf(0, 120_000, 3_000_000)).toBeNull()
+    expect(goalOf(50_000, 0, 3_000_000)).toEqual({ annual: 600_000, need: null, pct: 0 })
+  })
+})
+
+describe('FR-SIM12 表の「試算の伸び」の列', () => {
+  it('伸びを見込むときだけ出す', async () => {
+    const { simColumns } = await import('../../../src/renderer/lib/divsim')
+    const o = { lang: 'ja' as const, label: (k: string) => k, name: (id: string) => id, code: (id: string) => id }
+    expect(simColumns(result(), 'fwd', o).some((c) => c.id === 'g')).toBe(false)
+    expect(simColumns(result({ settings: { ...DEFAULT_SIM, years: 3, method: 'growth' } }), 'fwd', o).some((c) => c.id === 'g')).toBe(true)
+  })
+})
+
+describe('FR-SIM8 超過分の分解の段（滝）', () => {
+  it('1306 から順に足していき、最後は選んだ群（合計）', async () => {
+    const { decompSteps } = await import('../../../src/renderer/lib/divsim')
+    const s = decompSteps({ etf: 0.1, size: 0.05, sector: -0.02, pick: 0.07 })
+    expect(s.map((x) => x.k)).toEqual(['etf', 'size', 'sector', 'pick', 'total'])
+    expect(s[0]).toEqual({ k: 'etf', from: 0, to: 0.1, v: 0.1 })
+    expect(s[2]!.k).toBe('sector')
+    expect(s[2]!.from).toBeCloseTo(0.15)
+    expect(s[2]!.to).toBeCloseTo(0.13)
+    expect(s[4]!.to).toBeCloseTo(0.2)
+    expect(s[4]!.from).toBe(0)
+  })
+})
+
+describe('FR-SIM8 設定: 基準日の日付・積立・配分', () => {
+  it('ペインの状態から読む（知らない値は既定）', () => {
+    expect(simSettingsOf({ years: 10, from: '2020-04-01', monthly: 30_000, weight: 'yield' })).toMatchObject({
+      years: 10,
+      from: '2020-04-01',
+      monthly: 30_000,
+      weight: 'yield',
+    })
+    expect(simSettingsOf({ from: '2020/04/01', monthly: -5, weight: 'x' })).toMatchObject({ from: null, monthly: 0, weight: 'equal' })
+  })
+  it('計算し直す鍵に入る', () => {
+    expect(simKey(['a'], { ...DEFAULT_SIM, monthly: 1 })).not.toBe(simKey(['a'], DEFAULT_SIM))
+    expect(simKey(['a'], { ...DEFAULT_SIM, from: '2020-01-01' })).not.toBe(simKey(['a'], DEFAULT_SIM))
+    expect(simKey(['a'], { ...DEFAULT_SIM, weight: 'yield' })).not.toBe(simKey(['a'], DEFAULT_SIM))
+  })
+  it('日付の入力（YYYY-MM-DD・/ 区切り・全角）。今日より後・2000 年より前・読めない値は null', async () => {
+    const { parseFrom } = await import('../../../src/renderer/lib/divsim')
+    expect(parseFrom('2020-04-01', '2026-11-13')).toBe('2020-04-01')
+    expect(parseFrom('２０２０/4/1', '2026-11-13')).toBe('2020-04-01')
+    expect(parseFrom('2027-01-01', '2026-11-13')).toBeNull()
+    expect(parseFrom('1999-12-31', '2026-11-13')).toBeNull()
+    expect(parseFrom('abc', '2026-11-13')).toBeNull()
+  })
+  it('積立の額（月・万円で打つ。0 で止める）', async () => {
+    const { parseMonthly } = await import('../../../src/renderer/lib/divsim')
+    expect(parseMonthly('3')).toBe(30_000)
+    expect(parseMonthly('0')).toBe(0)
+    expect(parseMonthly('-1')).toBeNull()
+  })
+})
+
+describe('FR-SIM8 シナリオの保存（ペインの状態に持つ）', () => {
+  it('今の設定（計算の設定と出どころ・対象）を名前で保存。同じ名前は上書き、20 件まで（古いものから消す）', async () => {
+    const { saveScenario, scenariosOf } = await import('../../../src/renderer/lib/divsim')
+    const st = { years: 5, amount: 1_000_000, src: 'favorites', scope: 'group', tab: 'fwd', pct: true }
+    let xs = saveScenario([], 'A', st)
+    expect(xs[0]!.name).toBe('A')
+    expect(xs[0]!.state).toMatchObject({ years: 5, amount: 1_000_000, src: 'favorites', scope: 'group' })
+    expect(xs[0]!.state).not.toHaveProperty('tab')
+    expect(xs[0]!.state).not.toHaveProperty('pct')
+    xs = saveScenario(xs, 'A', { ...st, years: 3 })
+    expect(xs.length).toBe(1)
+    expect(xs[0]!.state.years).toBe(3)
+    for (let i = 0; i < 25; i++) xs = saveScenario(xs, `S${i}`, st)
+    expect(xs.length).toBe(20)
+    expect(xs.at(-1)!.name).toBe('S24')
+    expect(scenariosOf({ scenarios: xs }).length).toBe(20)
+    expect(scenariosOf({ scenarios: 'x' })).toEqual([])
+    // 計算の入力（当時の条件で選び直す）も入れる
+    expect(saveScenario([], 'R', { rescreen: true, tab: 'past' })[0]!.state.rescreen).toBe(true)
+    // 決めていなかった設定も「既定」として入れる（読み込んだとき、あとから変えた値が残らない）
+    const blank = saveScenario([], 'B', {})[0]!.state
+    expect(blank).toMatchObject({ from: null, monthly: null, rescreen: null, src: null })
+  })
+})
+
+describe('FR-SIM8 フリーの窓に置く', () => {
+  it('フリーの窓に置けるペインに入る。既定の出どころは★お気に入り（スクリーナーが無いため今のスクリーナーは選べない）', async () => {
+    const { FREE_WIDGETS } = await import('../../../src/renderer/lib/windowSlot')
+    const { defaultSource, allowsLive } = await import('../../../src/renderer/lib/divsim')
+    expect(FREE_WIDGETS).toContain('divsim')
+    expect(defaultSource(true)).toBe('favorites')
+    expect(defaultSource(false)).toBe('live')
+    expect(allowsLive(true)).toBe(false)
+    expect(allowsLive(false)).toBe(true)
+  })
+})
+
+describe('FR-SIM8 当時の条件で選び直す（H）', () => {
+  it('過去のタブだけで受ける', async () => {
+    const { keyApplies } = await import('../../../src/renderer/lib/divsim')
+    expect(keyApplies('KeyH', 'past', false)).toBe(true)
+    expect(keyApplies('KeyH', 'fwd', false)).toBe(false)
+  })
+  it('前提に、作り直せた条件で選び直したことと、使えなかった条件を出す', () => {
+    const r = result()
+    r.past!.rescreen = { count: 2, ignored: ['value.per'] }
+    const n = basisNotes(r, 'past', true).find((x) => x.k === 'sim.n.rescreen')
+    expect(n).toMatchObject({ a: { n: 2, x: 'PER' }, warn: true })
+  })
+})
+
+describe('FR-SIM8 積立と選び直しの前提（レビューの反映）', () => {
+  it('積立のときは「同業種と比べられる銘柄がない」の警告を出さない（積立の前提が理由を言う）', () => {
+    const r = result({ settings: { ...DEFAULT_SIM, monthly: 50_000 } })
+    const ks = basisNotes(r, 'past', true).map((n) => n.k)
+    expect(ks).toContain('sim.n.dca')
+    expect(ks).not.toContain('sim.n.noPeer')
+  })
+  it('使えなかった条件は指標の名前で出す（ID ではなく）', () => {
+    const r = result()
+    r.past!.rescreen = { count: 2, ignored: ['value.per'] }
+    expect(basisNotes(r, 'past', true, 'ja').find((n) => n.k === 'sim.n.rescreen')?.a?.x).toBe('PER')
+    expect(basisNotes(r, 'past', true, 'en').find((n) => n.k === 'sim.n.rescreen')?.a?.x).toBe('P/E')
+  })
+  it('選び直しの入力の署名: 条件の値・★・ウォッチリストが変わると変わる（計算し直す）', async () => {
+    const { rescreenInput, rescreenSig } = await import('../../../src/renderer/lib/divsim')
+    const c = [{ field: 'income.yield', op: '>=' as const, value: 3 }]
+    const a = rescreenSig(rescreenInput(c, [{ id: 'fav', builtin: 'favorites', items: ['JP:1'] }]))
+    expect(rescreenSig(rescreenInput([{ ...c[0]!, value: 4 }], [{ id: 'fav', builtin: 'favorites', items: ['JP:1'] }]))).not.toBe(a)
+    expect(rescreenSig(rescreenInput(c, [{ id: 'fav', builtin: 'favorites', items: ['JP:2'] }]))).not.toBe(a)
+    expect(rescreenSig(rescreenInput(c, [{ id: 'fav', builtin: 'favorites', items: ['JP:1'] }]))).toBe(a)
+    expect(rescreenSig(null)).toBe('')
+    expect(rescreenInput(c, [{ id: 'fav', builtin: 'favorites', items: ['JP:1'] }]).favorites).toEqual(['JP:1'])
+  })
+  it('これからのタブでは基準日の日付（Alt+5）を受けない', async () => {
+    const { altApplies } = await import('../../../src/renderer/lib/divsim')
+    expect(altApplies('Digit5', 'fwd')).toBe(false)
+    expect(altApplies('Digit5', 'past')).toBe(true)
+    expect(altApplies('Digit1', 'fwd')).toBe(true)
   })
 })

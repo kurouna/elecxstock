@@ -1,24 +1,33 @@
 // 配当シミュレータ（docs/design-simulator.md）の設定と結果の型。Core（sim.run）と画面が共有する。
 import { DIVIDEND_TAX } from '../folio'
 import type { InstrumentId, JstDate } from '../types'
+import type { Band } from './forecast'
+import type { Luck } from './peers'
 
 /** 税: 税引前 ／ 20.315% ／ 非課税（計算は税引前と同じで、名前と前提の文だけ違う。§5.1） */
 export type SimTax = 'gross' | 'taxed' | 'nisa'
 /** 同業種の粒度（33 業種。足りなければ 17 業種へ切り替える ／ 17 業種） */
 export type SimSector = 's33' | 's17'
-/** これからの試算の方式（横ばい ／ 伸びを見込む。§5.2） */
-export type SimMethod = 'flat' | 'growth'
-export const SIM_METHODS: SimMethod[] = ['flat', 'growth']
-export const SIM_YEARS = [1, 3, 5] as const
+/** これからの試算の方式（横ばい ／ 伸びを見込む ／ 直線トレンド試算（参考）。§5.2） */
+export type SimMethod = 'flat' | 'growth' | 'trend'
+export const SIM_METHODS: SimMethod[] = ['flat', 'growth', 'trend']
+export const SIM_YEARS = [1, 3, 5, 10] as const
 export const SIM_HORIZONS = [5, 10, 20, 30] as const
 export type SimYears = (typeof SIM_YEARS)[number]
 export type SimHorizon = (typeof SIM_HORIZONS)[number]
 /** 計算する銘柄数の上限（出どころの表示順の先頭から。§8） */
 export const SIM_LIMIT = 200
 
+/** 配分（均等の金額 ／ 利回りに比例。P2） */
+export type SimWeight = 'equal' | 'yield'
 /** 計算の入力になる設定（変えたら計算し直す。§7.6） */
 export interface SimSettings {
   years: SimYears
+  /** 基準日を日付で指定（null なら years 年前） */
+  from: JstDate | null
+  /** 積立（毎月末に足す額・円。0 は一括） */
+  monthly: number
+  weight: SimWeight
   /** 元本（円） */
   amount: number
   reinvest: boolean
@@ -35,6 +44,9 @@ export const DEFAULT_SIM: SimSettings = {
   sector: 's33',
   horizon: 10,
   method: 'flat',
+  from: null,
+  monthly: 0,
+  weight: 'equal',
 }
 export const netRate = (tax: SimTax): number => (tax === 'taxed' ? 1 - DIVIDEND_TAX : 1)
 
@@ -75,6 +87,8 @@ export interface SimPast {
   /** 日足の範囲の始まり（最大下落率を測った範囲） */
   dailyFrom: JstDate | null
   principal: number
+  /** 推移の点ごとの入れた元本（積立のとき階段。一括なら一定） */
+  principalPath: number[]
   /** 推移の点の日付（基準日・月末ごと・今日） */
   dates: JstDate[]
   /** 今の価値（評価額 + 受け取った配当（再投資しないとき）） */
@@ -86,14 +100,25 @@ export interface SimPast {
   peer: number[] | null
   etfPct: number | null
   peerPct: number | null
+  /** 全銘柄の均等の群（選んだ銘柄の市場区分。§4.3）の推移とトータルリターン */
+  allEq: number[] | null
+  allEqPct: number | null
+  /** 超過分の分解（§4.3）: 1306 → 規模（全銘柄の均等 − 1306）→ 業種の配分（同業種 − 全銘柄の均等）→ 銘柄選び（選んだ群 − 同業種。参考）。足すと選んだ群 */
+  decomp: { etf: number; size: number; sector: number; pick: number } | null
+  /** 偶然との比較（§4.4） */
+  luck: Luck | null
+  /** 当時の条件で選び直した（過去の銘柄は基準日の値で条件を当て直した結果）。ignored は使えなかった条件の指標 */
+  rescreen: { count: number; ignored: string[] } | null
   hero: {
     wealth: number
     value: number
     received: number
     gain: number
     totalPct: number
-    /** 年率（基準日を「N 年前」で選ぶので N 年で数える） */
-    annual: number
+    /** 入れた元本の合計（積立を含む） */
+    invested: number
+    /** 年率（「N 年前」は N 年で、日付の指定は実際の年数で数える。1 年に満たない・積立では null） */
+    annual: number | null
     yoc: number
     /** 直近 1 年に受け取った配当 ÷ 元本 */
     yieldOnPrincipal: number
@@ -153,6 +178,8 @@ export interface SimFwd {
   years: { year: number; value: number; stress: number; cum: number }[]
   /** 月ごとの配当の合計（権利確定月。0 が 1 月） */
   months: number[]
+  /** 帯（10・50・90%。年ごとと累計。引ける年が無ければ null） */
+  band: Band | null
 }
 
 export interface SimResult {

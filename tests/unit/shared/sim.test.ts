@@ -554,3 +554,336 @@ describe('FR-SIM4 FR-SIM12 元本に届く年数（選んだ方式の累計で�
     expect(g.fwd.paybackYears!).toBeLessThan(f.fwd.paybackYears!)
   })
 })
+
+describe('FR-SIM8 帯（10・50・90%。年ごとに過去の 1 年を引いて全銘柄に当てる）', () => {
+  const yrs = (o: Record<number, number>) => new Map(Object.entries(o).map(([k, v]) => [Number(k), v]))
+  const pool = [
+    {
+      id: 'A',
+      s17: '銀行',
+      years: yrs({ 2017: 10, 2018: 10, 2019: 10, 2020: 5, 2021: 10, 2022: 11, 2023: 12, 2024: 12, 2025: 13 }),
+      from: 2016,
+    },
+    {
+      id: 'B',
+      s17: '銀行',
+      years: yrs({ 2017: 10, 2018: 10, 2019: 11, 2020: 9, 2021: 10, 2022: 11, 2023: 11, 2024: 12, 2025: 12 }),
+      from: 2016,
+    },
+  ]
+  const parts = [
+    { id: 'A', s17: '銀行', line: Array.from({ length: 10 }, () => 100) },
+    { id: 'B', s17: '銀行', line: Array.from({ length: 10 }, () => 100) },
+  ]
+  it('10% ≤ 50% ≤ 90%。50% 点は選んだ方式の線にそろえる。累計も同じ', async () => {
+    const { bandOf } = await import('@shared/sim/forecast')
+    const b = bandOf(parts, pool, 2026, 'seed')!
+    for (let t = 0; t < 10; t++) {
+      expect(b.p10[t]!).toBeLessThanOrEqual(b.p50[t]! + 1e-9)
+      expect(b.p50[t]!).toBeLessThanOrEqual(b.p90[t]! + 1e-9)
+      expect(b.p50[t]!).toBeCloseTo(200)
+      expect(b.c10[t]!).toBeLessThanOrEqual(b.c90[t]!)
+    }
+    expect(b.c50[9]!).toBeCloseTo(2000)
+    // 2020 年のような一斉の減配を引くと下がる: 10% 点は線より下
+    expect(b.p10[9]!).toBeLessThan(200)
+    expect(b.years).toBeGreaterThanOrEqual(5)
+  })
+  it('同じ入力なら同じ結果（種を固定）', async () => {
+    const { bandOf } = await import('@shared/sim/forecast')
+    expect(bandOf(parts, pool, 2026, 'seed')).toEqual(bandOf(parts, pool, 2026, 'seed'))
+  })
+  it('引ける年が無ければ null', async () => {
+    const { bandOf } = await import('@shared/sim/forecast')
+    expect(bandOf(parts, [], 2026, 'seed')).toBeNull()
+  })
+  it('配当が 0 の銘柄だけなら 0 で割らない（帯は 0）', async () => {
+    const { bandOf } = await import('@shared/sim/forecast')
+    const b = bandOf([{ id: 'A', s17: '銀行', line: [0, 0, 0] }], pool, 2026, 'seed')!
+    expect(b.p50).toEqual([0, 0, 0])
+    expect(b.p90).toEqual([0, 0, 0])
+  })
+  it('結果に帯が入る（これからの年ごとと同じ長さ）', () => {
+    const st = (id: string): SimStock => ({
+      id,
+      kind: 'stock',
+      market: 'P',
+      sector33: '銀行業',
+      px: buildPx([], daily('2023-01-04', TODAY)),
+      divs: semi(2016, 2026),
+      divFrom: '2016-01-01',
+    })
+    const r = simulate({
+      today: TODAY,
+      total: 2,
+      etf: null,
+      members: () => [],
+      stressPool: pool,
+      settings: { ...DEFAULT_SIM, horizon: 5 },
+      stocks: [st('A'), st('B')],
+    })
+    expect(r.fwd.band?.p50.length).toBe(5)
+    expect(r.fwd.band!.p50[0]!).toBeCloseTo(r.fwd.years[0]!.value)
+  })
+})
+
+describe('FR-SIM8 超過分の分解・偶然との比較（設計 §4.3・§4.4）', () => {
+  const stock = (id: string, rise: number, o: Partial<SimStock> = {}): SimStock => ({
+    id,
+    kind: 'stock',
+    market: 'P',
+    sector33: '銀行業',
+    px: buildPx(
+      [],
+      daily('2023-01-04', TODAY, (d) => (d > '2024-01-01' ? 1000 * (1 + rise) : 1000)),
+    ),
+    divs: semi(2023, 2026),
+    divFrom: '2016-01-01',
+    ...o,
+  })
+  const peers = [0, 0.05, 0.1, 0.15, 0.2, 0.25].map((x, i) => stock(`P${i}`, x))
+  const other = [0, 0.02, 0.04, 0.06, 0.08].map((x, i) => stock(`Q${i}`, x, { sector33: '小売業' }))
+  const etf = stock('JP:1306', 0.02, { kind: 'etf', market: 'E', sector33: '', divs: [{ date: '2024-07-10', amount: 20 }] })
+  const base = {
+    today: TODAY,
+    total: 1,
+    etf,
+    stressPool: [],
+    settings: { ...DEFAULT_SIM, years: 3 as const, tax: 'gross' as const },
+    members: (key: string) => (key === '銀行業' ? [stock('A', 0.3), ...peers] : key === '小売業' ? other : []),
+    universe: () => [stock('A', 0.3), ...peers, ...other],
+  }
+  it('分解: 1306 → 全銘柄の均等（規模）→ 同業種の均等（業種の配分）→ 選んだ群（銘柄選び）。足すと選んだ群に一致する', () => {
+    const r = simulate({ ...base, stocks: [stock('A', 0.3)] })
+    const d = r.past!.decomp!
+    expect(d.etf + d.size + d.sector + d.pick).toBeCloseTo(r.past!.hero.totalPct)
+    expect(d.etf).toBeCloseTo(r.past!.etfPct!)
+    expect(d.etf + d.size).toBeCloseTo(r.past!.allEqPct!)
+    expect(r.past!.allEq!.length).toBe(r.past!.dates.length)
+    expect(d.pick).toBeGreaterThan(0) // A は相手より上がった
+  })
+  it('偶然との比較: 同じ業種の構成で無作為に選んだ 1,000 の群の中の位置。種を固定', () => {
+    const r = simulate({ ...base, stocks: [stock('A', 0.3)] })
+    const l = r.past!.luck!
+    expect(l.pct).toBeGreaterThan(0.9) // A は相手の誰よりも上がった
+    expect(l.bins.reduce((a, b) => a + b, 0)).toBe(1000)
+    expect(simulate({ ...base, stocks: [stock('A', 0.3)] }).past!.luck).toEqual(l)
+  })
+  it('比べられる銘柄が無ければ（業種の相手が足りない）偶然との比較は null。1306 が無ければ分解は null', () => {
+    const r = simulate({ ...base, members: () => [], stocks: [stock('A', 0.3)] })
+    expect(r.past!.luck).toBeNull()
+    expect(simulate({ ...base, etf: null, stocks: [stock('A', 0.3)] }).past!.decomp).toBeNull()
+  })
+})
+
+describe('FR-SIM8 基準日 10 年・日付の指定・積立・利回り加重', () => {
+  const stock = (id: string, o: Partial<SimStock> = {}): SimStock => ({
+    id,
+    kind: 'stock',
+    market: 'P',
+    sector33: '銀行業',
+    px: buildPx(
+      Array.from({ length: 12 * 12 }, (_, i) => ({
+        d: `${2012 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}-01`,
+        c: 1000,
+      })),
+      daily('2024-01-04', TODAY),
+    ),
+    divs: semi(2015, 2026),
+    divFrom: '2015-01-01',
+    ...o,
+  })
+  const base = { today: TODAY, total: 2, etf: null, members: () => [], stressPool: [] }
+  it('10 年前を基準日にできる', () => {
+    const r = simulate({ ...base, settings: { ...DEFAULT_SIM, years: 10 }, stocks: [stock('A')] })
+    expect(r.past!.base).toBe(baseDate(TODAY, 10))
+    expect(r.past!.hero.annual).not.toBeNull()
+  })
+  it('日付を指定すると、その日以前の最後の取引日を基準日にする。1 年に満たなければ年率は出さない', () => {
+    const r = simulate({ ...base, settings: { ...DEFAULT_SIM, from: '2022-04-03' }, stocks: [stock('A')] })
+    expect(r.past!.base).toBe('2022-04-01') // 4/3 は日曜
+    expect(r.past!.hero.annual).not.toBeNull()
+    const s = simulate({ ...base, settings: { ...DEFAULT_SIM, from: '2026-06-01' }, stocks: [stock('A')] })
+    expect(s.past!.hero.annual).toBeNull()
+  })
+  it('積立: 毎月末に同じ額を足して買う。元本の推移は階段、合計の元本で割る。年率と同業種の比較は出さない', () => {
+    const r = simulate({
+      ...base,
+      settings: { ...DEFAULT_SIM, years: 1, amount: 1_200_000, monthly: 100_000, tax: 'gross' },
+      stocks: [stock('A')],
+    })
+    const p = r.past!
+    expect(p.principalPath[0]).toBe(1_200_000)
+    expect(p.principalPath.at(-1)).toBe(1_200_000 + 100_000 * (p.dates.length - 2))
+    expect(p.hero.invested).toBe(p.principalPath.at(-1))
+    expect(p.hero.totalPct).toBeCloseTo(p.hero.wealth / p.hero.invested - 1)
+    expect(p.hero.annual).toBeNull()
+    expect(p.peer).toBeNull()
+    expect(p.luck).toBeNull()
+  })
+  it('利回り加重: 元本を利回り（1 株配当 ÷ 株価）に比例して配る。合計は元本', () => {
+    const hi = stock('H', { divs: semi(2015, 2026, 30) })
+    const lo = stock('L', { divs: semi(2015, 2026, 10) })
+    const r = simulate({ ...base, settings: { ...DEFAULT_SIM, years: 1, weight: 'yield' }, stocks: [hi, lo] })
+    const [h, l] = [r.past!.rows.find((x) => x.id === 'H')!, r.past!.rows.find((x) => x.id === 'L')!]
+    expect((h.shares0 * h.buy) / (l.shares0 * l.buy)).toBeCloseTo(3)
+    expect(h.shares0 * h.buy + l.shares0 * l.buy).toBeCloseTo(DEFAULT_SIM.amount)
+    const fh = r.fwd.rows.find((x) => x.id === 'H')!
+    const fl = r.fwd.rows.find((x) => x.id === 'L')!
+    expect((fh.shares * fh.price) / (fl.shares * fl.price)).toBeCloseTo(3)
+  })
+})
+
+describe('FR-SIM8 10 年の基準日と配当の記録の始まり', () => {
+  it('記録の始まりが基準日の 14 日後までなら外さない（10 年前の取得の境目）。それより後なら外す', () => {
+    const st = (divFrom: string): SimStock => ({
+      id: 'A',
+      kind: 'stock',
+      market: 'P',
+      sector33: '銀行業',
+      px: buildPx(
+        Array.from({ length: 12 * 12 }, (_, i) => ({
+          d: `${2012 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}-01`,
+          c: 1000,
+        })),
+        daily('2024-01-04', TODAY),
+      ),
+      divs: semi(2015, 2026),
+      divFrom,
+    })
+    const base = { today: TODAY, total: 1, etf: null, members: () => [], stressPool: [], settings: { ...DEFAULT_SIM, years: 10 as const } }
+    expect(simulate({ ...base, stocks: [st('2016-11-13')] }).excluded).toEqual([])
+    expect(simulate({ ...base, stocks: [st('2016-12-15')] }).excluded).toEqual([{ id: 'A', reason: 'noDivRecord' }])
+  })
+})
+
+describe('FR-SIM8 直線トレンド試算（参考。FORECAST.LINEAR と同じ最小二乗の直線）', () => {
+  it('年ごとの 1 株配当に直線を当て、先の年へ延ばす。0 で下限を切る', async () => {
+    const { linearFit } = await import('@shared/sim/forecast')
+    const f = linearFit([10, 12, 14, 16])!
+    expect(f.at(4)).toBeCloseTo(18)
+    expect(f.at(5)).toBeCloseTo(20)
+    expect(linearFit([16, 12, 8, 4])!.at(6)).toBe(0)
+    expect(linearFit([5, 5])).toBeNull()
+  })
+  it('方式「直線トレンド試算」: 伸びている銘柄は直線で増える。期間不足は横ばい', () => {
+    const st = (id: string, divs = semi(2016, 2026, (y) => 5 + (y - 2016))): SimStock => ({
+      id,
+      kind: 'stock',
+      market: 'P',
+      sector33: '銀行業',
+      px: buildPx([], daily('2023-01-04', TODAY)),
+      divs,
+      divFrom: '2016-01-01',
+    })
+    const base = { today: TODAY, total: 1, etf: null, members: () => [], stressPool: [] }
+    const r = simulate({ ...base, settings: { ...DEFAULT_SIM, method: 'trend', horizon: 5, tax: 'gross' }, stocks: [st('A')] })
+    const ys = r.fwd.years
+    expect(ys[1]!.value - ys[0]!.value).toBeCloseTo(ys[4]!.value - ys[3]!.value) // 直線なので毎年同じだけ増える
+    expect(ys[4]!.value).toBeGreaterThan(ys[0]!.value)
+    const s = simulate({ ...base, settings: { ...DEFAULT_SIM, method: 'trend', horizon: 5 }, stocks: [st('A', semi(2025, 2026))] })
+    expect(s.fwd.years[4]!.value).toBeCloseTo(s.fwd.years[0]!.value)
+  })
+})
+
+describe('FR-SIM8 当時の条件で選び直す（基準日の値で作り直せる条件だけ）', () => {
+  it('利回り・連続増配・連続非減配・市場区分・業種・種別・★・ウォッチリストは使い、ほかは外して返す', async () => {
+    const { splitRescreen } = await import('@shared/sim/rescreen')
+    const r = splitRescreen([
+      { field: 'income.yield', op: '>=', value: 4 },
+      { field: 'income.divUpYears', op: '>=', value: 3 },
+      { field: 'attr.market', op: 'in', value: ['P'] },
+      { field: 'user.favorite', op: '=', value: true },
+      { field: 'value.per', op: '<=', value: 15 },
+    ])
+    expect(r.kept.map((c) => c.field)).toEqual(['income.yield', 'income.divUpYears', 'attr.market', 'user.favorite'])
+    expect(r.ignored).toEqual(['value.per'])
+  })
+})
+
+describe('FR-SIM8 積立のときの 1306 との差・順位（レビューの反映）', () => {
+  const stock = (id: string, o: Partial<SimStock> = {}): SimStock => ({
+    id,
+    kind: 'stock',
+    market: 'P',
+    sector33: '銀行業',
+    px: buildPx(
+      [],
+      daily('2025-01-06', TODAY, (d) => (d > '2026-01-01' ? 1100 : 1000)),
+    ),
+    divs: semi(2023, 2026),
+    divFrom: '2016-01-01',
+    ...o,
+  })
+  const etf = stock('JP:1306', { kind: 'etf', market: 'E', sector33: '', divs: [] })
+  it('1306 も同じ積立で回すので、1306 の騰落率は入れた合計で割る。順位（一括で回した相手と比べる）は出さない', () => {
+    const r = simulate({
+      today: TODAY,
+      total: 1,
+      etf,
+      stressPool: [],
+      members: () => [],
+      settings: { ...DEFAULT_SIM, years: 1, amount: 1_000_000, monthly: 100_000, tax: 'gross' },
+      stocks: [stock('A')],
+    })
+    const p = r.past!
+    expect(p.etfPct).toBeCloseTo(p.etf!.at(-1)! / p.hero.invested - 1)
+    expect(Math.abs(p.etfPct!)).toBeLessThan(0.2) // 元本の 1,000,000 で割ると +100% を超える
+    expect(p.rows[0]!.rank).toBeNull()
+  })
+})
+
+describe('FR-SIM8 偶然との比較は配分の重みで（利回り加重のとき。レビューの反映）', () => {
+  it('選んだ群も無作為の群も、銘柄ごとの重みで平均する（重みが無ければ均等）', async () => {
+    const { luckOf } = await import('@shared/sim/peers')
+    const l = luckOf(
+      [
+        { mine: 2, peers: [1], w: 3 },
+        { mine: 1, peers: [1], w: 1 },
+      ],
+      's',
+    )!
+    expect(l.mine).toBeCloseTo((2 * 3 + 1) / 4 - 1)
+    expect(
+      luckOf(
+        [
+          { mine: 2, peers: [1] },
+          { mine: 1, peers: [1] },
+        ],
+        's',
+      )!.mine,
+    ).toBeCloseTo(0.5)
+  })
+})
+
+describe('FR-SIM8 当時の条件で選び直す: 「または」と相対条件（レビューの反映）', () => {
+  it('外した条件の下の「または」を前の「かつ」につながない（まとまりの頭を外したら次の条件を頭にする）', async () => {
+    const { splitRescreen } = await import('@shared/sim/rescreen')
+    const r = splitRescreen([
+      { field: 'income.yield', op: '>=', value: 4 },
+      { field: 'value.per', op: '<=', value: 15 },
+      { field: 'income.divUpYears', op: '>=', value: 3, or: true },
+    ])
+    expect(r.kept).toEqual([
+      { field: 'income.yield', op: '>=', value: 4 },
+      { field: 'income.divUpYears', op: '>=', value: 3 },
+    ])
+    expect(r.ignored).toEqual(['value.per'])
+  })
+  it('作り直せない指標と比べる相対条件は使わない', async () => {
+    const { splitRescreen } = await import('@shared/sim/rescreen')
+    const r = splitRescreen([{ field: 'income.yield', op: '>=', value: 0, ref: 'value.per' }])
+    expect(r.kept).toEqual([])
+    expect(r.ignored).toEqual(['income.yield'])
+  })
+  it('基準日の実績利回り: 直近 1 年の配当 ÷ 株価。その 1 年を配当の記録が覆っていなければ欠損（metrics.ts と同じ）', async () => {
+    const { yieldAt } = await import('@shared/sim/rescreen')
+    const divs = [
+      { date: '2022-06-01' as const, amount: 10 },
+      { date: '2022-12-01' as const, amount: 10 },
+    ]
+    expect(yieldAt(divs, 1000, '2023-03-01', '2016-01-01')).toBeCloseTo(2)
+    expect(yieldAt(divs, 1000, '2023-03-01', '2023-01-01')).toBeNull()
+    expect(yieldAt(divs, 0, '2023-03-01', '2016-01-01')).toBeNull()
+  })
+})

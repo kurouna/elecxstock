@@ -197,3 +197,129 @@ export function paybackYears(valueAt: (t: number) => number, amount: number): nu
   }
   return null
 }
+
+// ---------------- 帯（10・50・90%。§5.2。P2） ----------------
+/** 帯の抽選の回数 */
+const BAND_DRAWS = 1000
+/** 文字列から種（同じ入力なら同じ結果） */
+function seedOf(s: string): number {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619)
+  return h >>> 0
+}
+/** 文字列の種から、種つきの乱数（mulberry32。帯・偶然との比較） */
+export const seededRng = (seed: string): (() => number) => rng(seedOf(seed))
+/** 種つきの乱数（mulberry32） */
+function rng(seed: number): () => number {
+  let a = seed
+  return () => {
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+const quantile = (sorted: Float64Array, q: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))]!
+export interface Band {
+  p10: number[]
+  p50: number[]
+  p90: number[]
+  /** 累計の 10・50・90% */
+  c10: number[]
+  c50: number[]
+  c90: number[]
+  /** 引いた暦年の数 */
+  years: number
+}
+/**
+ * 帯（§5.2）: 試算の年ごとに過去の暦年を 1 つ引き、その年の各銘柄の前年比（無ければ 17 業種の中央値 → 市場全体の中央値）を
+ * 全銘柄に同時に当てる（一斉の減配を残す）。前年比の対数の全期間・全銘柄の平均を引いて伸びを除き、50% 点を選んだ方式の線（line）に
+ * そろえる。1,000 回・種は固定。引ける年（両方の年に記録のある銘柄が 50% 以上）が無ければ null
+ */
+export function bandOf(
+  parts: { id: string; s17: string | null; line: number[] }[],
+  pool: StressItem[],
+  thisYear: number,
+  seed: string,
+): Band | null {
+  const H = parts[0]?.line.length ?? 0
+  if (!pool.length || !parts.length || !H) return null
+  const first = Math.min(...pool.map((i) => i.from))
+  const years: number[] = []
+  for (let y = first + 2; y < thisYear; y++) {
+    const n = pool.filter((i) => covered(i, y, thisYear)).length
+    if (n >= pool.length * 0.5) years.push(y)
+  }
+  if (!years.length) return null
+  const targets = parts.map((p) => ({ id: p.id, s17: p.s17 }))
+  // 銘柄 × 年の前年比（0 は 1% として対数を取る）
+  const ratio = years.map((y) => {
+    const m = stressRatios(pool, y, targets, thisYear)
+    return parts.map((p) => Math.max(0.01, m.get(p.id)?.r ?? 1))
+  })
+  let sum = 0
+  for (const row of ratio) for (const r of row) sum += Math.log(r)
+  const mu = Math.exp(sum / (ratio.length * parts.length))
+  const shock = ratio.map((row) => row.map((r) => r / mu))
+  const next = rng(seedOf(seed))
+  const vals = Array.from({ length: H }, () => new Float64Array(BAND_DRAWS))
+  const cums = Array.from({ length: H }, () => new Float64Array(BAND_DRAWS))
+  const mult = new Float64Array(parts.length)
+  for (let k = 0; k < BAND_DRAWS; k++) {
+    mult.fill(1)
+    let cum = 0
+    for (let t = 0; t < H; t++) {
+      const s = shock[Math.floor(next() * shock.length)]!
+      let v = 0
+      for (let i = 0; i < parts.length; i++) {
+        mult[i]! *= s[i]!
+        v += parts[i]!.line[t]! * mult[i]!
+      }
+      cum += v
+      vals[t]![k] = v
+      cums[t]![k] = cum
+    }
+  }
+  const out: Band = { p10: [], p50: [], p90: [], c10: [], c50: [], c90: [], years: years.length }
+  let lineCum = 0
+  for (let t = 0; t < H; t++) {
+    const line = parts.reduce((a, p) => a + p.line[t]!, 0)
+    lineCum += line
+    const v = vals[t]!.sort()
+    const c = cums[t]!.sort()
+    // 50% 点を選んだ方式の線にそろえる（分母が 0 なら帯も 0）
+    const sv = quantile(v, 0.5) > 0 ? line / quantile(v, 0.5) : 0
+    const sc = quantile(c, 0.5) > 0 ? lineCum / quantile(c, 0.5) : 0
+    out.p10.push(quantile(v, 0.1) * sv)
+    out.p50.push(quantile(v, 0.5) * sv)
+    out.p90.push(quantile(v, 0.9) * sv)
+    out.c10.push(quantile(c, 0.1) * sc)
+    out.c50.push(quantile(c, 0.5) * sc)
+    out.c90.push(quantile(c, 0.9) * sc)
+  }
+  return out
+}
+
+/**
+ * 直線トレンド試算（参考。§5.2）: Excel の FORECAST.LINEAR と同じ最小二乗の直線を、年ごとの値（横は 0, 1, 2 …）に当てる。
+ * at(x) はその横の位置の値（0 で下限を切る）。4 点に満たなければ null（期間不足）
+ */
+export function linearFit(ys: number[]): { at: (x: number) => number } | null {
+  const n = ys.length
+  if (n < 4) return null
+  const mx = (n - 1) / 2
+  const my = ys.reduce((a, b) => a + b, 0) / n
+  let sxy = 0
+  let sxx = 0
+  for (let i = 0; i < n; i++) {
+    sxy += (i - mx) * (ys[i]! - my)
+    sxx += (i - mx) ** 2
+  }
+  const b = sxx > 0 ? sxy / sxx : 0
+  const a = my - b * mx
+  return { at: (x: number) => Math.max(0, a + b * x) }
+}
+/** 直線トレンド試算の材料: 直近 N 回で区切った年の 1 株配当（最大 10 年。0 より大きく続く部分） */
+export function trendSeries(divs: Dividend[], asOf: JstDate): number[] {
+  return trailingPositive(dpsBlocks(divs, asOf, 10).dps)
+}

@@ -58,6 +58,12 @@ export function lastPx(px: Px): { d: JstDate; c: number } | null {
 /** 最初の日足の日付（無ければ null） */
 export const dailyStart = (px: Px): JstDate | null => px.d[px.daily] ?? null
 
+/** その日以前の最後の取引日（日付で基準日を指定したとき） */
+export function tradingOnOrBefore(d: JstDate): JstDate {
+  let x = d
+  while (!isTradingDay(x)) x = addDays(x, -1)
+  return x
+}
 /** 基準日: 今日の N 年前の同じ日以前の最後の取引日 */
 export function baseDate(today: JstDate, years: number): JstDate {
   let d = addYears(today, -years)
@@ -86,6 +92,8 @@ export interface HoldIn {
   reinvest: boolean
   /** 税引後の割合（税引前・非課税は 1） */
   net: number
+  /** 積立（その日の終値で足して買う額。ends の日付に合わせる） */
+  adds?: Map<JstDate, number>
 }
 export interface HoldOut {
   buy: number
@@ -117,6 +125,8 @@ export function hold(inp: HoldIn, ends: JstDate[]): HoldOut | null {
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
   const shares0 = inp.amount / buy
   let shares = shares0
+  // 入れたお金で買った株（基準日の分と積立）。再投資で増えた株は shares − owned
+  let owned = shares0
   let received = 0
   const events: HoldOut['events'] = []
   const path: HoldOut['path'] = []
@@ -125,7 +135,7 @@ export function hold(inp: HoldIn, ends: JstDate[]): HoldOut | null {
     while (k < divs.length && divs[k]!.date <= e) {
       const x = divs[k++]!
       const net = shares * x.amount * inp.net
-      events.push({ d: x.date, net, extra: (shares - shares0) * x.amount * inp.net })
+      events.push({ d: x.date, net, extra: (shares - owned) * x.amount * inp.net })
       received += net
       if (inp.reinvest) {
         const p = priceAt(inp.px, x.date)
@@ -133,6 +143,11 @@ export function hold(inp: HoldIn, ends: JstDate[]): HoldOut | null {
       }
     }
     const p = e < inp.base ? buy : (priceAt(inp.px, e) ?? buy)
+    const add = inp.adds?.get(e) ?? 0
+    if (add > 0 && p > 0) {
+      shares += add / p
+      owned += add / p
+    }
     path.push({ v: shares * p, r: received })
   }
   return { buy, monthlyBuy, shares0, shares, received, events, path }
