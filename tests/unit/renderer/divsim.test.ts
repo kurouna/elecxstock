@@ -310,23 +310,41 @@ describe('FR-SIM6 FR-SIM11 3 回目のレビューの反映', () => {
   })
 })
 
-describe('FR-SIM4 年ごとの見込みの図（上段: その年の配当・下段: 累計。横の軸は共通）', () => {
+describe('FR-SIM4 年ごとの見込みの図（上: その年の配当の金額の帯・下: 累計の図。横の位置は共通）', () => {
   const years = (y1: number, s1: number, n = 10) =>
     Array.from({ length: n }, (_, i) => ({ year: i + 1, value: y1, stress: s1, cum: y1 * (i + 1) }))
-  it('上段と下段は重ならず、それぞれ自分の軸を持つ', async () => {
+  it('上の金額の帯と下の累計の図は重ならない。帯は高さが変わっても同じ高さ（文字 2 行）', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
     const g = fwdChart(years(20_400, 15_000), 1_000_000, 600, 250)
-    expect(g.top.y(0)).toBeLessThan(g.bot.y(g.bot.max))
-    expect(g.top.y(20_400)).toBeGreaterThanOrEqual(g.top.y0 - g.top.h)
+    expect(g.strip.y + g.strip.h).toBeLessThan(g.bot.y0 - g.bot.h)
     expect(g.bot.y(204_000)).toBeGreaterThanOrEqual(g.bot.y0 - g.bot.h)
-    expect(g.top.h).toBeGreaterThanOrEqual(44)
-  })
-  it('上段: 横ばいは同じ高さの棒、ストレスは棒より低い段（同じなら出さない）', async () => {
-    const { fwdChart } = await import('../../../src/renderer/lib/divsim')
-    const g = fwdChart(years(20_400, 15_000), 1_000_000, 600, 250)
-    expect(g.top.y(20_400)).toBeLessThan(g.top.y(15_000))
+    const tall = fwdChart(years(20_400, 15_000), 1_000_000, 600, 640)
+    expect(tall.strip.h).toBe(g.strip.h)
+    // 高さが増えた分は累計の図に回す
+    expect(tall.bot.h - g.bot.h).toBeCloseTo(390)
+    // 減配シナリオが横ばいと同じなら、累計の破線を出さない
     expect(g.stressSame).toBe(false)
     expect(fwdChart(years(20_400, 20_400), 1_000_000, 600, 250).stressSame).toBe(true)
+  })
+  it('金額の帯: ラベルを出す年ごとに、その年の配当と前年比（1 年目は前年比なし）。横の位置は累計の図の年と同じ', async () => {
+    const { fwdChart } = await import('../../../src/renderer/lib/divsim')
+    const ys = Array.from({ length: 10 }, (_, i) => ({ year: i + 1, value: 100 * 1.05 ** i, stress: 100, cum: 0 }))
+    const g = fwdChart(ys, 1_000, 600, 250)
+    expect(g.strip.cells.map((c) => c.i)).toEqual(g.labels)
+    expect(g.strip.cells[0]).toMatchObject({ i: 0, v: 100, yoy: null })
+    expect(g.strip.cells[1]!.yoy).toBeCloseTo(0.05)
+    expect(g.strip.cells[1]!.x).toBe(g.x(1))
+    // 30 年: 5 年ごとの年でも前年比はその年と前の年（5 年分ではない）
+    const long = Array.from({ length: 30 }, (_, i) => ({ year: i + 1, value: 100 * 1.02 ** i, stress: 100, cum: 0 }))
+    const l = fwdChart(long, 1_000, 600, 250)
+    expect(l.strip.cells.map((c) => c.i)).toEqual([0, 4, 9, 14, 19, 24, 29])
+    expect(l.strip.cells[1]!.yoy).toBeCloseTo(0.02)
+    // 前の年が 0（無配）なら前年比なし
+    const zero = [
+      { year: 1, value: 0, stress: 0, cum: 0 },
+      { year: 2, value: 10, stress: 10, cum: 10 },
+    ]
+    expect(fwdChart(zero, 1_000, 600, 250).strip.cells[1]!.yoy).toBeNull()
   })
   it('下段: 累計は後の年ほど高い。ストレスの累計も持つ', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
@@ -346,21 +364,19 @@ describe('FR-SIM4 年ごとの見込みの図（上段: その年の配当・下
   it('無配でも 0 で割らない・年数は出さない', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
     const g = fwdChart(years(0, 0), 1_000_000, 600, 250)
-    expect(Number.isFinite(g.top.y(0)) && Number.isFinite(g.bot.y(0))).toBe(true)
+    expect(Number.isFinite(g.bot.y(0))).toBe(true)
+    expect(g.strip.cells.every((c) => c.yoy == null)).toBe(true)
   })
   it('横の目盛り: 10 年までは毎年、それより長ければ 5 年ごと（と 1 年目）', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
     expect(fwdChart(years(1, 1, 10), 10, 600, 250).xTicks).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     expect(fwdChart(years(1, 1, 30), 10, 600, 250).xTicks).toEqual([0, 4, 9, 14, 19, 24, 29])
   })
-  it('データラベル: 10 年までは毎年、長ければ横の目盛りの年、狭ければ最初と最後。上段は上に余白を取る', async () => {
+  it('データラベル（帯の金額・累計）: 10 年までは毎年、長ければ横の目盛りの年、狭ければ最初と最後', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
     expect(fwdChart(years(1, 1, 10), 10, 600, 250).labels).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     expect(fwdChart(years(1, 1, 30), 10, 600, 250).labels).toEqual([0, 4, 9, 14, 19, 24, 29])
     expect(fwdChart(years(1, 1, 10), 10, 300, 250).labels).toEqual([0, 9])
-    const g = fwdChart(years(20_400, 15_000), 1_000_000, 600, 250)
-    expect(g.top.vmax).toBe(20_400)
-    expect(g.top.y(20_400) - (g.top.y0 - g.top.h)).toBeGreaterThanOrEqual(10)
   })
   it('横の位置から年を選ぶ', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
@@ -421,10 +437,9 @@ describe('FR-SIM8 帯を図に入れる', () => {
     c90: Array.from({ length: n }, (_, i) => 180 * (i + 1)),
     years: 8,
   })
-  it('目盛りの上端は帯の 90% 点まで入る（帯が図の外に出ない）', async () => {
+  it('累計の目盛りの上端は帯の 90% 点まで入る（帯が図の外に出ない）', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
     const g = fwdChart(years(), 10_000, 600, 250, band())
-    expect(g.top.y(180)).toBeGreaterThanOrEqual(g.top.y0 - g.top.h)
     expect(g.bot.y(1800)).toBeGreaterThanOrEqual(g.bot.y0 - g.bot.h)
     expect(g.band).not.toBeNull()
     expect(fwdChart(years(), 10_000, 600, 250).band).toBeNull()
@@ -645,5 +660,33 @@ describe('FR-SIM5 FR-SIM7 TOPIX の名前・データの誤り・取得の後の
     expect(showsLoading({ prev: 'k1', next: 'k2', hasResult: true })).toBe(true)
     expect(showsLoading({ prev: 'k1', next: 'k1', hasResult: false })).toBe(true)
     expect(showsLoading({ prev: '', next: 'k1', hasResult: false })).toBe(true)
+  })
+})
+
+describe('FR-SIM4 年ごとの見込みの図は、高さのあるペイン（最大化）で累計の図を伸ばす（利用者の指摘）', () => {
+  it('高さが増えた分は累計の図に回し、金額の帯は文字 2 行のまま', async () => {
+    const { fwdChart } = await import('../../../src/renderer/lib/divsim')
+    const ys = Array.from({ length: 10 }, (_, i) => ({ year: i + 1, value: 20_000, stress: 20_000, cum: 20_000 * (i + 1) }))
+    const small = fwdChart(ys, 1_000_000, 900, 250)
+    const tall = fwdChart(ys, 1_000_000, 900, 640)
+    expect(tall.strip.h).toBe(small.strip.h)
+    expect(tall.bot.h).toBeGreaterThan(small.bot.h * 2)
+  })
+})
+
+describe('FR-SIM1 FR-SIM12 これからの既定と設定の文（利用者の指摘）', () => {
+  it('試算の期間の既定は 20 年', async () => {
+    const { simSettingsOf } = await import('../../../src/renderer/lib/divsim')
+    expect(DEFAULT_SIM.horizon).toBe(20)
+    expect(simSettingsOf({}).horizon).toBe(20)
+    expect(simSettingsOf({ horizon: 10 }).horizon).toBe(10)
+  })
+  it('これからの文は「方式で試算し、減配シナリオも並べる」と読める（「伸びを見込むと減配シナリオで試算」と言わない）', async () => {
+    const { ja, en } = await import('../../../src/renderer/lib/i18n')
+    for (const k of ['sim.s.fwd', 'sim.s.fwdHeld', 'sim.s.fwdOne'] as const) {
+      expect(ja[k]).not.toContain('と減配シナリオで試算')
+      expect(ja[k]).toContain('「{m}」で試算（減配シナリオも並べる）')
+      expect(en[k]).toContain('alongside a dividend-cut scenario')
+    }
   })
 })

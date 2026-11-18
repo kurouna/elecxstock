@@ -531,23 +531,20 @@ export function fwdChart(
   const gap = 20
   const n = Math.max(1, years.length)
   const iw = Math.max(1, w - pad.l - pad.r)
-  const inner = Math.max(1, h - pad.t - pad.b - gap)
-  // 上段は高さの 28%（44〜64px）。残りが下段
-  const th = Math.max(44, Math.min(64, inner * 0.28))
-  const bh = Math.max(1, inner - th)
+  // 上は「その年の配当」の金額の帯（文字 2 行: 金額と前年比）。毎年の差は数 % で棒では見分けにくいため（利用者の指摘）。残りが累計の図
+  const sh = 30
+  const bh = Math.max(1, h - pad.t - pad.b - sh - gap)
   let s = 0
   const cumStress = years.map((y) => (s += y.stress))
   const cum = years.map((y) => y.cum)
   const cumMax = cum.at(-1) ?? 0
   const principal = amount > 0 && cumMax > 0 && amount <= cumMax * 1.5 ? amount : null
-  // 上段の上には、データラベルの余白（最大の 40%）
-  const vmax = Math.max(0, ...years.map((y) => Math.max(y.value, y.stress)), ...(band?.p90 ?? []))
-  const tMax = Math.max(1, vmax) * 1.4
   const bMax = Math.max(cumMax, principal ?? 0, band?.c90.at(-1) ?? 0, 1) * 1.08
-  const ty0 = pad.t + th
-  const by0 = pad.t + th + gap + bh
+  const by0 = pad.t + sh + gap + bh
   const x = (i: number) => pad.l + (iw * (i + 0.5)) / n
   const xTicks = n <= 10 ? years.map((_, i) => i) : years.map((_, i) => i).filter((i) => i === 0 || (i + 1) % 5 === 0)
+  /** データラベルを出す年: 10 年までは毎年、長ければ 5 年ごと（と 1 年目）。ラベルの間が 40px に満たなければ最初と最後だけ */
+  const labels = (n <= 10 ? iw / n : (5 * iw) / n) < 40 ? [...new Set([0, n - 1])] : xTicks
   return {
     pad,
     iw,
@@ -555,8 +552,15 @@ export function fwdChart(
     x,
     /** 年の枠の左右（階段の面） */
     slot: (i: number) => ({ l: pad.l + (iw * i) / n, r: pad.l + (iw * (i + 1)) / n }),
-    bw: Math.max(3, (iw / n) * 0.62),
-    top: { y0: ty0, h: th, max: tMax, vmax, y: (v: number) => ty0 - (th * v) / tMax },
+    /** その年の配当の金額の帯: ラベルを出す年ごとに金額と前年比（その年と前の年。前の年が無い・0 なら null） */
+    strip: {
+      y: pad.t,
+      h: sh,
+      cells: labels.map((i) => {
+        const prev = i > 0 ? years[i - 1]!.value : 0
+        return { i, x: x(i), v: years[i]?.value ?? 0, yoy: prev > 0 ? years[i]!.value / prev - 1 : null }
+      }),
+    },
     bot: { y0: by0, h: bh, max: bMax, y: (v: number) => by0 - (bh * v) / bMax, ticks: niceTicks(0, bMax, 3) },
     cum,
     cumStress,
@@ -565,8 +569,7 @@ export function fwdChart(
     payback: principal == null ? -1 : years.findIndex((yr) => yr.cum >= amount),
     stressSame: years.every((yr) => Math.abs(yr.stress - yr.value) < 1e-6),
     xTicks,
-    /** データラベルを出す年: 10 年までは毎年、長ければ 5 年ごと（と 1 年目）。ラベルの間が 40px に満たなければ最初と最後だけ */
-    labels: (n <= 10 ? iw / n : (5 * iw) / n) < 40 ? [...new Set([0, n - 1])] : xTicks,
+    labels,
     indexAt: (px: number) => Math.max(0, Math.min(n - 1, Math.floor(((px - pad.l) / iw) * n))),
   }
 }

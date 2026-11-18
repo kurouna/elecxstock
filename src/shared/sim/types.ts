@@ -42,7 +42,7 @@ export const DEFAULT_SIM: SimSettings = {
   reinvest: false,
   tax: 'taxed',
   sector: 's33',
-  horizon: 10,
+  horizon: 20,
   method: 'flat',
   from: null,
   monthly: 0,

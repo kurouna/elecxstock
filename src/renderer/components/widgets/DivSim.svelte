@@ -949,7 +949,7 @@ onMount(() =>
         <section class="card c-fy" class:sel={card === 'fy'} data-card="fy" role="group" aria-label={t('sim.fy')} aria-current={card === 'fy'}>
           <h3>{t('sim.fy')} <span class="dim">{t('sim.fySub')}</span>
             <span class="right legend">
-              <span class="sw inc"></span>{t('sim.fy.lYear')}<span class="sw cumf"></span>{t('sim.fy.lCum')}
+              <span class="sw cumf"></span>{t('sim.fy.lCum')}
               {#if fyGeom && !fyGeom.stressSame}<span class="sw stress"></span>{t('sim.fy.lStress')}{/if}
               {#if fyGeom?.band}<span class="sw band"></span>{t('sim.fy.lBand')}{/if}
               {#if fyGeom?.principal != null}<span class="sw principal"></span>{t('sim.l.principal')}{/if}
@@ -960,23 +960,15 @@ onMount(() =>
             {#if fyGeom}
               {@const g = fyGeom}
               <svg viewBox={`0 0 ${fw} ${fh}`} aria-label={t('sim.fy')} data-testid="sim-fy">
-                <!-- 上段: その年の配当 -->
-                <text x={g.pad.l} y={g.top.y0 - g.top.h - 4} class="ax">{t('sim.fy.year')}</text>
-                <line x1={g.pad.l} x2={fw - g.pad.r} y1={g.top.y0} y2={g.top.y0} class="grid" />
-                <line x1={g.pad.l} x2={fw - g.pad.r} y1={g.top.y(g.top.vmax)} y2={g.top.y(g.top.vmax)} class="grid" />
-                <text x={fw - 4} y={g.top.y(g.top.vmax) + 3} class="ax end">{money(g.top.vmax)}</text>
-                {#if g.band}
-                  {#each g.band.p10 as lo, i (i)}
-                    <line x1={g.x(i)} x2={g.x(i)} y1={g.top.y(lo)} y2={g.top.y(g.band.p90[i]!)} class="whisk" />
-                    <line x1={g.x(i) - 3} x2={g.x(i) + 3} y1={g.top.y(g.band.p90[i]!)} y2={g.top.y(g.band.p90[i]!)} class="whisk" />
-                    <line x1={g.x(i) - 3} x2={g.x(i) + 3} y1={g.top.y(lo)} y2={g.top.y(lo)} class="whisk" />
+                <!-- 上: その年の配当の金額の帯（年の位置にそろえる。金額と前年比） -->
+                <g data-testid="sim-fy-strip">
+                  <text x={g.pad.l} y={g.strip.y - 4} class="ax">{t('sim.fy.year')}</text>
+                  <rect x={g.pad.l} y={g.strip.y} width={g.iw} height={g.strip.h} rx="3" class="strip" />
+                  {#each g.strip.cells as c (c.i)}
+                    <text x={c.x} y={g.strip.y + 13} class="sv mid num" class:hl={c.i === fci}>{money(c.v)}</text>
+                    <text x={c.x} y={g.strip.y + 25} class="sy mid num" class:up={c.yoy != null && c.yoy > 5e-4} class:down={c.yoy != null && c.yoy < -5e-4}>{c.yoy == null ? '—' : pct(c.yoy)}</text>
                   {/each}
-                {/if}
-                {#each fwd.years as yr, i (i)}
-                  <rect x={g.x(i) - g.bw / 2} y={g.top.y(yr.value)} width={g.bw} height={Math.max(0, g.top.y0 - g.top.y(yr.value))} class="bar inc" class:hl={i === fci} />
-                  {#if !g.stressSame}<line x1={g.x(i) - g.bw / 2} x2={g.x(i) + g.bw / 2} y1={g.top.y(yr.stress)} y2={g.top.y(yr.stress)} class="ln stress" />{/if}
-                {/each}
-                {#each g.labels as i (i)}<text x={g.x(i)} y={g.top.y(fwd.years[i]!.value) - 3} class="dl mid num">{money(fwd.years[i]!.value)}</text>{/each}
+                </g>
                 <!-- 下段: 累計 -->
                 <text x={g.pad.l} y={g.bot.y0 - g.bot.h - 4} class="ax">{t('sim.fy.cum')} · {t('sim.fy.total', { n: g.n, v: money(g.cum[g.n - 1]!) })}</text>
                 {#each g.bot.ticks as v (v)}
@@ -1003,7 +995,7 @@ onMount(() =>
                 {/if}
                 <!-- 横の目盛りと、十字線（2 段を貫く） -->
                 {#each g.xTicks as i (i)}<text x={g.x(i)} y={fh - 4} class="ax mid">{i + 1}</text>{/each}
-                {#if fci >= 0}<line x1={g.x(fci)} x2={g.x(fci)} y1={g.top.y0 - g.top.h} y2={g.bot.y0} class="cross" />{/if}
+                {#if fci >= 0}<line x1={g.x(fci)} x2={g.x(fci)} y1={g.strip.y + g.strip.h} y2={g.bot.y0} class="cross" />{/if}
               </svg>
               {#if fwd.y1 <= 0}<div class="fyzero">{t('sim.fy.zero')}</div>{/if}
               {#if fyRead && fci >= 0}
@@ -1218,6 +1210,8 @@ onMount(() =>
     min-height: 0;
     overflow: auto;
     background: var(--bg);
+    display: flex;
+    flex-direction: column;
   }
   .sr {
     position: absolute;
@@ -1344,6 +1338,8 @@ onMount(() =>
     display: grid;
     gap: 6px;
     padding: 6px;
+    /* 本文の高さいっぱい（最大化）。中身が多ければ本文がスクロールする */
+    flex: 1 0 auto;
     grid-template-columns: 1fr;
     animation: fadein 260ms var(--ease-out);
   }
@@ -1367,11 +1363,11 @@ onMount(() =>
     }
     .grid.past {
       grid-template-areas: 'hero hero hist hist hist hist' 'years years years wf wf wf' 'luck luck luck basis basis basis' 'table table table table table table';
-      grid-template-rows: minmax(280px, auto) minmax(200px, auto) auto auto;
+      grid-template-rows: minmax(280px, 3fr) minmax(200px, 2fr) auto auto;
     }
     .grid.fwd {
       grid-template-areas: 'hero hero fy fy fy fy' 'cal cal cal sens sens sens' 'basis basis basis basis basis basis' 'table table table table table table';
-      grid-template-rows: minmax(260px, auto) minmax(200px, auto) auto auto;
+      grid-template-rows: minmax(260px, 3fr) minmax(200px, 2fr) auto auto;
     }
   }
   @container (min-width: 1180px) {
@@ -1380,11 +1376,13 @@ onMount(() =>
     }
     .grid.past {
       grid-template-areas: 'hero hero hero hero hist hist hist hist hist hist hist hist' 'years years years years wf wf wf wf luck luck luck luck' 'basis basis basis basis basis basis basis basis basis basis basis basis' 'table table table table table table table table table table table table';
-      grid-template-rows: minmax(318px, auto) minmax(236px, auto) auto auto;
+      grid-template-rows: minmax(318px, 3fr) minmax(236px, 2fr) auto auto;
     }
+    /* 広い（12 列。最大化）ときは左右の列に分けてから並べる（左: ヒーロー → 月ごとの配当、右: 見込みの図 → 前提）。
+       上の段はヒーローの中身の高さ、前提は中身の高さだけにして、図が残りの高さを使う。狭い（6 列）ときは上下の段のまま */
     .grid.fwd {
-      grid-template-areas: 'hero hero hero hero fy fy fy fy fy fy fy fy' 'cal cal cal cal cal cal sens sens sens sens sens sens' 'basis basis basis basis basis basis basis basis basis basis basis basis' 'table table table table table table table table table table table table';
-      grid-template-rows: minmax(300px, auto) minmax(236px, auto) auto auto;
+      grid-template-areas: 'hero hero hero hero fy fy fy fy fy fy fy fy' 'cal cal cal cal fy fy fy fy fy fy fy fy' 'sens sens sens sens basis basis basis basis basis basis basis basis' 'table table table table table table table table table table table table';
+      grid-template-rows: minmax(240px, auto) minmax(240px, 1fr) auto auto;
     }
   }
   .scope {
@@ -1420,21 +1418,21 @@ onMount(() =>
   @container (min-width: 760px) {
     .grid.one.past {
       grid-template-areas: 'hero hero hist hist hist hist' 'years years years basis basis basis';
-      grid-template-rows: minmax(280px, auto) minmax(200px, auto);
+      grid-template-rows: minmax(280px, 3fr) minmax(200px, 2fr);
     }
     .grid.one.fwd {
       grid-template-areas: 'hero hero fy fy fy fy' 'cal cal cal basis basis basis';
-      grid-template-rows: minmax(260px, auto) minmax(200px, auto);
+      grid-template-rows: minmax(260px, 3fr) minmax(200px, 2fr);
     }
   }
   @container (min-width: 1180px) {
     .grid.one.past {
-      grid-template-areas: 'hero hero hero hero hist hist hist hist hist hist hist hist' 'years years years years years basis basis basis basis basis basis basis';
-      grid-template-rows: minmax(318px, auto) minmax(236px, auto);
+      grid-template-areas: 'hero hero hero hero hist hist hist hist hist hist hist hist' 'years years years years hist hist hist hist hist hist hist hist' 'years years years years basis basis basis basis basis basis basis basis';
+      grid-template-rows: minmax(240px, auto) minmax(200px, 1fr) auto;
     }
     .grid.one.fwd {
-      grid-template-areas: 'hero hero hero hero fy fy fy fy fy fy fy fy' 'cal cal cal cal cal cal cal basis basis basis basis basis';
-      grid-template-rows: minmax(300px, auto) minmax(236px, auto);
+      grid-template-areas: 'hero hero hero hero fy fy fy fy fy fy fy fy' 'cal cal cal cal fy fy fy fy fy fy fy fy' 'cal cal cal cal basis basis basis basis basis basis basis basis';
+      grid-template-rows: minmax(240px, auto) minmax(200px, 1fr) auto;
     }
   }
   .c-hero {
@@ -1663,11 +1661,6 @@ onMount(() =>
     opacity: 0.35;
     height: 8px;
   }
-  .whisk {
-    stroke: var(--text-2);
-    stroke-width: 1;
-    opacity: 0.7;
-  }
   .bandarea {
     fill: var(--text-2);
     opacity: 0.16;
@@ -1701,6 +1694,28 @@ onMount(() =>
     background: var(--gold);
     opacity: 0.45;
     height: 8px;
+  }
+  .strip {
+    fill: var(--panel-2);
+    stroke: var(--line-soft);
+  }
+  .sv {
+    font-size: 11px;
+    fill: var(--gold);
+    font-weight: 600;
+  }
+  .sv.hl {
+    fill: var(--text);
+  }
+  .sy {
+    font-size: 10px;
+    fill: var(--text-3);
+  }
+  .sy.up {
+    fill: var(--up);
+  }
+  .sy.down {
+    fill: var(--down);
   }
   .fynote {
     min-height: 16px;
@@ -1769,12 +1784,19 @@ onMount(() =>
   .kpi {
     margin: 4px 0 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 6px 12px;
+    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    gap: 6px;
   }
   .kpi div {
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    min-width: 0;
   }
   .kpi dt {
     font-size: var(--fs-1);
@@ -1783,7 +1805,28 @@ onMount(() =>
   .kpi dd {
     margin: 0;
     font-size: var(--fs-3);
+    font-weight: 600;
     color: var(--text);
+  }
+  /* 広いペイン（最大化）: 大きな数字を大きく、指標のタイルはカードの残りの高さを分け合う */
+  @container (min-width: 1180px) {
+    .c-hero .big {
+      font-size: 30px;
+      letter-spacing: -0.02em;
+    }
+    /* 指標のタイルは高さをそろえ、カードの余った高さの中で縦の中央に置く（伸ばすと少ないときに間延びする） */
+    .c-hero .kpi {
+      margin-block: auto;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-auto-rows: minmax(72px, auto);
+      gap: 8px;
+    }
+    .c-hero .kpi div {
+      padding: 8px 14px;
+    }
+    .c-hero .kpi dd {
+      font-size: var(--fs-5);
+    }
   }
   .chart {
     position: relative;

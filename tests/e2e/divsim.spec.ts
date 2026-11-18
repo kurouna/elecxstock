@@ -1,7 +1,7 @@
 // 配当シミュレータ（FR-SIM1〜SIM10。docs/design-simulator.md）: スクリーナーのタブの右下にリンク 2 で置き、
 // スクリーナーの結果を仮想の銘柄群として計算する。キーボードだけで操作する。値はスタブ（架空）
 import type { Page } from '@playwright/test'
-import { expect, focusPane, holdings, jump, keys, pane, rpc, tab, test, watchlists } from './support'
+import { expect, focusPane, holdings, jump, keys, motionDone, pane, rpc, tab, test, watchlists } from './support'
 
 const sim = (page: Page) => page.locator('[data-widget="divsim"]')
 
@@ -137,6 +137,14 @@ test.describe('配当シミュレータのキー操作（FR-SIM3・SIM4・SIM6�
     // 年ごとの見込みは累計を 1 つの軸で。元本が遠ければ線を引かず、届く年数を文で出す
     await expect(s.getByTestId('sim-fy')).toBeVisible()
     await expect(s.locator('.c-fy h3')).toContainText('累計')
+    // その年の配当は棒ではなく金額の帯（年の位置にそろえる）。横ばいは前年比 ±0.0%
+    await expect(s.getByTestId('sim-fy-strip')).toContainText('万')
+    await expect(s.getByTestId('sim-fy-strip')).toContainText('±0.0%')
+    // 試算の期間の既定は 20 年。5 年（Alt+1）にすると元本は遠いので、線を引かず届く年数を文で出す
+    await expect(s.locator('.cfg')).toContainText('20 年の配当')
+    await keys(page, 'Alt+Digit1')
+    await expect(s.locator('.cfg')).toContainText('5 年の配当')
+    await expect(s.getByTestId('sim-loading')).toHaveCount(0)
     await expect(s.getByTestId('sim-fy-note')).toContainText('元本')
     // 年を選ぶと、その年・累計をツールチップに出す（選ぶ前は出さない）
     await expect(s.getByTestId('sim-fy-read')).toBeHidden()
@@ -318,13 +326,15 @@ test.describe('伸びを見込む（FR-SIM12。M で横ばい ⇔ 伸びを見�
     await expect(s.locator('.cfg')).not.toContainText('伸びを見込む')
     await keys(page, 'PageDown')
     await expect(s.getByTestId('sim-fwd')).toBeVisible()
-    await expect(s.locator('.cfg')).toContainText('横ばいと減配シナリオで試算')
+    await expect(s.locator('.cfg')).toContainText('20 年の配当を「横ばい」で試算（減配シナリオも並べる）')
     await keys(page, 'm')
     await expect(s.getByTestId('sim-loading')).toBeVisible()
     await expect(s.getByTestId('sim-fwd')).toBeVisible()
-    await expect(s.locator('.cfg')).toContainText('伸びを見込むと減配シナリオで試算')
+    await expect(s.locator('.cfg')).toContainText('「伸びを見込む」で試算（減配シナリオも並べる）')
     await expect(s.getByTestId('sim-basis')).toContainText('Theil–Sen')
     await expect(s.locator('thead')).toContainText('試算の伸び')
+    // 金額の帯に前年比の伸びが出る
+    await expect(s.getByTestId('sim-fy-strip')).toContainText('+')
   })
 })
 
@@ -427,5 +437,31 @@ test.describe('フリーの窓に置く（FR-SIM8）', () => {
     await expect(s.getByTestId('sim-fwd')).toBeVisible()
     await expect(s.getByTestId('sim-goal')).toContainText('1 枚目の窓')
     await expect(s.getByTestId('sim-goal').locator('button')).toHaveCount(0)
+  })
+})
+
+test.describe('ペインの中の並び（FR-SIM4・利用者の指摘）', () => {
+  test('左右の列に分ける: 左はヒーローの下に月ごとの配当、右は見込みの図の下に前提。前提は中身の高さだけで、図が残りの高さを使う', async ({
+    start,
+  }) => {
+    const { page } = await start()
+    const s = await openSim(page, 'one')
+    await keys(page, 'PageDown')
+    await expect(s.getByTestId('sim-fwd')).toBeVisible()
+    await keys(page, 'Control+Shift+Enter')
+    await motionDone(page)
+    const box = async (k: string) => (await s.locator(`[data-card="${k}"]`).boundingBox())!
+    const [hero, cal, fy, basis] = [await box('hero'), await box('cal'), await box('fy'), await box('basis')]
+    // 左の列: ヒーローの下に月ごとの配当（同じ左端）。右の列: 図の下に前提（同じ左端）
+    expect(Math.abs(cal.x - hero.x)).toBeLessThan(2)
+    expect(cal.y).toBeGreaterThan(hero.y + hero.height - 2)
+    expect(Math.abs(basis.x - fy.x)).toBeLessThan(2)
+    expect(basis.y).toBeGreaterThan(fy.y + fy.height - 2)
+    expect(fy.x).toBeGreaterThan(hero.x + hero.width - 2)
+    // 図は本文の高さの 6 割以上。左右の列の下端はそろい、本文の下に大きな空きを残さない
+    const body = (await s.locator('[data-runs]').boundingBox())!
+    expect(fy.height).toBeGreaterThan(body.height * 0.6)
+    expect(Math.abs(cal.y + cal.height - (basis.y + basis.height))).toBeLessThan(2)
+    expect(body.y + body.height - (basis.y + basis.height)).toBeLessThan(40)
   })
 })
