@@ -52,6 +52,7 @@
     "demo:0.1.9": "node scripts/demo-v0.1.9.mjs",
     "demo:0.1.12": "node scripts/demo-v0.1.12.mjs",
     "demo:mylayouts": "node scripts/demo-mylayouts.mjs",
+    "demo:user-guide": "node scripts/demo-user-guide.mjs",
     "contract": "vitest run --config vitest.contract.config.ts",
     "package": "npm run build && electron-builder --win --publish never",
     "package:dir": "npm run build && electron-builder --win --dir --publish never",
