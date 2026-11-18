@@ -34,7 +34,6 @@ import {
   simKey,
   simSettingsOf,
   simTargets,
-  defaultSource,
   allowsLive,
   saveScenario,
   scenariosOf,
