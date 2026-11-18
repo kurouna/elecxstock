@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>モック: チャートの下の段（MACD・RSI）の見せ方</title>
+<style>
+  :root[data-theme="light"] {
+    --bg: #e9ecf0; --panel: #ffffff; --panel-2: #f5f7fa; --panel-3: #eceff3;
+    --line: #d6dbe1; --line-soft: #e6e9ee; --line-strong: #c3cad3;
+    --text: #1a1f26; --text-2: #4a5562; --text-3: #5d6875;
+    --up: #c62f37; --down: #1a62b0;
+    --ma1: #b57400; --ma2: #6c5fd3; --ma3: #11805a;
+    --chart-grid: #eef1f4; --chart-cross: #8a95a3; --chart-label: #4a5562;
+    --vol-up: #c7ced8; --vol-down: #d9dee5;
+    --ind1: #1f8fbf; --ind2: #c25f2a; --ind3: #7f8a14; --ind4: #a23f8a;
+    --mono: "Noto Sans Mono", ui-monospace, Consolas, monospace;
+  }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.5 "Noto Sans JP", system-ui, sans-serif; padding: 16px; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .note { color: var(--text-3); margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(2, 960px); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); }
+  .cap { padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+  .cap b { margin-right: 8px; }
+  .cap span { color: var(--text-3); }
+  .wrap { position: relative; width: 960px; height: 400px; }
+  .legend { position: absolute; left: 8px; z-index: 3; pointer-events: none; font: 12px/1.6 var(--mono); color: var(--text-2); white-space: nowrap; }
+  .legend .n { color: var(--text); font-weight: 600; margin-right: 8px; }
+  .legend .p { color: var(--text-3); margin-right: 10px; }
+  .legend i { font-style: normal; margin-right: 10px; }
+  .legend .chip { display: inline-block; padding: 0 5px; margin-right: 8px; border-radius: 3px; background: var(--panel-3); color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>チャートの下の段（MACD・RSI）の見せ方 — 試作</h1>
+<p class="note">値はすべて架空（乱数）。Lightweight Charts 5.3.0。A が今のアプリ、B〜F が案。</p>
+<div class="grid" id="grid"></div>
+<script src="lightweight-charts.standalone.production.js"></script>
+<script>
+const LC = LightweightCharts
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
+const alpha = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, '0')
+
+// ---- 架空のデータ（乱数。シード固定） ----
+let seed = 8001
+const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648)
+const N = 150
+const time = [], open = [], high = [], low = [], close = [], volume = []
+{
+  let p = 2000, d = new Date('2026-04-15T00:00:00Z')
+  for (let i = 0; i < N; ) {
+    d.setUTCDate(d.getUTCDate() + 1)
+    if ([0, 6].includes(d.getUTCDay())) continue
+    const drift = i < 50 ? -1.2 : i < 100 ? 3.2 : 1.5
+    const o = p
+    const c = Math.max(1500, o + drift + (rnd() - 0.5) * 45)
+    time.push(d.toISOString().slice(0, 10)); open.push(o); close.push(c)
+    high.push(Math.max(o, c) + rnd() * 18); low.push(Math.min(o, c) - rnd() * 18)
+    volume.push(Math.round(1.5e6 + rnd() * 2.5e6)); p = c; i++
+  }
+}
+const ema = (v, n) => { const k = 2 / (n + 1); let e = null; return v.map((x) => (e = e == null ? x : x * k + e * (1 - k))) }
+const sma = (v, n) => v.map((_, i) => (i < n - 1 ? null : v.slice(i - n + 1, i + 1).reduce((a, b) => a + b, 0) / n))
+function macd(c, f = 12, s = 26, g = 9) {
+  const m = ema(c, f).map((x, i) => (i < s - 1 ? null : x - ema(c, s)[i]))
+  const firstIdx = s - 1
+  const sg = Array(c.length).fill(null)
+  const e = ema(m.slice(firstIdx), g)
+  e.forEach((x, k) => { if (k >= g - 1) sg[firstIdx + k] = x })
+  return { macd: m, signal: sg, hist: m.map((x, i) => (x != null && sg[i] != null ? x - sg[i] : null)) }
+}
+function rsi(c, n = 14) {
+  const out = Array(c.length).fill(null); let ag = 0, al = 0
+  for (let i = 1; i < c.length; i++) {
+    const d = c[i] - c[i - 1], g = Math.max(d, 0), l = Math.max(-d, 0)
+    if (i <= n) { ag += g / n; al += l / n; if (i === n) out[i] = 100 - 100 / (1 + ag / (al || 1e-9)) }
+    else { ag = (ag * (n - 1) + g) / n; al = (al * (n - 1) + l) / n; out[i] = 100 - 100 / (1 + ag / (al || 1e-9)) }
+  }
+  return out
+}
+const ld = (v) => time.map((t, i) => (v[i] == null ? { time: t } : { time: t, value: v[i] }))
+const M = macd(close)
+const PPO = (() => { const r = macd(close.map((x) => x)); const s = ema(close, 26); return {
+  macd: r.macd.map((x, i) => (x == null ? null : (x / s[i]) * 100)),
+  signal: r.signal.map((x, i) => (x == null ? null : (x / s[i]) * 100)),
+  hist: r.hist.map((x, i) => (x == null ? null : (x / s[i]) * 100)),
+} })()
+const R = rsi(close)
+
+// 段の背景（ペインのプリミティブ）
+const paneBg = (color) => ({
+  paneViews: () => [{ zOrder: () => 'bottom', renderer: () => ({ draw: (t) => t.useMediaCoordinateSpace(({ context, mediaSize }) => { context.fillStyle = color; context.fillRect(0, 0, mediaSize.width, mediaSize.height) }) }) }],
+})
+
+const fmt = (v, d) => (v == null ? '—' : v.toLocaleString('ja-JP', { minimumFractionDigits: d, maximumFractionDigits: d }))
+
+// ---- 1 枚のチャート ----
+function build(opt) {
+  const card = document.createElement('div'); card.className = 'card'
+  card.innerHTML = `<div class="cap"><b>${opt.title}</b><span>${opt.desc}</span></div><div class="wrap"></div>`
+  document.getElementById('grid').append(card)
+  const wrap = card.querySelector('.wrap')
+  const chart = LC.createChart(wrap, {
+    width: 960, height: 400,
+    layout: { background: { color: css('--panel') }, textColor: css('--text-3'), fontFamily: css('--mono'), fontSize: 11, attributionLogo: false,
+      panes: { separatorColor: opt.strongSep ? css('--line-strong') : css('--line'), separatorHoverColor: css('--line-strong') } },
+    grid: { vertLines: { color: css('--chart-grid') }, horzLines: { color: css('--chart-grid') } },
+    rightPriceScale: { borderColor: css('--line'), scaleMargins: { top: 0.14, bottom: 0.22 } },
+    timeScale: { borderColor: css('--line'), rightOffset: 4, barSpacing: 6 },
+    crosshair: { mode: LC.CrosshairMode.Normal },
+  })
+  const up = css('--up'), down = css('--down')
+  const main = chart.addSeries(LC.CandlestickSeries, { upColor: up, downColor: down, wickUpColor: up, wickDownColor: down, borderVisible: false, priceLineStyle: 2, priceLineColor: css('--chart-cross') })
+  main.applyOptions({ priceFormat: { type: 'price', precision: 0, minMove: 1 } })
+  main.setData(time.map((t, i) => ({ time: t, open: open[i], high: high[i], low: low[i], close: close[i] })))
+  const line = (v, color, pane = 0, w = 1, extra = {}) => { const s = chart.addSeries(LC.LineSeries, { color, lineWidth: w, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, ...extra }, pane); s.setData(ld(v)); return s }
+  const mas = [[5, '--ma1'], [25, '--ma2'], [75, '--ma3']].map(([n, c]) => ({ n, c: css(c), v: sma(close, n) }))
+  mas.forEach((m) => line(m.v, m.c))
+  const vol = chart.addSeries(LC.HistogramSeries, { priceScaleId: 'vol', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false })
+  chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 }, visible: false })
+  vol.setData(time.map((t, i) => ({ time: t, value: volume[i], color: i && close[i] < close[i - 1] ? css('--vol-down') : css('--vol-up') })))
+
+  const legends = [] // { pane, el, render(i) }
+  let paneNo = 0
+  const src = opt.ppo ? PPO : M
+  const dg = opt.ppo ? 2 : opt.legacy ? null : 1
+
+  if (opt.rsi) {
+    paneNo++
+    const s = line(R, css('--ind4'), paneNo, opt.legacy ? 1 : 1.5)
+    s.applyOptions({ priceFormat: { type: 'price', precision: 0, minMove: 1 } })
+    for (const p of [70, 30]) s.createPriceLine({ price: p, color: css('--line-strong'), lineWidth: 1, lineStyle: 2, axisLabelVisible: false, title: '' })
+    if (opt.paneLegend) legends.push({ pane: paneNo, render: (i) => `<span class="n">RSI</span><span class="p">14</span><i style="color:${css('--ind4')}">${fmt(R[i], 1)}</i>` })
+  }
+  let macdPane = 0
+  if (opt.macd) {
+    paneNo++; macdPane = paneNo
+    const h = chart.addSeries(LC.HistogramSeries, { priceLineVisible: false, lastValueVisible: false }, paneNo)
+    h.setData(src.hist.flatMap((v, i) => {
+      if (v == null) return []
+      let color
+      if (opt.hist4) {
+        const prev = src.hist[i - 1] ?? 0
+        const grow = Math.abs(v) >= Math.abs(prev)
+        color = v >= 0 ? alpha(up, grow ? 0.75 : 0.3) : alpha(down, grow ? 0.75 : 0.3)
+      } else color = v >= 0 ? css('--vol-up') : css('--vol-down')
+      return [{ time: time[i], value: v, color }]
+    }))
+    const ml = line(src.macd, css('--ind1'), paneNo, opt.legacy ? 1 : 2)
+    line(src.signal, css('--ind2'), paneNo, 1)
+    if (dg != null) for (const s of [h, ml]) s.applyOptions({ priceFormat: { type: 'price', precision: dg, minMove: 10 ** -dg } })
+    if (opt.zero) ml.createPriceLine({ price: 0, color: css('--chart-cross'), lineWidth: 1, lineStyle: 0, axisLabelVisible: false, title: '' })
+    if (opt.cross) {
+      const ms = []
+      for (let i = 1; i < N; i++) {
+        const a = src.macd[i - 1] - src.signal[i - 1], b = src.macd[i] - src.signal[i]
+        if (src.signal[i - 1] == null || !isFinite(a) || !isFinite(b)) continue
+        if (a <= 0 && b > 0) ms.push({ time: time[i], position: 'inBar', shape: 'circle', color: up, size: 0.6 })
+        if (a >= 0 && b < 0) ms.push({ time: time[i], position: 'inBar', shape: 'circle', color: down, size: 0.6 })
+      }
+      LC.createSeriesMarkers(ml, ms)
+    }
+    if (opt.paneLegend) legends.push({ pane: paneNo, render: (i) =>
+      `<span class="n">${opt.ppo ? 'MACD %' : 'MACD'}</span><span class="p">12, 26, 9</span>` +
+      `<i style="color:${css('--ind1')}">MACD ${fmt(src.macd[i], dg)}</i><i style="color:${css('--ind2')}">Signal ${fmt(src.signal[i], dg)}</i>` +
+      `<i style="color:${(src.hist[i] ?? 0) >= 0 ? up : down}">Hist ${fmt(src.hist[i], dg)}</i>` })
+  }
+  const panes = chart.panes()
+  if (opt.stretch) { panes[0].setStretchFactor(opt.stretch[0]); for (let i = 1; i <= paneNo; i++) panes[i].setStretchFactor(opt.stretch[1]) }
+  else for (let i = 1; i <= paneNo; i++) panes[i].setHeight(Math.max(60, 400 * 0.18))
+  if (opt.bg) for (let i = 1; i <= paneNo; i++) panes[i].attachPrimitive(paneBg(css('--panel-2')))
+
+  // 上の凡例（本体）
+  const top = document.createElement('div'); top.className = 'legend'; top.style.top = '4px'; wrap.append(top)
+  const renderTop = (i) => {
+    const c = close[i], pc = close[i - 1], ch = ((c - pc) / pc) * 100
+    let s = `<div>D ${time[i].replaceAll('-', '/')}  O ${fmt(open[i], 0)} H ${fmt(high[i], 0)} L ${fmt(low[i], 0)} C ${fmt(c, 0)} <span style="color:${ch >= 0 ? up : down}">${ch >= 0 ? '+' : ''}${ch.toFixed(2)}%</span> V ${volume[i].toLocaleString('ja-JP')}</div><div>`
+    s += mas.map((m) => `<i style="color:${m.c}">MA${m.n} ${fmt(m.v[i], 0)}</i>`).join('')
+    if (!opt.paneLegend && opt.macd) s += `<i style="color:${css('--ind1')}">MACD ${M.macd[i].toFixed(1)}</i><i style="color:${css('--ind2')}">Signal ${M.signal[i].toFixed(2)}</i>`
+    return s + '</div>'
+  }
+  // 段ごとの凡例（段の左上に置く）
+  for (const lg of legends) { lg.el = document.createElement('div'); lg.el.className = 'legend'; wrap.append(lg.el) }
+  const place = () => {
+    const base = wrap.getBoundingClientRect().top
+    for (const lg of legends) { const el = panes[lg.pane].getHTMLElement(); if (el) lg.el.style.top = el.getBoundingClientRect().top - base + 2 + 'px' }
+  }
+  const render = (i) => { top.innerHTML = renderTop(i); for (const lg of legends) lg.el.innerHTML = lg.render(i) }
+  render(N - 1); requestAnimationFrame(place)
+  chart.subscribeCrosshairMove((p) => { const i = p.time ? time.indexOf(p.time) : -1; render(i > 0 ? i : N - 1); place() })
+  chart.timeScale().scrollToPosition(4, false)
+}
+
+const B = { macd: true, paneLegend: true, hist4: true, zero: true, strongSep: true, bg: true, stretch: [3, 1] }
+build({ title: 'A 今', desc: '凡例は上の 1 行だけ・ヒストグラムは出来高の灰色・0 の線なし・高さ 18%', macd: true, legacy: true })
+build({ title: 'B 案 1〜5', desc: '段の凡例・4 色のヒストグラム・0 の線・区切りと背景・高さ 25%・MACD を太く', ...B })
+build({ title: 'C 案 B + RSI', desc: '下の段が 2 つのとき（共通の作り）', ...B, rsi: true, stretch: [2.4, 1] })
+build({ title: 'D 案 B + 交差の印', desc: 'MACD が Signal を上抜け（赤）・下抜け（青）', ...B, cross: true })
+build({ title: 'E 案 B から背景なし', desc: '段の背景を塗らず、区切り線だけで分ける', ...B, bg: false })
+build({ title: 'F 案 B を % で（PPO）', desc: 'MACD を 26 日 EMA に対する % で表す。銘柄どうしで大きさを比べられる', ...B, ppo: true })
+</script>
+</body>
+</html>
