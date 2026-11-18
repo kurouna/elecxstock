@@ -124,6 +124,8 @@ const draw = new DrawController({
       if (kbIndex != null) return moveKb(0)
       chart.clearCrosshairPosition()
       legendIdx = null
+      // 同じリンク色のチャート（MTF の週足・月足など）の十字線も消す。消すだけでは知らせが届かず、残った十字線が戻ってくる
+      for (const o of charts) if (o !== handle && o.pane.link && o.pane.link === pane.link) o.show(null)
       return
     }
     const j = Math.max(0, Math.min(bars.time.length - 1, i))
@@ -607,6 +609,9 @@ function wire() {
     if (handle.sync || !bars) return
     const time = (param.time as string | undefined) ?? null
     legendIdx = time ? bars.time.indexOf(time) : null
+    // ほかのチャートへ送るのは、利用者がマウスで動かしたときだけ。プログラムで置いた十字線（同期の受け取り・キーボード・描画のカーソル）の
+    // 知らせは後から非同期に届くので、送ると同じリンク色のチャートの間で行き来して、足の始まりの日付へずれていく
+    if (!param.sourceEvent) return
     for (const o of charts) if (o !== handle && o.pane.link && o.pane.link === pane.link) o.show(time)
   })
   // 同じリンク色・同じ時間軸で「表示期間をそろえる」にしたチャートどうしは、表示期間も合わせる（FR-K4）

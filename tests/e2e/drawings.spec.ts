@@ -254,3 +254,33 @@ test.describe('グリッドのタイル（FR-C18）', () => {
     await expect(grid.locator(`canvas[data-id]:not([data-id="${id}"])`).first()).toHaveAttribute('data-drawings', '0')
   })
 })
+
+test.describe('十字線の後始末（FR-C14・FR-K3。デモで見つけた不具合）', () => {
+  test('MTF で引き終えると、同じリンク色の週足・月足の十字線も消え、凡例は最後の足に戻る', async ({ start }) => {
+    const { page } = await start()
+    const chart = await topChart(page)
+    const charts = page.locator('[data-widget="chart"]')
+    const dates = async () => {
+      const out: string[] = []
+      for (let i = 0; i < (await charts.count()); i++)
+        out.push((await charts.nth(i).locator('.legend .ohlc span').nth(1).textContent()) ?? '')
+      return out
+    }
+    const initial = await dates()
+    await drawOne(page, chart)
+    await expect.poll(dates).toEqual(initial)
+  })
+  test('MTF で端点を山・谷へ付け替えると、凡例はその足の日付を出す（週足・月足との十字線のやり取りでずれない）', async ({ start }) => {
+    const { page } = await start()
+    const chart = await topChart(page)
+    await drawOne(page, chart)
+    await keys(page, 'Space', 'Space') // 線全体 → 始点
+    expect((await state(chart)).target).toBe('a')
+    const legend = chart.locator('.legend .ohlc span').nth(1)
+    for (let i = 0; i < 2; i++) {
+      await keys(page, 'Control+ArrowLeft')
+      const a = (await drawings(chart))[0]!.a.date
+      await expect(legend).toHaveText(a.replaceAll('-', '/'))
+    }
+  })
+})

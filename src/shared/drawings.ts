@@ -152,7 +152,7 @@ export function nearestSnap(levels: readonly { k: SnapKey; y: number }[], y: num
 
 /**
  * 山・谷へ跳ぶ（Ctrl+← →）: i から dir の向きに、前後 span 本の範囲で高値が最大（山）か安値が最小（谷）の足を探す。
- * 前後に span 本ずつ足がある足だけ（端の足は山・谷にしない）。両方なら山
+ * 前後に span 本ずつ足がある足だけ（端の足は山・谷にしない）。同じ値が並ぶときは左の足だけ。両方なら山
  */
 export function swingFrom(
   high: readonly number[],
@@ -166,9 +166,10 @@ export function swingFrom(
     if (j < span || j >= n - span) continue
     let isHi = true
     let isLo = true
+    // 同じ値が並ぶときは左の足だけを山・谷にする（左は厳しく、右は同じ値まで許す）
     for (let k = j - span; k <= j + span; k++) {
-      if (high[k]! > high[j]!) isHi = false
-      if (low[k]! < low[j]!) isLo = false
+      if (k < j ? high[k]! >= high[j]! : high[k]! > high[j]!) isHi = false
+      if (k < j ? low[k]! <= low[j]! : low[k]! < low[j]!) isLo = false
     }
     if (isHi) return { i: j, kind: 'h' }
     if (isLo) return { i: j, kind: 'l' }

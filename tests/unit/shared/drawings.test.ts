@@ -318,3 +318,20 @@ describe('マウスの吸着とタイル（FR-C15, FR-C18）', () => {
     expect(tileLines([], ['2026-11-02'], 'D')).toEqual([])
   })
 })
+
+describe('山・谷の同じ値（FR-C14。デモで見つけた不具合）', () => {
+  it('同じ高値が隣り合っても、山は 1 つ（左の足だけ）', () => {
+    //          0   1   2   3   4   5   6   7   8   9  10  11  12
+    const hi = [10, 11, 12, 13, 20, 20, 13, 12, 11, 10, 11, 12, 13]
+    const lo = hi.map((h) => h - 1)
+    expect(swingFrom(hi, lo, 0, 1, 3)).toEqual({ i: 4, kind: 'h' })
+    // 左へ: 5 は 4 と同じ値なので山にしない
+    expect(swingFrom(hi, lo, 9, -1, 3)).toEqual({ i: 4, kind: 'h' })
+  })
+  it('同じ安値が隣り合っても、谷は 1 つ', () => {
+    const lo = [20, 19, 18, 17, 10, 10, 17, 18, 19, 20, 19, 18, 17]
+    const hi = lo.map((l) => l + 1)
+    expect(swingFrom(hi, lo, 0, 1, 3)).toEqual({ i: 4, kind: 'l' })
+    expect(swingFrom(hi, lo, 9, -1, 3)).toEqual({ i: 4, kind: 'l' })
+  })
+})
