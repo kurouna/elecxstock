@@ -163,6 +163,18 @@ const G = $derived([
         'PgUp PgDn / → ← · Enter',
       ],
       [ja ? '銘柄情報: 配当の棒を選ぶ / 年・回の切り替え' : 'Symbol info: select dividend bar / per year–payout', '← → Home End / Y'],
+      [
+        ja
+          ? '配当シミュレータ: カードを巡る / 過去 ⇔ これから / 基準日・期間 / 十字線・月'
+          : 'Dividend simulator: cycle cards / past ⇔ ahead / base · horizon / crosshair · month',
+        'Tab / PgUp PgDn / Alt+1–4 / ← →',
+      ],
+      [
+        ja
+          ? '配当シミュレータ: 前提 / 出どころ / 元本 / 受取・再投資 / 税 / 比べる相手 / 業種 / 円と % / 受取月 / 並べ替え'
+          : 'Dividend simulator: notes / source / principal / reinvest / tax / compare / sector / ¥ and % / pay month / sort',
+        'N / L / A / R / X / B / G / P / V / S',
+      ],
     ],
   },
   {
@@ -198,6 +210,7 @@ const ctx = $derived(
       breadth: 'market',
       market: 'market',
       portfolio: 'market',
+      divsim: 'market',
       news: 'news',
     } as Record<string, string>
   )[findPane(app.focus)?.widget ?? ''] ?? '',

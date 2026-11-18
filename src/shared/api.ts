@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import { DRAWINGS_PARAMS, type DrawingsResults, drawingsFileSchema } from './drawings'
 import { NEWS_PARAMS, type NewsEvents, type NewsResults } from './news/api'
+import type { SimResult } from './sim/types'
 import type {
   Adjustment,
   Alert,
@@ -263,6 +264,18 @@ export const PARAMS = {
   'folio.dividends': z.object({}),
   'folio.clear': z.object({}),
   'bars.csv': z.object({ ids: z.array(id).max(500), from: jstDate.optional(), to: jstDate.optional() }),
+  // 配当シミュレータ（docs/design-simulator.md）。ids は出どころの表示順（Core が先頭 200 で切る）
+  'sim.run': z.object({
+    ids: z.array(id).max(5000),
+    settings: z.object({
+      years: z.union([z.literal(1), z.literal(3), z.literal(5)]),
+      amount: z.number().min(10_000).max(1e10),
+      reinvest: z.boolean(),
+      tax: z.enum(['gross', 'taxed', 'nisa']),
+      sector: z.enum(['s33', 's17']),
+      horizon: z.union([z.literal(5), z.literal(10), z.literal(20), z.literal(30)]),
+    }),
+  }),
   'data.backup': z.object({}),
   'app.checkUpdate': z.object({}),
   'user.exportAll': z.object({}),
@@ -356,6 +369,7 @@ export interface Results extends NewsResults, DrawingsResults {
   'folio.dividends': FolioDividends
   'folio.clear': boolean
   'bars.csv': string
+  'sim.run': SimResult
   /** 書き出した DB のファイル名（data/backups の中） */
   'data.backup': string
   'app.checkUpdate': { version: string; url: string; newer: boolean } | null

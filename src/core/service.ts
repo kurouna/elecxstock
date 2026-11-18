@@ -16,6 +16,7 @@ import {
 import type { CoreError, Events, Method, Params, Results } from '@shared/api'
 import { FIELD_BY_ID } from '@shared/fields'
 import { mergePoints } from '@shared/folio'
+import type { SimSettings } from '@shared/sim/types'
 import type {
   Adjustment,
   Alert,
@@ -43,6 +44,7 @@ import type { Provider } from './providers/types'
 import { idOf, Repo } from './repo'
 import { runScreen, type ScreenInput, screenable } from './screener'
 import { adjust, adjustMonthly, aggregate, mergeMonthly, toBars } from './series'
+import { SimData } from './sim'
 import { defaultScreens, UserStore } from './userstore'
 
 /**
@@ -95,6 +97,8 @@ export class CoreService {
   readonly folio: FolioBook
   /** チャートの描画（FR-C13。docs/design-drawings.md §7） */
   readonly drawings: DrawingBook
+  /** 配当シミュレータの材料のキャッシュ（取得の完了で捨てる） */
+  readonly sim: SimData
 
   constructor(
     dataDir: string,
@@ -112,6 +116,11 @@ export class CoreService {
     this.alertBook = new AlertBook(join(dataDir, 'user'), () => this.user.readOnly)
     this.folio = new FolioBook(join(dataDir, 'user'), () => this.user.readOnly)
     this.drawings = new DrawingBook(this.user, (id) => this.repo.splits(id))
+    this.sim = new SimData(
+      this.repo,
+      () => this.user.load('settings').retentionYears,
+      (id) => this.jobs.enqueue('monthly', [`M:${id}`]),
+    )
     if (this.user.readOnly || this.user.load('settings') == null) {
       /* settings を最初に読んで読み取り専用かを決める */
     }
@@ -130,6 +139,7 @@ export class CoreService {
       emitProgress: (p) => emit('jobs.progress', p),
       emitData: (ids) => {
         this.metricsCache = null
+        this.sim.clear()
         emit('data.updated', { ids, metrics: true })
       },
       emitProvider: (s) => emit('provider.state', s),
@@ -343,6 +353,8 @@ export class CoreService {
         }
         return `${lines.join('\r\n')}\r\n` as Results[M]
       }
+      case 'sim.run':
+        return this.sim.run(P.ids as InstrumentId[], P.settings as SimSettings) as Results[M]
       case 'data.backup': {
         // 市場データの DB のバックアップ（FR-S3）。data/backups に VACUUM INTO で書き、直近 3 つを残す
         const dir = join(this.user.dir, '..', 'backups')

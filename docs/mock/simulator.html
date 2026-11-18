@@ -188,8 +188,9 @@ kbd { font: 500 var(--fs-0) var(--mono); color: var(--text-3); border: 1px solid
 .bi.info .t::before { background: var(--focus); }
 .bi .d { color: var(--text-2); }
 .bi .d b { color: var(--text); font-weight: 500; }
-.disclaim { flex: none; height: 22px; display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: var(--fs-1); color: var(--text-3); border-top: 1px solid var(--line); background: var(--panel-2); white-space: nowrap; overflow: hidden; }
-.disclaim::before { content: "ⓘ"; color: var(--text-3); }
+.disclaim { flex: none; min-height: 22px; display: flex; align-items: baseline; line-height: 1.5; gap: 8px; padding: 3px 10px; font-size: var(--fs-1); color: var(--text-3); border-top: 1px solid var(--line); background: var(--panel-2); }
+.disclaim::before { content: "ⓘ"; color: var(--text-3); flex: none; }
+.disclaim b { font-weight: 500; color: var(--text-2); }
 
 /* 表 */
 .dt { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin; max-height: 460px; }
@@ -362,7 +363,7 @@ kbd { font: 500 var(--fs-0) var(--mono); color: var(--text-3); border: 1px solid
         </div>
       </section>
     </div>
-    <div class="disclaim">試算です。過去の結果と実績の機械的な延長で、将来の成果や投資の判断を示すものではありません。</div>
+    <div class="disclaim" role="note"><span><b>投資助言ではありません。</b>投資の判断はご自身の責任で行ってください。試算は過去の実績の機械的な延長で、将来の成果を示すものではありません。</span></div>
     <div class="dlg" id="dlg"><div class="box"><h4>出どころ <span><kbd>↑</kbd><kbd>↓</kbd> <kbd>Enter</kbd> <kbd>Esc</kbd></span></h4><div id="dlgList"></div></div></div>
     <div class="toast" id="toast"></div>
   </div>

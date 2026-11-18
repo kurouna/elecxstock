@@ -510,7 +510,8 @@ test.describe('すべてのタブのレイアウトを初期状態に戻す（FR
     await expect(page.locator('[data-widget="chart"]')).toHaveCount(3)
     await tab(page, 'screener')
     await expect(page.locator('[data-widget="info"]')).toHaveCount(1)
-    await expect(page.locator('[data-widget="chart"]')).toHaveCount(2)
+    await expect(page.locator('[data-widget="chart"]')).toHaveCount(1)
+    await expect(page.locator('[data-widget="divsim"]')).toHaveCount(1)
   })
 })
 

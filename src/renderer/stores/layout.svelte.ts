@@ -22,6 +22,7 @@ export type WidgetId =
   | 'breadth'
   | 'folio'
   | 'news'
+  | 'divsim'
 export const WIDGETS: WidgetId[] = [
   'chart',
   'mtf',
@@ -32,6 +33,7 @@ export const WIDGETS: WidgetId[] = [
   'divcal',
   'portfolio',
   'folio',
+  'divsim',
   'heatmap',
   'ranking',
   'board',
@@ -135,13 +137,13 @@ export function presetEntry(id: PresetId): LayoutEntry {
       return { root: P('grid', MAIN_LINK, { src: 'live' }), docks: { left: selectDock(MAIN_LINK, 1) } }
     case 'screener':
       // スクリーナーが主役なので、左の列はスクリーナーだけ（ウォッチリストは置かない）。結果の行を動かすと、
-      // となりの銘柄情報と右のチャート 2 枚（上は日足・下は週足）が同じ銘柄を出す（リンク 2）
+      // となりの銘柄情報と右上の日足が同じ銘柄を出す（リンク 2）。右下は配当シミュレータ（結果の銘柄群全体。FR-SIM9）
       return {
         root: R(
           [26, 26, 48],
           P('screener', MAIN_LINK),
           P('info', MAIN_LINK),
-          C([50, 50], P('chart', MAIN_LINK, { tf: 'D' }), P('chart', MAIN_LINK, { tf: 'W' })),
+          C([50, 50], P('chart', MAIN_LINK, { tf: 'D' }), P('divsim', MAIN_LINK)),
         ),
         docks: {},
       }

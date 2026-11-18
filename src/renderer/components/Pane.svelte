@@ -10,6 +10,7 @@ import { DRAG_MIME, type DropZone, zoneOf } from './dragPane'
 import Chart from './widgets/Chart.svelte'
 import ChartGrid from './widgets/ChartGrid.svelte'
 import DivCalendar from './widgets/DivCalendar.svelte'
+import DivSim from './widgets/DivSim.svelte'
 import Folio from './widgets/Folio.svelte'
 import Heatmap from './widgets/Heatmap.svelte'
 import Jobs from './widgets/Jobs.svelte'
@@ -83,6 +84,8 @@ function onerror(e: unknown) {
       <MtfChart {pane} />
     {:else if pane.widget === 'folio'}
       <Folio {pane} />
+    {:else if pane.widget === 'divsim'}
+      <DivSim {pane} />
     {:else if pane.widget === 'portfolio'}
       <Portfolio {pane} />
     {:else if pane.widget === 'heatmap'}
