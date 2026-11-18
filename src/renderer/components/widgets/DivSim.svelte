@@ -17,7 +17,7 @@ import {
   basisNotes,
   blockedWhileLoading,
   cycle,
-  FWD_SORTS,
+  fwdSorts,
   indexAt,
   lineScale,
   PAST_SORTS,
@@ -79,7 +79,7 @@ const tab = $derived(view.tab)
 const lang = $derived(app.settings.lang)
 const src = $derived((S.src as string | undefined) ?? 'live')
 const psort = $derived((PAST_SORTS as readonly string[]).includes(S.psort as string) ? (S.psort as string) : 'total')
-const fsort = $derived((FWD_SORTS as readonly string[]).includes(S.fsort as string) ? (S.fsort as string) : 'y1')
+const fsort = $derived(fwdSorts(settings.method).includes(S.fsort as string) ? (S.fsort as string) : 'y1')
 const set = (patch: Record<string, unknown>) => patchState(pane, patch)
 
 // ---------------------------------------------------------------- 出どころ（§8）
@@ -357,7 +357,7 @@ const steps = {
   },
   sort: () => {
     if (tab === 'past') set({ psort: cycle(PAST_SORTS, psort as (typeof PAST_SORTS)[number]) })
-    else set({ fsort: cycle(FWD_SORTS, fsort as (typeof FWD_SORTS)[number]) })
+    else set({ fsort: cycle(fwdSorts(settings.method), fsort) })
     // 並べ替えは先頭から選び直す
     row = 0
     follow.reset()
@@ -778,7 +778,7 @@ onMount(() =>
             <div><dt>{t(fwd.held ? 'sim.f.yopHeld' : 'sim.f.yop')}</dt><dd class="num">{pct(fwd.yieldOnPrincipal, 2, false)}</dd></div>
             <div><dt>{t('sim.f.cum', { h: settings.horizon })}</dt><dd class="num">{money(fwd.cum)}</dd></div>
             {#if fwd.stress}
-              <div><dt>{t('sim.f.stress', { y: fwd.stress.year })}</dt><dd class="num">{money(fwd.stressY1)} <span class="down">{pct(fwd.stressDiff)}</span>{#if isOne && fwd.rows[0]}<span class="dim">{fwd.rows[0].rSrc === 's17' ? ` (${t('sim.mark.s17')})` : fwd.rows[0].rSrc === 'market' ? ` (${t('sim.mark.market')})` : ''}</span>{/if}</dd></div>
+              <div><dt title={t('sim.f.stressHint')}>{t('sim.f.stress', { y: fwd.stress.year })} ⓘ</dt><dd class="num">{money(fwd.stressY1)} <span class="down">{pct(fwd.stressDiff)}</span>{#if isOne && fwd.rows[0]}<span class="dim">{fwd.rows[0].rSrc === 's17' ? ` (${t('sim.mark.s17')})` : fwd.rows[0].rSrc === 'market' ? ` (${t('sim.mark.market')})` : ''}</span>{/if}</dd></div>
             {:else}
               <div><dt>{t('sim.l.stress')}</dt><dd class="dim">{t('sim.f.stressNone')}</dd></div>
             {/if}

@@ -383,3 +383,22 @@ describe('FR-SIM4 年ごとの見込みの図（上段: その年の配当・下
     expect(fwdReadout(ys, 0, 0).pct).toBeNull()
   })
 })
+
+describe('FR-SIM6 FR-SIM12 4 回目のレビューの反映と言い方', () => {
+  it('過去のタブでは M（方式）を受けない（これからだけに効く）', async () => {
+    const { keyApplies } = await import('../../../src/renderer/lib/divsim')
+    expect(keyApplies('KeyM', 'past', false)).toBe(false)
+    expect(keyApplies('KeyM', 'fwd', false)).toBe(true)
+  })
+  it('並べ替えの候補: 横ばいのときは「試算の伸び」（すべて —）を巡らない', async () => {
+    const { fwdSorts } = await import('../../../src/renderer/lib/divsim')
+    expect(fwdSorts('flat')).not.toContain('g')
+    expect(fwdSorts('growth')).toContain('g')
+  })
+  it('画面の文言に「ストレス」を使わない（日本語では「減配シナリオ」と言い、何を当てたかを添える）', async () => {
+    const { ja } = await import('../../../src/renderer/lib/i18n')
+    const bad = Object.entries(ja).filter(([k, v]) => k.startsWith('sim.') && v.includes('ストレス'))
+    expect(bad).toEqual([])
+    expect(ja['sim.f.stress']).toContain('減配シナリオ')
+  })
+})

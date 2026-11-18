@@ -171,9 +171,9 @@ const G = $derived([
       ],
       [
         ja
-          ? '配当シミュレータ: 前提 / 出どころ / 元本 / 受取・再投資 / 税 / 比べる相手 / 業種 / 円と % / 受取月 / 並べ替え'
-          : 'Dividend simulator: notes / source / principal / reinvest / tax / compare / sector / ¥ and % / pay month / sort',
-        'N / L / A / R / X / B / G / P / V / S',
+          ? '配当シミュレータ: 前提 / 出どころ / 元本 / 受取・再投資 / 税 / 比べる相手 / 業種 / 円と % / 受取月 / 横ばい ⇔ 伸びを見込む / 並べ替え'
+          : 'Dividend simulator: notes / source / principal / reinvest / tax / compare / sector / ¥ and % / pay month / flat ⇔ growth / sort',
+        'N / L / A / R / X / B / G / P / V / M / S',
       ],
     ],
   },

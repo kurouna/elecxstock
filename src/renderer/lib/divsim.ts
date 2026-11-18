@@ -203,6 +203,9 @@ export function basisNotes(r: SimResult, tab: SimTab, screen: boolean): Note[] {
 /** 表の並べ替えの候補（S で巡る）。値が大きい順 */
 export const PAST_SORTS = ['total', 'contrib', 'received', 'yoc', 'rank'] as const
 export const FWD_SORTS = ['y1', 'yield', 'growth', 'g', 'stress'] as const
+/** これからの表の並べ替えの候補（S で巡る）。横ばいのときは「試算の伸び」（すべて —）を巡らない */
+export const fwdSorts = (method: 'flat' | 'growth'): readonly string[] =>
+  method === 'growth' ? FWD_SORTS : FWD_SORTS.filter((k) => k !== 'g')
 const pastKey = (r: SimPastRow, k: string): number =>
   k === 'contrib'
     ? r.contrib
