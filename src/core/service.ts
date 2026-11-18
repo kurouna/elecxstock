@@ -15,7 +15,7 @@ import {
 } from '@shared/alerts'
 import type { CoreError, Events, Method, Params, Results } from '@shared/api'
 import { FIELD_BY_ID } from '@shared/fields'
-import { mergePoints } from '@shared/folio'
+import { mergePoints, netRate } from '@shared/folio'
 import type { SimSettings } from '@shared/sim/types'
 import type {
   Adjustment,
@@ -76,6 +76,20 @@ export function newerVersion(latest: string, current: string): boolean {
   const b = p(current)
   for (let i = 0; i < 3; i++) if (a[i]! !== b[i]!) return a[i]! > b[i]!
   return false
+}
+
+/** 配当シミュレータの保有（口座をまたいで銘柄ごとにまとめた株数と、株数で重みを付けた税引後の割合。分割は換算済みの保有から） */
+export function heldForSim(hs: Holding[]): Map<InstrumentId, { qty: number; net: number }> {
+  const m = new Map<InstrumentId, { qty: number; netQty: number }>()
+  for (const h of hs) {
+    if (!(h.quantity > 0)) continue
+    const id = idOf(h.code)
+    const x = m.get(id) ?? { qty: 0, netQty: 0 }
+    x.qty += h.quantity
+    x.netQty += h.quantity * netRate(h.account)
+    m.set(id, x)
+  }
+  return new Map([...m].map(([id, x]) => [id, { qty: x.qty, net: x.netQty / x.qty }]))
 }
 
 export type Emit = <E extends keyof Events>(event: E, data: Events[E]) => void
@@ -354,7 +368,11 @@ export class CoreService {
         return `${lines.join('\r\n')}\r\n` as Results[M]
       }
       case 'sim.run':
-        return this.sim.run(P.ids as InstrumentId[], P.settings as SimSettings) as Results[M]
+        return this.sim.run(
+          P.ids as InstrumentId[],
+          P.settings as SimSettings,
+          P.held ? heldForSim(this.holdings()) : undefined,
+        ) as Results[M]
       case 'data.backup': {
         // 市場データの DB のバックアップ（FR-S3）。data/backups に VACUUM INTO で書き、直近 3 つを残す
         const dir = join(this.user.dir, '..', 'backups')

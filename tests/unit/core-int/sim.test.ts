@@ -147,3 +147,27 @@ describe('FR-SIM2 2 回目のレビューの反映（Core）', () => {
     db.run(`UPDATE daily_bars SET c = ? WHERE id = 'JP:8001' AND d = ?`, orig, end)
   })
 })
+
+describe('FR-SIM11 保有を出どころに（sim.run）', () => {
+  it('Core が保有の株数と口座を読んで、これからを実際の株数と口座ごとの税で計算する', async () => {
+    const before = await call('portfolio.list', {})
+    await call('portfolio.save', {
+      holdings: [
+        { code: '8058', account: 'nisa_growth', quantity: 100, avgCost: 10000 },
+        { code: '8058', account: 'tokutei', quantity: 50, avgCost: 10000 },
+        { code: '8001', account: 'tokutei', quantity: 200, avgCost: 3000 },
+      ],
+    })
+    const g = await call('sim.run', { ids: ['JP:8058', 'JP:8001'], settings: { ...S, tax: 'gross' } })
+    const r = await call('sim.run', { ids: ['JP:8058', 'JP:8001'], settings: S, held: true })
+    expect(r.fwd.held).toBe(true)
+    const a = r.fwd.rows.find((x) => x.id === 'JP:8058')!
+    const b = r.fwd.rows.find((x) => x.id === 'JP:8001')!
+    expect(a.shares).toBe(150)
+    expect(b.shares).toBe(200)
+    const d0a = g.fwd.rows.find((x) => x.id === 'JP:8058')!.d0
+    expect(a.y1).toBeCloseTo(d0a * (100 + 50 * (1 - 0.20315)))
+    expect(r.fwd.amount).toBeCloseTo(a.price * 150 + b.price * 200)
+    await call('portfolio.save', { holdings: before })
+  })
+})

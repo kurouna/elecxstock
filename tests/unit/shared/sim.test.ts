@@ -436,3 +436,37 @@ describe('FR-SIM5 上場廃止と最大下落率の範囲（レビューの反�
     expect(r.past!.rows.find((x) => x.id === 'B')!.monthly).toBe(true) // B は基準日の月の月末の終値で買う
   })
 })
+
+describe('FR-SIM11 保有を出どころに（これからは実際の株数と口座ごとの税）', () => {
+  const stock = (id: string, o: Partial<SimStock> = {}): SimStock => ({
+    id,
+    kind: 'stock',
+    market: 'P',
+    sector33: '銀行業',
+    px: buildPx([], daily('2023-01-04', TODAY)),
+    divs: semi(2023, 2026),
+    divFrom: '2016-11-13',
+    ...o,
+  })
+  const base = { today: TODAY, settings: { ...DEFAULT_SIM, years: 3 as const }, total: 2, etf: null, members: () => [], stressPool: [] }
+  it('株数は保有の株数、税は口座ごと（NISA は非課税）、元本は今の評価額', () => {
+    const held = new Map([
+      ['A', { qty: 150, net: (100 * 1 + 50 * (1 - 0.20315)) / 150 }],
+      ['B', { qty: 200, net: 1 - 0.20315 }],
+    ])
+    const r = simulate({ ...base, stocks: [stock('A'), stock('B')], held })
+    expect(r.fwd.held).toBe(true)
+    expect(r.fwd.amount).toBeCloseTo((150 + 200) * 1000)
+    const a = r.fwd.rows.find((x) => x.id === 'A')!
+    expect(a.shares).toBe(150)
+    expect(a.y1).toBeCloseTo(20 * (100 + 50 * (1 - 0.20315)))
+    expect(r.fwd.y1).toBeCloseTo(a.y1 + 200 * 20 * (1 - 0.20315))
+    // 過去はほかの出どころと同じ（設定の元本を均等に）
+    expect(r.past!.principal).toBe(DEFAULT_SIM.amount)
+    expect(r.past!.rows[0]!.shares0).toBeCloseTo(DEFAULT_SIM.amount / 2 / 1000)
+  })
+  it('保有に無い銘柄は株数 0（これからに入れない）', () => {
+    const r = simulate({ ...base, stocks: [stock('A'), stock('B')], held: new Map([['A', { qty: 10, net: 1 }]]) })
+    expect(r.fwd.rows.map((x) => x.id)).toEqual(['A'])
+  })
+})

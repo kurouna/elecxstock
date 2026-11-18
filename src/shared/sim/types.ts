@@ -122,7 +122,10 @@ export interface SimFwdRow {
 }
 
 export interface SimFwd {
+  /** 元本（保有のときは今の評価額） */
   amount: number
+  /** 保有の株数と口座ごとの税で計算した（設計 §23） */
+  held: boolean
   rows: SimFwdRow[]
   /** 1 年目の配当の合計と、元本に対する利回り（合計が 0 なら null） */
   y1: number

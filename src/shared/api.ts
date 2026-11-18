@@ -275,6 +275,8 @@ export const PARAMS = {
       sector: z.enum(['s33', 's17']),
       horizon: z.union([z.literal(5), z.literal(10), z.literal(20), z.literal(30)]),
     }),
+    /** 保有を出どころに（これからは Core が読む保有の株数と口座ごとの税で計算する。設計 §23） */
+    held: z.boolean().optional(),
   }),
   'data.backup': z.object({}),
   'app.checkUpdate': z.object({}),

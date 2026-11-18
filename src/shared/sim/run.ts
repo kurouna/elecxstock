@@ -48,6 +48,8 @@ export interface SimInput {
   members: (key: string, level: SimSector, market: string) => SimStock[]
   /** ストレスの年を選ぶ全銘柄の年ごとの配当 */
   stressPool: StressItem[]
+  /** 保有（銘柄 → 株数と税引後の割合。口座をまたいでまとめたもの）。あればこれからは実際の株数で計算する（設計 §23） */
+  held?: Map<InstrumentId, { qty: number; net: number }>
 }
 
 const isReit = (s: { kind: string; market: string }) => s.kind === 'reit' || s.market === 'R'
@@ -243,11 +245,14 @@ function pastOf(inp: SimInput, net: number): { past: SimPast | null; excluded: S
 function fwdOf(inp: SimInput, net: number): SimFwd {
   const { today, settings: st } = inp
   const thisYear = Number(today.slice(0, 4))
+  const held = inp.held
   const xs = inp.stocks
-    .filter((s) => !s.delisted)
+    .filter((s) => !s.delisted && (!held || (held.get(s.id)?.qty ?? 0) > 0))
     .map((s) => ({ s, lp: lastPx(s.px) }))
     .filter((x): x is { s: SimStock; lp: { d: JstDate; c: number } } => !!x.lp && x.lp.c > 0)
   const a = xs.length ? st.amount / xs.length : 0
+  // 保有のとき: 元本は今の評価額（株数 × 今日の終値）
+  const amount = held ? xs.reduce((s, { s: x, lp }) => s + (held.get(x.id)?.qty ?? 0) * lp.c, 0) : st.amount
   const stress = pickStressYear(inp.stressPool, thisYear)
   const rs = stress
     ? stressRatios(
@@ -263,8 +268,9 @@ function fwdOf(inp: SimInput, net: number): SimFwd {
   const rows = xs.map(({ s, lp }) => {
     const reit = isReit(s)
     const an = annualOf(s.divs, today, reit)
-    const shares = a / lp.c
-    const v = shares * an.d0 * net
+    const h = held?.get(s.id)
+    const shares = h ? h.qty : a / lp.c
+    const v = shares * an.d0 * (h ? h.net : net)
     const r = rs?.get(s.id) ?? { r: 1, src: 'none' as const }
     y1 += v
     stressY1 += v * Math.min(1, r.r)
@@ -298,10 +304,11 @@ function fwdOf(inp: SimInput, net: number): SimFwd {
   }
   const diff = ratioOrNull(stressY1, y1)
   return {
-    amount: st.amount,
+    amount,
+    held: !!held,
     rows,
     y1,
-    yieldOnPrincipal: y1 > 0 ? y1 / st.amount : null,
+    yieldOnPrincipal: y1 > 0 && amount > 0 ? y1 / amount : null,
     cum: y1 * st.horizon,
     stress,
     stressY1,

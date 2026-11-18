@@ -1,7 +1,7 @@
 // 配当シミュレータ（FR-SIM1〜SIM10。docs/design-simulator.md）: スクリーナーのタブの右下にリンク 2 で置き、
 // スクリーナーの結果を仮想の銘柄群として計算する。キーボードだけで操作する。値はスタブ（架空）
 import type { Page } from '@playwright/test'
-import { expect, keys, rpc, tab, test } from './support'
+import { expect, holdings, keys, rpc, tab, test } from './support'
 
 const sim = (page: Page) => page.locator('[data-widget="divsim"]')
 
@@ -177,5 +177,56 @@ test.describe('1 銘柄のシミュレーション（FR-SIM10）', () => {
     await toGroup(page)
     await expect(s.getByTestId('sim-one')).toHaveCount(0)
     await expect(s.locator('.cfg')).toContainText('銘柄へ均等に')
+  })
+})
+
+test.describe('1 銘柄のときの操作（FR-SIM10。レビューの反映）', () => {
+  test('Tab は表の無い 4 枚を巡る。L・S は受けない。銘柄名の語は押せず、見出しに全文の title。ストレスは 1 か所', async ({ start }) => {
+    const { page } = await start()
+    const s = await openSim(page, 'one')
+    for (let i = 0; i < 5; i++) {
+      await keys(page, 'Tab')
+      await expect(s.locator('[data-card].sel')).toHaveCount(1)
+    }
+    await keys(page, 'Shift+Tab')
+    await expect(s.locator('[data-card].sel')).toHaveCount(1)
+    await keys(page, 'l')
+    await expect(page.locator('.dialog')).toHaveCount(0)
+    const name = (await s.getByTestId('sim-one').textContent())!.trim()
+    await expect(s.getByTestId('sim-one')).toHaveAttribute('title', name)
+    await expect(s.locator('.cfg button', { hasText: name })).toHaveCount(0)
+    await expect(s.locator('.cfg .oneName')).toHaveText(name)
+    await keys(page, 'PageDown')
+    await expect(s.getByTestId('sim-fwd')).toBeVisible()
+    await expect(s.locator('.c-hero dt', { hasText: 'ストレス' })).toHaveCount(1)
+  })
+})
+
+test.describe('保有を出どころに（FR-SIM11）', () => {
+  const HOLD = holdings([
+    { code: '8058', account: 'nisa_growth', quantity: 100, avgCost: 11000 },
+    { code: '8058', quantity: 50, avgCost: 11000 },
+    { code: '8951', quantity: 2, avgCost: 95000 },
+  ])
+  test('L で保有を選ぶと、これからは実際の株数で計算し、プライバシーモードでは金額を隠す', async ({ start }) => {
+    const { page } = await start({ user: { holdings: HOLD } })
+    const s = await openSim(page)
+    await keys(page, 'l')
+    const dlg = page.locator('.dialog')
+    await expect(dlg).toContainText('保有')
+    await keys(page, 'ArrowDown')
+    await expect(dlg.locator('.it.sel')).toContainText('保有')
+    await keys(page, 'Enter')
+    await expect(dlg).toHaveCount(0)
+    await expect(s.getByTestId('sim-past')).toBeVisible()
+    await expect(s.locator('.src')).toContainText('保有 · 2 銘柄')
+    await keys(page, 'PageDown')
+    await expect(s.getByTestId('sim-fwd')).toBeVisible()
+    await expect(s.locator('.cfg')).toContainText('今の保有')
+    await expect(s.getByTestId('sim-basis')).toContainText('今の株数と口座ごとの税')
+    await expect(s.locator('tbody tr[data-id="JP:8058"] td.c-shares')).toHaveText('150.0')
+    await expect(s.getByTestId('sim-y1')).toHaveText(/\d/)
+    await keys(page, 'Control+Shift+H')
+    await expect(s.getByTestId('sim-y1')).toContainText('****')
   })
 })

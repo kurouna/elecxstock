@@ -259,3 +259,20 @@ describe('FR-SIM10 対象（1 銘柄 ⇔ 群）', () => {
     expect(simTargets('one', 0, 'JP:7203', ['JP:1'])).toEqual({ scope: 'group', ids: ['JP:1'] })
   })
 })
+
+describe('FR-SIM5 FR-SIM11 案内と保有の銘柄', () => {
+  it('過去が 0 件のとき: これからの銘柄も無ければ別の案内', async () => {
+    const { noPastHintKey } = await import('../../../src/renderer/lib/divsim')
+    expect(noPastHintKey(3)).toBe('sim.noPastHint')
+    expect(noPastHintKey(0)).toBe('sim.noPastHintNone')
+  })
+  it('保有の銘柄は口座をまたいで 1 つにまとめ、並びは保有の順', async () => {
+    const { heldIds } = await import('../../../src/renderer/lib/divsim')
+    expect(heldIds([{ code: '8058' }, { code: '8001' }, { code: '8058' }])).toEqual(['JP:8058', 'JP:8001'])
+  })
+  it('保有のとき: 前提に「今の株数と口座ごとの税」を出し、後知恵は出さない', () => {
+    const r = result({ held: new Map([['A', { qty: 10, net: 1 }]]) })
+    const ns = basisNotes(r, 'fwd', false)
+    expect(ns.some((n) => n.k === 'sim.n.held')).toBe(true)
+  })
+})

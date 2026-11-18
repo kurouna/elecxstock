@@ -74,6 +74,12 @@ export function cycle<T>(xs: readonly T[], v: T, d = 1): T {
 export function sourceStep(last: string, src: string): { last: string; reset: boolean; screen: boolean } {
   return { last: src, reset: src !== last, screen: src === 'live' || src.startsWith('scr:') }
 }
+/** 保有の銘柄（口座をまたいで 1 つにまとめ、並びは保有の順） */
+export function heldIds(hs: { code: string }[]): InstrumentId[] {
+  return [...new Set(hs.map((h) => `JP:${h.code}`))]
+}
+/** 過去が 0 件のときの案内（これからの銘柄も無ければ別の文） */
+export const noPastHintKey = (fwdRows: number): Key => (fwdRows > 0 ? 'sim.noPastHint' : 'sim.noPastHintNone')
 /** 読み込み中・結果が無いときに受けないキー（画面に出ていないカード・表の行を動かさない。設定のキーは受ける） */
 const MOVE_KEYS = new Set(['Tab', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Home', 'End', 'KeyN', 'KeyS', 'Escape'])
 export const blockedWhileLoading = (code: string): boolean => MOVE_KEYS.has(code)
@@ -162,6 +168,7 @@ export function basisNotes(r: SimResult, tab: SimTab, screen: boolean): Note[] {
     if (r.reitShare > 0.2) out.push({ k: 'sim.n.reit', warn: true })
   } else {
     out.push({ k: 'sim.n.estimate' })
+    if (r.fwd.held) out.push({ k: 'sim.n.held' })
     if (r.fwd.stress) out.push({ k: 'sim.n.stress', a: { y: r.fwd.stress.year, p: pct(r.fwd.stress.ratio - 1) } })
     const gone = r.excluded.filter((x) => x.reason === 'delisted').length
     if (gone) out.push({ k: 'sim.n.delistedFwd', a: { n: gone }, warn: true })
@@ -211,6 +218,8 @@ export function simColumns(
     name: (id: InstrumentId) => string
     code: (id: InstrumentId) => string
     sector?: (id: InstrumentId) => string
+    /** 金額と株数を隠す（保有のときのプライバシーモード） */
+    mask?: string
   },
 ): ListCol[] {
   const L = (k: Key) => () => o.label(k)
@@ -225,6 +234,7 @@ export function simColumns(
     },
   })
   const signCls = (v: number) => (v > 0 ? 'up' : v < 0 ? 'down' : '')
+  const money = (v: number, sign = false) => o.mask ?? yen(v, o.lang, sign)
   const head: ListCol[] = [
     { id: 'code', label: L('col.code'), w: 52, l: true, sort: (x) => o.code(x), cell: (x) => ({ t: o.code(x) }), fixed: true },
     { id: 'name', label: L('col.name'), w: 150, l: true, sort: (x) => o.name(x), cell: (x) => ({ t: o.name(x) }), fixed: true },
@@ -329,11 +339,18 @@ export function simColumns(
       (v) => ({ t: pct(v), c: signCls(v) }),
     ),
     num(
+      'shares',
+      'sim.c.shares',
+      64,
+      f((x) => x.shares),
+      (v) => ({ t: o.mask ?? v.toFixed(1) }),
+    ),
+    num(
       'y1',
       'sim.c.y1',
       80,
       f((x) => x.y1),
-      (v) => ({ t: yen(v, o.lang), c: 'gold' }),
+      (v) => ({ t: money(v), c: 'gold' }),
     ),
     num(
       'stress',

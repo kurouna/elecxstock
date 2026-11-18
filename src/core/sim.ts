@@ -48,7 +48,8 @@ export class SimData {
     return this.full.size + this.lite.size
   }
 
-  run(ids: InstrumentId[], settings: SimSettings): SimResult {
+  /** held は保有（銘柄 → 株数と税引後の割合）。渡したら、これからは実際の株数で計算する（設計 §23） */
+  run(ids: InstrumentId[], settings: SimSettings, held?: Map<InstrumentId, { qty: number; net: number }>): SimResult {
     const pick = ids.slice(0, SIM_LIMIT)
     // データの基準の日: 選んだ銘柄で終値のある最新の日（仮の足を含む）
     let today: JstDate | null = null
@@ -84,6 +85,7 @@ export class SimData {
       etf: this.stock(ETF_ID, true),
       members,
       stressPool: this.stressPool(today),
+      ...(held ? { held } : {}),
     })
   }
 
