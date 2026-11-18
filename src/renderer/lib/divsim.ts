@@ -38,13 +38,29 @@ export function simSettingsOf(s: Record<string, unknown>): SimSettings {
   }
 }
 /** 画面だけの表示の状態（変えても計算し直さない） */
-export function simViewOf(s: Record<string, unknown>): { tab: SimTab; cmp: SimCompare; pct: boolean; receipt: boolean } {
+export function simViewOf(s: Record<string, unknown>): { tab: SimTab; cmp: SimCompare; pct: boolean; receipt: boolean; scope: SimScope } {
   return {
     tab: s.tab === 'fwd' ? 'fwd' : 'past',
     cmp: (SIM_COMPARES as readonly string[]).includes(s.cmp as string) ? (s.cmp as SimCompare) : 'both',
     pct: s.pct === true,
     receipt: s.receipt !== false,
+    scope: s.scope === 'group' ? 'group' : 'one',
   }
+}
+/** 対象（1 銘柄 ⇔ 群。設計 §22）。既定は 1 銘柄 */
+export type SimScope = 'one' | 'group'
+/**
+ * 計算する銘柄: 1 銘柄ならリンク色の銘柄（まだ無ければ空）、群なら出どころの銘柄（まだ届いていなければ null）。
+ * リンク色の無い（リンク 0）ペインは群だけ
+ */
+export function simTargets(
+  scope: SimScope,
+  link: number,
+  linkSym: InstrumentId | null | undefined,
+  srcIds: InstrumentId[] | null,
+): { scope: SimScope; ids: InstrumentId[] | null } {
+  if (scope === 'one' && link) return { scope, ids: linkSym ? [linkSym] : [] }
+  return { scope: 'group', ids: srcIds }
 }
 /** 並びの次（d = −1 で前）の値 */
 export function cycle<T>(xs: readonly T[], v: T, d = 1): T {

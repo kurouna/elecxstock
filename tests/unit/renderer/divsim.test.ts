@@ -62,13 +62,14 @@ describe('FR-SIM1 設定の読み取りと切り替え', () => {
       horizon: 20,
       reinvest: true,
     })
-    expect(simViewOf({ tab: 'fwd', cmp: 'peer', pct: true, receipt: false })).toEqual({
+    expect(simViewOf({ tab: 'fwd', cmp: 'peer', pct: true, receipt: false, scope: 'group' })).toEqual({
       tab: 'fwd',
       cmp: 'peer',
       pct: true,
       receipt: false,
+      scope: 'group',
     })
-    expect(simViewOf({})).toEqual({ tab: 'past', cmp: 'both', pct: false, receipt: true })
+    expect(simViewOf({})).toEqual({ tab: 'past', cmp: 'both', pct: false, receipt: true, scope: 'one' })
   })
   it('B は 1306 と同業種 → 1306 → 同業種 → なし → 最初', () => {
     expect(cycle(SIM_COMPARES, 'both')).toBe('etf')
@@ -238,5 +239,23 @@ describe('FR-SIM1 FR-SIM6 FR-SIM7 2 回目のレビューの反映', () => {
     expect(en.w).toBeGreaterThan(ja.w)
     const right = pillGeom(580, 600, '元本を回収')
     expect(right.x + right.w).toBeLessThanOrEqual(578)
+  })
+})
+
+describe('FR-SIM10 対象（1 銘柄 ⇔ 群）', () => {
+  it('既定は 1 銘柄。リンク色の銘柄を計算する。群なら出どころの銘柄', async () => {
+    const { simTargets } = await import('../../../src/renderer/lib/divsim')
+    expect(simTargets('one', 2, 'JP:7203', ['JP:1', 'JP:2'])).toEqual({ scope: 'one', ids: ['JP:7203'] })
+    expect(simTargets('group', 2, 'JP:7203', ['JP:1', 'JP:2'])).toEqual({ scope: 'group', ids: ['JP:1', 'JP:2'] })
+    // 出どころの結果がまだ無い（スクリーナーを走らせている途中）
+    expect(simTargets('group', 2, 'JP:7203', null)).toEqual({ scope: 'group', ids: null })
+  })
+  it('リンク色の銘柄がまだ無ければ空（「銘柄を選んでください」）', async () => {
+    const { simTargets } = await import('../../../src/renderer/lib/divsim')
+    expect(simTargets('one', 2, undefined, ['JP:1'])).toEqual({ scope: 'one', ids: [] })
+  })
+  it('リンク 0 のペインは群だけ', async () => {
+    const { simTargets } = await import('../../../src/renderer/lib/divsim')
+    expect(simTargets('one', 0, 'JP:7203', ['JP:1'])).toEqual({ scope: 'group', ids: ['JP:1'] })
   })
 })

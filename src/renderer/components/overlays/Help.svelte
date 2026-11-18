@@ -165,9 +165,9 @@ const G = $derived([
       [ja ? '銘柄情報: 配当の棒を選ぶ / 年・回の切り替え' : 'Symbol info: select dividend bar / per year–payout', '← → Home End / Y'],
       [
         ja
-          ? '配当シミュレータ: カードを巡る / 過去 ⇔ これから / 基準日・期間 / 十字線・月'
-          : 'Dividend simulator: cycle cards / past ⇔ ahead / base · horizon / crosshair · month',
-        'Tab / PgUp PgDn / Alt+1–4 / ← →',
+          ? '配当シミュレータ: 1 銘柄 ⇔ 群 / カードを巡る / 過去 ⇔ これから / 基準日・期間 / 十字線・月'
+          : 'Dividend simulator: one stock ⇔ group / cycle cards / past ⇔ ahead / base · horizon / crosshair · month',
+        'O / Tab / PgUp PgDn / Alt+1–4 / ← →',
       ],
       [
         ja

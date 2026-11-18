@@ -1,19 +1,27 @@
-// 配当シミュレータ（FR-SIM1〜SIM9。docs/design-simulator.md）: スクリーナーのタブの右下にリンク 2 で置き、
+// 配当シミュレータ（FR-SIM1〜SIM10。docs/design-simulator.md）: スクリーナーのタブの右下にリンク 2 で置き、
 // スクリーナーの結果を仮想の銘柄群として計算する。キーボードだけで操作する。値はスタブ（架空）
 import type { Page } from '@playwright/test'
 import { expect, keys, rpc, tab, test } from './support'
 
 const sim = (page: Page) => page.locator('[data-widget="divsim"]')
 
-/** スクリーナーのタブを開き、右下の配当シミュレータへフォーカスを移して、最初の計算が終わるまで待つ */
-async function openSim(page: Page) {
+/** スクリーナーのタブを開き、右下の配当シミュレータへフォーカスを移して、最初の計算が終わるまで待つ。group なら O で群へ切り替える */
+async function openSim(page: Page, scope: 'one' | 'group' = 'group') {
   await tab(page, 'screener')
   const s = sim(page)
   await expect(s).toHaveCount(1)
   await keys(page, 'Alt+ArrowRight', 'Alt+ArrowRight', 'Alt+ArrowDown')
   await expect(s).toHaveClass(/focused/)
   await expect(s.getByTestId('sim-past')).toBeVisible({ timeout: 15_000 })
+  if (scope === 'group') await toGroup(page)
   return s
+}
+/** O で 1 銘柄 → 群 */
+async function toGroup(page: Page) {
+  const s = sim(page)
+  await keys(page, 'o')
+  await expect(s.locator('[data-card="table"]')).toBeVisible()
+  await expect(s.getByTestId('sim-loading')).toHaveCount(0)
 }
 
 test.describe('配当シミュレータ（FR-SIM1・SIM2・SIM5・SIM7・SIM9）', () => {
@@ -60,7 +68,7 @@ test.describe('表示の切り替えでは計算し直さない（FR-SIM7）', (
     const { page } = await start()
     // 開く前から数える。最初の計算で月次系列の無い銘柄（1306 など）の取得を頼むと、その取得の完了で 1 回だけ計算し直す（正しい動き）
     const loads = await countLoads(page)
-    const s = await openSim(page)
+    const s = await openSim(page, 'one')
     await expect
       .poll(() =>
         rpc<{ status: string }[]>(page, 'jobs.list').then((js) => js.every((j) => ['done', 'failed', 'cancelled'].includes(j.status))),
@@ -70,6 +78,7 @@ test.describe('表示の切り替えでは計算し直さない（FR-SIM7）', (
     await expect.poll(loads).toBe(refetched ? 2 : 1)
     await expect(s.getByTestId('sim-loading')).toHaveCount(0)
     await expect(s.getByTestId('sim-past')).toBeVisible()
+    await toGroup(page)
     const base = await loads()
     await keys(page, 'ArrowDown', 'ArrowDown')
     const id = await s.locator('tbody tr.sel').getAttribute('data-id')
@@ -116,8 +125,14 @@ test.describe('配当シミュレータのキー操作（FR-SIM3・SIM4・SIM6�
     await keys(page, 'ArrowDown')
     const id = await s.locator('tbody tr.sel').getAttribute('data-id')
     expect(id).toBeTruthy()
+    // ↓ で行を動かすだけでは最大化を解かない（表を見ている途中で画面が替わらない）
+    await expect(s).toHaveClass(/maxed/)
+    // 最大化したまま Enter: 最大化を解いてから送る（チャート・銘柄情報が見えるように。FR-L3）
     await keys(page, 'Enter')
+    await expect(s).not.toHaveClass(/maxed/)
+    await expect(page.locator('[data-widget="info"]').first()).toBeVisible()
     await expect(page.locator('[data-widget="info"]').first()).toContainText(id!.replace('JP:', ''))
+    await expect(page.locator('[data-widget="chart"]').first()).toContainText(id!.replace('JP:', ''))
     // 並べ替えの名前を見出しに出す（狭い幅で列が隠れても何順か分かる）
     await expect(s.getByTestId('sim-sort')).toContainText('1 年目')
     await keys(page, 's')
@@ -126,5 +141,41 @@ test.describe('配当シミュレータのキー操作（FR-SIM3・SIM4・SIM6�
     await keys(page, 'n')
     await expect(s.locator('[data-card="basis"]')).toHaveClass(/sel/)
     await expect(s.getByTestId('sim-basis')).toContainText('予想ではありません')
+  })
+})
+
+test.describe('1 銘柄のシミュレーション（FR-SIM10）', () => {
+  test('既定は 1 銘柄でリンク色の銘柄を計算し、表は出さない。スクリーナーの行を動かすと計算し直し、O で群へ切り替える', async ({
+    start,
+  }) => {
+    const { page } = await start()
+    const s = await openSim(page, 'one')
+    const one = s.getByTestId('sim-one')
+    await expect(one).toBeVisible()
+    await expect(s.locator('.cfg .scope [aria-checked="true"]')).toContainText('1 銘柄')
+    await expect(s.locator('[data-card="table"]')).toHaveCount(0)
+    // ヒーローに 1 銘柄の値（取得単価・同業種の順位）
+    await expect(s.locator('.c-hero')).toContainText('取得単価')
+    await expect(s.locator('.c-hero')).toContainText('業種順位')
+    const code0 = (await one.textContent())!.trim().slice(0, 4)
+    await expect(page.locator('[data-widget="info"]').first()).toContainText(code0)
+    // スクリーナーの行を ↓ で動かすと、その銘柄で計算し直す
+    await keys(page, 'Alt+ArrowUp', 'Alt+ArrowLeft', 'Alt+ArrowLeft')
+    await expect(page.locator('[data-widget="screener"]')).toHaveClass(/focused/)
+    await keys(page, 'ArrowDown')
+    await expect(one).not.toContainText(code0)
+    const code1 = (await one.textContent())!.trim().slice(0, 4)
+    await expect(page.locator('[data-widget="info"]').first()).toContainText(code1)
+    await expect(s.getByTestId('sim-past')).toBeVisible()
+    // これからのタブも 1 銘柄（1 株配当・ストレスの前年比をヒーローに）
+    await keys(page, 'Alt+ArrowRight', 'Alt+ArrowRight', 'Alt+ArrowDown')
+    await expect(s).toHaveClass(/focused/)
+    await keys(page, 'PageDown')
+    await expect(s.getByTestId('sim-fwd')).toBeVisible()
+    await expect(s.locator('.c-hero')).toContainText('1 株配当')
+    // O で群へ。表が出て、帯は出どころの銘柄数
+    await toGroup(page)
+    await expect(s.getByTestId('sim-one')).toHaveCount(0)
+    await expect(s.locator('.cfg')).toContainText('銘柄へ均等に')
   })
 })
