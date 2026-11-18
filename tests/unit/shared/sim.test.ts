@@ -887,3 +887,28 @@ describe('FR-SIM8 当時の条件で選び直す: 「または」と相対条件
     expect(yieldAt(divs, 0, '2023-03-01', '2016-01-01')).toBeNull()
   })
 })
+
+describe('FR-SIM8 日付を指定した基準日（過去が 0 件のときも。レビューの反映）', () => {
+  it('過去に計算できる銘柄が無くても、返す基準日は指定した日付（その日以前の最後の取引日）', () => {
+    const late: SimStock = {
+      id: 'A',
+      kind: 'stock',
+      market: 'P',
+      sector33: '銀行業',
+      px: buildPx([], daily('2025-01-06', TODAY)),
+      divs: semi(2025, 2026),
+      divFrom: '2025-01-01',
+    }
+    const r = simulate({
+      today: TODAY,
+      total: 1,
+      etf: null,
+      stressPool: [],
+      members: () => [],
+      settings: { ...DEFAULT_SIM, years: 3, from: '2022-04-03' },
+      stocks: [late],
+    })
+    expect(r.past).toBeNull()
+    expect(r.base).toBe('2022-04-01')
+  })
+})

@@ -209,6 +209,34 @@ describe('FR-SIM8 配当の記録の始まり（10 年の基準日のため）',
   })
 })
 
+describe('FR-SIM8 10 年分の配当を入れる前の版で取った銘柄（レビューの反映）', () => {
+  it('計算した銘柄の月次系列が古い版なら取り直しを頼む（新しい版・廃止の銘柄は頼まない）', async () => {
+    const { SimData, DIV10_SINCE } = await import('@core/sim')
+    const db = core.svc.repo.db
+    const keep = db.all<{ id: string; m: string | null }>(
+      `SELECT id, last_monthly m FROM fetch_state WHERE id IN ('JP:8058','JP:8001','JP:8031')`,
+    )
+    db.run(`UPDATE fetch_state SET last_monthly = '2026-11-01T03:00:00.000Z' WHERE id IN ('JP:8058', 'JP:8031')`)
+    db.run(`UPDATE fetch_state SET last_monthly = '2026-11-15T03:00:00.000Z' WHERE id = 'JP:8001'`)
+    db.run(`UPDATE instruments SET status = 'delisted' WHERE id = 'JP:8031'`)
+    const asked: string[] = []
+    const sd = new SimData(
+      core.svc.repo,
+      () => 3,
+      () => {},
+      DIV10_SINCE,
+      (id) => asked.push(id),
+    )
+    sd.run(['JP:8058', 'JP:8001', 'JP:8031'], S)
+    // 比べる 1306 も同じ（スタブの取得の日付は版より前）
+    expect(asked).toContain('JP:8058')
+    expect(asked).not.toContain('JP:8001')
+    expect(asked).not.toContain('JP:8031')
+    db.run(`UPDATE instruments SET status = 'active' WHERE id = 'JP:8031'`)
+    for (const k of keep) db.run('UPDATE fetch_state SET last_monthly = ? WHERE id = ?', k.m, k.id)
+  })
+})
+
 describe('FR-SIM8 当時の条件で選び直す（sim.run）', () => {
   it('過去は基準日の値で条件を当て直した銘柄で計算し、これからは今の銘柄のまま。使えなかった条件を返す', async () => {
     const now = await call('sim.run', { ids: IDS, settings: S })

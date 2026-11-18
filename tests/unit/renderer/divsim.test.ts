@@ -589,3 +589,31 @@ describe('FR-SIM8 積立と選び直しの前提（レビューの反映）', ()
     expect(altApplies('Digit1', 'fwd')).toBe(true)
   })
 })
+
+describe('FR-SIM6 FR-SIM8 FR-SIM10 効かない設定・方式の表示・フリーの窓の出どころ（レビューの反映）', () => {
+  it('配分（W）は 1 銘柄と、保有のこれからでは受けない（結果が変わらないので計算し直さない）', async () => {
+    const { keyApplies } = await import('../../../src/renderer/lib/divsim')
+    expect(keyApplies('KeyW', 'past', false)).toBe(true)
+    expect(keyApplies('KeyW', 'fwd', false)).toBe(true)
+    expect(keyApplies('KeyW', 'fwd', true)).toBe(false)
+    expect(keyApplies('KeyW', 'past', false, true)).toBe(false)
+    expect(keyApplies('KeyW', 'fwd', false, true)).toBe(false)
+    // 1 銘柄でもほかの設定のキーは受ける
+    expect(keyApplies('KeyR', 'past', false, true)).toBe(true)
+  })
+  it('1 銘柄のこれからの「見込む伸び」: 伸びを見込むは率、横ばいと直線トレンド試算は方式の名前', async () => {
+    const { growthCell } = await import('../../../src/renderer/lib/divsim')
+    expect(growthCell('growth', Math.log(1.05))).toBeCloseTo(0.05)
+    expect(growthCell('flat', 0)).toBe('sim.m.flat')
+    expect(growthCell('trend', 0)).toBe('sim.m.trend')
+  })
+  it('フリーの窓では、状態に「今のスクリーナー」が入っていても★お気に入りにする', async () => {
+    const { sourceOf } = await import('../../../src/renderer/lib/divsim')
+    expect(sourceOf('live', true)).toBe('favorites')
+    expect(sourceOf(undefined, true)).toBe('favorites')
+    expect(sourceOf('scr:a', true)).toBe('scr:a')
+    expect(sourceOf('live', false)).toBe('live')
+    expect(sourceOf(undefined, false)).toBe('live')
+    expect(sourceOf(3, false)).toBe('live')
+  })
+})

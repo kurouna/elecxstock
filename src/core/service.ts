@@ -110,6 +110,12 @@ export class CoreService {
   readonly drawings: DrawingBook
   /** 配当シミュレータの材料のキャッシュ（取得の完了で捨てる） */
   readonly sim: SimData
+  /** 10 年分の配当を入れる前の版で月次系列を取った銘柄の取り直しを、この起動で 1 回だけ頼む（銘柄情報の配当・配当シミュレータ） */
+  private askDiv10(id: InstrumentId): void {
+    if (this.divAsked.has(id)) return
+    this.divAsked.add(id)
+    this.jobs.enqueue('refetch', [`M:${id}`])
+  }
   /** 10 年分の配当を入れた版の日付。スタブは時刻を固定していて（ELECXSTOCK_NOW）この日より前なので、取り直しの判断をしない */
   private get div10Since(): string {
     return this.provider.id === 'stub' ? '' : DIV10_SINCE
@@ -136,6 +142,7 @@ export class CoreService {
       () => this.user.load('settings').retentionYears,
       (id) => this.jobs.enqueue('monthly', [`M:${id}`]),
       this.div10Since,
+      (id) => this.askDiv10(id),
     )
     if (this.user.readOnly || this.user.load('settings') == null) {
       /* settings を最初に読んで読み取り専用かを決める */
@@ -430,10 +437,7 @@ export class CoreService {
         const id = String(P.id)
         // 10 年分の配当は月次系列の取得で入る。この版より前に月次系列を取った銘柄は、見たときに一度だけ取り直す
         const lm = r.fetchState(id).lastMonthly
-        if (lm && lm < this.div10Since && !this.divAsked.has(id) && r.fetchSet().some((x) => x.id === id)) {
-          this.divAsked.add(id)
-          this.jobs.enqueue('refetch', [`M:${id}`])
-        }
+        if (lm && lm < this.div10Since && r.fetchSet().some((x) => x.id === id)) this.askDiv10(id)
         return r.dividends(id) as Results[M]
       }
       case 'info.extra': {

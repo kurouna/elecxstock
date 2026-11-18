@@ -93,7 +93,9 @@ export function heldIds(hs: { code: string; quantity: number }[]): InstrumentId[
  * これからに効かない: 再投資（R）・業種（G）・比べる相手（B）・円と %（P）。保有のこれからは元本（A）・税（X）も口座ごとなので効かない。
  * 過去に効かない: 受取月（V）
  */
-export function keyApplies(code: string, tab: SimTab, held: boolean): boolean {
+export function keyApplies(code: string, tab: SimTab, held: boolean, one = false): boolean {
+  // 配分（W）は 1 銘柄では常に 100%、保有のこれからは実際の株数なので結果が変わらない
+  if (code === 'KeyW' && (one || (held && tab === 'fwd'))) return false
   if (tab === 'past') return code !== 'KeyV' && code !== 'KeyM'
   // 積立（D）・当時の条件で選び直す（H）は過去だけに効く
   if (code === 'KeyD' || code === 'KeyH') return false
@@ -669,3 +671,12 @@ export const rescreenSig = (x: RescreenIn | null): string => (x ? JSON.stringify
 export const defaultSource = (free: boolean): string => (free ? 'favorites' : 'live')
 /** 出どころの一覧に「今のスクリーナー」を出すか（フリーの窓では出さない） */
 export const allowsLive = (free: boolean): boolean => !free
+/** ペインの状態の出どころ（無ければ既定）。フリーの窓では、1 枚目から写したレイアウトなどで「今のスクリーナー」が入っていても★お気に入りにする */
+export function sourceOf(raw: unknown, free: boolean): string {
+  if (typeof raw !== 'string' || !raw) return defaultSource(free)
+  return raw === 'live' && !allowsLive(free) ? defaultSource(free) : raw
+}
+/** 1 銘柄のこれからの「見込む伸び」: 伸びを見込むは率（g は対数の伸び）、ほかは方式の名前 */
+export function growthCell(method: SimSettings['method'], g: number): number | Key {
+  return method === 'growth' ? Math.exp(g) - 1 : method === 'trend' ? 'sim.m.trend' : 'sim.m.flat'
+}

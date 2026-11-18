@@ -46,9 +46,11 @@ import {
   fwdChart,
   fwdReadout,
   altApplies,
+  growthCell,
   keyApplies,
   rescreenInput,
   rescreenSig,
+  sourceOf,
   heldIds,
   noPastHintKey,
   simViewOf,
@@ -90,7 +92,7 @@ const settings = $derived(simSettingsOf(S))
 const view = $derived(simViewOf(S))
 const tab = $derived(view.tab)
 const lang = $derived(app.settings.lang)
-const src = $derived((S.src as string | undefined) ?? defaultSource(IS_FREE))
+const src = $derived(sourceOf(S.src, IS_FREE))
 const psort = $derived((PAST_SORTS as readonly string[]).includes(S.psort as string) ? (S.psort as string) : 'total')
 const fsort = $derived(fwdSorts(settings.method).includes(S.fsort as string) ? (S.fsort as string) : 'y1')
 const set = (patch: Record<string, unknown>) => patchState(pane, patch)
@@ -650,7 +652,7 @@ function key(e: KeyboardEvent): boolean {
   const f = !e.shiftKey ? act[c] : undefined
   if (!f) return false
   // 今のタブに効かない設定のキーは受けない（計算し直しても画面が変わらないため）
-  if (!keyApplies(c, tab, useHeld)) return true
+  if (!keyApplies(c, tab, useHeld, isOne)) return true
   f()
   return true
 }
@@ -919,7 +921,7 @@ onMount(() =>
               {@const f0 = fwd.rows[0]}
               <div><dt>{t('sim.c.d0')}</dt><dd class="num">{f0.d0.toFixed(f0.d0 < 100 ? 2 : 0)}{f0.short ? ` (${t('sim.mark.short')})` : ''}</dd></div>
               <div><dt>{t('sim.c.years')}</dt><dd class="num">{f0.years}</dd></div>
-              <div><dt>{t('sim.c.g')}</dt><dd class="num">{settings.method === 'growth' ? pct(Math.exp(f0.g) - 1) : t('sim.m.flat')}</dd></div>
+              <div><dt>{t('sim.c.g')}</dt><dd class="num">{((gc) => (typeof gc === 'number' ? pct(gc) : t(gc)))(growthCell(settings.method, f0.g))}</dd></div>
               <div><dt>{t('sim.c.growth')}</dt><dd class="num">{f0.growth5 == null ? '—' : pct(f0.growth5 / 100)}</dd></div>
               <div><dt>{t('sim.c.months')}</dt><dd class="num">{f0.exMonths.join('・') || '—'}</dd></div>
             {/if}

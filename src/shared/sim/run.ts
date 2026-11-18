@@ -93,7 +93,7 @@ export function simulate(inp: SimInput): SimResult {
   const { past, excluded, etfMissing } = pastOf(inp, net)
   return {
     asOf: today,
-    base: baseDate(today, st.years),
+    base: st.from ? tradingOnOrBefore(st.from) : baseDate(today, st.years),
     settings: st,
     ids: stocks.map((s) => s.id),
     total: inp.total,

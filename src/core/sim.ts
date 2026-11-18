@@ -59,6 +59,8 @@ export class SimData {
     private needMonthly: (id: InstrumentId) => void = () => {},
     /** 10 年分の配当を入れた版の日付（スタブは時刻を固定していてこの日より前になるので空にする） */
     private div10Since: string = DIV10_SINCE,
+    /** 月次系列を 10 年分の配当を入れる前の版で取った銘柄（取り直すまで 10 年の基準日から外れる）。取り直しを頼む */
+    private needDiv10: (id: InstrumentId) => void = () => {},
   ) {}
 
   /** 取得の完了で捨てる */
@@ -200,7 +202,11 @@ export class SimData {
     if (i) {
       const px = full ? this.fullPx(id) : this.litePx(id)
       // 上場廃止の銘柄は計算に入れないので、取得も頼まない
-      if (full && i.status === 'active' && !this.repo.fetchState(id).lastMonthly && this.repo.yahooOf(id)) this.needMonthly(id)
+      if (full && i.status === 'active' && this.repo.yahooOf(id)) {
+        const lm = this.repo.fetchState(id).lastMonthly
+        if (!lm) this.needMonthly(id)
+        else if (lm < this.div10Since) this.needDiv10(id)
+      }
       s = {
         id,
         ...this.attrs(i),

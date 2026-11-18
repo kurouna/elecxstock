@@ -1,7 +1,7 @@
 // 配当シミュレータ（FR-SIM1〜SIM10。docs/design-simulator.md）: スクリーナーのタブの右下にリンク 2 で置き、
 // スクリーナーの結果を仮想の銘柄群として計算する。キーボードだけで操作する。値はスタブ（架空）
 import type { Page } from '@playwright/test'
-import { expect, holdings, jump, keys, rpc, tab, test } from './support'
+import { expect, focusPane, holdings, jump, keys, pane, rpc, tab, test, watchlists } from './support'
 
 const sim = (page: Page) => page.locator('[data-widget="divsim"]')
 
@@ -394,5 +394,37 @@ test.describe('当時の条件で選び直す・シナリオ（FR-SIM8）', () =
     await keys(page, 'ArrowDown', 'Enter')
     await expect(page.locator('.dialog')).toHaveCount(0)
     await expect(s.locator('.cfg')).toContainText('当時の条件で選び直す')
+  })
+})
+
+test.describe('フリーの窓に置く（FR-SIM8）', () => {
+  test('フリー 2 に置くと出どころは★お気に入り。今のスクリーナーは選べず、目標の配当は 1 枚目の窓で決める案内', async ({ start }) => {
+    const { app } = await start({
+      viewport: null,
+      user: { watchlists: watchlists({ favorites: ['8058', '8001', '9434'] }) },
+      freeWindows: { free2: pane('divsim', {}, 0) },
+    })
+    await expect.poll(() => app.windows().length, { timeout: 20_000 }).toBe(2)
+    const free = app.windows().find((x) => x.url().includes('w=free2'))!
+    const s = free.locator('[data-widget="divsim"]')
+    await expect(s).toHaveCount(1, { timeout: 20_000 })
+    await focusPane(free, s)
+    // リンク 0 のペインは群だけ。出どころは★お気に入りの 3 銘柄
+    await expect(s.getByTestId('sim-past')).toBeVisible({ timeout: 15_000 })
+    await expect(s.locator('.src')).toContainText('★お気に入り')
+    await expect(s.locator('.src')).toContainText('3 銘柄')
+    // L の出どころの一覧に「今のスクリーナー」は無い
+    await keys(free, 'l')
+    const dlg = free.locator('.dialog')
+    await expect(dlg).toContainText('出どころを選ぶ')
+    await expect(dlg).not.toContainText('今のスクリーナー')
+    await keys(free, 'Escape')
+    await expect(dlg).toHaveCount(0)
+    // これから: 目標の配当は 1 枚目の窓のポートフォリオで決める（フリー N では開けない）
+    await expect(s.getByTestId('sim-loading')).toHaveCount(0)
+    await keys(free, 'PageDown')
+    await expect(s.getByTestId('sim-fwd')).toBeVisible()
+    await expect(s.getByTestId('sim-goal')).toContainText('1 枚目の窓')
+    await expect(s.getByTestId('sim-goal').locator('button')).toHaveCount(0)
   })
 })
