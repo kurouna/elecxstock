@@ -49,7 +49,7 @@ export function priceAt(px: Px, d: JstDate): number | null {
   return i >= 0 ? px.c[i]! : null
 }
 /** 日足の範囲の外（月末の終値で計算する）日か */
-export const isMonthlyAt = (px: Px, d: JstDate): boolean => px.daily >= px.d.length || d < px.d[px.daily]!
+const isMonthlyAt = (px: Px, d: JstDate): boolean => px.daily >= px.d.length || d < px.d[px.daily]!
 /** 最後の点（今日の終値。無ければ最後の終値）。月次の点しか無ければ月の初日の日付 */
 export function lastPx(px: Px): { d: JstDate; c: number } | null {
   const n = px.d.length
@@ -64,7 +64,7 @@ export function baseDate(today: JstDate, years: number): JstDate {
   while (!isTradingDay(d)) d = addDays(d, -1)
   return d
 }
-export function endOfMonth(d: JstDate): JstDate {
+function endOfMonth(d: JstDate): JstDate {
   const y = Number(d.slice(0, 4))
   const m = Number(d.slice(5, 7))
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate()

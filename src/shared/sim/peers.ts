@@ -3,7 +3,7 @@ import { sector17Of } from '../sectors'
 import type { SimSector } from './types'
 
 /** 比べる最小の相手の数（これ未満なら 17 業種へ切り替える） */
-export const PEER_MIN = 5
+const PEER_MIN = 5
 
 /** 業種の分け方: J-REIT はまとめて 1 つ。ETF・ETN・指数・業種の無い銘柄は比べない（null） */
 export function groupKey(i: { kind: string; market: string; sector33: string }, level: SimSector): string | null {

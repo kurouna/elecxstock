@@ -10,7 +10,7 @@ import type { Instrument, InstrumentId, JstDate } from '@shared/types'
 import { lastClosedSession, retentionStart } from './calendar'
 import type { Repo } from './repo'
 
-export const ETF_ID: InstrumentId = 'JP:1306'
+const ETF_ID: InstrumentId = 'JP:1306'
 /** 比べる母集団の銘柄（株式・J-REIT。優先株と社債型種類株式（5 桁）・ETF・廃止銘柄は入れない） */
 const poolable = (i: Instrument) => i.status === 'active' && (i.kind === 'stock' || i.kind === 'reit') && i.code.length === 4
 

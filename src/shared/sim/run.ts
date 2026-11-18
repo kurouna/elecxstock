@@ -207,7 +207,6 @@ function pastOf(inp: SimInput, net: number): { past: SimPast | null; excluded: S
       yoc: d0 / h.buy,
       cuts: cutCount(s.divs, base, today, st.years),
       monthly: h.monthlyBuy,
-      spark: h.path.map((p) => wealthAt(p, st.reinvest) / a),
     }
   })
   const etf = etfH ? etfH.path.map((p) => wealthAt(p, st.reinvest)) : null
@@ -283,7 +282,6 @@ function fwdOf(inp: SimInput, net: number): SimFwd {
       price: lp.c,
       shares,
       d0: an.d0,
-      perYear: an.perYear,
       years: an.years,
       growth5: dpsCagr(dpsBlocks(s.divs, today, 5).dps),
       y1: v,
@@ -296,11 +294,9 @@ function fwdOf(inp: SimInput, net: number): SimFwd {
   })
   const years: SimFwd['years'] = []
   let cf = 0
-  let cs = 0
   for (let t = 1; t <= st.horizon; t++) {
     cf += y1
-    cs += stressY1
-    years.push({ year: t, flat: y1, stress: stressY1, cumFlat: cf, cumStress: cs })
+    years.push({ year: t, flat: y1, stress: stressY1, cumFlat: cf })
   }
   const diff = ratioOrNull(stressY1, y1)
   return {

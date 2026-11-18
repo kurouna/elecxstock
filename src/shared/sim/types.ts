@@ -1,4 +1,5 @@
 // 配当シミュレータ（docs/design-simulator.md）の設定と結果の型。Core（sim.run）と画面が共有する。
+import { DIVIDEND_TAX } from '../folio'
 import type { InstrumentId, JstDate } from '../types'
 
 /** 税: 税引前 ／ 20.315% ／ 非課税（計算は税引前と同じで、名前と前提の文だけ違う。§5.1） */
@@ -9,7 +10,6 @@ export const SIM_YEARS = [1, 3, 5] as const
 export const SIM_HORIZONS = [5, 10, 20, 30] as const
 export type SimYears = (typeof SIM_YEARS)[number]
 export type SimHorizon = (typeof SIM_HORIZONS)[number]
-export const SIM_TAX_RATE = 0.20315
 /** 計算する銘柄数の上限（出どころの表示順の先頭から。§8） */
 export const SIM_LIMIT = 200
 
@@ -24,7 +24,7 @@ export interface SimSettings {
   horizon: SimHorizon
 }
 export const DEFAULT_SIM: SimSettings = { years: 3, amount: 3_000_000, reinvest: false, tax: 'taxed', sector: 's33', horizon: 10 }
-export const netRate = (tax: SimTax): number => (tax === 'taxed' ? 1 - SIM_TAX_RATE : 1)
+export const netRate = (tax: SimTax): number => (tax === 'taxed' ? 1 - DIVIDEND_TAX : 1)
 
 /** 過去の段から外した理由（基準日に価格が無い ／ 配当の記録が基準日より後から ／ 上場廃止（これからの段にも入れない）） */
 export type SimExcludeReason = 'noPrice' | 'noDivRecord' | 'delisted'
@@ -54,8 +54,6 @@ export interface SimPastRow {
   cuts: number
   /** 基準日が日足の範囲より前（月末の終値で買った） */
   monthly: boolean
-  /** 推移の小さな線（今の価値 ÷ 入れた金額。月末ごと） */
-  spark: number[]
 }
 
 export interface SimPast {
@@ -103,7 +101,6 @@ export interface SimFwdRow {
   shares: number
   /** 1 年の 1 株配当（直近 N 回の合計。J-REIT は回ごとの中央値 × 回数） */
   d0: number
-  perYear: number
   /** 記録の年数（直近 N 回で区切った年の数） */
   years: number
   /** 5 年の 1 株配当の伸び（年率 %。値が足りなければ null） */
@@ -137,7 +134,7 @@ export interface SimFwd {
   /** ストレスの 1 年目 ÷ 横ばいの 1 年目 − 1（横ばいが 0 なら null） */
   stressDiff: number | null
   /** 年ごと（1 年目から） */
-  years: { year: number; flat: number; stress: number; cumFlat: number; cumStress: number }[]
+  years: { year: number; flat: number; stress: number; cumFlat: number }[]
   /** 月ごとの配当の合計（権利確定月。0 が 1 月） */
   months: number[]
 }
