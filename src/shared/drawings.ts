@@ -166,10 +166,11 @@ export function swingFrom(
     if (j < span || j >= n - span) continue
     let isHi = true
     let isLo = true
-    // 同じ値が並ぶときは左の足だけを山・谷にする（左は厳しく、右は同じ値まで許す）
+    // 同じ値が並ぶときは左の足だけを山・谷にする（左は厳しく、右は同じ値まで許す）。ただし左の同じ値が端の足（山・谷にならない足）なら除かない
     for (let k = j - span; k <= j + span; k++) {
-      if (k < j ? high[k]! >= high[j]! : high[k]! > high[j]!) isHi = false
-      if (k < j ? low[k]! <= low[j]! : low[k]! < low[j]!) isLo = false
+      const left = k < j && k >= span
+      if (left ? high[k]! >= high[j]! : high[k]! > high[j]!) isHi = false
+      if (left ? low[k]! <= low[j]! : low[k]! < low[j]!) isLo = false
     }
     if (isHi) return { i: j, kind: 'h' }
     if (isLo) return { i: j, kind: 'l' }

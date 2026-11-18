@@ -87,6 +87,8 @@ export class DrawController {
   private down: { x: number; y: number; i: number } | null = null
   /** 引いている間に押しているポインタ（離すまでスクロールを止める） */
   private pressing: number | null = null
+  /** G で選ぶ順（選択中は最初の G の順を保つ。表示が動いても全部の線を回る） */
+  private order: string[] | null = null
   /** ポインタをつないだ要素（ポインタを放すのに使う） */
   private host: HTMLElement | null = null
   private away: { x: number; y: number } | null = null
@@ -186,6 +188,7 @@ export class DrawController {
     }
     // 通常に戻った（Esc・Delete・フォーカスが外れた・銘柄が変わった）: 押したまま・ドラッグの途中なら、止めたスクロールとポインタを解く
     if (this.mode.m === 'idle') this.endPointer()
+    if (this.mode.m !== 'sel') this.order = null
     this.redraw()
   }
   private redraw(): void {
@@ -528,9 +531,12 @@ export class DrawController {
       const i0 = clamp(this.idx(me.date), 0, n - 1)
       const lv = snapLevels(bar(b, i0), this.c.ctype())
       const k = lv.find((x) => x.v === p)?.k ?? null
-      const to = this.nextCursor(e, ctrl, { i: i0, p, k })
+      let to = this.nextCursor(e, ctrl, { i: i0, p, k })
       if (!to) return false
-      if (to.i === this.idx(other.date)) return true // 同じ足には置かない
+      // 相手の端点の足に当たったら、同じ向きにもう 1 つ先へ（相手を飛び越える。同じ足には置かない）
+      const oi = this.idx(other.date)
+      if (to.i === oi) to = this.nextCursor(e, ctrl, to)
+      if (!to || to.i === oi) return true
       const date = b.time[to.i]!
       const raw = this.raw(to.p, date)
       if (!raw || raw <= 0) return true
@@ -560,7 +566,9 @@ export class DrawController {
     const to = r?.to ?? b.time.length - 1
     const anchor = this.c.kbIndex() ?? Math.floor(to)
     const s = this.mode
-    const next = nextSelection(selectionOrder(items, from, to, anchor), s.m === 'sel' ? s.id : null, dir)
+    if (s.m !== 'sel' || !this.order) this.order = selectionOrder(items, from, to, anchor)
+    const order = this.order.filter((id) => items.some((x) => x.id === id))
+    const next = nextSelection(order, s.m === 'sel' ? s.id : null, dir)
     if (!next) {
       toast(t('draw.none'))
       return

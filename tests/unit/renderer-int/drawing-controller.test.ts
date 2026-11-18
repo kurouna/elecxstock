@@ -12,9 +12,9 @@ afterAll(() => core.dispose())
 const { DrawController } = await import('../../../src/renderer/lib/drawings/controller.svelte')
 const { drawingEdits, drawingsOf } = await import('../../../src/renderer/lib/drawings/store.svelte')
 
-// 60 本の日足（終値 1000 前後）
+// 80 本の日足（終値 1000 前後。7 本ごとに山（i % 7 = 6）と谷（i % 7 = 0））
 const time: string[] = []
-for (let d = '2026-08-03'; time.length < 60; d = addDays(d, 1)) if (isTradingDay(d)) time.push(d)
+for (let d = '2026-06-01'; time.length < 80; d = addDays(d, 1)) if (isTradingDay(d)) time.push(d)
 const close = time.map((_, i) => 1000 + (i % 7) * 10)
 const bars = {
   id: 'JP:7203',
@@ -33,7 +33,7 @@ const bars = {
 
 type Listener = (e: unknown) => void
 function makeWorld(id: string) {
-  let range = { from: 0, to: 59 }
+  let range = { from: 0, to: 79 }
   const opts: Record<string, unknown> = {}
   const shown: (number | null)[] = []
   const listeners = new Map<string, Listener>()
@@ -44,7 +44,7 @@ function makeWorld(id: string) {
     setVisibleLogicalRange: (r: typeof range) => {
       range = r
     },
-    width: () => 600,
+    width: () => 800,
     logicalToCoordinate: (i: number) => i * 10,
     coordinateToLogical: (x: number) => x / 10,
   }
@@ -64,9 +64,9 @@ function makeWorld(id: string) {
   }
   const host = {
     dataset: {} as Record<string, string>,
-    clientWidth: 600,
+    clientWidth: 800,
     clientHeight: 400,
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 600, height: 400 }),
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 400 }),
     addEventListener: (n: string, f: Listener) => listeners.set(n, f),
     removeEventListener: (n: string) => listeners.delete(n),
     setPointerCapture: (p: number) => captured.add(p),
@@ -130,7 +130,20 @@ function makeWorld(id: string) {
     await vi.waitFor(() => expect(drawingsOf(id)[0]?.updated).toBeTruthy())
     await drawingEdits.flush()
   }
-  return { id, ctl, opts, shown, captured, key, ptr, mid, drawOne }
+  return {
+    id,
+    prim: () => prim,
+    range: () => range,
+    setRange: (r: typeof range) => timeScale.setVisibleLogicalRange(r),
+    ctl,
+    opts,
+    shown,
+    captured,
+    key,
+    ptr,
+    mid,
+    drawOne,
+  }
 }
 
 let n = 0
@@ -193,5 +206,53 @@ describe('十字線の後始末（レビューの指摘。FR-C14）', () => {
     w.ptr('pointerup', 590, 10)
     expect(w.ctl.mode.m).toBe('idle')
     expect(w.shown.at(-1)).toBeNull()
+  })
+})
+
+describe('レビュー（端点の付け替え・選ぶ順・FR-C14）', () => {
+  it('始点を Ctrl+→ で送ると、終点の山・谷を飛び越えて先の山・谷へ（終点の所で止まらない）', async () => {
+    w.key('KeyT', { alt: true })
+    // 右から 5 つ目の山・谷を始点、3 つ目を終点に（終点の先にも山・谷がある）
+    for (let i = 0; i < 5; i++) w.key('ArrowLeft', { ctrl: true })
+    w.key('Enter')
+    w.key('ArrowRight', { ctrl: true })
+    w.key('ArrowRight', { ctrl: true })
+    w.key('Enter')
+    await vi.waitFor(() => expect(drawingsOf(w.id)[0]?.updated).toBeTruthy())
+    const d0 = drawingsOf(w.id)[0]!
+    // 始点と終点の間にある山・谷は 1 つ（始点 → 間の山・谷 → 終点の順）
+    w.key('Space')
+    w.key('Space') // 始点
+    w.key('ArrowRight', { ctrl: true }) // 間の山・谷
+    w.key('ArrowRight', { ctrl: true }) // 次は終点の足なので、飛ばして先の山・谷へ
+    const d = drawingsOf(w.id)[0]!
+    expect(d.a.date).toBe(d0.b.date) // 入れ替わって、元の終点が始点に
+    expect(d.b.date > d0.b.date).toBe(true)
+  })
+  it('G を続けて押すと、表示が動いても全部の線を順に回る', async () => {
+    const mk = (id: string, a: number, b: number) =>
+      drawingEdits.create(`p1|${w.id}`, w.id, {
+        id,
+        kind: 'trend',
+        a: { date: time[a]!, raw: 1000 },
+        b: { date: time[b]!, raw: 1010 },
+        extend: 'none',
+        priceLabel: true,
+        log: false,
+        created: '',
+        updated: '',
+      })
+    await mk('A', 65, 70)
+    await mk('B', 2, 8)
+    await mk('C', 30, 36)
+    w.ctl.refresh()
+    // 表示は右の 20 本だけ（範囲の外の線を選ぶと表示が動く）
+    w.setRange({ from: 60, to: 79 })
+    const seen: string[] = []
+    for (let i = 0; i < 3; i++) {
+      w.key('KeyG')
+      seen.push((w.ctl.mode as { id: string }).id)
+    }
+    expect(seen.sort()).toEqual(['A', 'B', 'C'])
   })
 })

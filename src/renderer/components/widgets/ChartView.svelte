@@ -45,7 +45,7 @@ import { bollinger, ichimoku, macd, rsiSeries, type Series, sma, stochastic } fr
 import { barsForPeriod } from '../../lib/periods'
 import { app, ensureMetrics, metric, nameOf, t, touched } from '../../stores/app.svelte'
 import type { PaneNode } from '../../stores/layout.svelte'
-import { type ChartHandle, charts } from './chartSync'
+import { type ChartHandle, charts, RangeEcho, sendCrosshair } from './chartSync'
 
 export type Indicator = 'ma' | 'vol' | 'volma' | 'bb' | 'ichimoku' | 'rsi' | 'macd' | 'stoch' | 'divs'
 export const INDICATORS: Indicator[] = ['ma', 'vol', 'volma', 'bb', 'ichimoku', 'rsi', 'macd', 'stoch', 'divs']
@@ -122,15 +122,13 @@ const draw = new DrawController({
     if (!chart || !main || !bars?.time.length) return
     if (i == null) {
       if (kbIndex != null) return moveKb(0)
-      chart.clearCrosshairPosition()
-      legendIdx = null
-      // 同じリンク色のチャート（MTF の週足・月足など）の十字線も消す。消すだけでは知らせが届かず、残った十字線が戻ってくる
-      for (const o of charts) if (o !== handle && o.pane.link && o.pane.link === pane.link) o.show(null)
+      clearKb()
       return
     }
     const j = Math.max(0, Math.min(bars.time.length - 1, i))
     chart.setCrosshairPosition(price ?? bars.close[j]!, bars.time[j] as Time, main)
     legendIdx = j
+    linked((o) => o.show(bars!.time[j]!))
   },
   css,
   fmt: (p) => main?.priceFormatter().format(p) ?? String(p),
@@ -544,6 +542,19 @@ function moveKb(d: number) {
   kbIndex = Math.max(0, Math.min(bars.time.length - 1, (kbIndex ?? bars.time.length - 1) + d))
   chart.setCrosshairPosition(bars.close[kbIndex]!, bars.time[kbIndex] as Time, main)
   legendIdx = kbIndex
+  // 同じリンク色のチャートへ直接知らせる（FR-K3。プログラムで置いた十字線の知らせは送らないので）
+  const t = bars.time[kbIndex]!
+  linked((o) => o.show(t))
+}
+/** 同じリンク色のほかのチャート */
+function linked(f: (o: ChartHandle) => void) {
+  for (const o of charts) if (o !== handle && o.pane.link && o.pane.link === pane.link) f(o)
+}
+/** 十字線を消す（リンクしたチャートも。プログラムで消すと知らせが出ないので、直接消す） */
+function clearKb() {
+  chart?.clearCrosshairPosition()
+  legendIdx = null
+  linked((o) => o.show(null))
 }
 /** 表示する足の本数: 期間（Alt+1〜6・見出しの選択）があればそれ、無ければ時間軸ごとの既定 */
 function showCount(n: number): number {
@@ -568,13 +579,17 @@ const handle: ChartHandle = {
   get pane() {
     return pane
   },
-  sync: false,
   tf: () => tf,
   bars: () => bars,
   show(time) {
     if (!chart || !main || !bars) return
-    handle.sync = true
     if (time == null) {
+      // 自分のキーボード十字線が出ていれば、それに戻す（ほかのチャートが十字線を消しても、自分の X の位置は残す。送り返さない）
+      if (kbIndex != null) {
+        chart.setCrosshairPosition(bars.close[kbIndex]!, bars.time[kbIndex] as Time, main)
+        legendIdx = kbIndex
+        return
+      }
       chart.clearCrosshairPosition()
       legendIdx = null
     } else {
@@ -589,37 +604,36 @@ const handle: ChartHandle = {
         legendIdx = j
       }
     }
-    handle.sync = false
   },
   range(from, to) {
     if (!chart || !syncRange) return
-    handle.sync = true
-    try {
-      chart.timeScale().setVisibleRange({ from: from as Time, to: to as Time })
-    } catch {
-      /* 範囲の外 */
-    }
-    handle.sync = false
+    rangeEcho.received(from, to)
+    chart.timeScale().setVisibleLogicalRange({ from, to })
   },
 }
+/** 受けた表示期間（送り返さない。FR-K4） */
+const rangeEcho = new RangeEcho()
 /** 十字線・表示期間の同期をつなぐ（作り直すたびに呼ぶ） */
 function wire() {
   if (!chart) return
   chart.subscribeCrosshairMove((param) => {
-    if (handle.sync || !bars) return
+    if (!bars) return
     const time = (param.time as string | undefined) ?? null
     legendIdx = time ? bars.time.indexOf(time) : null
-    // ほかのチャートへ送るのは、利用者がマウスで動かしたときだけ。プログラムで置いた十字線（同期の受け取り・キーボード・描画のカーソル）の
-    // 知らせは後から非同期に届くので、送ると同じリンク色のチャートの間で行き来して、足の始まりの日付へずれていく
-    if (!param.sourceEvent) return
-    for (const o of charts) if (o !== handle && o.pane.link && o.pane.link === pane.link) o.show(time)
+    // 知らせは描き直しのときに非同期に届くので、プログラムで置いた十字線の知らせを送ると、リンクしたチャートの間で行き来して
+    // 足の始まりの日付へずれていく。マウスで動かした・マウスが出たときだけ送る（chartSync.ts の sendCrosshair）
+    if (!sendCrosshair(param)) return
+    linked((o) => o.show(time))
   })
-  // 同じリンク色・同じ時間軸で「表示期間をそろえる」にしたチャートどうしは、表示期間も合わせる（FR-K4）
-  chart.timeScale().subscribeVisibleTimeRangeChange((r) => {
-    if (handle.sync || !r || !syncRange) return
-    for (const o of charts)
-      if (o !== handle && o.pane !== pane && o.pane.link && o.pane.link === pane.link && o.tf() === tf)
-        o.range(String(r.from), String(r.to))
+  // 同じリンク色・同じ時間軸で「表示期間をそろえる」にしたチャートどうしは、表示期間も合わせる（FR-K4）。同じ銘柄・同じ時間軸なので
+  // 足の論理番号で合わせる（右の余白・端数も保つ）。受けた範囲の知らせは送り返さない。data-range は E2E が読む（キャンバスは読めない）
+  chart.timeScale().subscribeVisibleLogicalRangeChange((r) => {
+    if (!r) return
+    if (host) host.dataset.range = JSON.stringify({ from: r.from, to: r.to })
+    if (!syncRange || !rangeEcho.shouldSend(r.from, r.to)) return
+    linked((o) => {
+      if (o.pane !== pane && o.tf() === tf) o.range(r.from, r.to)
+    })
   })
 }
 
@@ -646,15 +660,13 @@ onMount(() => {
         if (kbIndex == null) moveKb(0)
         else {
           kbIndex = null
-          chart?.clearCrosshairPosition()
-          legendIdx = null
+          clearKb()
         }
         return true
       }
       if (e.key === 'Escape' && kbIndex != null) {
         kbIndex = null
-        chart?.clearCrosshairPosition()
-        legendIdx = null
+        clearKb()
         return true
       }
       const ts = chart?.timeScale()

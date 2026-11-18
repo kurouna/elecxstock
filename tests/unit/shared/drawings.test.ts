@@ -335,3 +335,11 @@ describe('山・谷の同じ値（FR-C14。デモで見つけた不具合）', (
     expect(swingFrom(hi, lo, 9, -1, 3)).toEqual({ i: 4, kind: 'l' })
   })
 })
+
+describe('山・谷の同じ値と左端（FR-C14。レビューの指摘）', () => {
+  it('左端の近くで同じ値が並んでも、山を 1 つ見つける（端の足との同じ値では除かない）', () => {
+    const hi = [1, 1, 1, 1, 9, 9, 1, 1, 1, 1, 1, 1]
+    const lo = hi.map(() => 0.5)
+    expect(swingFrom(hi, lo, 0, 1, 5)).toEqual({ i: 5, kind: 'h' })
+  })
+})
