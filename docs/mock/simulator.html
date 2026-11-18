@@ -580,7 +580,7 @@ function forecast(rows) {
   const c = all.reduce((a, b) => a + b, 0) / all.length
   const rb = rng(4242 + items.length)
   const paths = Array.from({ length: 1000 }, () => { const m = items.map(() => 0); return years.map((_, k) => { const y = 2017 + Math.floor(rb() * 9); let tot = 0; items.forEach((it, j) => { m[j] += Math.log(it.yoy[y] ?? MARKET.med17(it.s, y)) - c; tot += it.sh * line(it, k + 1) * Math.exp(m[j]) * t }); return tot }) })
-  const band = years.map((_, k) => { const col = paths.map((p) => p[k]); const q50 = quant(col, 0.5); return [quant(col, 0.1) / q50 * mid[k], mid[k], quant(col, 0.9) / q50 * mid[k]] })
+  const band = years.map((_, k) => { const col = paths.map((p) => p[k]); const q50 = quant(col, 0.5); return q50 > 0 ? [quant(col, 0.1) / q50 * mid[k], mid[k], quant(col, 0.9) / q50 * mid[k]] : [0, 0, 0] })
   let cum = 0; const cumL = mid.map((v) => (cum += v))
   // 元本回収（30 年まで）
   let rc = 0, half = null, full = null
@@ -856,7 +856,7 @@ function heroFwd() {
     <div class="stats">
       <div class="stat"><span class="k">元本に対する利回り</span><span class="v num">${y1 > 0 ? pc(y1 / st.amt, 2) : '—'}</span></div>
       <div class="stat"><span class="k">${years.length} 年の累計</span><span class="v num gold">${man(cumL.at(-1))}</span></div>
-      <div class="stat"><span class="k">${FC.worst} 年の前年比を当てたら</span><span class="v num"><span class="down">${man(ys)}</span> <span class="mute" style="font-size:var(--fs-1)">${pct(ys / FC.flat[0] - 1)}</span></span></div>
+      <div class="stat"><span class="k">${FC.worst} 年の前年比を当てたら</span><span class="v num"><span class="down">${man(ys)}</span> <span class="mute" style="font-size:var(--fs-1)">${FC.flat[0] > 0 ? pct(ys / FC.flat[0] - 1) : '—'}</span></span></div>
       <div class="stat"><span class="k">月あたり（目安）</span><span class="v num">${yen(y1 / 12)}</span></div>
     </div>
     <div class="p2only">
