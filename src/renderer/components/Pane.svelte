@@ -151,6 +151,9 @@ function onerror(e: unknown) {
     bottom: 25px;
     left: 0;
     right: 0;
+    /* .pane の height: 100% を外す（残すと top・bottom より優先され、窓の高さになって時間軸と状態の帯を隠す） */
+    height: auto;
+    width: auto;
     z-index: 30;
   }
 </style>

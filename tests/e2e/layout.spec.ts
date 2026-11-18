@@ -168,6 +168,20 @@ test.describe('キーでのペインの操作（FR-L1, FR-L3, FR-L9, FR-KB4）',
       .toBe(true)
   })
 
+  test('最大化したペインは上のバーと下の状態の帯の間に収まる（チャートの時間軸・状態の帯を隠さない）', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'mtf')
+    await keys(page, 'Alt+ArrowRight', 'Alt+ArrowUp', 'Control+Shift+Enter')
+    await expect(page.locator('.pane.maxed')).toHaveCount(1)
+    await motionDone(page)
+    const pane = (await page.locator('.pane.maxed').boundingBox())!
+    const head = (await page.locator('header').first().boundingBox())!
+    const foot = (await page.locator('footer').first().boundingBox())!
+    expect(pane.y).toBeGreaterThanOrEqual(head.y + head.height - 1)
+    expect(pane.y + pane.height).toBeLessThanOrEqual(foot.y + 1)
+    await expect(page.locator('footer').first()).toBeVisible()
+  })
+
   test('最大化したまま別のペイン（ドロワーのスクリーナー）を開くと、最大化を戻して見せる', async ({ start }) => {
     const { page } = await start()
     // グリッドのタブでグリッドを最大化する（スクリーナーは左のドロワーにある）
