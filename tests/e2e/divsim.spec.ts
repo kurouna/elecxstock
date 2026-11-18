@@ -7,8 +7,6 @@ const sim = (page: Page) => page.locator('[data-widget="divsim"]')
 
 /** スクリーナーのタブを開き、右下の配当シミュレータへフォーカスを移して、最初の計算が終わるまで待つ。group なら O で群へ切り替える */
 async function openSim(page: Page, scope: 'one' | 'group' = 'group') {
-  // 開く前から読み込み中の回数を数える（最初の計算と、取得の完了での 1 回の計算し直しを待つため）
-  const loads = await countLoads(page, '__simOpen')
   await tab(page, 'screener')
   const s = sim(page)
   await expect(s).toHaveCount(1)
@@ -21,9 +19,9 @@ async function openSim(page: Page, scope: 'one' | 'group' = 'group') {
       rpc<{ status: string }[]>(page, 'jobs.list').then((js) => js.every((j) => ['done', 'failed', 'cancelled'].includes(j.status))),
     )
     .toBe(true)
-  // 最初の計算で月次系列の取得を頼んだら（refetch）、その完了の知らせ（少し遅れて届く）で 1 回計算し直すので、それも待つ
+  // 最初の計算で月次系列の取得を頼んだら（refetch）、その完了の知らせ（少し遅れて届く）で 1 回計算し直すので、それも待つ（計算し終えた回数）
   const refetched = (await rpc<{ kind: string }[]>(page, 'jobs.list')).some((j) => j.kind === 'refetch')
-  await expect.poll(loads).toBeGreaterThanOrEqual(refetched ? 2 : 1)
+  await expect.poll(() => s.locator('[data-runs]').getAttribute('data-runs').then(Number)).toBeGreaterThanOrEqual(refetched ? 2 : 1)
   await expect(s.getByTestId('sim-loading')).toHaveCount(0)
   if (scope === 'group') await toGroup(page)
   return s
@@ -43,6 +41,7 @@ test.describe('配当シミュレータ（FR-SIM1・SIM2・SIM5・SIM7・SIM9）
     await expect(s.locator('.link')).toHaveText('2')
     await expect(s.getByTestId('sim-wealth')).toHaveText(/\d/)
     await expect(s.getByTestId('sim-basis')).toContainText('今上場している銘柄だけです')
+    await expect(s.getByTestId('sim-basis')).toContainText('1306 NEXT FUNDS TOPIX 連動型上場投信')
     await expect(s.getByTestId('sim-disclaimer')).toContainText('投資助言ではありません。')
     // 超過分の分解と偶然との比較（群のとき）
     await expect(s.getByTestId('sim-wf')).toContainText('業種の配分')
@@ -81,7 +80,8 @@ async function countLoads(page: Page, name = '__simLoads') {
 test.describe('表示の切り替えでは計算し直さない（FR-SIM7）', () => {
   test('B・P・V・PgDn・PgUp・S では読み込み中を一度も出さず、選んだ銘柄も動かない', async ({ start }) => {
     const { page } = await start()
-    // 開く前から数える。最初の計算で月次系列の無い銘柄（1306 など）の取得を頼むと、その取得の完了で 1 回だけ計算し直す（正しい動き）
+    // 開く前から数える。最初の計算で月次系列の無い銘柄（1306 など）の取得を頼むと、その取得の完了で 1 回だけ計算し直す（正しい動き）。
+    // 取得の完了での計算し直しは読み込み中を出さず、前の結果を出したまま差し替える（FR-SIM7）
     const loads = await countLoads(page)
     const s = await openSim(page, 'one')
     await expect
@@ -90,7 +90,8 @@ test.describe('表示の切り替えでは計算し直さない（FR-SIM7）', (
       )
       .toBe(true)
     const refetched = (await rpc<{ kind: string }[]>(page, 'jobs.list')).some((j) => j.kind === 'refetch')
-    await expect.poll(loads).toBe(refetched ? 2 : 1)
+    await expect.poll(() => s.locator('[data-runs]').getAttribute('data-runs').then(Number)).toBe(refetched ? 2 : 1)
+    expect(await loads()).toBe(1)
     await expect(s.getByTestId('sim-loading')).toHaveCount(0)
     await expect(s.getByTestId('sim-past')).toBeVisible()
     await toGroup(page)
@@ -98,7 +99,7 @@ test.describe('表示の切り替えでは計算し直さない（FR-SIM7）', (
     await keys(page, 'ArrowDown', 'ArrowDown')
     const id = await s.locator('tbody tr.sel').getAttribute('data-id')
     await keys(page, 'b')
-    await expect(s.locator('.cfg')).toContainText('比べる 1306')
+    await expect(s.locator('.cfg')).toContainText('比べる TOPIX')
     await keys(page, 'p')
     await expect(s.locator('.c-hist .tok').last()).toHaveText('%')
     await expect(s.locator('tbody tr.sel')).toHaveAttribute('data-id', id!)
@@ -120,14 +121,14 @@ test.describe('配当シミュレータのキー操作（FR-SIM3・SIM4・SIM6�
   test('B で比べる相手、PgDn でこれから、V で受取の目安 ⇔ 権利確定月、表の行の Enter でリンク先の銘柄が変わる', async ({ start }) => {
     const { page } = await start()
     const s = await openSim(page)
-    await expect(s.locator('.cfg')).toContainText('1306 と同業種')
+    await expect(s.locator('.cfg')).toContainText('TOPIX と同業種')
     // 最大化では入力が変わらないので計算し直さない（読み込み中を出さない）
     await keys(page, 'Control+Shift+Enter')
     await expect(s).toHaveClass(/maxed/)
     await expect(s.getByTestId('sim-past')).toBeVisible()
     await expect(s.getByTestId('sim-loading')).toHaveCount(0)
     await keys(page, 'b')
-    await expect(s.locator('.cfg')).toContainText('比べる 1306')
+    await expect(s.locator('.cfg')).toContainText('比べる TOPIX')
     // 比べる相手は計算し直さない（読み込み中を出さない）
     await expect(s.getByTestId('sim-loading')).toHaveCount(0)
     await keys(page, 'PageDown')

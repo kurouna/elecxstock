@@ -617,3 +617,33 @@ describe('FR-SIM6 FR-SIM8 FR-SIM10 効かない設定・方式の表示・フリ
     expect(sourceOf(3, false)).toBe('live')
   })
 })
+
+describe('FR-SIM5 FR-SIM7 TOPIX の名前・データの誤り・取得の後の計算し直し（設計 §21.14）', () => {
+  it('過去の前提に、TOPIX が 1306 NEXT FUNDS TOPIX 連動型上場投信であることを出す（1306 と比べるとき）', () => {
+    const r = result()
+    r.past!.etf = [1, 1]
+    expect(basisNotes(r, 'past', true).map((n) => n.k)).toContain('sim.n.topix')
+    r.past!.etf = null
+    expect(basisNotes(r, 'past', true).map((n) => n.k)).not.toContain('sim.n.topix')
+  })
+  it('画面の文言は「1306」ではなく「TOPIX」と言う（番号は前提の文だけ）', async () => {
+    const { ja, en } = await import('../../../src/renderer/lib/i18n')
+    for (const dict of [ja, en] as Record<string, string>[]) {
+      const bad = Object.entries(dict).filter(([k, v]) => k.startsWith('sim.') && k !== 'sim.n.topix' && v.includes('1306'))
+      expect(bad.map(([k]) => k)).toEqual([])
+    }
+    expect(ja['sim.n.topix']).toContain('1306 NEXT FUNDS TOPIX 連動型上場投信')
+  })
+  it('データの誤りと見られる値を飛ばしたら前提に出す（警告）', () => {
+    const r = result()
+    r.glitch = { stocks: 1, points: 2 }
+    expect(basisNotes(r, 'past', true).find((n) => n.k === 'sim.n.glitch')).toMatchObject({ a: { n: 1, m: 2 }, warn: true })
+  })
+  it('取得の完了だけで計算し直すときは読み込み中を出さない（前の結果を出したまま差し替える）。設定を変えたとき・初めては出す', async () => {
+    const { showsLoading } = await import('../../../src/renderer/lib/divsim')
+    expect(showsLoading({ prev: 'k1', next: 'k1', hasResult: true })).toBe(false)
+    expect(showsLoading({ prev: 'k1', next: 'k2', hasResult: true })).toBe(true)
+    expect(showsLoading({ prev: 'k1', next: 'k1', hasResult: false })).toBe(true)
+    expect(showsLoading({ prev: '', next: 'k1', hasResult: false })).toBe(true)
+  })
+})

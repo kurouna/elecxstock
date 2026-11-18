@@ -103,7 +103,22 @@ export function simulate(inp: SimInput): SimResult {
     fwd: fwdOf(inp, net),
     reitShare: stocks.length ? stocks.filter(isReit).length / stocks.length : 0,
     etfMissing,
+    glitch: glitchOf([...(inp.rescreen?.stocks ?? []), ...stocks, ...(inp.etf ? [inp.etf] : [])]),
   }
+}
+
+/** データの誤りと見られる値を飛ばした銘柄の数と点の数（同じ銘柄は 1 回だけ数える） */
+function glitchOf(xs: SimStock[]): SimResult['glitch'] {
+  const seen = new Set<string>()
+  let stocks = 0
+  let points = 0
+  for (const s of xs) {
+    if (seen.has(s.id) || !s.px.dropped) continue
+    seen.add(s.id)
+    stocks++
+    points += s.px.dropped
+  }
+  return stocks ? { stocks, points } : null
 }
 
 function pastOf(inp: SimInput, net: number): { past: SimPast | null; excluded: SimResult['excluded']; etfMissing: boolean } {

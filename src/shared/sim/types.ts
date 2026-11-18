@@ -199,4 +199,6 @@ export interface SimResult {
   reitShare: number
   /** 1306 を比べられなかった（基準日に価格が無いなど） */
   etfMissing: boolean
+  /** データの誤りと見られる値を飛ばした銘柄（選んだ銘柄と 1306）の数と点の数。無ければ null */
+  glitch: { stocks: number; points: number } | null
 }

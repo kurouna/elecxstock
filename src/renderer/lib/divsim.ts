@@ -106,6 +106,11 @@ export function keyApplies(code: string, tab: SimTab, held: boolean, one = false
 export const noPastHintKey = (fwdRows: number): Key => (fwdRows > 0 ? 'sim.noPastHint' : 'sim.noPastHintNone')
 /** Alt+数字のキーが今のタブで効くか（Alt+5 の基準日の日付は過去だけ。効かないキーはペインで受けない） */
 export const altApplies = (code: string, tab: SimTab): boolean => (code === 'Digit5' ? tab === 'past' : /^Digit[1-4]$/.test(code))
+/**
+ * 計算し直すときに読み込み中を出すか（FR-SIM7）。入力（銘柄・設定）が前の結果と同じで、取得の完了だけで計算し直すときは出さず、
+ * 前の結果を出したまま差し替える。初めて・設定や出どころを変えたときは出す（前の結果は新しい設定の答えではないため）
+ */
+export const showsLoading = (x: { prev: string; next: string; hasResult: boolean }): boolean => !(x.hasResult && x.prev === x.next)
 /** 読み込み中・結果が無いときに受けないキー（画面に出ていないカード・表の行を動かさない。設定のキーは受ける） */
 const MOVE_KEYS = new Set(['Tab', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Home', 'End', 'KeyN', 'KeyS', 'Escape'])
 export const blockedWhileLoading = (code: string): boolean => MOVE_KEYS.has(code)
@@ -222,6 +227,9 @@ export function basisNotes(r: SimResult, tab: SimTab, screen: boolean, lang: Lan
     // 積立のときは同業種と比べない（理由は積立の前提が言う）
     if (p && !p.peer && s.monthly === 0) out.push({ k: 'sim.n.noPeer', warn: true })
     else if (p) out.push({ k: 'sim.n.sector', a: { c: p.peerInfo.compared, t: p.peerInfo.total, n: p.peerInfo.s17 } })
+    // 比べる TOPIX が何か（番号だけでは分からない）
+    if (p?.etf) out.push({ k: 'sim.n.topix' })
+    if (r.glitch) out.push({ k: 'sim.n.glitch', a: { n: r.glitch.stocks, m: r.glitch.points }, warn: true })
     if (r.etfMissing) out.push({ k: 'sim.n.etfMissing', warn: true })
     if (r.reitShare > 0.2) out.push({ k: 'sim.n.reit', warn: true })
   } else {

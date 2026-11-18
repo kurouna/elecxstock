@@ -912,3 +912,58 @@ describe('FR-SIM8 日付を指定した基準日（過去が 0 件のときも�
     expect(r.base).toBe('2022-04-01')
   })
 })
+
+describe('FR-SIM5 データの誤りと見られる値を飛ばす（設計 §21.14）', () => {
+  const pts = (cs: number[]) => cs.map((c, i) => ({ d: addDays('2026-03-23', i), c }))
+  it('前の日から ±50% を超えて動き、5 本以内に前の値の ±10% へ戻る短い区間は誤りとして飛ばす（1306 の 2026-03-30・31）', async () => {
+    const { dropGlitches } = await import('@shared/sim/backtest')
+    const r = dropGlitches(pts([380, 382.7, 37.64, 37.14, 389.2, 390]), 5)
+    expect(r.dropped).toBe(2)
+    expect(r.pts.map((p) => p.c)).toEqual([380, 382.7, 389.2, 390])
+    // 上に外れた場合も
+    expect(dropGlitches(pts([100, 101, 1010, 102]), 5).dropped).toBe(1)
+  })
+  it('本当の暴落は飛ばさない: 下げたまま戻らない・6 本以上かけて戻る・±50% 以内の動き', async () => {
+    const { dropGlitches } = await import('@shared/sim/backtest')
+    expect(dropGlitches(pts([400, 390, 150, 140, 145, 150]), 5).dropped).toBe(0)
+    expect(dropGlitches(pts([400, 390, 150, 140, 145, 150, 160, 170, 390]), 5).dropped).toBe(0)
+    expect(dropGlitches(pts([400, 390, 210, 390]), 5).dropped).toBe(0)
+    // 戻った先が前の値から 10% より離れていれば戻ったとみなさない
+    expect(dropGlitches(pts([400, 390, 39, 300]), 5).dropped).toBe(0)
+  })
+  it('価格の組み立て（buildPx）で日足は 5 本まで、月末の終値は 1 本まで飛ばし、飛ばした数を持つ', () => {
+    const daily = pts([380, 382.7, 37.64, 37.14, 389.2, 390])
+    const px = buildPx([], daily)
+    expect(px.dropped).toBe(2)
+    expect(priceAt(px, daily[3]!.d)).toBeCloseTo(382.7) // 飛ばした日は前の終値
+    const m = (cs: number[]) => cs.map((c, i) => ({ d: `2025-${String(i + 1).padStart(2, '0')}-01`, c }))
+    expect(buildPx(m([380, 382, 37, 389]), []).dropped).toBe(1)
+    expect(buildPx(m([380, 382, 37, 38, 389]), []).dropped ?? 0).toBe(0)
+  })
+  it('結果に、飛ばした値のある銘柄（選んだ銘柄と TOPIX）の数と本数を返す', () => {
+    const glitchy: SimStock = {
+      id: 'JP:1306',
+      kind: 'etf',
+      market: 'E',
+      sector33: '',
+      px: buildPx(
+        [],
+        [...daily('2023-01-04', '2026-03-27', () => 380), { d: '2026-03-30', c: 37 }, ...daily('2026-03-31', TODAY, () => 390)],
+      ),
+      divs: [],
+      divFrom: '2016-01-01',
+    }
+    const ok: SimStock = {
+      ...glitchy,
+      id: 'A',
+      kind: 'stock',
+      market: 'P',
+      sector33: '銀行業',
+      px: buildPx([], daily('2023-01-04', TODAY)),
+      divs: semi(2023, 2026),
+    }
+    const base = { today: TODAY, total: 1, stressPool: [], members: () => [], settings: { ...DEFAULT_SIM, years: 1 as const } }
+    expect(simulate({ ...base, etf: glitchy, stocks: [ok] }).glitch).toEqual({ stocks: 1, points: 1 })
+    expect(simulate({ ...base, etf: null, stocks: [ok] }).glitch).toBeNull()
+  })
+})

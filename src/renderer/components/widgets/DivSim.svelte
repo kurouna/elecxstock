@@ -45,6 +45,7 @@ import {
   fwdChart,
   fwdReadout,
   altApplies,
+  showsLoading,
   growthCell,
   keyApplies,
   rescreenInput,
@@ -194,6 +195,10 @@ const kept = untrack(() => {
 let result = $state.raw<SimResult | null>(kept?.result ?? null)
 let loading = $state(!kept)
 let keptKey = kept?.key ?? ''
+/** 前の結果を出した入力のキー（取得の完了だけの計算し直しを見分ける） */
+let doneKey = kept?.key ?? ''
+/** 計算し終えた回数（E2E が data-runs で待つ） */
+let runs = $state(0)
 let error = $state<string | null>(null)
 let announce = $state('')
 let token = 0
@@ -230,6 +235,7 @@ $effect(() => {
       return
     }
     keptKey = ''
+    const key = keyOf(want, st)
     if (!want.length) {
       token++
       result = null
@@ -237,7 +243,9 @@ $effect(() => {
       loading = false
       return
     }
-    loading = true
+    // 取得の完了だけで計算し直すときは、前の結果を出したまま差し替える（読み込み中を出さない。FR-SIM7）
+    const quiet = !showsLoading({ prev: doneKey, next: key, hasResult: result != null && !loading })
+    if (!quiet) loading = true
     // 出どころの結果の変化は 300ms 間引く（スクリーナーを続けて変えたとき）。設定の変更はすぐ
     const idsKey = want.join(',')
     const wait = idsKey !== lastIdsKey ? 300 : 0
@@ -245,10 +253,10 @@ $effect(() => {
     // 計算中の古い要求の結果は、入力が変わった時点で捨てる
     const my = ++token
     const held = useHeld
-    timer = setTimeout(() => void run(want, st, keyOf(want, st), my, held), wait)
+    timer = setTimeout(() => void run(want, st, key, my, held, quiet), wait)
   })
 })
-async function run(ids: InstrumentId[], st: typeof settings, key: string, my = ++token, held = useHeld) {
+async function run(ids: InstrumentId[], st: typeof settings, key: string, my = ++token, held = useHeld, quiet = false) {
   const t0 = performance.now()
   announce = ''
   try {
@@ -259,15 +267,20 @@ async function run(ids: InstrumentId[], st: typeof settings, key: string, my = +
       ...(held ? { held: true } : {}),
       ...(rs ? { rescreen: rs } : {}),
     })
-    const rest = SIM_MIN_LOADING - (performance.now() - t0)
+    const rest = quiet ? 0 : SIM_MIN_LOADING - (performance.now() - t0)
     if (rest > 0) await new Promise((ok) => setTimeout(ok, rest))
     if (my !== token) return
     result = r
+    doneKey = key
+    runs++
     LAST.set(pane.id, { key, dv: app.dataVersion, result: r })
     error = null
-    cross = -1
-    fcross = -1
-    msel = -1
+    // 取得の後の差し替えでは、選んでいる月・年（十字線）を保つ
+    if (!quiet) {
+      cross = -1
+      fcross = -1
+      msel = -1
+    }
     announce = t('sim.done')
   } catch (e) {
     if (my !== token) return
@@ -725,7 +738,7 @@ onMount(() =>
     {/if}
   </div>
 </div>
-<div class="body" bind:this={body} class:calc={loading}>
+<div class="body" bind:this={body} class:calc={loading} data-runs={runs}>
   <div class="sr" role="status" aria-live="polite">{loading ? t('sim.loading') : announce}</div>
   {#if loading}
     <div class="loader">
@@ -893,7 +906,7 @@ onMount(() =>
               <div class="hist" aria-hidden="true">
                 {#each l.bins as b, i (i)}<i style:height={`${(b / bmax) * 100}%`}></i>{/each}
                 <b class="mk mine" style:left={`${sx(l.mine)}%`} title={`${t('sim.l.port')} ${pct(l.mine)}`}></b>
-                {#if past.etfPct != null && past.etfPct >= l.lo && past.etfPct <= l.hi}<b class="mk etf" style:left={`${sx(past.etfPct)}%`} title={`1306 ${pct(past.etfPct)}`}></b>{/if}
+                {#if past.etfPct != null && past.etfPct >= l.lo && past.etfPct <= l.hi}<b class="mk etf" style:left={`${sx(past.etfPct)}%`} title={`TOPIX ${pct(past.etfPct)}`}></b>{/if}
               </div>
               <div class="luckax num dim"><span>{pct(l.lo)}</span><span>{pct(l.hi)}</span></div>
               <div class="dim small">{t('sim.luckNote')}</div>

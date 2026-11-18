@@ -12,17 +12,64 @@ export interface Px {
   d: JstDate[]
   c: number[]
   daily: number
+  /** データの誤りと見られて飛ばした点の数（dropGlitches） */
+  dropped?: number
 }
 const monthOf = (d: JstDate) => d.slice(0, 7)
 
+/**
+ * データの誤りと見られる値を飛ばす（設計 §21.14）。前の値から ±50% を超えて動き、maxRun 本以内に前の値の ±10% へ戻る短い区間は、
+ * データ源の誤り（分割の前後の二重の調整など）とみなす。東証の値幅制限で 1 日に ±50% を超えて動くことは分割の日のほかにはまず無く、
+ * 本当に下げたならすぐ元の値には戻らないため（分割は調整済みの価格なので段差にならない）
+ */
+export function dropGlitches<T extends { c: number }>(pts: T[], maxRun: number): { pts: T[]; dropped: number } {
+  const jump = (a: number, b: number) => Math.abs(b / a - 1) > 0.5
+  const near = (a: number, b: number) => Math.abs(b / a - 1) <= 0.1
+  const out: T[] = []
+  let dropped = 0
+  let i = 0
+  while (i < pts.length) {
+    const prev = out.at(-1)
+    if (prev && jump(prev.c, pts[i]!.c)) {
+      let back = -1
+      for (let k = i + 1; k <= Math.min(pts.length - 1, i + maxRun); k++) {
+        if (near(prev.c, pts[k]!.c)) {
+          back = k
+          break
+        }
+      }
+      if (back > 0 && jump(pts[back - 1]!.c, pts[back]!.c)) {
+        dropped += back - i
+        i = back
+        continue
+      }
+    }
+    out.push(pts[i]!)
+    i++
+  }
+  return { pts: out, dropped }
+}
+/** 日足は 5 営業日まで、月末の終値は 1 か月だけの誤りを飛ばす */
+const GLITCH_DAYS = 5
+const GLITCH_MONTHS = 1
+
 export function buildPx(monthly: { d: JstDate; c: number }[], daily: { d: JstDate; c: number }[]): Px {
   const first = daily[0]?.d
-  const head = monthly.filter((b) => b.c > 0 && (!first || monthOf(b.d) <= monthOf(first)))
-  const tail = daily.filter((b) => b.c > 0)
+  const h = dropGlitches(
+    monthly.filter((b) => b.c > 0 && (!first || monthOf(b.d) <= monthOf(first))),
+    GLITCH_MONTHS,
+  )
+  const t = dropGlitches(
+    daily.filter((b) => b.c > 0),
+    GLITCH_DAYS,
+  )
+  const head = h.pts
+  const tail = t.pts
   return {
     d: [...head.map((b) => `${monthOf(b.d)}-01`), ...tail.map((b) => b.d)],
     c: [...head.map((b) => b.c), ...tail.map((b) => b.c)],
     daily: head.length,
+    ...(h.dropped + t.dropped ? { dropped: h.dropped + t.dropped } : {}),
   }
 }
 
