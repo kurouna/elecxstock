@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<title>elecxstock — 配当シミュレータのペイン（モック）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* アプリの app.css と同じトークン（ダーク・ライト）。このペインで足すのは --s-* の名前ではなく --sim-* だけ */
+:root {
+  --bg: #0b0d10; --panel: #101318; --panel-2: #151920; --panel-3: #1b2029;
+  --line: #20262f; --line-soft: #161a20; --line-strong: #2d3540;
+  --text: #dfe4ea; --text-2: #a3adb9; --text-3: #8b95a2; --focus: #7aa7ff;
+  --up: #ff6b70; --down: #5aa2ee; --flat: #a3adb9; --warn: #d9a400; --ok: #2fae74; --gold: #e3b341;
+  --ind1: #4fb3d9; --ind2: #d97a4f;
+  --chart-grid: #161a20; --chart-cross: #55606d;
+  --fs-0: 10px; --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 16px; --fs-5: 20px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --radius: 2px; --motion: 150ms;
+  --font: "Noto Sans JP", system-ui, sans-serif; --mono: "Noto Sans Mono", ui-monospace, monospace;
+  /* ペインで足すトークン: 仮想の印・帯の濃さ・インカムの塗り・ヒーローのにじみ */
+  --sim-virtual: #8f7cf0; --sim-band: 0.20; --sim-inc: var(--gold); --sim-inc-fill: 0.30; --sim-glow: 0.12; --sim-bar: #4a5666;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #e9ecf0; --panel: #ffffff; --panel-2: #f5f7fa; --panel-3: #eceff3;
+  --line: #d6dbe1; --line-soft: #e6e9ee; --line-strong: #c3cad3;
+  --text: #1a1f26; --text-2: #4a5562; --text-3: #5d6875; --focus: #2f6fe0;
+  --up: #c62f37; --down: #1a62b0; --flat: #4a5562; --warn: #9a6b00; --ok: #18804f; --gold: #8f6700;
+  --ind1: #1f8fbf; --ind2: #c25f2a; --chart-grid: #eef1f4; --chart-cross: #8a95a3;
+  --sim-virtual: #6a54d8; --sim-band: 0.16; --sim-inc-fill: 0.28; --sim-glow: 0; --sim-bar: #b4bcc7;
+  color-scheme: light;
+}
+:root[data-candle="us"] { --up: #3cc488; --down: #ff6b70; }
+:root[data-theme="light"][data-candle="us"] { --up: #18804f; --down: #d9363e; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 400 var(--fs-2)/1.5 var(--font); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--flat); } .gold { color: var(--gold); }
+.mute { color: var(--text-3); }
+kbd { font: 500 var(--fs-0) var(--mono); color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 0 4px; line-height: 14px; white-space: nowrap; }
+
+/* モックの操作の帯（アプリには無い） */
+.bar { display: flex; gap: var(--s-2); align-items: center; padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.bar b { font-weight: 600; margin-right: var(--s-2); }
+.bar button { background: var(--panel-2); color: var(--text-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 8px; font: inherit; font-size: var(--fs-2); cursor: pointer; }
+.bar button[aria-pressed="true"] { color: var(--text); border-color: var(--focus); }
+.bar .sep { width: 1px; height: 18px; background: var(--line); margin: 0 var(--s-1); }
+.bar .fict { margin-left: auto; color: var(--warn); font-size: var(--fs-1); }
+.stage { padding: var(--s-4); display: flex; justify-content: center; }
+
+/* ペインの枠 */
+.pane { width: var(--w, 1480px); height: var(--h, 900px); background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.ph { height: 24px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-2); border-bottom: 1px solid var(--line); background: var(--panel-2); color: var(--text-2); flex: none; white-space: nowrap; overflow: hidden; }
+.ph .link { width: 14px; height: 14px; border-radius: 3px; background: #2fae74; color: #000; font-size: 9px; display: grid; place-items: center; font-weight: 700; flex: none; }
+.ph .title { color: var(--text); font-weight: 500; }
+.virtual { font-size: var(--fs-0); color: var(--sim-virtual); border: 1px solid color-mix(in srgb, var(--sim-virtual) 55%, transparent); border-radius: var(--radius); padding: 0 5px; line-height: 15px; letter-spacing: .04em; }
+.src { display: inline-flex; gap: 6px; align-items: center; font-size: var(--fs-1); color: var(--text-2); border: 1px solid var(--line-strong); border-radius: 9px; padding: 0 8px; line-height: 17px; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.src .dot { width: 7px; height: 7px; border-radius: 2px; background: #2fae74; }
+.nav { display: inline-flex; gap: 2px; margin-left: 10px; }
+.nav span { padding: 0 8px; line-height: 18px; color: var(--text-3); border-radius: var(--radius); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.nav span.on { color: var(--text); background: var(--panel-3); box-shadow: inset 0 -2px 0 var(--focus); }
+.ph .asof { margin-left: auto; color: var(--text-3); font-size: var(--fs-1); }
+
+/* 設定の帯: 1 行。値はキーでも押しても変わる */
+.cfg { display: flex; align-items: center; gap: 4px 14px; padding: 5px 10px; border-bottom: 1px solid var(--line); background: var(--panel); flex: none; flex-wrap: wrap; font-size: var(--fs-1); color: var(--text-3); }
+.cfg .grp { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.seg { display: inline-flex; gap: 1px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 1px; }
+.seg span { padding: 0 7px; font-size: var(--fs-1); color: var(--text-3); line-height: 17px; border-radius: 2px; cursor: pointer; white-space: nowrap; }
+.seg span.on { background: var(--panel-3); color: var(--text); box-shadow: inset 0 -1px 0 var(--focus); }
+.seg span.p2 { opacity: .55; }
+.seg span.p2::after { content: "P2"; font-size: 8px; margin-left: 3px; color: var(--sim-virtual); vertical-align: 2px; }
+.amt { font-family: var(--mono); color: var(--text); border: 1px solid var(--line); background: var(--panel-2); padding: 0 8px; line-height: 19px; border-radius: var(--radius); cursor: text; min-width: 84px; text-align: right; }
+.amt input { width: 70px; background: transparent; border: 0; color: var(--text); font: inherit; text-align: right; outline: none; }
+
+/* 本体 */
+.body { flex: 1; overflow: auto; container-type: inline-size; background: var(--bg); scroll-behavior: smooth; }
+:root[data-reduce-motion="true"] .body { scroll-behavior: auto; }
+.sec { padding: 0 6px 6px; }
+.sec > h2 { margin: 8px 2px 6px; font-size: var(--fs-3); font-weight: 600; display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; }
+.sec > h2 .mute { font-size: var(--fs-1); font-weight: 400; }
+.grid { display: grid; gap: 6px; grid-template-columns: 1fr; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; position: relative; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+.card.focus { border-color: var(--focus); }
+.card h3 { margin: 0; font-size: var(--fs-2); font-weight: 500; color: var(--text-2); display: flex; align-items: center; gap: 8px; min-height: 20px; white-space: nowrap; }
+.card h3 .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.p2tag { font-size: 9px; color: var(--sim-virtual); border: 1px solid color-mix(in srgb, var(--sim-virtual) 50%, transparent); border-radius: var(--radius); padding: 0 4px; line-height: 13px; }
+.keys { display: flex; visibility: hidden; gap: 8px; font-size: var(--fs-1); color: var(--text-3); flex-wrap: wrap; }
+.card.focus .keys { visibility: visible; }
+:root.p1 .p2only { display: none !important; }
+
+/* 過去の段の並び */
+.past { grid-template-areas: "hero" "hist" "annual" "wf" "luck" "basis" "table"; }
+.fwd { grid-template-areas: "fhero" "fyear" "fcal" "fsens" "fbasis" "ftable"; }
+@container (min-width: 760px) {
+  .past { grid-template-columns: repeat(6, 1fr); grid-template-areas: "hero hero hist hist hist hist" "annual annual annual wf wf wf" "luck luck luck basis basis basis" "table table table table table table"; }
+  :root.p1 .past { grid-template-areas: "hero hero hist hist hist hist" "annual annual annual basis basis basis" "table table table table table table"; }
+  :root.p1 .fwd { grid-template-areas: "fhero fhero fyear fyear fyear fyear" "fcal fcal fcal fbasis fbasis fbasis" "ftable ftable ftable ftable ftable ftable"; }
+  .fwd { grid-template-columns: repeat(6, 1fr); grid-template-areas: "fhero fhero fyear fyear fyear fyear" "fcal fcal fcal fsens fsens fsens" "fbasis fbasis fbasis fbasis fbasis fbasis" "ftable ftable ftable ftable ftable ftable"; }
+}
+@container (min-width: 1180px) {
+  .past { grid-template-columns: repeat(12, 1fr); grid-template-rows: 318px 236px auto;
+    grid-template-areas: "hero hero hero hist hist hist hist hist hist hist hist hist" "annual annual annual annual wf wf wf wf luck luck luck luck" "table table table table table table table table table basis basis basis"; }
+  :root.p1 .past { grid-template-areas: "hero hero hero hist hist hist hist hist hist hist hist hist" "annual annual annual annual annual annual annual annual basis basis basis basis" "table table table table table table table table table table table table"; }
+  :root.p1 .fwd { grid-template-areas: "fhero fhero fhero fyear fyear fyear fyear fyear fyear fyear fyear fyear" "fcal fcal fcal fcal fcal fcal fcal fbasis fbasis fbasis fbasis fbasis" "ftable ftable ftable ftable ftable ftable ftable ftable ftable ftable ftable ftable"; }
+  .fwd { grid-template-columns: repeat(12, 1fr); grid-template-rows: 318px 236px auto;
+    grid-template-areas: "fhero fhero fhero fyear fyear fyear fyear fyear fyear fyear fyear fyear" "fcal fcal fcal fcal fcal fsens fsens fsens fsens fbasis fbasis fbasis" "ftable ftable ftable ftable ftable ftable ftable ftable ftable ftable ftable ftable"; }
+}
+.c-hero { grid-area: hero; } .c-hist { grid-area: hist; } .c-annual { grid-area: annual; } .c-wf { grid-area: wf; } .c-luck { grid-area: luck; } .c-basis { grid-area: basis; } .c-table { grid-area: table; }
+.c-table, .c-ftable { min-height: 260px; }
+.c-fhero { grid-area: fhero; } .c-fyear { grid-area: fyear; } .c-fcal { grid-area: fcal; } .c-fsens { grid-area: fsens; } .c-fbasis { grid-area: fbasis; } .c-ftable { grid-area: ftable; }
+
+/* ヒーロー */
+.c-hero::before, .c-fhero::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(110% 80% at 0% 0%, color-mix(in srgb, var(--gold) calc(var(--sim-glow) * 100%), transparent), transparent 62%); }
+.lead { font-size: var(--fs-2); color: var(--text-2); }
+.lead b { color: var(--text); font-weight: 600; }
+.big { font-size: clamp(30px, 6.4cqi, 44px); font-weight: 600; letter-spacing: -0.015em; line-height: 1.05; }
+@container (min-width: 1180px) { .big { font-size: clamp(32px, 2.8cqi, 44px); } }
+.big small { font-size: 0.42em; font-weight: 500; color: var(--text-2); margin-left: 6px; letter-spacing: 0; }
+.split { display: flex; flex-direction: column; gap: 4px; }
+.split .track { position: relative; height: 10px; background: var(--panel-3); border-radius: 2px; overflow: visible; display: flex; }
+.split .track i { display: block; height: 100%; }
+.split .track .pr { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text-2); }
+.split .lg { display: flex; gap: 12px; flex-wrap: wrap; font-size: var(--fs-1); color: var(--text-3); }
+.split .lg span { display: inline-flex; gap: 5px; align-items: center; white-space: nowrap; }
+.sw { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex: none; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stat { padding: 5px 0; border-top: 1px solid var(--line-soft); display: flex; flex-direction: column; font-size: var(--fs-1); min-width: 0; }
+.stat:nth-child(odd) { padding-right: 12px; } .stat:nth-child(even) { padding-left: 12px; border-left: 1px solid var(--line-soft); }
+.stat .k { color: var(--text-3); white-space: nowrap; display: flex; gap: 6px; align-items: center; }
+.stat .v { font-weight: 500; font-size: var(--fs-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vs { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 10px; font-size: var(--fs-1); align-items: center; }
+.vs .k { color: var(--text-3); display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.vs .bar2 { height: 6px; position: relative; background: var(--panel-3); border-radius: 1px; }
+.vs .bar2 i { position: absolute; top: 0; bottom: 0; border-radius: 1px; }
+.vs .bar2::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--line-strong); }
+.crossday { font-size: var(--fs-1); color: var(--focus); border: 1px solid color-mix(in srgb, var(--focus) 50%, transparent); border-radius: var(--radius); padding: 0 6px; white-space: nowrap; font-weight: 400; }
+
+/* 図 */
+.chart { flex: 1 1 0; min-height: 150px; position: relative; }
+.chart svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: var(--fs-1); color: var(--text-2); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ln { width: 14px; height: 0; border-top: 2px solid; display: inline-block; }
+.ln.dash { border-top-style: dashed; } .ln.dot { border-top-style: dotted; }
+.tip { position: absolute; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: 3px; padding: 6px 8px; font-size: var(--fs-1); white-space: nowrap; z-index: 3; display: none; }
+.tip .row { display: flex; justify-content: space-between; gap: 14px; }
+.note { font-size: var(--fs-1); color: var(--text-3); }
+.pct { font-size: var(--fs-5); font-weight: 600; }
+
+/* 前提のカード */
+.basis { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; scrollbar-width: thin; min-height: 0; flex: 1 1 0; }
+.bi { display: grid; grid-template-columns: 74px 1fr; gap: 8px; font-size: var(--fs-1); line-height: 1.5; padding: 3px 0; border-top: 1px solid var(--line-soft); }
+.bi:first-child { border-top: 0; }
+.bi .t { color: var(--text-2); display: inline-flex; gap: 5px; align-items: flex-start; }
+.bi .t::before { content: ""; width: 3px; align-self: stretch; border-radius: 1px; background: var(--line-strong); flex: none; }
+.bi.warn .t::before { background: var(--warn); } .bi.warn .t { color: var(--warn); }
+.bi.info .t::before { background: var(--focus); }
+.bi .d { color: var(--text-2); }
+.bi .d b { color: var(--text); font-weight: 500; }
+.disclaim { flex: none; height: 22px; display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: var(--fs-1); color: var(--text-3); border-top: 1px solid var(--line); background: var(--panel-2); white-space: nowrap; overflow: hidden; }
+.disclaim::before { content: "ⓘ"; color: var(--text-3); }
+
+/* 表 */
+.dt { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin; max-height: 460px; }
+.dt table { width: 100%; border-collapse: collapse; font-size: var(--fs-1); }
+.dt th { position: sticky; top: 0; background: var(--panel); color: var(--text-3); font-weight: 400; text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; z-index: 1; cursor: pointer; }
+.dt th.on { color: var(--text); } .dt th.on::after { content: " ▼"; font-size: 9px; }
+.dt td { padding: 2px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line-soft); height: 23px; }
+.dt th:first-child, .dt td:first-child, .dt th.l, .dt td.l { text-align: left; }
+.dt tr.sel td { background: var(--panel-3); }
+.dt tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--focus); }
+.dt tr.dim { opacity: .4; }
+.dt tr.ex td { color: var(--text-3); }
+.dt .nm { display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.dt .code { color: var(--text-3); margin-right: 6px; font-family: var(--mono); }
+.dt .ib { display: inline-block; width: 70px; height: 7px; position: relative; vertical-align: middle; }
+.dt .ib::before { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--line-strong); }
+.dt .ib i { position: absolute; top: 0; bottom: 0; border-radius: 1px; }
+.rank { display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.rank .rb { width: 42px; height: 5px; background: var(--panel-3); position: relative; border-radius: 1px; }
+.rank .rb i { position: absolute; top: -2px; width: 3px; height: 9px; border-radius: 1px; background: var(--text); }
+.flag { font-size: var(--fs-0); border: 1px solid var(--line-strong); color: var(--text-3); border-radius: var(--radius); padding: 0 3px; margin-left: 4px; }
+.flag.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+.flag.s17 { color: var(--ind2); border-color: color-mix(in srgb, var(--ind2) 50%, transparent); }
+.spark { width: 64px; height: 16px; vertical-align: middle; }
+@container (max-width: 1179px) { .dt .c-m { display: none; } }
+@container (max-width: 759px) { .dt .c-s { display: none; } }
+
+/* ダイアログ（出どころ） */
+.dlg { position: absolute; inset: 0; background: rgb(0 0 0 / .35); display: none; align-items: flex-start; justify-content: center; padding-top: 80px; z-index: 10; }
+.dlg.open { display: flex; }
+.dlg .box { width: 420px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: 0 10px 40px rgb(0 0 0 / .4); }
+.dlg .box h4 { margin: 0; padding: 8px 12px; font-size: var(--fs-2); font-weight: 500; border-bottom: 1px solid var(--line); display: flex; }
+.dlg .box h4 span { margin-left: auto; }
+.dlg .grp { padding: 6px 12px 2px; font-size: var(--fs-0); color: var(--text-3); letter-spacing: .05em; }
+.dlg .it { padding: 4px 12px; display: flex; gap: 8px; align-items: center; font-size: var(--fs-2); cursor: pointer; }
+.dlg .it.sel { background: var(--panel-3); box-shadow: inset 2px 0 0 var(--focus); }
+.dlg .it .n { margin-left: auto; color: var(--text-3); font-size: var(--fs-1); }
+.dlg .it.dis { opacity: .45; }
+.toast { position: absolute; right: 14px; bottom: 34px; background: var(--panel-3); border: 1px solid var(--line-strong); border-radius: 3px; padding: 6px 12px; font-size: var(--fs-1); opacity: 0; transition: opacity var(--motion); pointer-events: none; z-index: 11; }
+.toast.on { opacity: 1; }
+
+/* 読み込み中・空 */
+.sk { background: linear-gradient(90deg, var(--panel-2), var(--panel-3), var(--panel-2)); background-size: 200% 100%; animation: sk 1.2s linear infinite; border-radius: 2px; }
+@keyframes sk { to { background-position: -200% 0; } }
+:root[data-reduce-motion="true"] .sk { animation: none; }
+/* 計算中: 毎回、本体を「読み込み中」にしてから、終わったら全部を一度に出す（途中の値・前の結果は見せない）。
+   カードの枠だけ残して並びを固定し（出たときに跳ねない）、中身は見えなくして枠に光を流す */
+.calc .card > * { visibility: hidden; }
+.calc .card { background: linear-gradient(100deg, var(--panel) 30%, var(--panel-2) 50%, var(--panel) 70%); background-size: 300% 100%; animation: sk 1.6s linear infinite; }
+.calc .sec > h2 .mute { visibility: hidden; }
+.loader { display: none; position: sticky; top: 38%; height: 0; z-index: 5; justify-content: center; align-items: flex-start; overflow: visible; }
+.calc .loader { display: flex; }
+.loader .box { transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 26px 16px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: 0 10px 40px rgb(0 0 0 / .35); min-width: 300px; }
+/* 配当の棒が順に積み上がる印（このペインの読み込み中の印） */
+.loader .bars { display: flex; gap: 4px; align-items: flex-end; height: 30px; }
+.loader .bars i { width: 7px; height: 100%; background: var(--gold); border-radius: 1px; transform-origin: bottom; animation: grow 1.2s ease-in-out infinite; }
+.loader .bars i:nth-child(2) { animation-delay: .1s; } .loader .bars i:nth-child(3) { animation-delay: .2s; } .loader .bars i:nth-child(4) { animation-delay: .3s; } .loader .bars i:nth-child(5) { animation-delay: .4s; } .loader .bars i:nth-child(6) { animation-delay: .5s; }
+@keyframes grow { 0%, 100% { transform: scaleY(.18); opacity: .45; } 45% { transform: scaleY(1); opacity: 1; } }
+.loader .ttl { font-size: var(--fs-3); color: var(--text); font-weight: 500; }
+.loader .what { font-size: var(--fs-1); color: var(--text-3); text-align: center; line-height: 1.6; }
+.loader .prog { width: 220px; height: 2px; background: var(--panel-3); border-radius: 1px; overflow: hidden; position: relative; }
+.loader .prog::after { content: ""; position: absolute; top: 0; bottom: 0; width: 35%; background: var(--focus); animation: prog 1.1s ease-in-out infinite; }
+@keyframes prog { from { left: -35%; } to { left: 100%; } }
+.reveal .card { animation: reveal 260ms ease both; }
+@keyframes reveal { from { opacity: 0; } to { opacity: 1; } }
+:root[data-reduce-motion="true"] .calc .card, :root[data-reduce-motion="true"] .reveal .card, :root[data-reduce-motion="true"] .loader .prog::after { animation: none; }
+:root[data-reduce-motion="true"] .loader .bars i { animation: none; transform: scaleY(.6); }
+.empty { display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: var(--text-2); text-align: center; }
+.isempty .empty { display: flex; } .isempty .sec { display: none; }
+.empty .ttl { font-size: var(--fs-4); color: var(--text); }
+</style>
+</head>
+<body>
+<div class="bar" id="mockbar">
+  <b>配当シミュレータ（モック）</b>
+  <span class="mute">幅</span><button data-size="S">S</button><button data-size="M">M</button><button data-size="L" aria-pressed="true">L</button>
+  <span class="sep"></span><span class="mute">テーマ</span><button data-theme="dark" aria-pressed="true">ダーク</button><button data-theme="light">ライト</button>
+  <span class="sep"></span><span class="mute">色</span><button data-candle="jp" aria-pressed="true">日本式</button><button data-candle="us">米国式</button>
+  <span class="sep"></span><span class="mute">範囲</span><button data-scope="all" aria-pressed="true">P2 まで（構想）</button><button data-scope="p1">P1 だけ</button>
+  <span class="sep"></span><span class="mute">状態</span><button data-state="ok" aria-pressed="true">通常</button><button data-state="loading">計算中</button><button data-state="empty">銘柄なし</button>
+  <span class="sep"></span><button data-motion>動きを減らす</button>
+  <span class="fict">値はすべて架空（銘柄名とコードだけ実在）</span>
+</div>
+<div class="stage">
+  <div class="pane" id="pane">
+    <div class="ph">
+      <span class="link" title="リンク 2">2</span>
+      <span class="title">配当シミュレータ</span>
+      <span class="virtual" title="保有ではなく、仮想の銘柄群の試算">仮想</span>
+      <span class="src" id="src" title="出どころ（L）"><span class="dot"></span><span id="srcName"></span></span>
+      <span class="nav" id="nav"><span data-sec="past" class="on">過去 <kbd>PgUp</kbd></span><span data-sec="fwd">これから <kbd>PgDn</kbd></span></span>
+      <span class="asof num">基準 2026-11-13 大引け</span>
+    </div>
+    <div class="cfg" id="cfg"></div>
+    <div class="body" id="body">
+      <div class="loader" role="status" aria-live="polite"><div class="box"><div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="ttl">計算しています</div><div class="what" id="loaderWhat"></div><div class="prog"></div></div></div>
+      <div class="empty">
+        <div class="ttl">計算する銘柄がありません</div>
+        <div>同じリンク色（リンク 2）のスクリーナーに結果がありません。<kbd>L</kbd> で保存スクリーンやウォッチリストから選べます。</div>
+      </div>
+      <section class="sec" id="sec-past">
+        <h2>過去 <span class="mute" id="pastSub"></span></h2>
+        <div class="grid past">
+          <div class="card c-hero" data-card="hero"><h3>結果 <span class="right" id="heroCross"></span></h3><div id="hero"></div></div>
+          <div class="card c-hist" data-card="hist" data-sel>
+            <h3>推移 <span class="mute num" id="histUnit"></span><span class="right"><span class="seg" id="segP"></span></span></h3>
+            <div class="legend" id="histLegend"></div>
+            <div class="chart" id="histChart"><div class="tip" id="histTip"></div></div>
+            <div class="keys"><span><kbd>←</kbd><kbd>→</kbd> 十字線の月（結果と表が連動）</span><span><kbd>P</kbd> 円 ⇔ %</span><span><kbd>B</kbd> 比べる相手</span><span><kbd>Esc</kbd> 十字線を消す</span></div>
+          </div>
+          <div class="card c-annual" data-card="annual" data-sel>
+            <h3>年ごとの配当 <span class="right legend"><span><i class="sw" style="background:var(--gold)"></i>当初の株</span><span class="rein"><i class="sw" style="background:color-mix(in srgb,var(--gold) 45%,var(--panel-3))"></i>再投資で増えた株</span><span><i class="ln" style="border-color:var(--text-2)"></i>取得利回り</span></span></h3>
+            <div class="chart" id="annualChart"></div>
+            <div class="keys"><span><kbd>←</kbd><kbd>→</kbd> 年</span><span><kbd>R</kbd> 受取 ⇔ 再投資</span></div>
+          </div>
+          <div class="card c-wf p2only" data-card="wf" data-sel>
+            <h3>超過分の分解 <span class="p2tag">P2</span><span class="right mute" style="font-size:var(--fs-1)">1306 からの差（足すと一致）</span></h3>
+            <div class="chart" id="wfChart"></div>
+            <div class="note">最後の段は今日の条件で選んだ結果を含むため「銘柄選びの効果の上限・参考」です。</div>
+          </div>
+          <div class="card c-luck p2only" data-card="luck" data-sel>
+            <h3>偶然との比較 <span class="p2tag">P2</span><span class="right mute" style="font-size:var(--fs-1)">同じ業種から無作為に 1,000 回</span></h3>
+            <div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap" id="luckHead"></div>
+            <div class="chart" id="luckChart" style="min-height:110px"></div>
+          </div>
+          <div class="card c-basis" data-card="basis"><h3>前提 <span class="right mute" style="font-size:var(--fs-1)">計算に効いているものだけ</span></h3><div class="basis" id="basisPast"></div></div>
+          <div class="card c-table" data-card="table" data-sel>
+            <h3>銘柄ごと <span class="mute" id="tableCount"></span><span class="right keys"><span><kbd>↑</kbd><kbd>↓</kbd> 行</span><span><kbd>S</kbd> 並べ替え</span><span><kbd>Enter</kbd> リンク 2 のチャートへ</span><span><kbd>G</kbd> 業種 33 ⇔ 17</span></span></h3>
+            <div class="dt" id="pastTable"></div>
+          </div>
+        </div>
+      </section>
+      <section class="sec" id="sec-fwd">
+        <h2>これから <span class="mute" id="fwdSub"></span></h2>
+        <div class="grid fwd">
+          <div class="card c-fhero" data-card="fhero"><h3>見込み <span class="right" id="fheroCross"></span></h3><div id="fhero"></div></div>
+          <div class="card c-fyear" data-card="fyear" data-sel>
+            <h3>年ごとの見込み <span class="right"><span class="seg" id="segM"></span></span></h3>
+            <div class="legend" id="fyearLegend"></div>
+            <div class="chart" id="fyearChart"><div class="tip" id="fyearTip"></div></div>
+            <div class="keys"><span><kbd>←</kbd><kbd>→</kbd> 年</span><span><kbd>M</kbd> 試算の方式</span><span><kbd>Alt+1〜4</kbd> 期間</span></div>
+          </div>
+          <div class="card c-fcal" data-card="fcal" data-sel>
+            <h3>月ごとの配当 <span class="mute" style="font-size:var(--fs-1)">1 年目</span><span class="right"><span class="seg" id="segV"></span></span></h3>
+            <div class="chart" id="calChart"></div>
+            <div class="note" id="calNote"></div>
+            <div class="keys"><span><kbd>←</kbd><kbd>→</kbd> 月（その月の銘柄が表で明るく残る）</span><span><kbd>V</kbd> 受取の目安 ⇔ 権利確定月</span></div>
+          </div>
+          <div class="card c-fsens p2only" data-card="fsens" data-sel>
+            <h3>減配の感応度 <span class="p2tag">P2</span><span class="right mute" style="font-size:var(--fs-1)" id="sensSub"></span></h3>
+            <div class="chart" id="sensChart"></div>
+            <div class="note">判定ではありません。1 銘柄が無配になったときに、1 年目の配当が減る額です。</div>
+          </div>
+          <div class="card c-fbasis" data-card="fbasis"><h3>前提</h3><div class="basis" id="basisFwd"></div></div>
+          <div class="card c-ftable" data-card="ftable" data-sel>
+            <h3>銘柄ごと <span class="right keys"><span><kbd>↑</kbd><kbd>↓</kbd> 行</span><span><kbd>S</kbd> 並べ替え</span><span><kbd>Enter</kbd> リンク 2 のチャートへ</span></span></h3>
+            <div class="dt" id="fwdTable"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="disclaim">試算です。過去の結果と実績の機械的な延長で、将来の成果や投資の判断を示すものではありません。</div>
+    <div class="dlg" id="dlg"><div class="box"><h4>出どころ <span><kbd>↑</kbd><kbd>↓</kbd> <kbd>Enter</kbd> <kbd>Esc</kbd></span></h4><div id="dlgList"></div></div></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+<script>
+// ------------------------------------------------------------ 架空のデータ（種つきの乱数。銘柄名とコードだけ実在）
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 } }
+const R = rng(20261113)
+const gauss = (r) => { let u = 0, v = 0; while (!u) u = r(); while (!v) v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) }
+const NM = 121 // 2016-11 .. 2026-11 の月
+const ym = (i) => [2016 + Math.floor((10 + i) / 12), ((10 + i) % 12) + 1]
+const idxOf = (y, m) => (y - 2016) * 12 + m - 11
+const label = (i) => { const [y, m] = ym(i); return `${y}-${String(m).padStart(2, '0')}` }
+const DAILY_FROM = idxOf(2023, 10) // 日足の範囲の始まり（既定 3 年 + 31 日）
+const NOW = NM - 1
+
+// 市場の動き: 2020-03 の急落・2024-08 の下げ
+const mkt = Array.from({ length: NM }, () => 0.006 + 0.035 * gauss(R))
+mkt[idxOf(2020, 2)] = -0.06; mkt[idxOf(2020, 3)] = -0.17; mkt[idxOf(2020, 4)] = 0.06; mkt[idxOf(2020, 5)] = 0.05; mkt[idxOf(2024, 8)] = -0.09
+
+// 業種（33 業種 → 17 業種）。n は同業種の相手の数（架空）。cut は 2020 年の減配の深さ
+const SECT = {
+  銀行業: { s17: '銀行', n: 34, beta: 1.2, drift: 0.004, g: 0.07, cut: 0.05, yld: 0.035 },
+  卸売業: { s17: '商社・卸売', n: 28, beta: 1.1, drift: 0.008, g: 0.09, cut: 0.12, yld: 0.034 },
+  食料品: { s17: '食品', n: 38, beta: 0.6, drift: 0.002, g: 0.03, cut: 0.0, yld: 0.026 },
+  '情報・通信業': { s17: '情報通信・サービスその他', n: 60, beta: 0.7, drift: 0.003, g: 0.05, cut: 0.0, yld: 0.03 },
+  保険業: { s17: '金融（除く銀行）', n: 9, beta: 1.0, drift: 0.009, g: 0.1, cut: 0.0, yld: 0.03 },
+  医薬品: { s17: '医薬品', n: 22, beta: 0.6, drift: -0.002, g: 0.02, cut: 0.0, yld: 0.03 },
+  '石油・石炭製品': { s17: 'エネルギー資源', n: 3, beta: 1.2, drift: 0.004, g: 0.04, cut: 0.25, yld: 0.04 },
+  鉱業: { s17: 'エネルギー資源', n: 3, beta: 1.3, drift: 0.006, g: 0.06, cut: 0.4, yld: 0.035 },
+  その他金融業: { s17: '金融（除く銀行）', n: 14, beta: 1.1, drift: 0.004, g: 0.06, cut: 0.1, yld: 0.035 },
+  建設業: { s17: '建設・資材', n: 40, beta: 0.9, drift: 0.003, g: 0.05, cut: 0.05, yld: 0.033 },
+  ゴム製品: { s17: '自動車・輸送機', n: 4, beta: 1.0, drift: 0.002, g: 0.04, cut: 0.2, yld: 0.035 },
+  'J-REIT': { s17: '不動産', n: 57, beta: 0.7, drift: -0.002, g: 0.015, cut: 0.15, yld: 0.045, reit: true },
+}
+const S17N = { エネルギー資源: 9, '自動車・輸送機': 45 } // 17 業種へ切り替えたときの相手の数（架空）
+
+// 選べる銘柄（架空の値）。rec は配当の記録の始まりの年（架空）
+const UNIV = [
+  ['8306', '三菱UFJフィナンシャル・グループ', '銀行業', [3, 9]], ['8316', '三井住友フィナンシャルグループ', '銀行業', [3, 9]],
+  ['8058', '三菱商事', '卸売業', [3, 9]], ['8001', '伊藤忠商事', '卸売業', [3, 9]], ['2914', '日本たばこ産業', '食料品', [6, 12]],
+  ['9433', 'KDDI', '情報・通信業', [3, 9]], ['9434', 'ソフトバンク', '情報・通信業', [3, 9]], ['8766', '東京海上ホールディングス', '保険業', [3, 9]],
+  ['4502', '武田薬品工業', '医薬品', [3, 9]], ['5020', 'ENEOSホールディングス', '石油・石炭製品', [3, 9]], ['1605', 'INPEX', '鉱業', [6, 12]],
+  ['8591', 'オリックス', 'その他金融業', [3, 9]], ['1928', '積水ハウス', '建設業', [1, 7]], ['5108', 'ブリヂストン', 'ゴム製品', [6, 12]],
+  ['8951', '日本ビルファンド投資法人', 'J-REIT', [6, 12]], ['3283', '日本プロロジスリート投資法人', 'J-REIT', [5, 11]], ['8963', 'インヴィンシブル投資法人', 'J-REIT', [6, 12]],
+  ['8593', '三菱HCキャピタル', 'その他金融業', [3, 9]],
+]
+
+const sectRet = {}
+for (const k of Object.keys(SECT)) sectRet[k] = Array.from({ length: NM }, () => SECT[k].drift * 0.3 + 0.012 * gauss(R))
+
+function makeAsset(sect, opt = {}) {
+  const S = SECT[sect], r = opt.r ?? R
+  const beta = S.beta * (0.8 + 0.4 * r()), alpha = (opt.alpha ?? 0) + S.drift * 0.7 + 0.004 * gauss(r), vol = 0.035 + 0.03 * r()
+  const p = [1000 + 3000 * r()]
+  for (let i = 1; i < NM; i++) p[i] = p[i - 1] * Math.exp(beta * mkt[i] + sectRet[sect][i] + alpha + vol * gauss(r))
+  const months = opt.months ?? (S.reit ? [6, 12] : [3, 9])
+  const g = S.g + (opt.dg ?? 0) + 0.05 * gauss(r), y0 = S.yld * (0.8 + 0.5 * r()) + (opt.dy ?? 0)
+  const cut = S.cut * (0.4 + 1.2 * r())
+  const dpsYear = {}; let d = y0 * p[0]
+  for (let y = 2016; y <= 2027; y++) {
+    if (y > 2016) d *= Math.exp(g + 0.03 * gauss(r))
+    let v = d
+    if (y === 2020) v = d * (1 - cut)
+    if (y === 2021) v = d * (1 - cut * 0.4)
+    if (S.reit && r() < 0.15) v *= 1.12 // J-REIT の一時的な増配
+    dpsYear[y] = Math.max(0, v)
+  }
+  const div = {}
+  for (let i = 1; i < NM; i++) { const [y, m] = ym(i); if (months.includes(m)) div[i] = dpsYear[y] / months.length }
+  return { p, div, dpsYear, months, sect, g, rec: opt.rec ?? 2016 }
+}
+
+const STOCKS = UNIV.map(([code, name, sect, months], k) => {
+  const a = makeAsset(sect, { months, alpha: 0.001, dg: 0.01, dy: 0.003 })
+  return { code, name, ...a, rec: code === '8963' ? 2022 : code === '3283' ? 2021 : 2016 }
+})
+// 同業種の相手（33 業種と、相手の少ない業種は 17 業種の相手も）
+const PEERS = {}
+for (const k of Object.keys(SECT)) PEERS[k] = Array.from({ length: SECT[k].n }, () => makeAsset(k))
+const PEERS17 = {}
+for (const [s17, n] of Object.entries(S17N)) { const from = Object.keys(SECT).filter((k) => SECT[k].s17 === s17); PEERS17[s17] = Array.from({ length: n }, (_, j) => makeAsset(from[j % from.length])) }
+// 1306（TOPIX 連動 ETF）: 時価総額加重。分配は 1・7 月
+const ETF = (() => { const p = [2000]; for (let i = 1; i < NM; i++) p[i] = p[i - 1] * Math.exp(mkt[i] * 1.0 + 0.0015); const dpsYear = {}; let d = 0.022 * p[0]; for (let y = 2016; y <= 2027; y++) { if (y > 2016) d *= 1.06; dpsYear[y] = y === 2020 ? d * 0.9 : d } const div = {}; for (let i = 1; i < NM; i++) { const [y, m] = ym(i); if (m === 1 || m === 7) div[i] = dpsYear[y] / 2 } return { p, div, dpsYear } })()
+const ALL_EQ = Object.values(PEERS).flat()
+
+// 出どころ
+const SOURCES = [
+  { g: 'スクリーナー', name: 'スクリーナー（リンク 2）: 高配当銘柄', codes: UNIV.map((u) => u[0]) },
+  { g: '保存スクリーン', name: '連続増配', codes: ['8306', '8058', '8001', '9433', '8766', '8591', '1928', '8593', '2914'] },
+  { g: '保存スクリーン', name: 'J-REIT 高利回り', codes: ['8951', '3283', '8963'] },
+  { g: 'ウォッチリスト', name: '★ お気に入り', codes: ['8306', '2914', '9434', '8951', '5020', '1605'] },
+  { g: 'ウォッチリスト', name: '◆ 売買候補', codes: ['8316', '4502', '5108'] },
+  { g: '保有', name: '保有（これからの段だけ・P2）', codes: [], dis: true },
+]
+
+// ------------------------------------------------------------ 計算（アプリでは src/shared/sim/*.ts の純関数）
+const TAX = [0, 0.20315, 0]
+function backtest(a, b, amt, o) {
+  let sh = amt / a.p[b]; const sh0 = sh; let cash = 0, inc = 0
+  const total = [], income = [], byYear = {}, byYear0 = {}
+  for (let i = b; i < NM; i++) {
+    if (i > b && a.div[i]) {
+      const c = sh * a.div[i] * (1 - TAX[o.tax]); const c0 = sh0 * a.div[i] * (1 - TAX[o.tax]); inc += c
+      const y = ym(i)[0]; byYear[y] = (byYear[y] || 0) + c; byYear0[y] = (byYear0[y] || 0) + c0
+      if (o.reinvest) sh += c / a.p[i]; else cash += c
+    }
+    total[i] = sh * a.p[i] + cash; income[i] = inc
+  }
+  return { total, income, byYear, byYear0, sh, sh0, buy: a.p[b] }
+}
+const sumSeries = (list, b) => { const t = [], inc = []; for (let i = b; i < NM; i++) { t[i] = 0; inc[i] = 0; for (const r of list) { t[i] += r.total[i]; inc[i] += r.income[i] } } return { total: t, income: inc } }
+const last12 = (a, at = NOW) => { let s = 0; for (let i = at - 11; i <= at; i++) s += a.div[i] || 0; return s }
+function maxDD(series, from) { let pk = -Infinity, dd = 0; for (let i = from; i < NM; i++) { pk = Math.max(pk, series[i]); dd = Math.min(dd, series[i] / pk - 1) } return dd }
+const median = (xs) => { const s = [...xs].sort((a, b) => a - b), n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : NaN }
+const quant = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.max(0, Math.round(q * (s.length - 1))))] }
+function theilSen(ys) { const sl = []; for (let i = 0; i < ys.length; i++) for (let j = i + 1; j < ys.length; j++) sl.push((ys[j] - ys[i]) / (j - i)); return median(sl) }
+
+const st = { sec: 'past', base: 1, amt: 3000000, reinvest: false, tax: 1, cmp: 0, g17: false, unit: 'yen', method: 0, horizon: 1, calView: 0, src: 0, cross: null, fcross: null, card: null, row: 0, frow: 0, sort: 0, fsort: 0, calSel: null, scope: 'all', state: 'ok' }
+const BASES = [{ y: 1, l: '1 年前' }, { y: 3, l: '3 年前' }, { y: 5, l: '5 年前' }, { y: 10, l: '10 年前', p2: true }]
+const HORIZ = [5, 10, 20, 30]
+const CMPS = ['1306 と同業種', '1306', '同業種', 'なし']
+const METHODS = [{ l: '横ばい' }, { l: '伸びを見込む', p2: true }, { l: '直線トレンド試算', p2: true }]
+
+function baseIdx() { return NOW - BASES[st.base].y * 12 }
+function run() {
+  const b = baseIdx(), byr = ym(b)[0]
+  const src = SOURCES[st.src]
+  const chosen = STOCKS.filter((s) => src.codes.includes(s.code))
+  const excluded = chosen.filter((s) => s.rec > byr).map((s) => ({ s, why: `配当の記録が ${s.rec} 年から` }))
+  const use = chosen.filter((s) => s.rec <= byr)
+  const each = st.amt / Math.max(1, use.length)
+  const o = { reinvest: st.reinvest, tax: st.tax }
+  const rows = use.map((s) => {
+    const r = backtest(s, b, each, o)
+    // 同業種の相手（自分を外す・5 未満なら 17 業種）
+    const S = SECT[s.sect]; let pool = PEERS[s.sect], s17 = false
+    if (st.g17 || pool.length < 5) { pool = PEERS17[S.s17] ?? pool; s17 = !!PEERS17[S.s17] || st.g17 }
+    const pr = pool.map((p) => backtest(p, b, each, o))
+    const tr = r.total[NOW] / each - 1
+    const ptr = pr.map((x) => x.total[NOW] / each - 1)
+    const rank = 1 + ptr.filter((x) => x > tr).length
+    const peer = sumSeries(pr, b); for (let i = b; i < NM; i++) { peer.total[i] /= pr.length; peer.income[i] /= pr.length }
+    const cuts = Object.keys(s.dpsYear).filter((y) => y > byr && y <= 2026 && s.dpsYear[y] < s.dpsYear[y - 1] * 0.995).length
+    return { s, r, each, tr, rank, n: pool.length + 1, s17, peer, ptr, cuts, yoc: last12(s) / r.buy, cap: r.total[NOW] - each - r.income[NOW] }
+  })
+  const port = sumSeries(rows.map((x) => x.r), b)
+  const peerG = sumSeries(rows.map((x) => x.peer), b)
+  const etf = backtest(ETF, b, st.amt, o)
+  const allEq = (() => { const xs = ALL_EQ.map((p) => backtest(p, b, st.amt / ALL_EQ.length, o)); return sumSeries(xs, b) })()
+  // 偶然との比較: 銘柄ごとに同業種から 1 銘柄を無作為に（種は入力から）
+  const rr = rng(b * 7919 + use.length * 31 + st.tax * 3 + (st.reinvest ? 1 : 0))
+  const draws = Array.from({ length: 1000 }, () => rows.reduce((acc, x) => acc + (1 + x.ptr[Math.floor(rr() * x.ptr.length)]) * x.each, 0) / st.amt - 1)
+  const reitShare = use.filter((s) => SECT[s.sect].reit).length / Math.max(1, use.length)
+  return { b, byr, rows, port, peerG, etf, allEq, draws, excluded, chosen, reitShare }
+}
+
+function forecast(rows) {
+  const yrs = HORIZ[st.horizon]
+  const t = 1 - TAX[st.tax]
+  const items = rows.map((x) => {
+    const s = x.s, sh = x.each / s.p[NOW]
+    const ys = []; for (let y = Math.max(2017, s.rec + 1); y <= 2025; y++) ys.push(s.dpsYear[y])
+    const D0 = SECT[s.sect].reit ? median(ys.slice(-2)) : last12(s)
+    const lnys = ys.map((v) => Math.log(Math.max(v, 1e-9)))
+    const n = ys.length, short = n < 4
+    const gRaw = short ? 0 : theilSen(lnys)
+    const gPool = median(PEERS[s.sect].map((p) => p.g))
+    const w = n / (n + 5); const g = short ? 0 : Math.max(-0.1, Math.min(0.1, w * gRaw + (1 - w) * gPool))
+    // 直線（FORECAST.LINEAR）
+    const xs = ys.map((_, i) => i); const xm = median(xs) && xs.reduce((a, b) => a + b, 0) / n, yb = ys.reduce((a, b) => a + b, 0) / n
+    let sxx = 0, sxy = 0; xs.forEach((x, i) => { sxx += (x - xm) ** 2; sxy += (x - xm) * (ys[i] - yb) })
+    const slope = sxy / sxx, icpt = yb - slope * xm
+    const lin = (k) => Math.max(0, icpt + slope * (n - 1 + k))
+    const g5 = n >= 6 ? Math.exp((lnys[n - 1] - lnys[n - 6]) / 5) - 1 : NaN
+    const yoy = {}; for (let y = 2017; y <= 2025; y++) yoy[y] = s.dpsYear[y] / s.dpsYear[y - 1]
+    return { x, s, sh, D0, g, gRaw, n, short, lin, g5, yoy }
+  })
+  // 減配のストレス: 選んだ群の配当の合計の前年比がいちばん悪かった年
+  let worst = 2017, wv = Infinity
+  for (let y = 2017; y <= 2025; y++) { const a = items.reduce((s, it) => s + it.sh * it.s.dpsYear[y], 0), p = items.reduce((s, it) => s + it.sh * it.s.dpsYear[y - 1], 0); if (a / p < wv) { wv = a / p; worst = y } }
+  const line = (it, k) => {
+    if (st.method === 0 || it.short) return it.D0
+    if (st.method === 1) { let e = 0; for (let s = 1; s <= k; s++) e += 0.8 ** s; return it.D0 * Math.exp(it.g * e) }
+    return it.lin(k)
+  }
+  const years = Array.from({ length: yrs }, (_, k) => 2027 + k)
+  const mid = years.map((_, k) => items.reduce((s, it) => s + it.sh * line(it, k + 1) * t, 0))
+  const stress = years.map((_, k) => items.reduce((s, it) => s + it.sh * it.D0 * Math.min(1, it.yoy[worst]) * t, 0))
+  const flat = years.map(() => items.reduce((s, it) => s + it.sh * it.D0 * t, 0))
+  // 帯: 年ごとに暦年を引き、全銘柄に同時に当てる。伸び（全期間・全銘柄の平均）を除き、50% 点を線に合わせる
+  const all = []; items.forEach((it) => { for (let y = 2017; y <= 2025; y++) all.push(Math.log(it.yoy[y])) })
+  const c = all.reduce((a, b) => a + b, 0) / all.length
+  const rb = rng(4242 + items.length)
+  const paths = Array.from({ length: 1000 }, () => { const m = items.map(() => 0); return years.map((_, k) => { const y = 2017 + Math.floor(rb() * 9); let tot = 0; items.forEach((it, j) => { m[j] += Math.log(it.yoy[y]) - c; tot += it.sh * line(it, k + 1) * Math.exp(m[j]) * t }); return tot }) })
+  const band = years.map((_, k) => { const col = paths.map((p) => p[k]); const q50 = quant(col, 0.5); return [quant(col, 0.1) / q50 * mid[k], mid[k], quant(col, 0.9) / q50 * mid[k]] })
+  let cum = 0; const cumL = mid.map((v) => (cum += v))
+  // 元本回収（30 年まで）
+  let rc = 0, half = null, full = null
+  for (let k = 1; k <= 30; k++) { rc += items.reduce((s, it) => s + it.sh * line(it, k) * t, 0); if (!half && rc >= st.amt / 2) half = k; if (!full && rc >= st.amt) { full = k; break } }
+  // 月ごと
+  const cal = Array.from({ length: 12 }, () => [])
+  items.forEach((it) => it.s.months.forEach((m) => { const mm = st.calView === 0 ? ((m + 2) % 12) + 1 : m; cal[mm - 1].push({ it, v: it.sh * it.D0 / it.s.months.length * t }) }))
+  return { items, years, mid, stress, flat, band, cumL, worst, wv, half, full, cal, line }
+}
+
+// ------------------------------------------------------------ 書式
+const man = (v) => `${(v / 1e4).toLocaleString('ja-JP', { maximumFractionDigits: 1, minimumFractionDigits: 1 })}万円`
+const yen = (v) => `${Math.round(v).toLocaleString('ja-JP')}円`
+const sgn = (v, f = man) => (v >= 0 ? '+' : '−') + f(Math.abs(v))
+const pct = (v, d = 1) => `${v >= 0 ? '+' : '−'}${Math.abs(v * 100).toFixed(d)}%`
+const pc = (v, d = 1) => `${(v * 100).toFixed(d)}%`
+const cls = (v) => (v > 0 ? 'up' : v < 0 ? 'down' : 'flat')
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
+const $ = (s) => document.querySelector(s)
+
+// ------------------------------------------------------------ 描画
+let RES, FC
+function seg(id, list, on, key, act) {
+  $(id).innerHTML = list.map((x, i) => `<span data-i="${i}" class="${i === on ? 'on' : ''} ${x.p2 ? 'p2 p2only' : ''}">${esc(x.l ?? x)}</span>`).join('') + (key ? ` <kbd>${key}</kbd>` : '')
+  $(id).querySelectorAll('span[data-i]').forEach((el) => (el.onclick = () => { act(+el.dataset.i); render() }))
+}
+function renderCfg() {
+  const past = st.sec === 'past'
+  $('#cfg').innerHTML = `
+    <span class="grp">${past ? '基準日' : '期間'} <span class="seg" id="cBase"></span><kbd>Alt+1〜4</kbd></span>
+    <span class="grp">元本 <span class="amt num" id="amt">${(st.amt / 1e4).toLocaleString('ja-JP')} 万円</span><kbd>A</kbd></span>
+    <span class="grp">配分 <span class="seg"><span class="on">均等の金額</span><span class="p2 p2only">利回り加重</span></span></span>
+    <span class="grp">配当 <span class="seg" id="cRe"></span><kbd>R</kbd></span>
+    <span class="grp">税 <span class="seg" id="cTax"></span><kbd>X</kbd></span>
+    ${past ? '<span class="grp">比べる相手 <span class="seg" id="cCmp"></span><kbd>B</kbd></span><span class="grp">業種 <span class="seg" id="cG"></span><kbd>G</kbd></span>' : '<span class="grp">試算 <span class="seg" id="cM"></span><kbd>M</kbd></span>'}`
+  if (past) seg('#cBase', BASES, st.base, '', (i) => (st.base = i))
+  else seg('#cBase', HORIZ.map((h, i) => ({ l: `${h} 年`, p2: i >= 2 })), st.horizon, '', (i) => (st.horizon = i))
+  seg('#cRe', ['受け取る', '再投資'], st.reinvest ? 1 : 0, '', (i) => (st.reinvest = i === 1))
+  seg('#cTax', [{ l: '税引前' }, { l: '20.315%' }, { l: '非課税', p2: true }], st.tax, '', (i) => (st.tax = i))
+  if (past) { seg('#cCmp', CMPS, st.cmp, '', (i) => (st.cmp = i)); seg('#cG', ['33 業種', '17 業種'], st.g17 ? 1 : 0, '', (i) => (st.g17 = i === 1)) }
+  else seg('#cM', METHODS, st.method, '', (i) => (st.method = i))
+  $('#amt').onclick = editAmt
+}
+function editAmt() {
+  const el = $('#amt'); el.innerHTML = `<input value="${st.amt / 1e4}" /> 万円`; const inp = el.querySelector('input'); inp.focus(); inp.select()
+  inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') { const v = Number(inp.value.replace(/[^\d.]/g, '')); if (v > 0) st.amt = Math.round(v * 1e4); render() } if (e.key === 'Escape') render() }
+}
+
+function heroPast() {
+  const { rows, port, etf, peerG, b } = RES, at = st.cross ?? NOW
+  const tot = port.total[at], inc = port.income[at], cap = tot - st.amt - inc
+  const tr = tot / st.amt - 1, yrs = (at - b) / 12
+  const cagr = yrs >= 1 ? Math.pow(tot / st.amt, 1 / yrs) - 1 : NaN
+  const yoc = rows.reduce((s, x) => s + last12(x.s, at) * x.r.sh0, 0) / st.amt
+  const yop = (() => { let s = 0; for (const x of rows) for (let i = at - 11; i <= at; i++) if (i > b && x.s.div[i]) s += (x.r.byYear0 ? 1 : 1) * 0; return s })()
+  const recv12 = (() => { let s = 0; const y = ym(at)[0]; for (const x of rows) s += (x.r.byYear[y - 1] || 0); return s / st.amt })()
+  const dd = maxDD(port.total, Math.max(b, DAILY_FROM))
+  const capW = Math.max(0, Math.min(1, (st.amt + Math.max(0, cap)) / Math.max(tot, st.amt)))
+  const den = Math.max(tot, st.amt)
+  const vsE = tot / etf.total[at] - 1, vsP = tot / peerG.total[at] - 1
+  const showE = st.cmp === 0 || st.cmp === 1, showP = st.cmp === 0 || st.cmp === 2
+  $('#heroCross').innerHTML = st.cross != null ? `<span class="crossday num">${label(at)} 時点</span>` : ''
+  $('#hero').innerHTML = `
+    <div class="lead"><b>${BASES[st.base].l}</b>（${label(b)}）に <b class="num">${man(st.amt)}</b> を ${rows.length} 銘柄へ均等に入れていたら</div>
+    <div class="big num">${man(tot)}<small class="${cls(tr)}">${pct(tr)}</small></div>
+    <div class="split">
+      <div class="track">
+        <i style="width:${(Math.min(st.amt, st.amt + Math.min(0, cap)) / den) * 100}%;background:var(--sim-bar)"></i>
+        ${cap > 0 ? `<i style="width:${(cap / den) * 100}%;background:var(--up)"></i>` : `<i style="width:${(-cap / den) * 100}%;background:repeating-linear-gradient(135deg,var(--down) 0 3px,transparent 3px 6px)"></i>`}
+        <i style="width:${(inc / den) * 100}%;background:var(--gold)"></i>
+        <span class="pr" style="left:calc(${(st.amt / den) * 100}% - 1px)" title="元本"></span>
+      </div>
+      <div class="lg"><span><i class="sw" style="background:var(--sim-bar)"></i>元本 <b class="num">${man(st.amt)}</b></span><span><i class="sw" style="background:${cap >= 0 ? 'var(--up)' : 'var(--down)'}"></i>キャピタル <b class="num ${cls(cap)}">${sgn(cap)}</b></span><span><i class="sw" style="background:var(--gold)"></i>インカム <b class="num gold">+${man(inc)}</b></span></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="k">年率</span><span class="v num ${cls(cagr)}">${Number.isFinite(cagr) ? pct(cagr) : '—'}</span></div>
+      <div class="stat"><span class="k">最大下落率 <span class="mute">${b < DAILY_FROM ? '日足の範囲で' : '配当込み'}</span></span><span class="v num down">${pct(dd)}</span></div>
+      <div class="stat"><span class="k">取得利回り（YOC）</span><span class="v num">${pc(yoc, 2)}</span></div>
+      <div class="stat"><span class="k">元本に対する配当利回り</span><span class="v num">${pc(recv12, 2)}</span></div>
+    </div>
+    <div class="vs">
+      ${showE ? `<span class="k"><i class="ln dash" style="border-color:var(--ind1)"></i>1306 との差</span><span class="bar2"><i style="${bar2(vsE)};background:${vsE >= 0 ? 'var(--up)' : 'var(--down)'}"></i></span><span class="num ${cls(vsE)}">${pct(vsE)}</span>` : ''}
+      ${showP ? `<span class="k"><i class="ln dot" style="border-color:var(--ind2)"></i>同業種との差</span><span class="bar2"><i style="${bar2(vsP)};background:${vsP >= 0 ? 'var(--up)' : 'var(--down)'}"></i></span><span class="num ${cls(vsP)}">${pct(vsP)}</span>` : ''}
+    </div>`
+}
+const bar2 = (v) => { const w = Math.min(50, Math.abs(v) * 100); return v >= 0 ? `left:50%;width:${w}%` : `left:${50 - w}%;width:${w}%` }
+
+function svgSize(el) { return [el.clientWidth, el.clientHeight] }
+function niceTicks(lo, hi, n = 4) { const span = hi - lo || 1; const step0 = span / n; const mag = 10 ** Math.floor(Math.log10(step0)); const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= step0); const t = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) t.push(v); return t }
+
+function histChart() {
+  const el = $('#histChart'), [W, H] = svgSize(el), { port, etf, peerG, b } = RES
+  if (W < 40 || H < 40) return
+  const pad = { l: 58, r: 10, t: 6, b: 20 }, w = W - pad.l - pad.r, h = H - pad.t - pad.b
+  const idx = Array.from({ length: NM - b }, (_, k) => b + k)
+  const asPct = st.unit === 'pct'
+  const f = (v) => (asPct ? v / st.amt - 1 : v)
+  const showE = st.cmp === 0 || st.cmp === 1, showP = st.cmp === 0 || st.cmp === 2
+  const vals = idx.flatMap((i) => [f(port.total[i]), f(st.amt), f(port.total[i] - port.income[i]), showE ? f(etf.total[i]) : null, showP ? f(peerG.total[i]) : null].filter((v) => v != null))
+  let lo = Math.min(...vals), hi = Math.max(...vals); const m = (hi - lo) * 0.06; lo -= m; hi += m
+  const X = (i) => pad.l + ((i - b) / (NM - 1 - b)) * w, Y = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * h
+  const path = (fn) => idx.map((i, k) => `${k ? 'L' : 'M'}${X(i).toFixed(1)},${Y(fn(i)).toFixed(1)}`).join('')
+  const capLine = path((i) => f(port.total[i] - port.income[i]))
+  const area = path((i) => f(port.total[i])) + idx.slice().reverse().map((i) => `L${X(i).toFixed(1)},${Y(f(port.total[i] - port.income[i])).toFixed(1)}`).join('') + 'Z'
+  const ticks = niceTicks(lo, hi)
+  const yrTicks = idx.filter((i) => ym(i)[1] === 1)
+  const dAt = X(Math.max(b, DAILY_FROM))
+  let s = `<svg viewBox="0 0 ${W} ${H}">`
+  s += ticks.map((t) => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="${css('--chart-grid')}"/><text x="${pad.l - 6}" y="${Y(t) + 3}" text-anchor="end" font-size="10" fill="${css('--text-3')}" font-family="var(--mono)">${asPct ? (t * 100).toFixed(0) + '%' : (t / 1e4).toFixed(0) + '万'}</text>`).join('')
+  s += yrTicks.map((i) => `<text x="${X(i)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="${css('--text-3')}">${ym(i)[0]}</text>`).join('')
+  if (b < DAILY_FROM) s += `<rect x="${pad.l}" y="${pad.t}" width="${dAt - pad.l}" height="${h}" fill="${css('--text-3')}" opacity=".05"/><text x="${pad.l + 4}" y="${pad.t + 11}" font-size="10" fill="${css('--text-3')}">月次の精度</text><line x1="${dAt}" x2="${dAt}" y1="${pad.t}" y2="${pad.t + h}" stroke="${css('--line-strong')}" stroke-dasharray="2 3"/>`
+  s += `<path d="${area}" fill="${css('--gold')}" opacity="${css('--sim-inc-fill')}"/>`
+  s += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(f(st.amt))}" y2="${Y(f(st.amt))}" stroke="${css('--text-3')}" stroke-width="1"/><text x="${W - pad.r}" y="${Y(f(st.amt)) - 4}" text-anchor="end" font-size="10" fill="${css('--text-3')}">元本</text>`
+  if (showE) s += `<path d="${path((i) => f(etf.total[i]))}" fill="none" stroke="${css('--ind1')}" stroke-width="1.3" stroke-dasharray="5 3"/>`
+  if (showP) s += `<path d="${path((i) => f(peerG.total[i]))}" fill="none" stroke="${css('--ind2')}" stroke-width="1.4" stroke-dasharray="1.5 2.5"/>`
+  s += `<path d="${capLine}" fill="none" stroke="${css('--text-2')}" stroke-width="1" opacity=".7"/>`
+  s += `<path d="${path((i) => f(port.total[i]))}" fill="none" stroke="${css('--text')}" stroke-width="1.8"/>`
+  if (st.cross != null) { const x = X(st.cross); s += `<line x1="${x}" x2="${x}" y1="${pad.t}" y2="${pad.t + h}" stroke="${css('--chart-cross')}" stroke-dasharray="3 3"/><circle cx="${x}" cy="${Y(f(port.total[st.cross]))}" r="3.5" fill="${css('--text')}"/>` }
+  s += '</svg>'
+  el.querySelectorAll('svg').forEach((n) => n.remove()); el.insertAdjacentHTML('afterbegin', s)
+  const tip = $('#histTip')
+  if (st.cross != null) {
+    const i = st.cross; const x = X(i)
+    tip.style.display = 'block'; tip.style.left = `${Math.min(W - 190, Math.max(0, x + 10))}px`; tip.style.top = '8px'
+    tip.innerHTML = `<div class="row"><b>${label(i)}</b></div><div class="row"><span>評価額 + 配当</span><span class="num">${man(port.total[i])}</span></div><div class="row"><span class="gold">受け取った配当</span><span class="num gold">${man(port.income[i])}</span></div>${showE ? `<div class="row"><span style="color:var(--ind1)">1306</span><span class="num">${man(etf.total[i])}</span></div>` : ''}${showP ? `<div class="row"><span style="color:var(--ind2)">同業種</span><span class="num">${man(peerG.total[i])}</span></div>` : ''}`
+  } else tip.style.display = 'none'
+  $('#histLegend').innerHTML = `<span><i class="ln" style="border-color:var(--text)"></i>評価額 + 配当（仮想）</span><span><i class="sw" style="background:color-mix(in srgb,var(--gold) 40%,transparent)"></i>うち受け取った配当</span><span><i class="ln" style="border-color:var(--text-3);border-top-width:1px"></i>元本</span>${showE ? '<span><i class="ln dash" style="border-color:var(--ind1)"></i>1306（配当込み・同じ税）</span>' : ''}${showP ? '<span><i class="ln dot" style="border-color:var(--ind2)"></i>同業種の均等（自分を除く）</span>' : ''}`
+  $('#histUnit').textContent = asPct ? '（元本からの %）' : '（円）'
+  el.onmousemove = (e) => { if ($("#body").classList.contains("calc")) return; const r = el.getBoundingClientRect(); const i = Math.round(b + ((e.clientX - r.left - pad.l) / w) * (NM - 1 - b)); if (i >= b && i < NM) { st.cross = i; heroPast(); histChart(); pastTable() } }
+  el.onmouseleave = () => { if (!RES || $("#body").classList.contains("calc")) return; st.cross = null; heroPast(); histChart(); pastTable() }
+}
+
+function annualChart() {
+  const el = $('#annualChart'), [W, H] = svgSize(el), { rows, byr } = RES
+  if (W < 40 || H < 40) return
+  const years = []; for (let y = byr; y <= 2026; y++) years.push(y)
+  const tot = years.map((y) => rows.reduce((s, x) => s + (x.r.byYear[y] || 0), 0)), t0 = years.map((y) => rows.reduce((s, x) => s + (x.r.byYear0[y] || 0), 0))
+  const yoc = years.map((y) => rows.reduce((s, x) => s + x.s.dpsYear[y] * x.r.sh0, 0) / st.amt * (y === 2026 ? 1 : 1))
+  const pad = { l: 46, r: 40, t: 8, b: 20 }, w = W - pad.l - pad.r, h = H - pad.t - pad.b
+  const hi = Math.max(...tot) * 1.15 || 1, yh = Math.max(...yoc) * 1.25
+  const bw = Math.min(46, (w / years.length) * 0.62)
+  const X = (k) => pad.l + (k + 0.5) * (w / years.length)
+  let s = `<svg viewBox="0 0 ${W} ${H}">`
+  s += niceTicks(0, hi, 3).map((t) => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${pad.t + h - (t / hi) * h}" y2="${pad.t + h - (t / hi) * h}" stroke="${css('--chart-grid')}"/><text x="${pad.l - 6}" y="${pad.t + h - (t / hi) * h + 3}" text-anchor="end" font-size="10" fill="${css('--text-3')}">${(t / 1e4).toFixed(0)}万</text>`).join('')
+  years.forEach((y, k) => {
+    const x = X(k) - bw / 2, h0 = (t0[k] / hi) * h, h1 = (tot[k] / hi) * h
+    const part = y === byr || y === 2026
+    s += `<rect x="${x}" y="${pad.t + h - h1}" width="${bw}" height="${h1 - h0}" fill="${css('--gold')}" opacity=".45"/><rect x="${x}" y="${pad.t + h - h0}" width="${bw}" height="${h0}" fill="${css('--gold')}" ${part ? 'opacity=".55"' : ''}/>`
+    s += `<text x="${X(k)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="${css('--text-3')}">${y}${part ? '*' : ''}</text>`
+    if (tot[k] > 0 && w / years.length > 40) s += `<text x="${X(k)}" y="${pad.t + h - h1 - 3}" text-anchor="middle" font-size="9.5" fill="${css('--text-2')}" font-family="var(--mono)">${(tot[k] / 1e4).toFixed(1)}</text>`
+  })
+  s += `<path d="${yoc.map((v, k) => `${k ? 'L' : 'M'}${X(k)},${pad.t + h - (v / yh) * h}`).join('')}" fill="none" stroke="${css('--text-2')}" stroke-width="1.3"/>` + yoc.map((v, k) => `<circle cx="${X(k)}" cy="${pad.t + h - (v / yh) * h}" r="2.2" fill="${css('--text-2')}"/>`).join('')
+  s += `<text x="${W - pad.r + 4}" y="${pad.t + h - (yoc.at(-1) / yh) * h + 3}" font-size="10" fill="${css('--text-2')}" font-family="var(--mono)">${pc(yoc.at(-1), 1)}</text>`
+  s += '</svg>'
+  el.innerHTML = s
+  document.querySelector('.c-annual .rein').style.visibility = st.reinvest ? 'visible' : 'hidden'
+}
+
+function wfChart() {
+  const el = $('#wfChart'), [W, H] = svgSize(el), { port, etf, allEq, peerG } = RES
+  if (W < 40 || H < 40) return
+  const g = (s) => ({ cap: s.total[NOW] - s.income[NOW] - st.amt, inc: s.income[NOW] })
+  const E = g(etf), A = g(allEq), P = g(peerG), S = g(port)
+  const steps = [
+    { l: '1306', base: 0, cap: E.cap, inc: E.inc, total: true },
+    { l: '規模', d: { cap: A.cap - E.cap, inc: A.inc - E.inc }, sub: '全銘柄の均等' },
+    { l: '業種の配分', d: { cap: P.cap - A.cap, inc: P.inc - A.inc }, sub: '同業種の均等' },
+    { l: '銘柄選び', d: { cap: S.cap - P.cap, inc: S.inc - P.inc }, sub: '参考', ref: true },
+    { l: '選んだ群', cap: S.cap, inc: S.inc, total: true },
+  ]
+  let run = 0; const bars = steps.map((st2) => { if (st2.total) { run = st2.cap + st2.inc; return { ...st2, from: 0, to: run } } const v = st2.d.cap + st2.d.inc; const from = run; run += v; return { ...st2, from, to: run, cap: st2.d.cap, inc: st2.d.inc } })
+  const lo = Math.min(0, ...bars.map((x) => Math.min(x.from, x.to))), hi = Math.max(...bars.map((x) => Math.max(x.from, x.to))) * 1.12
+  const pad = { l: 8, r: 8, t: 14, b: 30 }, w = W - pad.l - pad.r, h = H - pad.t - pad.b
+  const Y = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * h, cw = w / bars.length, bw = Math.min(54, cw * 0.56)
+  let s = `<svg viewBox="0 0 ${W} ${H}"><line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${css('--line-strong')}"/>`
+  bars.forEach((x, k) => {
+    const cx = pad.l + cw * (k + 0.5), bx = cx - bw / 2
+    if (x.total) {
+      const yc = Y(x.cap), y0 = Y(0), yi = Y(x.cap + x.inc)
+      s += `<rect x="${bx}" y="${Math.min(yc, y0)}" width="${bw}" height="${Math.abs(y0 - yc)}" fill="${x.cap >= 0 ? css('--up') : css('--down')}" opacity=".85"/><rect x="${bx}" y="${Math.min(yi, yc)}" width="${bw}" height="${Math.abs(yc - yi)}" fill="${css('--gold')}"/>`
+    } else {
+      const sgnv = x.to >= x.from ? 1 : -1
+      const ya = Y(x.from), yb = Y(x.from + x.inc), yc2 = Y(x.to)
+      s += `<rect x="${bx}" y="${Math.min(ya, yb)}" width="${bw}" height="${Math.max(1, Math.abs(ya - yb))}" fill="${css('--gold')}" ${x.ref ? 'opacity=".55"' : ''}/><rect x="${bx}" y="${Math.min(yb, yc2)}" width="${bw}" height="${Math.max(1, Math.abs(yb - yc2))}" fill="${x.cap >= 0 ? css('--up') : css('--down')}" opacity="${x.ref ? '.45' : '.85'}" ${x.ref ? `stroke="${css('--text-3')}" stroke-dasharray="3 2"` : ''}/>`
+      if (k < bars.length - 1) s += `<line x1="${bx - (cw - bw)}" x2="${bx}" y1="${Y(x.from)}" y2="${Y(x.from)}" stroke="${css('--line-strong')}" stroke-dasharray="2 2"/>`
+    }
+    const v = x.total ? x.to : x.to - x.from
+    s += `<text x="${cx}" y="${Math.min(Y(x.from), Y(x.to)) - 4}" text-anchor="middle" font-size="10" fill="${css('--text-2')}" font-family="var(--mono)">${x.total ? '' : v >= 0 ? '+' : '−'}${(Math.abs(v) / 1e4).toFixed(1)}万</text>`
+    s += `<text x="${cx}" y="${H - 16}" text-anchor="middle" font-size="10.5" fill="${css(x.ref ? '--text-3' : '--text-2')}">${x.l}</text>${x.sub ? `<text x="${cx}" y="${H - 4}" text-anchor="middle" font-size="9" fill="${css('--text-3')}">${x.sub}</text>` : ''}`
+  })
+  s += '</svg>'; el.innerHTML = s
+}
+
+function luckChart() {
+  const el = $('#luckChart'), [W, H] = svgSize(el), { draws, port, etf, peerG } = RES
+  if (W < 40 || H < 40) return
+  const me = port.total[NOW] / st.amt - 1, e = etf.total[NOW] / st.amt - 1, p = peerG.total[NOW] / st.amt - 1
+  const better = draws.filter((d) => d >= me).length / draws.length
+  $('#luckHead').innerHTML = `<span class="pct num">${Math.round((1 - better) * 100)}% 点</span><span class="note">選んだ群のトータルリターンは、無作為に選んだ 1,000 の群のうち <b class="num" style="color:var(--text)">上から ${Math.max(1, Math.round(better * 100))}%</b>。同じ業種の構成・同じ銘柄数で比べています（後知恵は消えません）</span>`
+  const lo = Math.min(...draws, me, e) - 0.03, hi = Math.max(...draws, me, e) + 0.03, nb = 34
+  const bins = Array(nb).fill(0); draws.forEach((d) => bins[Math.min(nb - 1, Math.floor(((d - lo) / (hi - lo)) * nb))]++)
+  const pad = { l: 8, r: 8, t: 14, b: 16 }, w = W - pad.l - pad.r, h = H - pad.t - pad.b, mx = Math.max(...bins)
+  const X = (v) => pad.l + ((v - lo) / (hi - lo)) * w
+  let s = `<svg viewBox="0 0 ${W} ${H}">`
+  bins.forEach((c, k) => { const x0 = pad.l + (k / nb) * w, bh = (c / mx) * h; const mid = lo + ((k + 0.5) / nb) * (hi - lo); s += `<rect x="${x0 + 0.5}" y="${pad.t + h - bh}" width="${w / nb - 1}" height="${bh}" fill="${mid > me ? css('--sim-bar') : css('--text-3')}" opacity="${mid > me ? 0.9 : 0.35}"/>` })
+  const mark = (v, c, l, dy, dash) => `<line x1="${X(v)}" x2="${X(v)}" y1="${pad.t - 4}" y2="${pad.t + h}" stroke="${c}" stroke-width="1.6" ${dash ? `stroke-dasharray="${dash}"` : ''}/><text x="${X(v)}" y="${pad.t - 6 + dy}" text-anchor="middle" font-size="10" fill="${c}">${l}</text>`
+  s += mark(e, css('--ind1'), '1306', 0, '5 3') + mark(p, css('--ind2'), '同業種', 0, '1.5 2.5') + mark(me, css('--text'), '選んだ群', 0)
+  s += `<text x="${pad.l}" y="${H - 3}" font-size="10" fill="${css('--text-3')}" font-family="var(--mono)">${pct(lo, 0)}</text><text x="${W - pad.r}" y="${H - 3}" text-anchor="end" font-size="10" fill="${css('--text-3')}" font-family="var(--mono)">${pct(hi, 0)}</text>`
+  s += '</svg>'; el.innerHTML = s
+}
+
+function basis(fwd) {
+  const { b, excluded, rows, reitShare } = RES
+  const items = []
+  if (!fwd) {
+    if (SOURCES[st.src].g !== 'ウォッチリスト') items.push(['warn', '後知恵', '<b>今日の条件</b>で選んだ銘柄で過去を測っています。当時この銘柄群を選べたとは限りません'])
+    items.push(['warn', '生存者', '今上場している銘柄だけです。期間中に上場廃止した銘柄は入りません'])
+    if (b < DAILY_FROM) items.push(['info', '月次の精度', `日足の範囲（<b>${label(DAILY_FROM)}</b> から）より前は、月末の終値で買い・再投資しています`])
+    if (st.reinvest) items.push(['', '再投資の時期', '支払日は持たないので、権利落ち日の終値で再投資しています（実際より約 3 か月早い）'])
+    if (st.cmp !== 1 && st.cmp !== 3) { const n17 = rows.filter((x) => x.s17).length; items.push(['', '業種', `業種は今の分類です。自分を除いた同じ業種・市場区分の銘柄と比べています${n17 ? `。<b>17 業種で比べた銘柄: ${n17}</b>（相手が 5 未満）` : ''}`]) }
+    if (reitShare > 0.2 && st.cmp !== 2 && st.cmp !== 3) items.push(['info', '1306 と REIT', `J-REIT が ${Math.round(reitShare * 100)}% あります。1306 には J-REIT がほとんど入っていません`])
+  } else {
+    items.push(['warn', '試算', '過去の実績の<b>機械的な延長</b>で、予想ではありません。会社の予想配当は使っていません'])
+    items.push(['', '1 年の数え方', '直近 N 回の権利落ちの合計。J-REIT は直近の期の中央値で、一時的な増配をならしています'])
+    if (st.method === 1) items.push(['info', '増配の時期', '直近 10 年は増配の多い時期で、上に偏ることがあります。伸びは毎年 0.8 倍ずつ弱めています'])
+    if (st.method === 2) items.push(['info', '直線', 'Excel の FORECAST.LINEAR と同じ直線です。参考で、0 円を下限にしています'])
+    items.push(['', '受取月', '支払日は持たないので、権利確定月 + 3 か月を目安にしています'])
+    const sh = FC.items.filter((x) => x.short).length
+    if (sh) items.push(['info', '期間不足', `記録が 4 年に満たない ${sh} 銘柄は横ばいだけで試算しています`])
+  }
+  if (excluded.length) items.push(['warn', 'データの欠け', `${excluded.length} 銘柄を外しました（${excluded.map((e) => `${e.s.code} ${esc(e.why)}`).join('・')}）。残りに配り直しています`])
+  items.push(['', '税', st.tax === 1 ? '税引後 20.315%。NISA の枠・譲渡益の税は見ていません' : st.tax === 0 ? '税引前です' : '非課税（NISA の枠は見ていません）'])
+  return items.map(([k, t, d]) => `<div class="bi ${k}"><span class="t">${t}</span><span class="d">${d}</span></div>`).join('')
+}
+
+const PSORT = [{ l: '寄与', f: (x) => -(x.r.total[NOW] - x.each) }, { l: 'トータルリターン', f: (x) => -x.tr }, { l: '受け取った配当', f: (x) => -x.r.income[NOW] }, { l: '同業種の順位', f: (x) => x.rank / x.n }, { l: 'コード', f: (x) => +x.s.code }]
+function spark(a, b) { const w = 64, h = 16, ps = a.p.slice(b); const lo = Math.min(...ps), hi = Math.max(...ps); return `<svg class="spark" viewBox="0 0 ${w} ${h}"><path d="${ps.map((v, k) => `${k ? 'L' : 'M'}${((k / (ps.length - 1)) * w).toFixed(1)},${(h - 1 - ((v - lo) / (hi - lo)) * (h - 2)).toFixed(1)}`).join('')}" fill="none" stroke="${ps.at(-1) >= ps[0] ? css('--up') : css('--down')}" stroke-width="1"/></svg>` }
+function pastTable() {
+  const { rows, b, excluded } = RES, at = st.cross ?? NOW
+  const list = [...rows].sort((p, q) => PSORT[st.sort].f(p) - PSORT[st.sort].f(q))
+  const mx = Math.max(...rows.map((x) => Math.abs(x.r.total[at] - x.each)))
+  const hidePeer = st.cmp === 1 || st.cmp === 3
+  const calSel = null
+  $('#tableCount').textContent = `${rows.length} 銘柄${excluded.length ? `・外した ${excluded.length}` : ''}${st.cross != null ? `・${label(at)} 時点` : ''}`
+  const th = (l, k, c = '') => `<th class="${c} ${PSORT[st.sort].l === k ? 'on' : ''}" data-sort="${k}">${l}</th>`
+  $('#pastTable').innerHTML = `<table><thead><tr>${th('銘柄', 'コード', 'l')}<th class="l c-m">業種</th><th class="c-m">取得単価</th><th class="c-m">株数</th><th class="c-s">評価額</th><th class="c-s">含み損益</th>${th('受け取った配当', '受け取った配当')}${th('トータルリターン', 'トータルリターン')}${th('寄与', '寄与', 'c-s')}${hidePeer ? '' : th('同業種の順位', '同業種の順位')}<th class="c-m">取得利回り</th><th class="c-m">減配</th><th class="c-m">推移</th></tr></thead><tbody>${list.map((x, k) => {
+    const v = x.r.total[at] - x.r.income[at], inc = x.r.income[at], tot = x.r.total[at], pl = tot - x.each - inc, tr = tot / x.each - 1, c = tot - x.each
+    const sh = st.reinvest ? x.r.sh : x.r.sh0
+    return `<tr class="${k === st.row && st.card === 'table' ? 'sel' : ''}" data-k="${k}"><td><span class="code">${x.s.code}</span><span class="nm">${esc(x.s.name)}</span></td><td class="l c-m mute">${esc(x.s17 ? SECT[x.s.sect].s17 : x.s.sect)}${x.s17 ? '<span class="flag s17">17</span>' : ''}</td><td class="num c-m">${Math.round(x.r.buy).toLocaleString()}</td><td class="num c-m">${sh.toFixed(1)}</td><td class="num c-s">${man(v)}</td><td class="num c-s ${cls(pl)}">${sgn(pl)}</td><td class="num gold">${man(inc)}</td><td class="num ${cls(tr)}">${pct(tr)}</td><td class="c-s"><span class="ib"><i style="${bar2(c / mx / 2 * 1)};background:${c >= 0 ? 'var(--up)' : 'var(--down)'}"></i></span></td>${hidePeer ? '' : `<td><span class="rank"><span class="rb"><i style="left:calc(${((x.rank - 1) / Math.max(1, x.n - 1)) * 100}% - 1px)"></i></span><span class="num">${x.rank}/${x.n}</span></span></td>`}<td class="num c-m">${pc(x.yoc, 2)}</td><td class="num c-m ${x.cuts ? 'down' : 'mute'}">${x.cuts || '—'}</td><td class="c-m">${spark(x.s, b)}</td></tr>`
+  }).join('')}${excluded.map((e) => `<tr class="ex"><td><span class="code">${e.s.code}</span><span class="nm">${esc(e.s.name)}</span></td><td class="l c-m">${esc(e.s.sect)}</td><td colspan="11" class="l"><span class="flag warn">外した</span> ${esc(e.why)}（基準日 ${label(b)} より後）</td></tr>`).join('')}</tbody></table>`
+  $('#pastTable').querySelectorAll('th[data-sort]').forEach((el) => (el.onclick = () => { st.sort = PSORT.findIndex((s) => s.l === el.dataset.sort); pastTable() }))
+  $('#pastTable').querySelectorAll('tr[data-k]').forEach((el) => (el.onclick = () => { st.card = 'table'; st.row = +el.dataset.k; focusCards(); pastTable() }))
+}
+
+// ---------------- これから
+function heroFwd() {
+  const { mid, stress, cumL, years, half, full, items } = FC
+  const k = st.fcross ?? 0
+  const y1 = mid[k], ys = stress[0]
+  $('#fheroCross').innerHTML = st.fcross != null ? `<span class="crossday num">${years[k]} 年</span>` : ''
+  $('#fhero').innerHTML = `
+    <div class="lead">今 <b class="num">${man(st.amt)}</b> を ${items.length} 銘柄へ均等に入れたら（${METHODS[st.method].l}）</div>
+    <div class="big num gold">${man(y1)}<small>/ 年 ${st.fcross != null ? `（${years[k]}）` : '（1 年目）'}</small></div>
+    <div class="stats">
+      <div class="stat"><span class="k">元本に対する利回り</span><span class="v num">${pc(y1 / st.amt, 2)}</span></div>
+      <div class="stat"><span class="k">${years.length} 年の累計</span><span class="v num gold">${man(cumL.at(-1))}</span></div>
+      <div class="stat"><span class="k">${FC.worst} 年の前年比を当てたら</span><span class="v num"><span class="down">${man(ys)}</span> <span class="mute" style="font-size:var(--fs-1)">${pct(ys / FC.flat[0] - 1)}</span></span></div>
+      <div class="stat"><span class="k">月あたり（目安）</span><span class="v num">${yen(y1 / 12)}</span></div>
+    </div>
+    <div class="p2only">
+      <div class="vs" style="grid-template-columns:auto 1fr auto">
+        <span class="k">元本回収の目安 <span class="p2tag">P2</span></span>
+        <span class="bar2" style="background:var(--panel-3)"><i style="left:0;width:${Math.min(100, ((half ?? 31) / 30) * 100)}%;background:color-mix(in srgb,var(--gold) 50%,transparent)"></i><i style="left:0;width:${Math.min(100, ((full ?? 31) / 30) * 100)}%;background:color-mix(in srgb,var(--gold) 22%,transparent)"></i></span>
+        <span class="num">${half ? `50%: ${half} 年` : '—'} ／ ${full ? `100%: ${full} 年` : '30 年以内には届かない'}</span>
+      </div>
+    </div>`
+}
+function fyearChart() {
+  const el = $('#fyearChart'), [W, H] = svgSize(el), { years, mid, stress, band, cumL, flat } = FC
+  if (W < 40 || H < 40) return
+  const showBand = st.scope === 'all'
+  const pad = { l: 46, r: 52, t: 8, b: 20 }, w = W - pad.l - pad.r, h = H - pad.t - pad.b
+  const hi = Math.max(...mid, ...(showBand ? band.map((x) => x[2]) : [0]), ...flat) * 1.12, ch = cumL.at(-1) * 1.1
+  const cw = w / years.length, bw = Math.min(30, cw * 0.55), X = (k) => pad.l + cw * (k + 0.5), Y = (v) => pad.t + h - (v / hi) * h, YC = (v) => pad.t + h - (v / ch) * h
+  let s = `<svg viewBox="0 0 ${W} ${H}">`
+  s += niceTicks(0, hi, 3).map((t) => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="${css('--chart-grid')}"/><text x="${pad.l - 6}" y="${Y(t) + 3}" text-anchor="end" font-size="10" fill="${css('--text-3')}">${(t / 1e4).toFixed(0)}万</text>`).join('')
+  s += niceTicks(0, ch, 3).map((t) => `<text x="${W - pad.r + 6}" y="${YC(t) + 3}" font-size="10" fill="${css('--text-3')}">${(t / 1e4).toFixed(0)}万</text>`).join('')
+  if (showBand) s += `<path d="${band.map((x, k) => `${k ? 'L' : 'M'}${X(k)},${Y(x[2])}`).join('')}${band.map((x, k) => `L${X(band.length - 1 - k)},${Y(band[band.length - 1 - k][0])}`).join('')}Z" fill="${css('--gold')}" opacity="${css('--sim-band')}"/>`
+  years.forEach((y, k) => { s += `<rect x="${X(k) - bw / 2}" y="${Y(mid[k])}" width="${bw}" height="${pad.t + h - Y(mid[k])}" fill="${css('--gold')}" opacity="${st.fcross === k ? 1 : 0.78}"/>`; if (years.length <= 12 || k % 5 === 0) s += `<text x="${X(k)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="${css('--text-3')}">${y}</text>` })
+  // 帯は棒の上にひげ（10〜90%）でも出す（棒に隠れないように）
+  if (showBand) band.forEach((x, k) => { const cx = X(k); s += `<line x1="${cx}" x2="${cx}" y1="${Y(x[0])}" y2="${Y(x[2])}" stroke="${css('--text')}" stroke-width="1" opacity=".75"/><line x1="${cx - 5}" x2="${cx + 5}" y1="${Y(x[0])}" y2="${Y(x[0])}" stroke="${css('--text')}" opacity=".75"/><line x1="${cx - 5}" x2="${cx + 5}" y1="${Y(x[2])}" y2="${Y(x[2])}" stroke="${css('--text')}" opacity=".75"/>` })
+  s += `<path d="${stress.map((v, k) => `${k ? 'L' : 'M'}${X(k)},${Y(v)}`).join('')}" fill="none" stroke="${css('--down')}" stroke-width="2" stroke-dasharray="5 3"/>` + stress.map((v, k) => `<circle cx="${X(k)}" cy="${Y(v)}" r="2.4" fill="${css('--down')}"/>`).join('')
+  if (st.method !== 0) s += `<path d="${flat.map((v, k) => `${k ? 'L' : 'M'}${X(k)},${Y(v)}`).join('')}" fill="none" stroke="${css('--text-3')}" stroke-width="1"/>`
+  s += `<path d="${cumL.map((v, k) => `${k ? 'L' : 'M'}${X(k)},${YC(v)}`).join('')}" fill="none" stroke="${css('--text-2')}" stroke-width="1.2" opacity=".8"/>`
+  if (YC(st.amt) > pad.t) s += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${YC(st.amt)}" y2="${YC(st.amt)}" stroke="${css('--text-3')}" stroke-dasharray="1 3"/><text x="${W - pad.r - 2}" y="${YC(st.amt) - 3}" text-anchor="end" font-size="10" fill="${css('--text-3')}">元本（累計の軸）</text>`
+  s += '</svg>'
+  el.querySelectorAll('svg').forEach((n) => n.remove()); el.insertAdjacentHTML('afterbegin', s)
+  const tip = $('#fyearTip')
+  if (st.fcross != null) { const k = st.fcross; tip.style.display = 'block'; tip.style.left = `${Math.min(W - 200, X(k) + 12)}px`; tip.style.top = '8px'; tip.innerHTML = `<div class="row"><b>${years[k]} 年</b></div><div class="row"><span class="gold">${METHODS[st.method].l}</span><span class="num">${man(mid[k])}</span></div>${showBand ? `<div class="row"><span>帯 10〜90%</span><span class="num">${man(band[k][0])} 〜 ${man(band[k][2])}</span></div>` : ''}<div class="row"><span class="down">ストレス</span><span class="num">${man(stress[k])}</span></div><div class="row"><span>累計</span><span class="num">${man(cumL[k])}</span></div>` } else tip.style.display = 'none'
+  $('#fyearLegend').innerHTML = `<span><i class="sw" style="background:var(--gold)"></i>${METHODS[st.method].l}（税引後）</span>${showBand ? '<span class="p2only"><i class="sw" style="background:color-mix(in srgb,var(--gold) 25%,transparent)"></i>帯 10〜90%（年ごとに暦年を引く）</span>' : ''}<span><i class="ln dash" style="border-color:var(--down)"></i>${FC.worst} 年の前年比を当てたら（以降横ばい）</span>${st.method !== 0 ? '<span><i class="ln" style="border-color:var(--text-3);border-top-width:1px"></i>横ばい</span>' : ''}<span><i class="ln" style="border-color:var(--text-2);border-top-width:1px"></i>累計（右の軸）</span>`
+  seg('#segM', METHODS, st.method, 'M', (i) => (st.method = i))
+  el.onmousemove = (e) => { if ($("#body").classList.contains("calc")) return; const r = el.getBoundingClientRect(); const k = Math.floor((e.clientX - r.left - pad.l) / cw); if (k >= 0 && k < years.length) { st.fcross = k; heroFwd(); fyearChart() } }
+  el.onmouseleave = () => { if (!RES || $("#body").classList.contains("calc")) return; st.fcross = null; heroFwd(); fyearChart() }
+}
+const MN = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+function calChart() {
+  const el = $('#calChart'), [W, H] = svgSize(el), { cal, items } = FC
+  if (W < 40 || H < 40) return
+  const tot = cal.map((c) => c.reduce((s, x) => s + x.v, 0)), hi = Math.max(...tot) * 1.15 || 1
+  const pad = { l: 40, r: 6, t: 8, b: 18 }, w = W - pad.l - pad.r, h = H - pad.t - pad.b, cw = w / 12, bw = Math.min(30, cw * 0.62)
+  const Y = (v) => pad.t + h - (v / hi) * h
+  const colors = ['--gold', '--ind1', '--ind2', '--text-2']
+  let s = `<svg viewBox="0 0 ${W} ${H}">` + niceTicks(0, hi, 3).map((t) => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="${css('--chart-grid')}"/><text x="${pad.l - 5}" y="${Y(t) + 3}" text-anchor="end" font-size="10" fill="${css('--text-3')}">${(t / 1e4).toFixed(0)}万</text>`).join('')
+  cal.forEach((c, m) => {
+    let acc = 0; const x = pad.l + cw * (m + 0.5) - bw / 2
+    c.sort((a, b) => b.v - a.v).forEach((p, j) => { const y0 = Y(acc), y1 = Y(acc + p.v); acc += p.v; s += `<rect x="${x}" y="${y1}" width="${bw}" height="${Math.max(0.5, y0 - y1 - 0.6)}" fill="${css('--gold')}" opacity="${(st.calSel == null || st.calSel === m ? 1 : 0.3) * (0.95 - (j % 4) * 0.17)}"/>` })
+    s += `<text x="${pad.l + cw * (m + 0.5)}" y="${H - 4}" text-anchor="middle" font-size="10" fill="${css(st.calSel === m ? '--text' : '--text-3')}">${m + 1}</text>`
+    if (st.calSel === m) s += `<rect x="${x - 3}" y="${pad.t}" width="${bw + 6}" height="${h}" fill="none" stroke="${css('--focus')}" rx="2"/>`
+  })
+  s += '</svg>'; el.innerHTML = s
+  const nz = tot.filter((v) => v > 0).length
+  const sel = st.calSel != null ? cal[st.calSel] : null
+  $('#calNote').innerHTML = sel ? `<b style="color:var(--text)">${MN[st.calSel]}</b> ${man(tot[st.calSel])}: ${sel.map((p) => `${p.it.s.code}`).join('・') || 'なし'}` : `配当のある月: <b style="color:var(--text)">${nz}/12</b>。いちばん多い月は ${MN[tot.indexOf(Math.max(...tot))]}（年の ${pc(Math.max(...tot) / tot.reduce((a, b) => a + b, 0), 0)}）`
+  seg('#segV', ['受取の目安', '権利確定月'], st.calView, 'V', (i) => (st.calView = i))
+}
+function sensChart() {
+  const el = $('#sensChart'), [W, H] = svgSize(el), { items, worst } = FC
+  if (W < 40 || H < 40) return
+  const t = 1 - TAX[st.tax]
+  const tot = items.reduce((s, it) => s + it.sh * it.D0 * t, 0)
+  const list = items.map((it) => ({ it, zero: it.sh * it.D0 * t, stress: it.sh * it.D0 * t * (1 - Math.min(1, it.yoy[worst])) })).sort((a, b) => b.zero - a.zero).slice(0, Math.max(3, Math.floor((H - 6) / 19)))
+  $('#sensSub').textContent = `1 年目 ${man(tot)} のうち`
+  const mx = list[0]?.zero || 1
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px;position:absolute;inset:0;overflow:hidden">${list.map((x) => `<div style="display:grid;grid-template-columns:minmax(80px,1.1fr) 2fr 92px;gap:8px;align-items:center;font-size:var(--fs-1);height:16px"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-2)"><span class="code num mute" style="margin-right:5px">${x.it.s.code}</span>${esc(x.it.s.name)}</span><span style="position:relative;height:8px;background:var(--panel-3);border-radius:1px"><i style="position:absolute;left:0;top:0;bottom:0;width:${(x.zero / mx) * 100}%;background:var(--sim-bar);border-radius:1px"></i><i style="position:absolute;left:0;top:0;bottom:0;width:${(x.stress / mx) * 100}%;background:var(--down);border-radius:1px"></i></span><span class="num" style="text-align:right">−${man(x.zero)} <span class="mute">${pc(x.zero / tot, 0)}</span></span></div>`).join('')}</div>`
+}
+const FSORT = [{ l: '1 年目', f: (x) => -x.sh * x.D0 }, { l: '試算の伸び', f: (x) => -x.g }, { l: 'ストレス', f: (x) => x.yoy[FC.worst] }, { l: 'コード', f: (x) => +x.s.code }]
+function fwdTable() {
+  const { items, worst } = FC, t = 1 - TAX[st.tax]
+  const list = [...items].sort((p, q) => FSORT[st.fsort].f(p) - FSORT[st.fsort].f(q))
+  const selM = st.calSel
+  const th = (l, k, c = '') => `<th class="${c} ${FSORT[st.fsort].l === k ? 'on' : ''}" data-sort="${k}">${l}</th>`
+  const H = HORIZ[st.horizon]
+  $('#fwdTable').innerHTML = `<table><thead><tr>${th('銘柄', 'コード', 'l')}<th class="c-m">1 株配当（直近 1 年）</th><th class="c-m">記録</th><th class="c-s">5 年の伸び</th>${th('試算の伸び', '試算の伸び')}${th('1 年目', '1 年目')}<th>${H} 年目</th>${th(`${worst} 年の前年比`, 'ストレス')}<th class="l c-m">権利確定月</th></tr></thead><tbody>${list.map((x, k) => {
+    const on = selM == null || x.s.months.some((m) => (st.calView === 0 ? ((m + 2) % 12) : m - 1) === selM)
+    const gShow = st.method === 0 || x.short ? 0 : st.method === 1 ? x.g : (x.lin(1) / x.D0 - 1)
+    return `<tr class="${k === st.frow && st.card === 'ftable' ? 'sel' : ''} ${on ? '' : 'dim'}" data-k="${k}"><td><span class="code">${x.s.code}</span><span class="nm">${esc(x.s.name)}</span>${x.short ? '<span class="flag warn">期間不足</span>' : ''}</td><td class="num c-m">${x.D0.toFixed(1)}円</td><td class="num c-m">${x.n} 年</td><td class="num c-s ${cls(x.g5)}">${Number.isFinite(x.g5) ? pct(x.g5) : '—'}</td><td class="num ${cls(gShow)}">${st.method === 0 ? '<span class="mute">横ばい</span>' : pct(gShow)}</td><td class="num gold">${man(x.sh * x.D0 * t)}</td><td class="num">${man(x.sh * FC.line(x, H) * t)}</td><td class="num ${cls(x.yoy[worst] - 1)}">${pct(x.yoy[worst] - 1)}</td><td class="l c-m mute">${x.s.months.map((m) => `${m}月`).join('・')}</td></tr>`
+  }).join('')}</tbody></table>`
+  $('#fwdTable').querySelectorAll('th[data-sort]').forEach((el) => (el.onclick = () => { st.fsort = FSORT.findIndex((s) => s.l === el.dataset.sort); fwdTable() }))
+}
+
+function focusCards() { document.querySelectorAll('.card').forEach((c) => c.classList.toggle('focus', c.dataset.card === st.card)) }
+function render() {
+  document.documentElement.classList.toggle('p1', st.scope === 'p1')
+  if (st.scope === 'p1') { if (BASES[st.base].p2) st.base = 1; if (st.tax === 2) st.tax = 1; if (METHODS[st.method].p2) st.method = 0; if (st.horizon >= 2) st.horizon = 1 }
+  $('#pane').classList.toggle('isempty', st.state === 'empty')
+  $('#srcName').textContent = `${SOURCES[st.src].name} · ${SOURCES[st.src].codes.length} 銘柄`
+  document.querySelectorAll('#nav span').forEach((s) => s.classList.toggle('on', s.dataset.sec === st.sec))
+  renderCfg()
+  if (st.state === 'empty') return
+  // 計算の入力が変わったら、毎回「読み込み中」にしてから計算する（アプリでは Core の sim.run。古い要求の結果は捨てる）
+  const sig = sigOf()
+  if (sig !== calcSig || st.state === 'loading') return startCalc(sig)
+  const body = $("#body"); if (body.classList.contains("calc")) { body.classList.remove("calc"); void body.offsetWidth; body.classList.add("reveal") }
+  draw()
+}
+let calcSig = null, calcTimer = null, calcSeq = 0
+const MIN_LOADING = 400 // 速く終わっても、この間は読み込み中を出す（ちらつかせない）
+const sigOf = () => JSON.stringify([st.base, st.amt, st.reinvest, st.tax, st.g17, st.method, st.horizon, st.src, st.scope])
+function startCalc(sig) {
+  const body = $('#body'); body.classList.remove('reveal'); body.classList.add('calc')
+  const codes = SOURCES[st.src].codes, secs = new Set(STOCKS.filter((s) => codes.includes(s.code)).map((s) => s.sect))
+  const peers = [...secs].reduce((n, k) => n + SECT[k].n, 0)
+  $('#loaderWhat').innerHTML = `${codes.length} 銘柄 · ${BASES[st.base].l}から${st.reinvest ? '（再投資）' : ''}<br>同業種 ${peers} 銘柄 · 1306${st.scope === 'all' ? ' · 偶然との比較 1,000 回' : ''} · これから ${HORIZ[st.horizon]} 年`
+  clearTimeout(calcTimer)
+  if (st.state === 'loading') { calcSig = null; return } // モックの「計算中」: 出したまま止める
+  const seq = ++calcSeq
+  calcTimer = setTimeout(() => {
+    if (seq !== calcSeq) return
+    RES = run(); FC = forecast(RES.rows); calcSig = sig
+    body.classList.remove('calc'); void body.offsetWidth; body.classList.add('reveal')
+    draw()
+  }, MIN_LOADING)
+}
+function draw() {
+  if (!RES) return
+  $('#pastSub').textContent = `${label(RES.b)} に買い持ち · 均等の金額 · ${st.reinvest ? '再投資' : '受け取る'} · ${['税引前', '税引後 20.315%', '非課税'][st.tax]}`
+  $('#fwdSub').textContent = `今日の終値で買い · ${HORIZ[st.horizon]} 年 · ${METHODS[st.method].l}`
+  seg('#segP', ['円', '%'], st.unit === 'pct' ? 1 : 0, 'P', (i) => (st.unit = i ? 'pct' : 'yen'))
+  heroPast(); histChart(); annualChart(); if (st.scope === 'all') { wfChart(); luckChart() }
+  $('#basisPast').innerHTML = basis(false); pastTable()
+  heroFwd(); fyearChart(); calChart(); sensChart(); $('#basisFwd').innerHTML = basis(true); fwdTable()
+  focusCards()
+}
+
+// ------------------------------------------------------------ キー（アプリでは registerPane('divsim', { key }) ）
+const toastEl = $('#toast'); let toastT
+function toast(m) { toastEl.textContent = m; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), 1600) }
+function cardsOf() { return [...document.querySelectorAll(`#sec-${st.sec} .card[data-sel]`)].filter((c) => c.offsetParent).map((c) => c.dataset.card) }
+let progUntil = 0
+function goSec(s, keepCard) { st.sec = s; if (!keepCard) st.card = null; progUntil = performance.now() + 900; render(); $('#body').scrollTo({ top: s === 'past' ? 0 : $(`#sec-${s}`).offsetTop - $('#body').offsetTop, behavior: 'instant' }) }
+let dlgSel = 0
+function openDlg() { dlgSel = st.src; $('#dlg').classList.add('open'); drawDlg() }
+function drawDlg() { let g = ''; $('#dlgList').innerHTML = SOURCES.map((s, i) => { const h = s.g !== g ? `<div class="grp">${(g = s.g)}</div>` : ''; return `${h}<div class="it ${i === dlgSel ? 'sel' : ''} ${s.dis ? 'dis' : ''}" data-i="${i}"><span>${esc(s.name)}</span><span class="n">${s.codes.length ? `${s.codes.length} 銘柄` : ''}</span></div>` }).join(''); $('#dlgList').querySelectorAll('.it').forEach((el) => (el.onclick = () => { dlgSel = +el.dataset.i; pickDlg() })) }
+function pickDlg() { if (SOURCES[dlgSel].dis) return toast('保有は P2（これからの段だけ）'); st.src = dlgSel; $('#dlg').classList.remove('open'); st.row = 0; st.frow = 0; render(); toast(`出どころ: ${SOURCES[st.src].name}`) }
+const dtSel = (box) => box.querySelector('tr.sel')?.scrollIntoView({ block: 'nearest' })
+document.addEventListener('keydown', (e) => {
+  if (e.isComposing) return
+  if ($('#dlg').classList.contains('open')) { if (e.key === 'ArrowDown') dlgSel = Math.min(SOURCES.length - 1, dlgSel + 1); if (e.key === 'ArrowUp') dlgSel = Math.max(0, dlgSel - 1); if (e.key === 'Enter') return pickDlg(); if (e.key === 'Escape') $('#dlg').classList.remove('open'); drawDlg(); e.preventDefault(); return }
+  if (e.target.tagName === 'INPUT') return
+  if (!RES && /^Arrow|^Page|^Home|^End|^Enter/.test(e.key)) return
+  const past = st.sec === 'past', k = e.key, code = e.code
+  if (e.altKey && /^Digit[1-4]$/.test(code)) { const i = +code.slice(5) - 1; if (past) { if (BASES[i].p2 && st.scope === 'p1') return; st.base = i; st.cross = null } else { if (i >= 2 && st.scope === 'p1') return; st.horizon = i; st.fcross = null } e.preventDefault(); return render() }
+  if (e.altKey || e.ctrlKey || e.metaKey) return
+  if (k === 'Tab') { const cs = cardsOf(); const i = cs.indexOf(st.card); st.card = cs[(i + (e.shiftKey ? -1 : 1) + cs.length + (i < 0 && e.shiftKey ? 1 : 0)) % cs.length]; focusCards(); document.querySelector(`.card[data-card="${st.card}"]`).scrollIntoView({ block: 'nearest' }); e.preventDefault(); return render() }
+  if (k === 'PageDown' && !['table', 'ftable'].includes(st.card)) { e.preventDefault(); return goSec('fwd') }
+  if (k === 'PageUp' && !['table', 'ftable'].includes(st.card)) { e.preventDefault(); return goSec('past') }
+  if (k === 'Escape') { if (st.cross != null || st.fcross != null || st.calSel != null) { st.cross = st.fcross = st.calSel = null } else st.card = null; return render() }
+  if (k === 'ArrowLeft' || k === 'ArrowRight') {
+    const d = k === 'ArrowLeft' ? -1 : 1
+    if (st.card === 'hist' || (past && st.card == null)) { st.card = 'hist'; st.cross = Math.max(RES.b, Math.min(NOW, (st.cross ?? NOW) + d)); e.preventDefault(); return render() }
+    if (st.card === 'fyear' || (!past && st.card == null)) { st.card = 'fyear'; st.fcross = Math.max(0, Math.min(FC.years.length - 1, (st.fcross ?? -1) + d)); e.preventDefault(); return render() }
+    if (st.card === 'fcal') { st.calSel = ((st.calSel ?? (d > 0 ? -1 : 12)) + d + 12) % 12; return render() }
+  }
+  if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(k) && (st.card === 'table' || st.card === 'ftable')) {
+    const n = st.card === 'table' ? RES.rows.length : FC.items.length, key = st.card === 'table' ? 'row' : 'frow'
+    const step = { ArrowUp: -1, ArrowDown: 1, PageUp: -10, PageDown: 10 }[k]
+    st[key] = k === 'Home' ? 0 : k === 'End' ? n - 1 : Math.max(0, Math.min(n - 1, st[key] + step)); e.preventDefault(); render(); dtSel($(st.card === 'table' ? '#pastTable' : '#fwdTable')); return
+  }
+  if (k === 'Enter') { if (st.card === 'table' || st.card === 'ftable') { const tr = $(st.card === 'table' ? '#pastTable' : '#fwdTable').querySelector('tr.sel'); if (tr) toast(`リンク 2 のチャート・銘柄情報に ${tr.querySelector('.code').textContent} を出しました`) } return }
+  if (/^[0-9]$/.test(k)) return toast('数字だけのキーは銘柄ジャンプ（全体のキー）。基準日は Alt+1〜4')
+  const map = {
+    KeyL: () => openDlg(),
+    KeyA: () => editAmt(),
+    KeyR: () => { st.reinvest = !st.reinvest },
+    KeyX: () => { st.tax = (st.tax + 1) % (st.scope === 'p1' ? 2 : 3) },
+    KeyB: () => { st.cmp = (st.cmp + 1) % 4 },
+    KeyG: () => { st.g17 = !st.g17 },
+    KeyM: () => { if (st.scope !== 'p1') st.method = (st.method + 1) % 3 },
+    KeyP: () => { st.unit = st.unit === 'pct' ? 'yen' : 'pct' },
+    KeyV: () => { st.calView = 1 - st.calView },
+    KeyS: () => { if (past) st.sort = (st.sort + 1) % PSORT.length; else st.fsort = (st.fsort + 1) % FSORT.length },
+  }
+  if (map[code]) { e.preventDefault(); const r = map[code](); if (code !== 'KeyL' && code !== 'KeyA') render(); return r }
+})
+document.querySelectorAll('#nav span').forEach((s) => (s.onclick = () => goSec(s.dataset.sec)))
+$('#src').onclick = openDlg
+// どちらの段が見えているかで見出しのナビを合わせる
+$('#body').addEventListener('scroll', () => { if (performance.now() < progUntil) return; const f = $('#sec-fwd').getBoundingClientRect().top - $('#body').getBoundingClientRect().top; const s = f < 120 ? 'fwd' : 'past'; if (s !== st.sec) { st.sec = s; document.querySelectorAll('#nav span').forEach((x) => x.classList.toggle('on', x.dataset.sec === s)); renderCfg() } })
+
+// モックの帯
+const SIZES = { S: [560, 900], M: [1000, 900], L: [1480, 900] }
+function press(attr, v) { document.querySelectorAll(`[data-${attr}]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[attr] === v))) }
+document.querySelectorAll('[data-size]').forEach((b) => (b.onclick = () => { const [w, h] = SIZES[b.dataset.size]; $('#pane').style.setProperty('--w', `${w}px`); $('#pane').style.setProperty('--h', `${h}px`); press('size', b.dataset.size); requestAnimationFrame(render) }))
+document.querySelectorAll('[data-theme]').forEach((b) => (b.onclick = () => { document.documentElement.dataset.theme = b.dataset.theme; press('theme', b.dataset.theme); render() }))
+document.querySelectorAll('[data-candle]').forEach((b) => (b.onclick = () => { document.documentElement.dataset.candle = b.dataset.candle; press('candle', b.dataset.candle); render() }))
+document.querySelectorAll('[data-scope]').forEach((b) => (b.onclick = () => { st.scope = b.dataset.scope; press('scope', st.scope); requestAnimationFrame(render) }))
+document.querySelectorAll('[data-state]').forEach((b) => (b.onclick = () => { st.state = b.dataset.state; press('state', st.state); render() }))
+document.querySelector('[data-motion]').onclick = (e) => { const on = document.documentElement.dataset.reduceMotion !== 'true'; document.documentElement.dataset.reduceMotion = String(on); e.target.setAttribute('aria-pressed', String(on)) }
+new ResizeObserver(() => render()).observe($('#pane'))
+
+// ハッシュで状態を決める（スクリーンショット用）: #fwd&size=M&light&p1&base=2&reinvest&cross=110&focus=table
+;(() => {
+  const h = new URLSearchParams(location.hash.slice(1))
+  if (h.has('light')) { document.documentElement.dataset.theme = 'light'; press('theme', 'light') }
+  if (h.has('p1')) { st.scope = 'p1'; press('scope', 'p1') }
+  if (h.has('size')) { const s = h.get('size'); const [w, hh] = SIZES[s]; $('#pane').style.setProperty('--w', `${w}px`); $('#pane').style.setProperty('--h', `${hh}px`); press('size', s) }
+  if (h.has('base')) st.base = +h.get('base')
+  if (h.has('reinvest')) st.reinvest = true
+  if (h.has('method')) st.method = +h.get('method')
+  if (h.has('src')) st.src = +h.get('src')
+  if (h.has('cross')) st.cross = +h.get('cross')
+  if (h.has('focus')) st.card = h.get('focus')
+  if (h.has('state')) { st.state = h.get('state'); press('state', st.state) }
+  render()
+  if (h.has('fwd')) goSec('fwd', true)
+})()
+</script>
+</body>
+</html>
