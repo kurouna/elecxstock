@@ -106,6 +106,9 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
   （[docs/design-mylayouts.md](docs/design-mylayouts.md)）。
 - **文言は `lib/i18n.ts` の `ja` と `en` の両方に足す**（キーの一致は単体テストが確かめる）。保存した条件の組は、`ja` では「スクリーニング条件」と書く（「スクリーン」は画面と読まれる。コード・文書・`en` は screen／スクリーンのまま。requirements.md §5.2）。
 - **色・文字・余白は `app.css` のトークン（CSS 変数）から取る**。陽線・陰線は `--up` / `--down`（日本式が既定）。
+  増減（増配・減配など）を色で示すときも `--up` / `--down` を使い、金色などで別の意味を持たせない（設定のローソク足の色に従う）。ツールチップに色の名前を書くときは設定に合わせる（`lib/folioTips.ts` の `toneNames`）。
+- **表の 1 つの欄に棒と数字を並べるときは、棒は欄の左端、数字は右寄せで欄の右端にそろえる**（行ごとに数字の幅が違っても、棒の位置と数字の右端が行どうしでそろうように。例: `folio/DivTable.svelte` の `.bv`・`.dpsc`）。
+  行を grid で作るときは列の幅を固定し、行ごとに `auto` の幅で変わらないようにする。
 - 依存はすべて `devDependencies` に置き、バンドルに入れる（yahoo-finance2 の MCP 用の依存を配布物に入れないため）。
   バンドルに入る OSS を足したら `scripts/gen-notices.mjs` の `bundled` にも足す。GPL 系は入れない（`scripts/check-licenses.mjs`）。
 - 通信先は Core の許可リスト（`src/core/netGuard.ts` の `ALLOWED_HOSTS`。`worker.ts` が `globalThis.fetch` を `guardFetch` で差し替える。リダイレクトの行き先も確かめる）だけ。renderer の CSP は `connect-src 'none'`。
