@@ -116,6 +116,33 @@ function rng(seed: string) {
 }
 
 const cache = new Map<string, { bars: RawBar[]; dividends: Dividend[]; splits: Split[] }>()
+const dayCache = new Map<string, string[]>()
+/**
+ * 2000-01-04 から end までの東証の営業日。全銘柄（と指数）で同じなので末日ごとに 1 回だけ作る
+ * （銘柄ごとに 26 年分の日付を作り直すと、初回の一括気配で Core が数秒止まり、終了の頼みに応えられない）
+ */
+function tradingDaysTo(end: string): string[] {
+  const hit = dayCache.get(end)
+  if (hit) return hit
+  const a: string[] = []
+  for (let d = '2000-01-04'; d <= end; d = addDays(d, 1)) if (isTradingDay(d)) a.push(d)
+  dayCache.set(end, a)
+  return a
+}
+const weekCache = new Map<string, string[]>()
+/** 2000-01-03 から end までの平日（daily なら毎日）。海外の行で共有する */
+function extDaysTo(end: string, daily: boolean): string[] {
+  const key = `${end}@${daily}`
+  const hit = weekCache.get(key)
+  if (hit) return hit
+  const a: string[] = []
+  for (let d = '2000-01-03'; d <= end; d = addDays(d, 1)) {
+    const wd = new Date(`${d}T00:00:00Z`).getUTCDay()
+    if (daily || (wd !== 0 && wd !== 6)) a.push(d)
+  }
+  weekCache.set(key, a)
+  return a
+}
 /** 系列は末日（直近の取引日）ごとに作る（テストで時刻を進めると、その日までの系列になる） */
 function series(code: string) {
   const key = `${code}@${lastClosedSession()}`
@@ -126,9 +153,9 @@ function series(code: string) {
   const [, , , , kind, , , base, yld, months] = s
   const r = rng(code)
   const end = lastClosedSession()
-  const days: string[] = []
   const edge = EDGE[code] ?? {}
-  for (let d = edge.listed ?? '2000-01-04'; d <= end; d = addDays(d, 1)) if (isTradingDay(d)) days.push(d)
+  const all = tradingDaysTo(end)
+  const days = edge.listed ? all.filter((d) => d >= edge.listed!) : all
   const vol = kind === 'reit' ? 0.009 : kind === 'etf' || kind === 'pref' ? 0.006 : 0.016
   const drift = (r() - 0.42) * 0.0005
   const closes: number[] = new Array(days.length)
@@ -198,11 +225,7 @@ function ext(symbol: string): RawBar[] {
   const e = EXT[symbol]!
   const r = rng(symbol)
   const end = lastClosedSession()
-  const days: string[] = []
-  for (let d = '2000-01-03'; d <= end; d = addDays(d, 1)) {
-    const wd = new Date(`${d}T00:00:00Z`).getUTCDay()
-    if (e.daily || (wd !== 0 && wd !== 6)) days.push(d)
-  }
+  const days = extDaysTo(end, !!e.daily)
   const f = 10 ** e.digits
   const rd = (x: number) => Math.round(x * f) / f
   // 最新の値は基準の ±10%（きりのよい数にしない）
@@ -342,8 +365,7 @@ function idx(from: string, interval: '1d' | '1mo'): HistoryResult {
   if (!idxCache.bars) {
     const r = rng('N225')
     const end = lastClosedSession()
-    const days: string[] = []
-    for (let d = '2000-01-04'; d <= end; d = addDays(d, 1)) if (isTradingDay(d)) days.push(d)
+    const days = tradingDaysTo(end)
     let c = 38000 // 架空の水準
     const arr: RawBar[] = []
     for (let i = days.length - 1; i >= 0; i--) {

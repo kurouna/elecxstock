@@ -42,6 +42,9 @@ test.describe('初回起動（FR-F1, FR-S1, FR-FR1）', () => {
     const logs = join(first.userData, 'data', 'logs')
     const core = readdirSync(logs).filter((f) => f.startsWith('core-'))
     expect(core.map((f) => readFileSync(join(logs, f), 'utf8')).join('\n')).toContain('core shutdown')
+    // 強制終了に頼っていない（Core が閉じ終えた知らせで main が進む。重い PC でプロセスが消えるのを待たない）
+    const main = readdirSync(logs).filter((f) => f.startsWith('main-'))
+    expect(main.map((f) => readFileSync(join(logs, f), 'utf8')).join('\n')).not.toContain('did not stop in time')
 
     const { page } = await launch({ userData: first.userData })
     // 同意は済んでいるので初回のダイアログは出ず、取得の続きが終わる

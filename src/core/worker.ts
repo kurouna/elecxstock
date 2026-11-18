@@ -106,7 +106,9 @@ parentPort.on('message', (e) => {
         .catch((err) => log(`shutdown ${String(err)}`))
         .finally(() => {
           log('core shutdown')
-          process.exit(0)
+          // DB を閉じ終えたことを先に知らせる。プロセスが消えるまでは、重い PC で数秒かかることがあり、main はそれを待たずに終われる
+          parentPort.postMessage({ type: 'stopped' })
+          setTimeout(() => process.exit(0), 100) // 知らせが届く前にプロセスを消さない
         })
     }, 150)
     return

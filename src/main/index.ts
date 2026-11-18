@@ -770,10 +770,20 @@ app.on('before-quit', (e) => {
   if (!c || coreStopped) return
   e.preventDefault()
   coreStopped = true
+  let ended = false
   const done = () => {
+    if (ended) return
+    ended = true
     clearTimeout(timer)
+    c.off('message', onStopped)
     app.quit()
   }
+  // Core が DB を閉じ終えた知らせ（'stopped'）か、プロセスの終了のどちらか早いほうで進む。重い PC ではプロセスが消えるまで
+  // 数秒かかることがあり、それを待つと CORE_STOP_TIMEOUT で強制終了になる（閉じ終えてからなので、強制終了しても失うものは無い）
+  const onStopped = (m: { type?: string }) => {
+    if (m?.type === 'stopped') done()
+  }
+  c.on('message', onStopped)
   const timer = setTimeout(() => {
     log('core did not stop in time; killing')
     c.kill()
