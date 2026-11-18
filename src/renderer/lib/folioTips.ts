@@ -137,11 +137,18 @@ export function contribTip(r: FolioContribRow & { name: string }, tr: Tr): strin
   ].join('\n')
 }
 
+/** 陽線・陰線の色の名前（設定のローソク足の色。日本式は 陽線 = 赤・陰線 = 青、欧米式は 陽線 = 緑・陰線 = 赤。FR-C9） */
+export function toneNames(candle: 'jp' | 'us', tr: Tr): { up: string; down: string } {
+  return candle === 'us'
+    ? { up: tr('folio.color.green'), down: tr('folio.color.red') }
+    : { up: tr('folio.color.red'), down: tr('folio.color.blue') }
+}
+
 /**
  * 1 株配当（5 年）の小さな棒: 年ごとの値（古い順）と、右端（直近 1 年）の色の意味。
- * 分類の行（group）は 1 株配当 × 今の株数の合計（税引前の円）
+ * 分類の行（group）は 1 株配当 × 今の株数の合計（税引前の円）。右端の色は陽線・陰線の色なので、色の名前は設定（candle）で変える
  */
-export function dpsTip(dps: (number | null)[], group: boolean, tr: Tr): string {
+export function dpsTip(dps: (number | null)[], group: boolean, tr: Tr, candle: 'jp' | 'us' = 'jp'): string {
   const n = dps.length
   const fmt = (v: number | null) =>
     v == null || (group && !v) ? '—' : group ? yen(v) : v.toLocaleString('ja-JP', { maximumFractionDigits: 2 })
@@ -152,7 +159,7 @@ export function dpsTip(dps: (number | null)[], group: boolean, tr: Tr): string {
   return [
     tr(group ? 'folio.dps.group' : 'folio.dps.head'),
     ...dps.map((v, i) => `  ${i === n - 1 ? tr('folio.dps.last') : tr('folio.dps.ago', { n: n - 1 - i })}  ${fmt(v)}`),
-    `${tr(`folio.dps.${tone}` as Key)}${chg}`,
+    `${tr(`folio.dps.${tone}` as Key, toneNames(candle, tr))}${chg}`,
   ].join('\n')
 }
 

@@ -248,6 +248,64 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
   })
 
   // 回帰（2026-11-15 に利用者が見つけた見た目の不具合）: 1920 の画面（L の並び）で、口座で分けた配当の内訳の名前と年間配当の値が切れない
+  test('年間・前年比・1 株配当（5 年）: 棒の左端と数字の右端が行どうしでそろい、右端の棒は陽線・陰線の色（FR-PF7, FR-C9）', async ({
+    start,
+  }) => {
+    const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    await expect(f.locator('.c-dsum')).toBeVisible()
+    await keys(page, 'PageDown')
+    const tb = f.locator('.c-dtab')
+    const cells = tb.locator('tbody tr.pick .dpsc')
+    await expect(cells.first()).toBeVisible()
+    const n = await cells.count()
+    expect(n).toBeGreaterThan(1)
+    const left = new Set<number>()
+    const right = new Set<number>()
+    for (let i = 0; i < n; i++) {
+      left.add(Math.round((await cells.nth(i).locator('svg').boundingBox())!.x))
+      const v = (await cells.nth(i).locator('.dv').boundingBox())!
+      right.add(Math.round(v.x + v.width))
+    }
+    expect([...left]).toHaveLength(1)
+    expect([...right]).toHaveLength(1)
+    // 年間・前年比: 棒は欄の左端、数字は右端でそろう（分類の行も同じ）
+    for (const col of [3, 4]) {
+      const bl = new Set<number>()
+      const vr = new Set<number>()
+      const bvs = tb.locator(`tbody tr td:nth-child(${col}) .bv`)
+      for (let i = 0; i < (await bvs.count()); i++) {
+        bl.add(Math.round((await bvs.nth(i).locator('.ib').boundingBox())!.x))
+        const v = (await bvs.nth(i).locator('> span:last-child').boundingBox())!
+        vr.add(Math.round(v.x + v.width))
+      }
+      expect([...bl], `列 ${col} の棒の左端`).toHaveLength(1)
+      expect([...vr], `列 ${col} の数字の右端`).toHaveLength(1)
+    }
+    // 右端の棒の色は設定のローソク足の色（--up / --down）。金色は使わない
+    const colors = await tb.locator('.dps rect:last-child').evaluateAll((els) => {
+      const css = getComputedStyle(document.documentElement)
+      const probe = (v: string) => {
+        const d = document.createElement('i')
+        d.style.color = css.getPropertyValue(v)
+        document.body.append(d)
+        const c = getComputedStyle(d).color
+        d.remove()
+        return c
+      }
+      const up = probe('--up')
+      const down = probe('--down')
+      return els.map((e) => {
+        const c = getComputedStyle(e).fill
+        return e.classList.contains('up') ? c === up : e.classList.contains('down') ? c === down : !e.classList.contains('gold')
+      })
+    })
+    expect(colors.length).toBeGreaterThan(0)
+    expect(colors.every(Boolean)).toBe(true)
+    await expect(tb.locator('.dps rect.up').first()).toBeAttached()
+  })
+
   test('配当の内訳の名前・年間配当の値と注記が切れない（L の並び）', async ({ start }) => {
     const { page } = await start({ user: { holdings: HOLD }, viewport: { width: 1920, height: 1040 } })
     await tab(page, 'folio')
@@ -325,7 +383,7 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await page.mouse.move(0, 0)
     await expect(trend.locator('.tread')).toHaveCount(0)
     // 1 株配当（5 年）: 見出しに色の意味、行に年ごとの値
-    await expect(f.locator('.c-dtab th', { hasText: '1 株配当（5 年）' })).toHaveAttribute('title', /金 = 増配/)
+    await expect(f.locator('.c-dtab th', { hasText: '1 株配当（5 年）' })).toHaveAttribute('title', /陽線・陰線の色: 赤 = 増配・青 = 減配/)
     await expect(f.locator('.c-dtab td[title^="1 株配当（1 年ごと"]').first()).toHaveAttribute('title', /直近 1 年/)
     await keys(page, 'Enter')
     await expect(f.locator('.c-dtab')).toHaveClass(/focus/)

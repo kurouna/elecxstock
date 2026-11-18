@@ -10,6 +10,7 @@ import {
   eventTip,
   histStepTip,
   tileTip,
+  toneNames,
   trendIndexAt,
   trendLabel,
   yen,
@@ -106,6 +107,7 @@ describe('ポートフォリオのツールチップ（FR-PF5）', () => {
 })
 
 describe('ポートフォリオのツールチップ（FR-PF7）: 1 株配当（5 年）と年間配当の推移', () => {
+  const JP = '{"up":"folio.color.red","down":"folio.color.blue"}'
   it('1 株配当（5 年）: 年ごとの値（古い順）と右端の色の意味。増配・減配は増減率も', () => {
     expect(dpsTip([40, 45, null, 50, 60], false, tr).split('\n')).toEqual([
       'folio.dps.head',
@@ -114,17 +116,24 @@ describe('ポートフォリオのツールチップ（FR-PF7）: 1 株配当（
       '  folio.dps.ago{"n":2}  —',
       '  folio.dps.ago{"n":1}  50',
       '  folio.dps.last  60',
-      'folio.dps.gold（+20.0%）',
+      `folio.dps.up${JP}（+20.0%）`,
     ])
-    expect(dpsTip([50, 40], false, tr).split('\n').at(-1)).toBe('folio.dps.down（−20.0%）')
-    expect(dpsTip([null, 40], false, tr).split('\n').at(-1)).toBe('folio.dps.flat')
+    expect(dpsTip([50, 40], false, tr).split('\n').at(-1)).toBe(`folio.dps.down${JP}（−20.0%）`)
+    expect(dpsTip([null, 40], false, tr).split('\n').at(-1)).toBe(`folio.dps.flat${JP}`)
     // 分類の行は 1 株配当 × 今の株数（円）。0 の年は —
     expect(dpsTip([0, 12000], true, tr).split('\n')).toEqual([
       'folio.dps.group',
       '  folio.dps.ago{"n":1}  —',
       '  folio.dps.last  ¥12,000',
-      'folio.dps.gold',
+      `folio.dps.up${JP}`,
     ])
+  })
+  it('1 株配当（5 年）の右端の色の名前は、設定のローソク足の色に合わせる（FR-C9。日本式 = 赤・青、欧米式 = 緑・赤）', () => {
+    expect(toneNames('jp', tr)).toEqual({ up: 'folio.color.red', down: 'folio.color.blue' })
+    expect(toneNames('us', tr)).toEqual({ up: 'folio.color.green', down: 'folio.color.red' })
+    expect(dpsTip([40, 50], false, tr, 'us').split('\n').at(-1)).toBe(
+      'folio.dps.up{"up":"folio.color.green","down":"folio.color.red"}（+25.0%）',
+    )
   })
   it('年間配当の推移: マウスの位置に近い記録（図の右 50px は値の文字。端は寄せる）と、その日の値・最初からの増減', () => {
     expect(trendIndexAt(0, 250, 5)).toBe(0)

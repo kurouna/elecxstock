@@ -2,9 +2,9 @@
 // 分類ごとの配当（FR-PF7）: 分類が銘柄以外ならアコーディオン（→ で開き ← で閉じる）。前年比・要因（増配・減配・新規・買い増し・売却）・
 // 1 株配当の 5 年・増配率・連続増配・利回り・取得利回り・配当性向（概算）。見出しは固定し、本体は縦にスクロールする
 import { DIV_SORTS, type DivGroup, dimmed, divFactors, lastTone, manYen, signPct, type TableRow, toneOf, yenFull } from '../../../lib/folio'
-import { dpsTip } from '../../../lib/folioTips'
+import { dpsTip, toneNames } from '../../../lib/folioTips'
 import type { Key } from '../../../lib/i18n'
-import { t } from '../../../stores/app.svelte'
+import { app, t } from '../../../stores/app.svelte'
 
 let {
   rows,
@@ -43,6 +43,10 @@ const maxDelta = $derived(
 const on = (k: (typeof DIV_SORTS)[number]) => (DIV_SORTS[sort] === k ? 'on' : '')
 const sortBy = (k: (typeof DIV_SORTS)[number]) => onsort(DIV_SORTS.indexOf(k))
 const dim = (codes: string[]) => dimmed(brushed, codes)
+const candle = $derived(app.settings.candleStyle)
+const dpsText = (v: number) => v.toLocaleString('ja-JP', { maximumFractionDigits: 2 })
+/** 1 株配当の額の欄の幅（文字数）。棒の左端と額の右端を行どうしでそろえる */
+const dpsW = $derived(Math.max(1, ...rows.map((r) => (r.type === 'g' ? 0 : dpsText(r.r.dpsNow).length))))
 </script>
 
 <div class="dt" bind:this={box}>
@@ -54,7 +58,7 @@ const dim = (codes: string[]) => dimmed(brushed, codes)
         <th class={`sortable ${on('annual')}`} aria-sort={on('annual') ? 'descending' : 'none'} onclick={() => sortBy('annual')}>{t('folio.colAnnual')}</th>
         <th class={`sortable ${on('delta')}`} aria-sort={on('delta') ? 'descending' : 'none'} onclick={() => sortBy('delta')}>{t('folio.colDelta')}</th>
         <th class="c-fx l">{t('folio.colFactor')}</th>
-        <th title={t('folio.dpsTip')}>{t('folio.colDps')}</th>
+        <th title={t('folio.dpsTip', toneNames(candle, t))}>{t('folio.colDps')}</th>
         <th class={`c-cagr sortable ${on('cagr')}`} aria-sort={on('cagr') ? 'descending' : 'none'} onclick={() => sortBy('cagr')}>{t('folio.colCagr')}</th>
         <th class="c-streak" title={t('folio.streakTip')}>{t('folio.colStreak')}</th>
         <th class={`sortable ${on('yield')}`} aria-sort={on('yield') ? 'descending' : 'none'} onclick={() => sortBy('yield')}>{t('folio.colYield')}</th>
@@ -69,13 +73,13 @@ const dim = (codes: string[]) => dimmed(brushed, codes)
           <tr class="g" class:open={row.open} class:sel={focused && i === sel} class:dim={dim(g.rows.map((r) => r.code))} onclick={() => ontoggle(i)}>
             <td><span class="arrow">{row.open ? '▼' : '▶'}</span>{label(g.key)} <span class="mute n">{t('folio.nStocks', { n: g.rows.length })}</span></td>
             <td class="c-mo"></td>
-            <td class="num"><span class="ib"><i style:width={`${(g.annual / maxShare) * 100}%`} class="gold"></i></span>{yenFull(g.annual)}</td>
+            <td class="num">{@render share(g.annual)}</td>
             <td class={`num ${toneOf(g.annual - g.annualPrev)}`}>{@render delta(g.annual - g.annualPrev)}</td>
             <td class="c-fx l">
               {#if Math.abs(g.raise) >= 1}<span class={`fx ${toneOf(g.raise)}`}>{t(g.raise > 0 ? 'folio.fx.raise' : 'folio.fx.cut')}<b>{manYen(g.raise, true)}</b></span>{/if}
               {#if Math.abs(g.qty) >= 1}<span class={`fx ${toneOf(g.qty)}`}>{t('folio.fx.qty')}<b>{manYen(g.qty, true)}</b></span>{/if}
             </td>
-            <td title={dpsTip(g.dps, true, t)}>{@render spark(g.dps, lastTone(g.dps))}</td>
+            <td title={dpsTip(g.dps, true, t, candle)}>{@render spark(g.dps, lastTone(g.dps))}</td>
             <td class="c-cagr"></td>
             <td class="c-streak"></td>
             <td class="num">{g.yld != null ? `${g.yld.toFixed(2)}%` : '—'}</td>
@@ -87,10 +91,10 @@ const dim = (codes: string[]) => dimmed(brushed, codes)
           <tr class:child={row.child} class:sel={focused && i === sel} class:dim={dim([r.code])} class:sold={r.sold} class="pick" onclick={() => onpick(i)}>
             <td><span class="mute num">{r.code}</span> <span class="nm">{r.name}</span>{#if r.sold}<span class="tag">{t('folio.fx.sold')}</span>{/if}{#if r.special}<span class="tag warn" title={t('folio.specialTip')}>{t('folio.special')}</span>{/if}</td>
             <td class="c-mo num mute">{r.months.length ? t('folio.months', { m: r.months.join('・') }) : '—'}</td>
-            <td class="num"><span class="ib"><i style:width={`${(r.annual / maxShare) * 100}%`} class="gold"></i></span>{yenFull(r.annual)}</td>
+            <td class="num">{@render share(r.annual)}</td>
             <td class={`num ${toneOf(r.annual - r.annualPrev)}`}>{@render delta(r.annual - r.annualPrev)}</td>
             <td class="c-fx l">{#each divFactors(r) as f (f.k)}<span class={`fx ${f.k === 'flat' ? '' : toneOf(f.v)}`}>{t(`folio.fx.${f.k}` as Key)}{#if f.k !== 'flat'}<b>{manYen(f.v, true)}</b>{/if}</span>{/each}</td>
-            <td title={dpsTip(r.dps, false, t)}>{@render spark(r.dps.map((v) => v ?? 0), lastTone(r.dps))} <span class="num mute">{r.dpsNow.toLocaleString('ja-JP', { maximumFractionDigits: 2 })}</span></td>
+            <td title={dpsTip(r.dps, false, t, candle)}>{@render spark(r.dps.map((v) => v ?? 0), lastTone(r.dps), dpsText(r.dpsNow))}</td>
             <td class={`num c-cagr ${toneOf(r.cagr)}`}>{signPct(r.cagr)}</td>
             <td class="num c-streak">{r.streak ? t('folio.years', { n: `${r.streak}${r.streak >= 4 ? '+' : ''}` }) : r.noCut ? t('folio.noCut') : '—'}</td>
             <td class="num">{r.sold || r.yld == null ? '—' : `${r.yld.toFixed(2)}%`}</td>
@@ -103,14 +107,19 @@ const dim = (codes: string[]) => dimmed(brushed, codes)
   </table>
 </div>
 
-{#snippet delta(v: number)}
-  <span class="ib mid"><i style:left={`${v >= 0 ? 50 : 50 - Math.min(50, (Math.abs(v) / maxDelta) * 50)}%`} style:width={`${Math.min(50, (Math.abs(v) / maxDelta) * 50)}%`} class={v >= 0 ? 'upb' : 'downb'}></i></span>{Math.abs(v) < 1 ? '±0' : yenFull(v, true)}
+<!-- 年間・前年比: 棒は欄の左端、数字は右端に寄せる（どの行でも棒の位置と数字の右端がそろう） -->
+{#snippet share(v: number)}
+  <span class="bv"><span class="ib"><i style:width={`${(v / maxShare) * 100}%`} class="gold"></i></span><span>{yenFull(v)}</span></span>
 {/snippet}
-{#snippet spark(d: number[], last = 'gold')}
+{#snippet delta(v: number)}
+  <span class="bv"><span class="ib mid"><i style:left={`${v >= 0 ? 50 : 50 - Math.min(50, (Math.abs(v) / maxDelta) * 50)}%`} style:width={`${Math.min(50, (Math.abs(v) / maxDelta) * 50)}%`} class={v >= 0 ? 'upb' : 'downb'}></i></span><span>{Math.abs(v) < 1 ? '±0' : yenFull(v, true)}</span></span>
+{/snippet}
+<!-- 棒（左）と額（右寄せ・同じ幅）を 1 つの箱にし、どの行でも棒の左端と額の右端がそろうようにする。分類の行は額の欄を空けておく -->
+{#snippet spark(d: number[], last = 'up', v = '')}
   {@const mx = Math.max(1e-9, ...d)}
-  <svg class="dps" width="56" height="16" aria-hidden="true">
-    {#each d as v, i (i)}<rect x={i * 12} y={16 - Math.max(1.5, (v / mx) * 15)} width="9" height={Math.max(1.5, (v / mx) * 15)} rx="1" class={i === d.length - 1 ? last : 'base'} />{/each}
-  </svg>
+  <span class="dpsc"><svg class="dps" width="57" height="16" aria-hidden="true">
+    {#each d as x, i (i)}<rect x={i * 12} y={16 - Math.max(1.5, (x / mx) * 15)} width="9" height={Math.max(1.5, (x / mx) * 15)} rx="1" class={i === d.length - 1 ? last : 'base'} />{/each}
+  </svg><span class="num mute dv" style:width={`${dpsW}ch`}>{v}</span></span>
 {/snippet}
 
 <style>
@@ -250,6 +259,16 @@ tr.sold td {
   position: relative;
   overflow: hidden;
 }
+.bv {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bv .ib {
+  flex: none;
+  margin-right: 0;
+}
 .ib i {
   position: absolute;
   top: 0;
@@ -274,14 +293,23 @@ tr.sold td {
   width: 1px;
   background: var(--line-strong);
 }
-.dps {
+.dpsc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   vertical-align: middle;
+}
+.dps {
+  flex: none;
+}
+.dv {
+  text-align: right;
 }
 .dps .base {
   fill: var(--f-bar);
 }
-.dps .gold {
-  fill: var(--gold);
+.dps .up {
+  fill: var(--up);
 }
 .dps .down {
   fill: var(--down);

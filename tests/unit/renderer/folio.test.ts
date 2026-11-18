@@ -427,7 +427,7 @@ describe('配当の分析（FR-PF7）', () => {
     expect(keys).toHaveLength(3)
   })
   it('1 株配当の最後の棒の色（増配 = 金・減配・据え置き）', () => {
-    expect(lastTone([1, 2])).toBe('gold')
+    expect(lastTone([1, 2])).toBe('up')
     expect(lastTone([2, 1])).toBe('down')
     expect(lastTone([2, 2])).toBe('flat')
     expect(lastTone([null, 2])).toBe('flat')

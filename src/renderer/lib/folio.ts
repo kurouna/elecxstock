@@ -1064,11 +1064,11 @@ export function divFactors(r: Pick<DivRow, 'raise' | 'qty' | 'factor' | 'sold'>)
   if (r.factor) out.push({ k: r.factor, v: r.qty })
   return out
 }
-/** 1 株配当の 5 年の最後の棒の色: 増配 = 金、減配 = 下落の色、据え置き = 中立 */
-export function lastTone(d: (number | null)[]): 'gold' | 'down' | 'flat' {
+/** 1 株配当の 5 年の最後の棒の色: 増配 = 上昇（陽線）の色、減配 = 下落（陰線）の色、据え置き = 中立（色は設定のローソク足の色。FR-C9） */
+export function lastTone(d: (number | null)[]): 'up' | 'down' | 'flat' {
   const a = d.at(-1)
   const b = d.at(-2)
-  return a == null || b == null ? 'flat' : a > b + 1e-9 ? 'gold' : a < b - 1e-9 ? 'down' : 'flat'
+  return a == null || b == null ? 'flat' : a > b + 1e-9 ? 'up' : a < b - 1e-9 ? 'down' : 'flat'
 }
 /** 損益の段の背景（上昇・下落の色を 12〜55% だけ混ぜる） */
 export function heatBg(step: number): string {
