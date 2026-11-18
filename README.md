@@ -42,6 +42,7 @@
 
 - **ユニバース**: 東証プライムと J-REIT を自動で取得します。スタンダード・グロース・ETF などは、コマンドバーやウォッチリストから追加でき、ウォッチリストや保有に入れた銘柄も取得します。5 桁の優先株・種類株（例: 94345）にも対応しています。
 - **チャート**: 日足・週足・月足、ローソク足／バー／ライン、移動平均（期間を変えられる）、出来高、ボリンジャーバンド・一目均衡表・RSI・MACD・ストキャスティクス、配当落ち日・分割の印、他銘柄との比較（%）、対数軸、分割調整／未調整／配当込み、キーボードの十字線。日・週・月を 1 ペインに並べるマルチ時間軸も。
+  **トレンドライン**: Alt+T（または見出しの「指標」→「トレンドライン」）で引き始め、← → で足、Ctrl+← → で前後の「山」（高値の極大）・「谷」（安値の極小）へジャンプし、高値・安値に吸着させて Enter で 2 点を決めます。マウスでもクリック 2 回で引けます。G で選び、Space と矢印で動かし、E で右・左右へ延長（今日の位置の価格を右の目盛りに表示）、Delete で消し、Ctrl+Z で戻せます。銘柄ごとに保存され、週足・月足・分割のあとも同じ日付・価格の所に出ます。2 枚目以降の窓でも引け、グリッドのタイルにも出ます。
   「設定 > チャート」で ON にすると、チャートを画像（PNG）で保存できます（既定は OFF。データは Yahoo Finance のものなので、保存した画像は個人で使う範囲にとどめ、公開・再配布しないでください）。
 - **チャートグリッド**: 2×2 から 6×5 まで、多数のチャートを並べて、時間軸・期間・並べ替え・比較（期間の始点を 100%）を一度に切り替えます。売買候補に印を付けて、まとめてウォッチリストに入れられます。タイルの銘柄は C で差し替え、1〜9 で足し、Delete で外せます。
 - **スクリーナー**: 利回り・配当性向・連続増配年数・配当の増配率・権利確定月・PER・PBR・ROE・EPS・BPS・時価総額・売買代金・最低投資金額・騰落率（年初来・配当込みも）・移動平均乖離・52 週と年初来の高値・安値からの位置・ゴールデンクロスからの日数・RSI・ボラティリティ・ベータ・最大下落率・決算発表や権利付最終日までの日数・保有割合・取得利回り・市場区分・33 業種・種別・お気に入り・ウォッチリストなど 58 項目で絞り込みます。項目は分類ごとに並んだダイアログから選び、打って絞り込めます（ⓘ で説明）。「かつ／または」、相対条件（終値 ≥ 75 日移動平均）、上位 N 件、列の選択、CSV 書き出し。名前を付けて保存できます。既定で 8 つのスクリーニング条件（高配当銘柄・割安（PBR 1 倍割れ・ROE 8%）・J-REIT 高利回り・52週高値圏・連続増配・10万円以下で買える高配当・低ボラティリティ・ディフェンシブ・上昇トレンドの押し目）を用意しています。項目の一覧と説明は [docs/screener-fields.md](docs/screener-fields.md)。
@@ -82,6 +83,10 @@
 | ![Pane type](docs/screenshots/widget.png)        | ![Triple](docs/screenshots/triple.png)                 |
 | ペインの種類を変える（Ctrl+Shift+N）             | トリプル（日足・週足・月足と銘柄情報）                 |
 
+![Trend lines](docs/screenshots/trendline.png)
+
+トレンドライン（チャートを最大化したところ。谷 → 谷の支持線と、山 → 山の抵抗線を右へ延長。右の目盛りに今日の位置の価格）
+
 ![Multiple monitors](docs/screenshots/multi.png)
 
 2 枚のモニタに並べたところ（左: 1 枚目、右: フリー 2。リンク 2 のチャートが 1 枚目で選んだ銘柄を追う）
@@ -114,6 +119,7 @@
 | 左 / 右のドロワー                                         | Ctrl+B / Ctrl+Shift+B（ピン留め Ctrl+Alt+B） |
 | お気に入り / リストに追加                                 | Ctrl+D / Ctrl+Shift+A                        |
 | 日足 / 週足 / 月足・チャートの指標                        | D / W / M・I                                 |
+| トレンドライン: 引く / 山・谷へ / 選ぶ / 延長 / 消す      | Alt+T / Ctrl+← → / G / E / Delete            |
 | 列の選択（一覧）                                          | Ctrl+Shift+C                                 |
 | ペインの種類を変える                                      | Ctrl+Shift+N                                 |
 | ニュース: 開く / タブ / 絞り込み / コピー（1 件・表示中） | Enter / G / / / Ctrl+C・Ctrl+Alt+C           |
@@ -177,6 +183,7 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 
 - **Universe**: TSE Prime and J-REITs are fetched automatically. Standard, Growth, ETFs and others can be added from the command bar or a watchlist, and symbols in your watchlists and holdings are fetched too. Five-character codes for preferred and class shares (e.g. 94345) are supported.
 - **Charts**: daily / weekly / monthly, candles / bars / line, configurable moving averages, volume, Bollinger Bands, Ichimoku, RSI, MACD, stochastics, dividend and split markers, comparison (%), log scale, split-adjusted / unadjusted / total-return prices, keyboard crosshair, and a multi-timeframe pane.
+  **Trend lines**: press Alt+T (or Indicators → Trend lines in the chart header), move with ← →, jump to the previous or next swing high or low with Ctrl+← →, snap to highs and lows, and press Enter to set each point; two clicks work too. Select with G, move with Space and the arrow keys, extend with E (the line's price today appears on the right scale), delete with Delete and undo with Ctrl+Z. Lines are saved per symbol and stay at the same date and price on weekly and monthly charts and across splits. Free windows can draw too, and grid tiles show the lines.
   Turn on "Save chart images" in Settings > Charts to save a chart as a PNG (off by default; the data comes from Yahoo Finance, so keep saved images for personal use and do not publish or redistribute them).
 - **Chart grid**: 2×2 up to 6×5 tiles; switch timeframe, period, sort order and compare mode (rebased to 100%) for all tiles at once. Mark candidates and send them to a watchlist. Replace a tile's symbol with C.
 - **Screener**: 58 fields, including yield, payout, dividend streaks and growth, record month, P/E, P/B, ROE, EPS, BPS, market cap, turnover, minimum investment, returns (year-to-date and total return too), MA deviation, position against the 52-week and year-to-date high and low, days since a golden cross, RSI, volatility, beta, max drawdown, days to earnings and to the last cum-rights day, portfolio weight, yield on cost, market, TSE 33 sectors, type, favorites and watchlists. Pick fields from a dialog grouped by category, with type-to-filter and ⓘ descriptions. And/or groups, relative conditions, top N, column chooser, CSV. Save screens by name. Eight default screens are included: high yield, value (P/B < 1, ROE ≥ 8%), J-REIT high yield, near the 52-week high, dividend growers, high yield under ¥100k, low volatility, and pullback in an uptrend. All fields are listed in [docs/screener-fields.md](docs/screener-fields.md).
@@ -198,6 +205,10 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 - New-version notice, database backup, daily-bar CSV export.
 
 ![Grid (English)](docs/screenshots/grid-en.png)
+
+![Trend lines](docs/screenshots/trendline.png)
+
+Trend lines on a maximized chart (Japanese UI): a support line from low to low and a resistance line from high to high, extended to the right with today's price on the scale.
 
 |                                          |                                                        |
 | ---------------------------------------- | ------------------------------------------------------ |

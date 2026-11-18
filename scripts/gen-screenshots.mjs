@@ -1,5 +1,5 @@
 // README 用のスクリーンショット（docs/screenshots/）。スタブのプロバイダ（架空の値）で起動し、キー操作で各画面を開いて撮る。
-// 使い方: npm run build && node scripts/gen-screenshots.mjs [folio]（名前を付けるとその分だけ撮る。いまは folio だけ）
+// 使い方: npm run build && node scripts/gen-screenshots.mjs [folio|trendline]（名前を付けるとその分だけ撮る）
 import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -106,9 +106,89 @@ async function folioSession() {
   await app.close()
 }
 
+/**
+ * トレンドライン（FR-C13・C14）: MTF のタブの日足のチャートを最大化し、キーだけで支持線（夏の底の谷 → 10 月の谷）と抵抗線（直近の山 →
+ * 8〜9 月の高い山）を引いて右へ延ばす（デモ scripts/demo-v0.1.12.mjs と同じ線）。ほかのスクリーンショットに線が写らないよう別に起動する
+ */
+async function trendSession() {
+  const userData = mkdtempSync(join(tmpdir(), 'elecxstock-shot-'))
+  const env = { ...process.env, ELECXSTOCK_PROVIDER: 'stub', ELECXSTOCK_USER_DATA: userData, ELECXSTOCK_NOW: NOW }
+  const app = await electron.launch({ args: ['.'], env })
+  const page = await app.firstWindow()
+  await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows()[0]
+    w.unmaximize()
+    w.setContentSize(1680, 1000)
+  })
+  await page.getByRole('dialog').waitFor()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await waitIdle(page, 120_000)
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.focus())
+  await page.mouse.move(0, 0)
+  const key = async (...keys) => {
+    for (const x of keys) {
+      await page.keyboard.press(x)
+      await wait(60)
+    }
+  }
+  const chart = page.locator('[data-widget="chart"]').first()
+  const host = chart.locator('.host').first()
+  const state = async () => JSON.parse((await host.getAttribute('data-draw-state')) ?? '{"m":"idle"}')
+  /** Ctrl+← / Ctrl+→ で、kind（h 山・l 谷）で ok を満たす山・谷まで送る */
+  const swingTo = async (dir, kind, ok) => {
+    for (let i = 0; i < 30; i++) {
+      const before = (await state()).date
+      await key(dir < 0 ? 'Control+ArrowLeft' : 'Control+ArrowRight')
+      const s = await state()
+      if (s.date === before || (s.snap === kind && ok(s))) return
+    }
+  }
+  const call = (m, p) => page.evaluate(([m, p]) => window.elecxstock.call(m, p), [m, p])
+  const daily = await call('bars.get', { id: 'JP:7203', tf: 'D' })
+  const minLow = Math.min(...daily.low.slice(-140))
+  const topHigh = Math.max(...daily.time.map((d, i) => (d >= '2026-08-01' && d < '2026-10-01' ? daily.high[i] : 0)))
+  await page.keyboard.press('Control+Shift+Digit4')
+  await page.locator('.presets [aria-current="true"]').filter({ hasText: 'MTF' }).waitFor()
+  for (let i = 0; i < 20 && !(await chart.evaluate((e) => e.classList.contains('focused'))); i++) await key('F6')
+  await key('Control+Shift+Enter')
+  await page.locator('.pane.maxed').waitFor()
+  await wait(600)
+  /** Alt+T で引き始める（引く状態になるまで） */
+  const begin = async () => {
+    for (let i = 0; i < 10 && (await state()).m !== 'start'; i++) {
+      await key('Alt+KeyT')
+      await wait(200)
+    }
+    if ((await state()).m !== 'start') throw new Error('trendline: could not start drawing')
+  }
+  // 支持線
+  await begin()
+  await swingTo(-1, 'l', (s) => s.price <= minLow * 1.005)
+  await key('Enter')
+  await swingTo(1, 'l', (s) => s.date >= '2026-10-01')
+  await key('Enter', 'KeyE', 'Escape')
+  // 抵抗線（選んだまま撮る: 両端の取っ手と、左下の操作の案内が写る）
+  await begin()
+  await swingTo(-1, 'h', () => true)
+  await key('Enter')
+  await swingTo(-1, 'h', (s) => s.date < '2026-10-01' && s.price >= topHigh * 0.995)
+  await key('Enter', 'KeyE')
+  await wait(1200)
+  await page.evaluate(() => document.querySelectorAll('.toasts .toast').forEach((t) => t.remove()))
+  await page.screenshot({ path: join(out, 'trendline.png'), animations: 'disabled' })
+  console.log('shot trendline')
+  await app.close()
+}
+
 const only = process.argv.slice(2)
 if (only.includes('folio')) {
   await folioSession()
+  await trendSession()
+  process.exit(0)
+}
+if (only.includes('trendline')) {
+  await trendSession()
   process.exit(0)
 }
 
