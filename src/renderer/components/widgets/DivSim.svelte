@@ -575,6 +575,18 @@ function key(e: KeyboardEvent): boolean {
 onMount(() =>
   registerPane(pane.id, {
     key,
+    // 銘柄ジャンプ・コマンドバーでこのペインに銘柄を送ったら、1 銘柄に切り替えてその銘柄を計算する（群のまま群の計算を続けない）。
+    // リンク色の銘柄も同じく替わる（チャート・銘柄情報も同じ銘柄）。ほかのペインで行を動かしただけでは切り替えない
+    receive: (id) => {
+      if (!pane.link) return false
+      if (view.scope !== 'one') {
+        set({ scope: 'one' })
+        card = null
+        row = 0
+      }
+      setLinkSymbol(pane.link, id)
+      return true
+    },
     current: () => (isOne ? oneId : (rows[row] ?? null)),
     selected: () => (isOne ? (oneId ? [oneId] : []) : rows[row] ? [rows[row]!] : []),
     columns: () => (result && !isOne ? { ids: rows, cols, name: `${t('widget.divsim')} ${t(`sim.tab.${tab}` as Key)}` } : null),

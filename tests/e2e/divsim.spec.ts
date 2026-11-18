@@ -1,7 +1,7 @@
 // 配当シミュレータ（FR-SIM1〜SIM10。docs/design-simulator.md）: スクリーナーのタブの右下にリンク 2 で置き、
 // スクリーナーの結果を仮想の銘柄群として計算する。キーボードだけで操作する。値はスタブ（架空）
 import type { Page } from '@playwright/test'
-import { expect, holdings, keys, rpc, tab, test } from './support'
+import { expect, holdings, jump, keys, rpc, tab, test } from './support'
 
 const sim = (page: Page) => page.locator('[data-widget="divsim"]')
 
@@ -243,5 +243,33 @@ test.describe('保有を出どころに（FR-SIM11）', () => {
     await expect(s.getByTestId('sim-y1')).toHaveText(/\d/)
     await keys(page, 'Control+Shift+H')
     await expect(s.getByTestId('sim-y1')).toContainText('****')
+  })
+})
+
+test.describe('銘柄ジャンプで 1 銘柄へ（FR-SIM10）', () => {
+  test('群を出しているときに銘柄ジャンプで選ぶと、1 銘柄に切り替えてその銘柄を計算する。チャート・銘柄情報も同じ銘柄', async ({
+    start,
+  }) => {
+    const { page } = await start()
+    const s = await openSim(page)
+    await expect(s.locator('[data-card="table"]')).toBeVisible()
+    await jump(page, '8316')
+    await expect(s.getByTestId('sim-one')).toContainText('8316')
+    await expect(s.locator('.cfg .scope [aria-checked="true"]')).toContainText('1 銘柄')
+    await expect(s.getByTestId('sim-past')).toBeVisible()
+    await expect(s.locator('[data-card="table"]')).toHaveCount(0)
+    await expect(page.locator('[data-widget="info"]').first()).toContainText('8316')
+    // 1 銘柄のまま別の銘柄へジャンプしても 1 銘柄
+    await jump(page, '8058')
+    await expect(s.getByTestId('sim-one')).toContainText('8058')
+  })
+  test('ほかのペイン（スクリーナー）で行を動かしても、群は群のまま', async ({ start }) => {
+    const { page } = await start()
+    const s = await openSim(page)
+    await keys(page, 'Alt+ArrowUp', 'Alt+ArrowLeft', 'Alt+ArrowLeft')
+    await expect(page.locator('[data-widget="screener"]')).toHaveClass(/focused/)
+    await keys(page, 'ArrowDown')
+    await expect(s.locator('.cfg .scope [aria-checked="true"]')).toContainText('群')
+    await expect(s.locator('[data-card="table"]')).toBeVisible()
   })
 })
