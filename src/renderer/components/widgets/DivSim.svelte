@@ -34,6 +34,8 @@ import {
   simKey,
   simSettingsOf,
   simTargets,
+  fwdChart,
+  fwdReadout,
   keyApplies,
   heldIds,
   noPastHintKey,
@@ -434,28 +436,15 @@ const ymax = $derived(past ? Math.max(1, ...past.years.map((y) => y.received)) :
 
 let fw = $state(0)
 let fh = $state(0)
-const fyGeom = $derived.by(() => {
-  if (!fwd || fw < 60 || fh < 60) return null
-  const n = fwd.years.length
-  const pad = { l: 8, r: 56, t: 16, b: 18 }
-  const iw = fw - pad.l - pad.r
-  const ih = fh - pad.t - pad.b
-  const bmax = Math.max(1, ...fwd.years.map((y) => y.flat))
-  const cmax = Math.max(1, fwd.years.at(-1)?.cumFlat ?? 1, fwd.amount)
-  const bw = Math.max(3, (iw / n) * 0.62)
-  const x = (i: number) => pad.l + (iw * (i + 0.5)) / n
-  const yb = (v: number) => pad.t + ih * (1 - v / (bmax * 1.15))
-  const yc = (v: number) => pad.t + ih * (1 - v / (cmax * 1.05))
-  const payback = fwd.years.findIndex((y) => y.cumFlat >= fwd.amount)
-  return { n, pad, iw, ih, bw, x, yb, yc, payback, cmax }
-})
+/** 年ごとの見込み: 累計を 1 つの軸で（lib/divsim.ts の fwdChart） */
+const fyGeom = $derived(fwd && fw >= 60 && fh >= 60 ? fwdChart(fwd.years, fwd.amount, fw, fh) : null)
 function fyMove(e: MouseEvent) {
   if (!fyGeom) return
   card = 'fy'
-  const px = localX(e.clientX, (e.currentTarget as HTMLElement).getBoundingClientRect(), fw)
-  fcross = Math.max(0, Math.min(fyGeom.n - 1, Math.floor(((px - fyGeom.pad.l) / fyGeom.iw) * fyGeom.n)))
+  fcross = fyGeom.indexAt(localX(e.clientX, (e.currentTarget as HTMLElement).getBoundingClientRect(), fw))
 }
 const fci = $derived(fwd && fcross >= 0 ? Math.min(fcross, fwd.years.length - 1) : -1)
+const fyRead = $derived(fwd && fci >= 0 ? fwdReadout(fwd.years, fci, fwd.amount) : null)
 
 const monthTotals = $derived(fwd ? (view.receipt ? receiptMonths(fwd.months) : fwd.months) : [])
 const monthBy = $derived(
@@ -801,38 +790,60 @@ onMount(() =>
         </section>
         <section class="card c-fy" class:sel={card === 'fy'} data-card="fy" role="group" aria-label={t('sim.fy')} aria-current={card === 'fy'}>
           <h3>{t('sim.fy')} <span class="dim">{t('sim.fySub')}</span>
-            <span class="right legend"><span class="sw inc"></span>{t('sim.l.flat')}<span class="sw stress"></span>{t('sim.l.stress')}<span class="sw cum"></span>{t('sim.l.cum')}</span>
+            <span class="right legend">
+              <span class="sw inc"></span>{t('sim.fy.lYear')}<span class="sw cumf"></span>{t('sim.fy.lCum')}
+              {#if fyGeom && !fyGeom.stressSame}<span class="sw stress"></span>{t('sim.fy.lStress')}{/if}
+              {#if fyGeom?.principal != null}<span class="sw principal"></span>{t('sim.l.principal')}{/if}
+            </span>
           </h3>
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="chart" bind:clientWidth={fw} bind:clientHeight={fh} onmousemove={fyMove} onmouseleave={() => (fcross = -1)}>
+          <div class="chart" bind:clientWidth={fw} bind:clientHeight={fh} onmousemove={fyMove}>
             {#if fyGeom}
               {@const g = fyGeom}
-              <svg viewBox={`0 0 ${fw} ${fh}`} aria-label={t('sim.fy')}>
-                {#each fwd.years as y, i (y.year)}
-                  <rect x={g.x(i) - g.bw / 2} y={g.yb(y.flat)} width={g.bw} height={fh - g.pad.b - g.yb(y.flat)} class="bar inc" class:hl={i === fci} />
-                  {#if g.n <= 12 || (i + 1) % 5 === 0 || i === 0}<text x={g.x(i)} y={fh - 4} class="ax mid">{i + 1}</text>{/if}
+              <svg viewBox={`0 0 ${fw} ${fh}`} aria-label={t('sim.fy')} data-testid="sim-fy">
+                <!-- 上段: その年の配当 -->
+                <text x={g.pad.l} y={g.top.y0 - g.top.h - 4} class="ax">{t('sim.fy.year')}</text>
+                <line x1={g.pad.l} x2={fw - g.pad.r} y1={g.top.y0} y2={g.top.y0} class="grid" />
+                <text x={fw - 4} y={g.top.y(g.top.max / 1.15) + 3} class="ax end">{money(g.top.max / 1.15)}</text>
+                {#each fwd.years as yr, i (i)}
+                  <rect x={g.x(i) - g.bw / 2} y={g.top.y(yr.flat)} width={g.bw} height={Math.max(0, g.top.y0 - g.top.y(yr.flat))} class="bar inc" class:hl={i === fci} />
+                  {#if !g.stressSame}<line x1={g.x(i) - g.bw / 2} x2={g.x(i) + g.bw / 2} y1={g.top.y(yr.stress)} y2={g.top.y(yr.stress)} class="ln stress" />{/if}
                 {/each}
-                <path class="ln stress" d={fwd.years.map((y, i) => `${i ? 'L' : 'M'}${g.x(i).toFixed(1)},${g.yb(y.stress).toFixed(1)}`).join('')} />
-                <path class="ln cum" d={fwd.years.map((y, i) => `${i ? 'L' : 'M'}${g.x(i).toFixed(1)},${g.yc(y.cumFlat).toFixed(1)}`).join('')} />
-                <text x={fw - 4} y={g.yc(fwd.years.at(-1)!.cumFlat) + 3} class="ax end">{money(fwd.years.at(-1)!.cumFlat)}</text>
-                <text x={g.x(0)} y={g.yb(fwd.y1) - 4} class="ax mid num">{money(fwd.y1)}</text>
-                {#if g.payback >= 0}
-                  <line x1={g.x(g.payback)} x2={g.x(g.payback)} y1={g.pad.t} y2={fh - g.pad.b} class="cross" />
-                  {@const pg = pillGeom(g.x(g.payback), fw - g.pad.r, t('sim.payback'))}
-                  <rect class="pill" x={pg.x} y={g.pad.t - 2} width={pg.w} height="14" rx="3" />
-                  <text x={pg.x + 4} y={g.pad.t + 8} class="ax">{t('sim.payback')}</text>
+                <!-- 下段: 累計 -->
+                <text x={g.pad.l} y={g.bot.y0 - g.bot.h - 4} class="ax">{t('sim.fy.cum')} · {t('sim.fy.total', { n: g.n, v: money(g.cumFlat[g.n - 1]!) })}</text>
+                {#each g.bot.ticks as v (v)}
+                  <line x1={g.pad.l} x2={fw - g.pad.r} y1={g.bot.y(v)} y2={g.bot.y(v)} class="grid" />
+                  <text x={fw - 4} y={g.bot.y(v) + 3} class="ax end">{money(v)}</text>
+                {/each}
+                <path class="area cumf" d={`M${g.slot(0).l},${g.bot.y0}${g.cumFlat.map((v, i) => `L${g.slot(i).l},${g.bot.y(v)}L${g.slot(i).r},${g.bot.y(v)}`).join('')}L${g.slot(g.n - 1).r},${g.bot.y0}Z`} />
+                {#if !g.stressSame}
+                  <path class="ln stress" d={g.cumStress.map((v, i) => `${i ? 'L' : 'M'}${g.slot(i).l},${g.bot.y(v)}L${g.slot(i).r},${g.bot.y(v)}`).join('')} />
                 {/if}
+                {#if g.principal != null}
+                  <line x1={g.pad.l} x2={fw - g.pad.r} y1={g.bot.y(g.principal)} y2={g.bot.y(g.principal)} class="base" />
+                {/if}
+                {#if g.payback >= 0}
+                  {@const pg = pillGeom(g.x(g.payback), fw - g.pad.r, t('sim.payback'))}
+                  <line x1={g.x(g.payback)} x2={g.x(g.payback)} y1={g.bot.y0 - g.bot.h} y2={g.bot.y0} class="cross" />
+                  <rect class="pill" x={pg.x} y={g.bot.y0 - g.bot.h - 2} width={pg.w} height="14" rx="3" />
+                  <text x={pg.x + 4} y={g.bot.y0 - g.bot.h + 8} class="ax">{t('sim.payback')}</text>
+                {/if}
+                <!-- 横の目盛りと、十字線（2 段を貫く） -->
+                {#each g.xTicks as i (i)}<text x={g.x(i)} y={fh - 4} class="ax mid">{i + 1}</text>{/each}
+                {#if fci >= 0}<line x1={g.x(fci)} x2={g.x(fci)} y1={g.top.y0 - g.top.h} y2={g.bot.y0} class="cross" />{/if}
               </svg>
-              {#if fci >= 0}
-                {@const y = fwd.years[fci]!}
-                <div class="tip" style:left={g.x(fci) > fw / 2 ? undefined : `${g.x(fci) + 10}px`} style:right={g.x(fci) > fw / 2 ? `${fw - g.x(fci) + 10}px` : undefined}>
-                  <div>{t('sim.yearN', { n: y.year })}</div>
-                  <div><span class="sw inc"></span>{t('sim.l.flat')} <b class="num">{money(y.flat)}</b></div>
-                  <div><span class="sw stress"></span>{t('sim.l.stress')} <b class="num">{money(y.stress)}</b></div>
-                  <div><span class="sw cum"></span>{t('sim.l.cum')} <b class="num">{money(y.cumFlat)}</b></div>
-                </div>
-              {/if}
+              {#if fwd.y1 <= 0}<div class="fyzero">{t('sim.fy.zero')}</div>{/if}
             {/if}
+          </div>
+          <!-- 十字線の年の値（浮かぶ枠ではなく固定の 1 行。選んでいないときも場所は取ったまま） -->
+          <div class="fyread num" data-testid="sim-fy-read" style:visibility={fyRead ? 'visible' : 'hidden'}>
+            {#if fyRead}
+              {t('sim.fy.read', { n: fyRead.year, v: money(fyRead.flat), c: money(fyRead.cum) })}{#if fyRead.pct != null && !hide}{t('sim.fy.readPct', { p: pct(fyRead.pct, 1, false) })}{/if}{#if fyRead.stress != null}{t('sim.fy.readStress', { v: money(fyRead.stress), c: money(fyRead.cumStress ?? 0) })}{/if}
+            {:else}&nbsp;{/if}
+          </div>
+          <div class="fynote dim" data-testid="sim-fy-note">
+            {#if fyGeom?.stressSame && fwd.y1 > 0}{t('sim.fy.stressSame')}{/if}
+            {#if fyGeom && fyGeom.principal == null && fyGeom.paybackYears != null}{t('sim.paybackFar', { a: money(fwd.amount), n: fyGeom.paybackYears })}{/if}
           </div>
         </section>
         <section class="card c-cal" class:sel={card === 'cal'} data-card="cal" role="group" aria-label={t('sim.cal')} aria-current={card === 'cal'}>
@@ -1325,8 +1336,43 @@ onMount(() =>
   .sw.stress {
     background: var(--down);
   }
-  .sw.cum {
-    background: var(--text-2);
+  .sw.principal {
+    background: var(--text-3);
+    height: 1px;
+  }
+  .fyread {
+    min-height: 18px;
+    font-size: var(--fs-1);
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .fyzero {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--text-3);
+    font-size: var(--fs-1);
+  }
+  .area.cumf {
+    fill: var(--gold);
+    opacity: 0.32;
+    stroke: var(--gold);
+    stroke-width: 1;
+  }
+  .sw.cumf {
+    background: var(--gold);
+    opacity: 0.45;
+    height: 8px;
+  }
+  .fynote {
+    min-height: 16px;
+    font-size: var(--fs-1);
+    display: flex;
+    gap: 4px 12px;
+    flex-wrap: wrap;
   }
   .big {
     font-size: var(--fs-5);
@@ -1451,9 +1497,6 @@ onMount(() =>
   .ln.stress {
     stroke: var(--down);
     stroke-dasharray: 4 3;
-  }
-  .ln.cum {
-    stroke: var(--text-2);
   }
   .band {
     fill: var(--gold);

@@ -438,3 +438,64 @@ export function spreadLabels(ys: number[], gap: number, lo: number, hi: number):
   for (const x of idx) out[x.i] = x.y
   return out
 }
+
+/**
+ * これからの年ごとの見込みの図（設計 §7.3・21.8）: 横の軸（年）を共通にした上下 2 段。1 段に 1 つの量だけを描き、段ごとに目盛りを持つ
+ * （2 つの量を 1 つの図に 2 つの軸で重ねると、累計の線が年ごとの棒より下に見えて読み違えるため）。
+ * 上段はその年の配当（棒。ストレスは棒に重ねる段）、下段は累計（階段の面。ストレスの累計は破線）。
+ * 元本は累計の 1.5 倍以内のときだけ下段に線を引き、届く年に印。遠ければ届く年数（横ばいで）を文で出す
+ */
+export function fwdChart(years: { flat: number; stress: number; cumFlat: number }[], amount: number, w: number, h: number) {
+  const pad = { l: 8, r: 64, t: 16, b: 18 }
+  const gap = 20
+  const n = Math.max(1, years.length)
+  const iw = Math.max(1, w - pad.l - pad.r)
+  const inner = Math.max(1, h - pad.t - pad.b - gap)
+  // 上段は高さの 28%（44〜64px）。残りが下段
+  const th = Math.max(44, Math.min(64, inner * 0.28))
+  const bh = Math.max(1, inner - th)
+  let s = 0
+  const cumStress = years.map((y) => (s += y.stress))
+  const cumFlat = years.map((y) => y.cumFlat)
+  const cumMax = cumFlat.at(-1) ?? 0
+  const principal = amount > 0 && cumMax > 0 && amount <= cumMax * 1.5 ? amount : null
+  const tMax = Math.max(1, ...years.map((y) => Math.max(y.flat, y.stress))) * 1.15
+  const bMax = Math.max(cumMax, principal ?? 0, 1) * 1.08
+  const ty0 = pad.t + th
+  const by0 = pad.t + th + gap + bh
+  const x = (i: number) => pad.l + (iw * (i + 0.5)) / n
+  const y1 = years[0]?.flat ?? 0
+  return {
+    pad,
+    iw,
+    n,
+    x,
+    /** 年の枠の左右（階段の面） */
+    slot: (i: number) => ({ l: pad.l + (iw * i) / n, r: pad.l + (iw * (i + 1)) / n }),
+    bw: Math.max(3, (iw / n) * 0.62),
+    top: { y0: ty0, h: th, max: tMax, y: (v: number) => ty0 - (th * v) / tMax },
+    bot: { y0: by0, h: bh, max: bMax, y: (v: number) => by0 - (bh * v) / bMax, ticks: niceTicks(0, bMax, 3) },
+    cumFlat,
+    cumStress,
+    principal,
+    payback: principal == null ? -1 : years.findIndex((yr) => yr.cumFlat >= amount),
+    paybackYears: y1 > 0 && amount > 0 ? Math.ceil(amount / y1) : null,
+    stressSame: years.every((yr) => Math.abs(yr.stress - yr.flat) < 1e-6),
+    xTicks: n <= 10 ? years.map((_, i) => i) : years.map((_, i) => i).filter((i) => i === 0 || (i + 1) % 5 === 0),
+    indexAt: (px: number) => Math.max(0, Math.min(n - 1, Math.floor(((px - pad.l) / iw) * n))),
+  }
+}
+/** 図の下の固定の 1 行（十字線の年）: その年・累計・元本に対する割合・ストレス（横ばいと違う年だけ） */
+export function fwdReadout(years: { flat: number; stress: number; cumFlat: number }[], i: number, amount: number) {
+  const y = years[i]!
+  const cumStress = years.slice(0, i + 1).reduce((a, x) => a + x.stress, 0)
+  const same = Math.abs(y.stress - y.flat) < 1e-6 && Math.abs(cumStress - y.cumFlat) < 1e-6
+  return {
+    year: i + 1,
+    flat: y.flat,
+    cum: y.cumFlat,
+    pct: amount > 0 ? y.cumFlat / amount : null,
+    stress: same ? null : y.stress,
+    cumStress: same ? null : cumStress,
+  }
+}

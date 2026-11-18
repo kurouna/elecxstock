@@ -118,6 +118,18 @@ test.describe('配当シミュレータのキー操作（FR-SIM3・SIM4・SIM6�
     await keys(page, 'PageDown')
     await expect(s.getByTestId('sim-fwd')).toBeVisible()
     await expect(s.getByTestId('sim-y1')).toHaveText(/\d/)
+    // 年ごとの見込みは累計を 1 つの軸で。元本が遠ければ線を引かず、届く年数を文で出す
+    await expect(s.getByTestId('sim-fy')).toBeVisible()
+    await expect(s.locator('.c-fy h3')).toContainText('累計')
+    await expect(s.getByTestId('sim-fy-note')).toContainText('元本')
+    // 年を選ぶと、図の下の固定の 1 行にその年・累計を出す（選ぶ前は場所を取ったまま見えない）
+    await expect(s.getByTestId('sim-fy-read')).toBeHidden()
+    await keys(page, 'Tab', 'Tab')
+    await expect(s.locator('[data-card="fy"]')).toHaveClass(/sel/)
+    await keys(page, 'ArrowRight', 'ArrowRight')
+    await expect(s.getByTestId('sim-fy-read')).toContainText('2 年目｜その年')
+    await expect(s.getByTestId('sim-fy-read')).toContainText('累計')
+    await keys(page, 'Escape', 'Escape')
     await expect(s.locator('.c-cal h3')).toContainText('受取の目安')
     await keys(page, 'v')
     await expect(s.locator('.c-cal h3')).toContainText('権利確定月')
