@@ -34,6 +34,7 @@ import {
   simKey,
   simSettingsOf,
   simTargets,
+  keyApplies,
   heldIds,
   noPastHintKey,
   simViewOf,
@@ -368,7 +369,7 @@ const tokens = $derived.by(
     n: { label: t('sim.items', { n: srcIds?.length ?? 0 }), key: 'L', run: () => void pickSource() },
     // 1 銘柄の名前は押せない（すぐ左の「1 銘柄 ｜ 群」で切り替える。押して群に替わると驚くため）
     one: { label: oneId ? `${codeOf(oneId)} ${nameOf(oneId)}` : '—', key: 'O' },
-    held: { label: `${money(fwd?.amount ?? 0)} · ${t('sim.items', { n: fwd?.rows.length ?? 0 })}`, key: 'L' },
+    held: { label: `${money(fwd?.amount ?? 0)} · ${t('sim.items', { n: fwd?.rows.length ?? 0 })}`, key: 'L', run: () => void pickSource() },
     div: { label: t(settings.reinvest ? 'sim.div.reinv' : 'sim.div.recv'), key: 'R', run: steps.div },
     tax: { label: t(`sim.tax.${settings.tax}` as Key), key: 'X', run: steps.tax },
     cmp: { label: t(`sim.cmp.${view.cmp}` as Key), key: 'B', run: steps.cmp },
@@ -566,6 +567,8 @@ function key(e: KeyboardEvent): boolean {
   }
   const f = !e.shiftKey ? act[c] : undefined
   if (!f) return false
+  // 今のタブに効かない設定のキーは受けない（計算し直しても画面が変わらないため）
+  if (!keyApplies(c, tab, useHeld)) return true
   f()
   return true
 }
@@ -575,14 +578,14 @@ onMount(() =>
     current: () => (isOne ? oneId : (rows[row] ?? null)),
     selected: () => (isOne ? (oneId ? [oneId] : []) : rows[row] ? [rows[row]!] : []),
     columns: () => (result && !isOne ? { ids: rows, cols, name: `${t('widget.divsim')} ${t(`sim.tab.${tab}` as Key)}` } : null),
-    run(action) {
-      if (action !== 'retry') return false
-      retry()
-      return true
-    },
   }),
 )
 </script>
+
+<!-- 文の形の設定の帯の 1 語: 押せる語はボタン、押せない語（1 銘柄の名前）は強調だけ -->
+{#snippet word(p: string | { k: string })}
+  {#if typeof p === 'string'}{p}{:else if tokens[p.k]?.run}<button type="button" class="tok" title={`${tokens[p.k]!.label} (${tokens[p.k]!.key})`} onclick={tokens[p.k]!.run}>{tokens[p.k]!.label}</button>{:else if tokens[p.k]}<b class="oneName" title={`${tokens[p.k]!.label} (${tokens[p.k]!.key})`}>{tokens[p.k]!.label}</b>{/if}
+{/snippet}
 
 <PaneHeader {pane} collapse={600}>
   <span class="virtual" title={t('sim.virtualHint')}>{t('sim.virtual')}</span>
@@ -614,13 +617,13 @@ onMount(() =>
     {/if}
     <span class="sent">
       {#each splitTemplate(t(tab === 'past' ? (isOne ? 'sim.s.pastOne' : 'sim.s.past') : isOne ? 'sim.s.fwdOne' : useHeld ? 'sim.s.fwdHeld' : 'sim.s.fwd')) as p, i (i)}
-        {#if typeof p === 'string'}{p}{:else if tokens[p.k]?.run}<button type="button" class="tok" title={`${tokens[p.k]!.label} (${tokens[p.k]!.key})`} onclick={tokens[p.k]!.run}>{tokens[p.k]!.label}</button>{:else if tokens[p.k]}<b class="oneName" title={`${tokens[p.k]!.label} (${tokens[p.k]!.key})`}>{tokens[p.k]!.label}</b>{/if}
+        {@render word(p)}
       {/each}
     </span>
     {#if tab === 'past'}
       <span class="sent dim">
         {#each splitTemplate(t('sim.s.cmp')) as p, i (i)}
-          {#if typeof p === 'string'}{p}{:else if tokens[p.k]}<button type="button" class="tok" title={`${tokens[p.k]!.label} (${tokens[p.k]!.key})`} onclick={tokens[p.k]!.run}>{tokens[p.k]!.label}</button>{/if}
+          {@render word(p)}
         {/each}
       </span>
     {/if}
@@ -765,10 +768,10 @@ onMount(() =>
       {#if tab === 'fwd' && fwd}
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <section class="card c-hero" class:sel={card === 'hero'} data-card="hero" role="group" aria-label={t('sim.f.y1')} aria-current={card === 'hero'} onmousedown={() => (card = 'hero')}>
-          <h3>{t('sim.f.title', { a: money(fwd.amount) })} <span class="dim">→ {t('sim.f.y1')}</span></h3>
+          <h3>{t(fwd.held ? 'sim.f.titleHeld' : 'sim.f.title', { a: money(fwd.amount) })} <span class="dim">→ {t('sim.f.y1')}</span></h3>
           <div class="big num gold" data-testid="sim-y1">{money(fwd.y1)}<span class="unit">{lang === 'ja' ? '円' : ''}</span></div>
           <dl class="kpi">
-            <div><dt>{t('sim.f.yop')}</dt><dd class="num">{pct(fwd.yieldOnPrincipal, 2, false)}</dd></div>
+            <div><dt>{t(fwd.held ? 'sim.f.yopHeld' : 'sim.f.yop')}</dt><dd class="num">{pct(fwd.yieldOnPrincipal, 2, false)}</dd></div>
             <div><dt>{t('sim.f.cum', { h: settings.horizon })}</dt><dd class="num">{money(fwd.cum)}</dd></div>
             {#if fwd.stress}
               <div><dt>{t('sim.f.stress', { y: fwd.stress.year })}</dt><dd class="num">{money(fwd.stressY1)} <span class="down">{pct(fwd.stressDiff)}</span>{#if isOne && fwd.rows[0]}<span class="dim">{fwd.rows[0].rSrc === 's17' ? ` (${t('sim.mark.s17')})` : fwd.rows[0].rSrc === 'market' ? ` (${t('sim.mark.market')})` : ''}</span>{/if}</dd></div>

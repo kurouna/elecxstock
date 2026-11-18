@@ -13,6 +13,7 @@ import {
 } from '@shared/sim/types'
 import type { InstrumentId } from '@shared/types'
 import type { Cell, ListCol } from './columns'
+import { niceTicks } from './folio'
 import type { Key } from './i18n'
 
 export type SimTab = 'past' | 'fwd'
@@ -75,8 +76,19 @@ export function sourceStep(last: string, src: string): { last: string; reset: bo
   return { last: src, reset: src !== last, screen: src === 'live' || src.startsWith('scr:') }
 }
 /** 保有の銘柄（口座をまたいで 1 つにまとめ、並びは保有の順） */
-export function heldIds(hs: { code: string }[]): InstrumentId[] {
-  return [...new Set(hs.map((h) => `JP:${h.code}`))]
+export function heldIds(hs: { code: string; quantity: number }[]): InstrumentId[] {
+  // 株数が 0 の行は数えない（Core の保有のまとめ（heldForSim）と母集団をそろえる）
+  return [...new Set(hs.filter((h) => h.quantity > 0).map((h) => `JP:${h.code}`))]
+}
+/**
+ * 今のタブに効く設定・表示のキーか。効かないキーは受けない（押しても画面が変わらないのに計算し直して読み込み中が出るため）。
+ * これからに効かない: 再投資（R）・業種（G）・比べる相手（B）・円と %（P）。保有のこれからは元本（A）・税（X）も口座ごとなので効かない。
+ * 過去に効かない: 受取月（V）
+ */
+export function keyApplies(code: string, tab: SimTab, held: boolean): boolean {
+  if (tab === 'past') return code !== 'KeyV'
+  if (['KeyR', 'KeyG', 'KeyB', 'KeyP'].includes(code)) return false
+  return !(held && (code === 'KeyA' || code === 'KeyX'))
 }
 /** 過去が 0 件のときの案内（これからの銘柄も無ければ別の文） */
 export const noPastHintKey = (fwdRows: number): Key => (fwdRows > 0 ? 'sim.noPastHint' : 'sim.noPastHintNone')
@@ -175,7 +187,8 @@ export function basisNotes(r: SimResult, tab: SimTab, screen: boolean): Note[] {
     const short = r.fwd.rows.filter((x) => x.short).length
     if (short) out.push({ k: 'sim.n.short', a: { n: short }, warn: true })
   }
-  out.push({ k: s.tax === 'taxed' ? 'sim.n.taxed' : s.tax === 'nisa' ? 'sim.n.nisa' : 'sim.n.gross' })
+  // 保有のこれからは口座ごとの税（sim.n.held）なので、設定の税の文は出さない
+  if (!(tab === 'fwd' && r.fwd.held)) out.push({ k: s.tax === 'taxed' ? 'sim.n.taxed' : s.tax === 'nisa' ? 'sim.n.nisa' : 'sim.n.gross' })
   if (r.total > r.ids.length) out.push({ k: 'sim.n.capped', a: { n: r.ids.length, t: r.total }, warn: true })
   if (r.stale.length) out.push({ k: 'sim.n.stale', a: { n: r.stale.length, d: r.stale.map((x) => x.d).sort()[0]! }, warn: true })
   return out
@@ -389,16 +402,6 @@ export function lineScale(series: (number[] | null)[], w: number, h: number, pad
   const y = (v: number) => pad.t + ih * (1 - (v - lo) / (hi - lo))
   const path = (s: number[]) => s.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')
   return { x, y, path, lo, hi, n, ticks: niceTicks(lo, hi, 4), pad, iw, ih }
-}
-/** 切りのよい目盛り（lo〜hi に n 本ほど） */
-export function niceTicks(lo: number, hi: number, n = 4): number[] {
-  if (!(hi > lo)) return [lo]
-  const raw = (hi - lo) / n
-  const p = 10 ** Math.floor(Math.log10(raw))
-  const step = [1, 2, 2.5, 5, 10].map((k) => k * p).find((s) => s >= raw)!
-  const out: number[] = []
-  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10))
-  return out
 }
 /** 横の位置（ポインタの x）からいちばん近い点の番号 */
 export function indexAt(px: number, scale: { pad: { l: number }; iw: number; n: number }): number {

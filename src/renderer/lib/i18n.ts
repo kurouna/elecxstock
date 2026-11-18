@@ -1146,6 +1146,8 @@ export const ja = {
   'sim.l.port': '選んだ群',
   'sim.l.one': 'この銘柄',
   'sim.src.holdings': '保有',
+  'sim.f.titleHeld': '今の保有（評価額 {a}）なら',
+  'sim.f.yopHeld': '評価額に対する利回り',
   'sim.s.fwdHeld': '今の保有（{held}）を、{h}を横ばいとストレスで試算・税は口座ごと',
   'sim.n.held': 'これからは今の株数と口座ごとの税（NISA は非課税、特定・一般は 20.315%）で計算しています。元本は今の評価額です',
   'sim.noPastHintNone': '基準日を近くしてください（Alt+1〜3）。これからのタブも計算できる銘柄がありません（上場廃止など）',
@@ -2496,6 +2498,8 @@ export const en: Record<Key, string> = {
   'sim.l.port': 'Selection',
   'sim.l.one': 'This stock',
   'sim.src.holdings': 'Holdings',
+  'sim.f.titleHeld': 'Your holdings (market value {a})',
+  'sim.f.yopHeld': 'Yield on market value',
   'sim.s.fwdHeld': 'Your holdings ({held}); {h} flat and stress, tax by account',
   'sim.n.held':
     'Ahead uses your current share counts and tax by account (NISA tax-free, others 20.315%); principal is the current market value',

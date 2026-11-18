@@ -223,6 +223,21 @@ test.describe('保有を出どころに（FR-SIM11）', () => {
     await keys(page, 'PageDown')
     await expect(s.getByTestId('sim-fwd')).toBeVisible()
     await expect(s.locator('.cfg')).toContainText('今の保有')
+    // 保有のこれからのヒーローは「今の保有なら」（「今 ○○ を入れたら」ではない）
+    await expect(s.locator('.c-hero h3')).toContainText('今の保有')
+    await expect(s.locator('.c-hero')).toContainText('評価額に対する利回り')
+    // 帯の保有の語を押すと出どころの一覧
+    await s.locator('.cfg .sent button.tok', { hasText: '銘柄' }).click()
+    await expect(page.locator('.dialog')).toContainText('出どころを選ぶ')
+    await keys(page, 'Escape')
+    await expect(page.locator('.dialog')).toHaveCount(0)
+    // これからに効かないキー（X・A・R・G）は受けない: 読み込み中を出さない
+    const loads = await countLoads(page)
+    await keys(page, 'x', 'r', 'g')
+    await expect(s.locator('.cfg')).toContainText('税は口座ごと')
+    expect(await loads()).toBe(0)
+    await keys(page, 'a')
+    await expect(page.locator('.dialog')).toHaveCount(0)
     await expect(s.getByTestId('sim-basis')).toContainText('今の株数と口座ごとの税')
     await expect(s.locator('tbody tr[data-id="JP:8058"] td.c-shares')).toHaveText('150.0')
     await expect(s.getByTestId('sim-y1')).toHaveText(/\d/)

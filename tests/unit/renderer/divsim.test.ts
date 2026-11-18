@@ -268,11 +268,44 @@ describe('FR-SIM5 FR-SIM11 案内と保有の銘柄', () => {
   })
   it('保有の銘柄は口座をまたいで 1 つにまとめ、並びは保有の順', async () => {
     const { heldIds } = await import('../../../src/renderer/lib/divsim')
-    expect(heldIds([{ code: '8058' }, { code: '8001' }, { code: '8058' }])).toEqual(['JP:8058', 'JP:8001'])
+    expect(
+      heldIds([
+        { code: '8058', quantity: 1 },
+        { code: '8001', quantity: 2 },
+        { code: '8058', quantity: 3 },
+      ]),
+    ).toEqual(['JP:8058', 'JP:8001'])
   })
   it('保有のとき: 前提に「今の株数と口座ごとの税」を出し、後知恵は出さない', () => {
     const r = result({ held: new Map([['A', { qty: 10, net: 1 }]]) })
     const ns = basisNotes(r, 'fwd', false)
     expect(ns.some((n) => n.k === 'sim.n.held')).toBe(true)
+  })
+})
+
+describe('FR-SIM6 FR-SIM11 3 回目のレビューの反映', () => {
+  it('保有 × これから: 前提に設定の税の文を出さない（口座ごとの税と食い違うため）。過去には出す', () => {
+    const r = result({ settings: { ...DEFAULT_SIM, years: 3, tax: 'gross' }, held: new Map([['A', { qty: 10, net: 1 }]]) })
+    const fwd = basisNotes(r, 'fwd', false).map((n) => n.k)
+    expect(fwd).toContain('sim.n.held')
+    expect(fwd.some((k) => k === 'sim.n.gross' || k === 'sim.n.taxed' || k === 'sim.n.nisa')).toBe(false)
+    expect(basisNotes(r, 'past', false).map((n) => n.k)).toContain('sim.n.gross')
+  })
+  it('保有の銘柄は株数が 0 より多いものだけ', async () => {
+    const { heldIds } = await import('../../../src/renderer/lib/divsim')
+    expect(
+      heldIds([
+        { code: '8058', quantity: 10 },
+        { code: '8001', quantity: 0 },
+      ]),
+    ).toEqual(['JP:8058'])
+  })
+  it('今のタブに効かない設定のキーは受けない（これからで R・G・B・P、保有のこれからでは A・X も）', async () => {
+    const { keyApplies } = await import('../../../src/renderer/lib/divsim')
+    for (const k of ['KeyR', 'KeyG', 'KeyB', 'KeyP', 'KeyA', 'KeyX']) expect(keyApplies(k, 'past', false), k).toBe(true)
+    for (const k of ['KeyR', 'KeyG', 'KeyB', 'KeyP']) expect(keyApplies(k, 'fwd', false), k).toBe(false)
+    for (const k of ['KeyA', 'KeyX', 'KeyV', 'KeyL']) expect(keyApplies(k, 'fwd', false), k).toBe(true)
+    for (const k of ['KeyA', 'KeyX']) expect(keyApplies(k, 'fwd', true), k).toBe(false)
+    expect(keyApplies('KeyV', 'past', false)).toBe(false)
   })
 })
