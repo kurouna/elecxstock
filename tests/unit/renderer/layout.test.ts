@@ -93,7 +93,7 @@ describe('ペインの移動とドロワー（FR-L2, DR6）', () => {
     const n = L.normalizeDoc(JSON.parse(JSON.stringify(d)))
     expect(n.entries.market.docks.right?.panes[0]?.widget).toBe('portfolio')
     expect(L.allPanes(n.entries.market).map((p) => p.widget)).toContain('heatmap')
-    expect(L.allPanes(n.entries.holdings).map((p) => p.widget)).toEqual(['portfolio', 'chart', 'info'])
+    expect(L.allPanes(n.entries.holdings).map((p) => p.widget)).toEqual(['portfolio', 'info', 'chart', 'divsim'])
   })
   it('銘柄を選ぶ一覧はどのタブも左の列か左のドロワーにあり、右のドロワーは使わない（FR-L12）', () => {
     const LISTS = ['watchlist', 'screener', 'ranking', 'divcal', 'portfolio']
@@ -426,5 +426,32 @@ describe('マイレイアウトを表示中にすべてのタブを戻す（FR-L
     app.maximized = id
     L.resetAllLayouts()
     expect(app.maximized).toBe(id)
+  })
+})
+
+describe('保有のタブの初期の並び（§6.4 保有・FR-H11・FR-SIM11）', () => {
+  it('左から 保有・銘柄情報・右の列（上は日足・下は配当シミュレータ。出どころは保有）。すべてリンク 4', () => {
+    type N = {
+      kind: string
+      widget?: string
+      dir?: string
+      sizes?: number[]
+      link?: number
+      state?: Record<string, unknown>
+      children?: N[]
+    }
+    const root = L.presetEntry('holdings').root as N
+    expect(root.dir).toBe('row')
+    expect(root.sizes).toEqual([30, 22, 48])
+    const [pf, info, right] = root.children!
+    expect(pf!.widget).toBe('portfolio')
+    expect(info!.widget).toBe('info')
+    expect(right!.dir).toBe('col')
+    expect(right!.sizes).toEqual([50, 50])
+    expect(right!.children!.map((c) => [c.widget, c.state?.tf ?? c.state?.src])).toEqual([
+      ['chart', 'D'],
+      ['divsim', 'holdings'],
+    ])
+    expect(L.allPanes(L.presetEntry('holdings'), false).every((p) => p.link === 4)).toBe(true)
   })
 })

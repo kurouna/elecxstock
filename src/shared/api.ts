@@ -274,6 +274,7 @@ export const PARAMS = {
       tax: z.enum(['gross', 'taxed', 'nisa']),
       sector: z.enum(['s33', 's17']),
       horizon: z.union([z.literal(5), z.literal(10), z.literal(20), z.literal(30)]),
+      method: z.enum(['flat', 'growth']),
     }),
     /** 保有を出どころに（これからは Core が読む保有の株数と口座ごとの税で計算する。設計 §23） */
     held: z.boolean().optional(),

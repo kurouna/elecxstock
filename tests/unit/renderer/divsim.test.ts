@@ -312,7 +312,7 @@ describe('FR-SIM6 FR-SIM11 3 回目のレビューの反映', () => {
 
 describe('FR-SIM4 年ごとの見込みの図（上段: その年の配当・下段: 累計。横の軸は共通）', () => {
   const years = (y1: number, s1: number, n = 10) =>
-    Array.from({ length: n }, (_, i) => ({ year: i + 1, flat: y1, stress: s1, cumFlat: y1 * (i + 1) }))
+    Array.from({ length: n }, (_, i) => ({ year: i + 1, value: y1, stress: s1, cum: y1 * (i + 1) }))
   it('上段と下段は重ならず、それぞれ自分の軸を持つ', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
     const g = fwdChart(years(20_400, 15_000), 1_000_000, 600, 250)
@@ -331,7 +331,7 @@ describe('FR-SIM4 年ごとの見込みの図（上段: その年の配当・下
   it('下段: 累計は後の年ほど高い。ストレスの累計も持つ', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
     const g = fwdChart(years(20_400, 15_000), 1_000_000, 600, 250)
-    expect(g.bot.y(g.cumFlat[9]!)).toBeLessThan(g.bot.y(g.cumFlat[0]!))
+    expect(g.bot.y(g.cum[9]!)).toBeLessThan(g.bot.y(g.cum[0]!))
     expect(g.cumStress[9]).toBe(150_000)
     expect(g.bot.ticks.length).toBeGreaterThan(1)
   })
@@ -339,7 +339,6 @@ describe('FR-SIM4 年ごとの見込みの図（上段: その年の配当・下
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
     const far = fwdChart(years(20_400, 20_400), 1_000_000, 600, 250)
     expect(far.principal).toBeNull()
-    expect(far.paybackYears).toBe(50)
     const near = fwdChart(years(150_000, 150_000), 1_000_000, 600, 250)
     expect(near.principal).toBe(1_000_000)
     expect(near.payback).toBe(6)
@@ -347,13 +346,21 @@ describe('FR-SIM4 年ごとの見込みの図（上段: その年の配当・下
   it('無配でも 0 で割らない・年数は出さない', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
     const g = fwdChart(years(0, 0), 1_000_000, 600, 250)
-    expect(g.paybackYears).toBeNull()
     expect(Number.isFinite(g.top.y(0)) && Number.isFinite(g.bot.y(0))).toBe(true)
   })
   it('横の目盛り: 10 年までは毎年、それより長ければ 5 年ごと（と 1 年目）', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
     expect(fwdChart(years(1, 1, 10), 10, 600, 250).xTicks).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     expect(fwdChart(years(1, 1, 30), 10, 600, 250).xTicks).toEqual([0, 4, 9, 14, 19, 24, 29])
+  })
+  it('データラベル: 10 年までは毎年、長ければ横の目盛りの年、狭ければ最初と最後。上段は上に余白を取る', async () => {
+    const { fwdChart } = await import('../../../src/renderer/lib/divsim')
+    expect(fwdChart(years(1, 1, 10), 10, 600, 250).labels).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    expect(fwdChart(years(1, 1, 30), 10, 600, 250).labels).toEqual([0, 4, 9, 14, 19, 24, 29])
+    expect(fwdChart(years(1, 1, 10), 10, 300, 250).labels).toEqual([0, 9])
+    const g = fwdChart(years(20_400, 15_000), 1_000_000, 600, 250)
+    expect(g.top.vmax).toBe(20_400)
+    expect(g.top.y(20_400) - (g.top.y0 - g.top.h)).toBeGreaterThanOrEqual(10)
   })
   it('横の位置から年を選ぶ', async () => {
     const { fwdChart } = await import('../../../src/renderer/lib/divsim')
@@ -364,8 +371,15 @@ describe('FR-SIM4 年ごとの見込みの図（上段: その年の配当・下
   it('図の下の固定の 1 行: その年・累計・元本に対する割合・ストレス（違うときだけ）', async () => {
     const { fwdReadout } = await import('../../../src/renderer/lib/divsim')
     const ys = years(20_400, 15_000)
-    expect(fwdReadout(ys, 4, 1_000_000)).toEqual({ year: 5, flat: 20_400, cum: 102_000, pct: 0.102, stress: 15_000, cumStress: 75_000 })
-    expect(fwdReadout(years(20_400, 20_400), 0, 1_000_000)).toEqual({ year: 1, flat: 20_400, cum: 20_400, pct: 0.0204, stress: null, cumStress: null })
+    expect(fwdReadout(ys, 4, 1_000_000)).toEqual({ year: 5, value: 20_400, cum: 102_000, pct: 0.102, stress: 15_000, cumStress: 75_000 })
+    expect(fwdReadout(years(20_400, 20_400), 0, 1_000_000)).toEqual({
+      year: 1,
+      value: 20_400,
+      cum: 20_400,
+      pct: 0.0204,
+      stress: null,
+      cumStress: null,
+    })
     expect(fwdReadout(ys, 0, 0).pct).toBeNull()
   })
 })

@@ -132,3 +132,68 @@ export function stressRatios(
   }
   return out
 }
+
+// ---------------- 伸びを見込む（§5.2。P2 の最初の切り口） ----------------
+/** 伸びを見込むときに、自分の値と業種の値を混ぜる重みの分母（w = n/(n+5)） */
+const SHRINK_K = 5
+/** 伸びの打ち切り（年率 ±10%） */
+const GROWTH_CAP = 0.1
+/** 伸びを毎年弱める割合 */
+const GROWTH_DECAY = 0.8
+
+/** Theil–Sen の傾き（2 点ずつの傾きの中央値。外れ値（記念配当など）に強い）。横は番号（1 年ずつ）。2 点に満たなければ null */
+export function theilSen(ys: number[]): number | null {
+  const sl: number[] = []
+  for (let i = 0; i < ys.length; i++) for (let j = i + 1; j < ys.length; j++) sl.push((ys[j]! - ys[i]!) / (j - i))
+  return median(sl)
+}
+/** 0 より大きい値が最後まで続く部分（無配の年をはさんだら、その後だけ） */
+function trailingPositive(xs: (number | null)[]): number[] {
+  const out: number[] = []
+  for (let i = xs.length - 1; i >= 0; i--) {
+    const v = xs[i]
+    if (v == null || !(v > 0)) break
+    out.unshift(v)
+  }
+  return out
+}
+/**
+ * 自分の伸び（年率の対数）: 直近 N 回の権利落ちで区切った年の 1 株配当（最大 10 年）の対数に Theil–Sen を当てる。
+ * 0 より大きい年が 4 年に満たなければ null（期間不足）。n は使った年の数
+ */
+export function ownGrowth(divs: Dividend[], asOf: JstDate): { g: number | null; n: number } {
+  const ys = trailingPositive(dpsBlocks(divs, asOf, 10).dps)
+  if (ys.length < 4) return { g: null, n: ys.length }
+  return { g: theilSen(ys.map(Math.log)), n: ys.length }
+}
+/** 業種の値を出すための、母集団の銘柄の伸び（暦年の合計。記録の始まりの年と今年は使わない） */
+export function poolGrowth(i: StressItem, thisYear: number): number | null {
+  const xs: number[] = []
+  for (let y = i.from + 1; y < thisYear; y++) xs.push(i.years.get(y) ?? 0)
+  const ys = trailingPositive(xs)
+  return ys.length < 4 ? null : theilSen(ys.map(Math.log))
+}
+/** 記録が短いほど業種の値に寄せ（w = n/(n+5)）、±10% で打ち切る。自分の値が無ければ業種の値 */
+export function shrinkGrowth(own: number | null, n: number, sector: number): number {
+  const w = own == null ? 0 : n / (n + SHRINK_K)
+  const g = w * (own ?? 0) + (1 - w) * sector
+  return Math.max(-GROWTH_CAP, Math.min(GROWTH_CAP, g))
+}
+/** t 年目の倍率: exp(g·Σ_{s=1..t} 0.8ˢ)（伸びを毎年 0.8 倍ずつ弱める） */
+export function growthFactor(g: number, t: number): number {
+  let s = 0
+  for (let k = 1; k <= t; k++) s += GROWTH_DECAY ** k
+  return Math.exp(g * s)
+}
+/** 元本に届く年数の上限（これより先は「届かない」） */
+const PAYBACK_MAX = 200
+/** 毎年の額（t 年目 → 円）の累計が元本に届く最初の年。上限までに届かない・元本が 0 なら null */
+export function paybackYears(valueAt: (t: number) => number, amount: number): number | null {
+  if (!(amount > 0)) return null
+  let cum = 0
+  for (let t = 1; t <= PAYBACK_MAX; t++) {
+    cum += valueAt(t)
+    if (cum >= amount) return t
+  }
+  return null
+}

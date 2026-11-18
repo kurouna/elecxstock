@@ -369,7 +369,7 @@ describe('FR-SIM2 FR-SIM4 FR-SIM5 組み立て（外した銘柄・これから�
     })
     expect(r.fwd.stress).toEqual({ year: 2020, ratio: 0.75 })
     expect(r.fwd.years.length).toBe(5)
-    expect(r.fwd.years[0]!.flat).toBeCloseTo(1500 * 20 * 2)
+    expect(r.fwd.years[0]!.value).toBeCloseTo(1500 * 20 * 2)
     expect(r.fwd.years[0]!.stress).toBeCloseTo(1500 * 20 * 0.5 + 1500 * 20)
     expect(r.fwd.years[4]!.stress).toBeCloseTo(r.fwd.years[0]!.stress)
     expect(r.fwd.stressDiff).toBeCloseTo(-0.25)
@@ -468,5 +468,89 @@ describe('FR-SIM11 保有を出どころに（これからは実際の株数と�
   it('保有に無い銘柄は株数 0（これからに入れない）', () => {
     const r = simulate({ ...base, stocks: [stock('A'), stock('B')], held: new Map([['A', { qty: 10, net: 1 }]]) })
     expect(r.fwd.rows.map((x) => x.id)).toEqual(['A'])
+  })
+})
+
+describe('FR-SIM12 伸びを見込む（設計 §5.2。P2 の最初の切り口）', () => {
+  it('Theil–Sen の傾き（外れ値に強い。対数の系列で年率の伸び）', async () => {
+    const { theilSen } = await import('@shared/sim/forecast')
+    expect(theilSen([1, 2, 3, 4, 100])).toBeCloseTo(1)
+    expect(theilSen([5])).toBeNull()
+  })
+  it('自分の伸び: 直近 N 回で区切った年の 1 株配当（0 より大きく続く年）の対数の傾き。4 年に満たなければ null', async () => {
+    const { ownGrowth } = await import('@shared/sim/forecast')
+    const d = semi(2017, 2026, (y) => 10 * 1.08 ** (y - 2017))
+    const g = ownGrowth(d, TODAY)
+    expect(g.g!).toBeCloseTo(Math.log(1.08), 3)
+    expect(g.n).toBeGreaterThanOrEqual(8)
+    expect(ownGrowth(semi(2024, 2026), TODAY).g).toBeNull()
+  })
+  it('記録が短いほど業種の値に寄せ（w = n/(n+5)）、±10% で打ち切る', async () => {
+    const { shrinkGrowth } = await import('@shared/sim/forecast')
+    expect(shrinkGrowth(0.1, 5, 0)).toBeCloseTo(0.05)
+    expect(shrinkGrowth(0.3, 100, 0.3)).toBe(0.1)
+    expect(shrinkGrowth(-0.5, 100, -0.5)).toBe(-0.1)
+    expect(shrinkGrowth(null, 0, 0.04)).toBeCloseTo(0.04)
+  })
+  it('伸びは毎年 0.8 倍ずつ弱める: Dₜ = D₀·exp(g·Σ0.8ˢ)', async () => {
+    const { growthFactor } = await import('@shared/sim/forecast')
+    expect(growthFactor(0.1, 1)).toBeCloseTo(Math.exp(0.08))
+    expect(growthFactor(0.1, 2)).toBeCloseTo(Math.exp(0.1 * (0.8 + 0.64)))
+    expect(growthFactor(0, 5)).toBe(1)
+  })
+  const st = (id: string, o: Partial<SimStock> = {}): SimStock => ({
+    id,
+    kind: 'stock',
+    market: 'P',
+    sector33: '銀行業',
+    px: buildPx([], daily('2023-01-04', TODAY)),
+    divs: semi(2016, 2026, (y) => 10 * 1.08 ** (y - 2016)),
+    divFrom: '2016-01-01',
+    ...o,
+  })
+  const base = { today: TODAY, total: 1, etf: null, members: () => [], stressPool: [] }
+  it('方式「伸びを見込む」: 年ごとの見込みが伸びる。ストレスは同じ線に 1 年目の前年比を当て続ける。横ばいは毎年同じ', () => {
+    const g = simulate({ ...base, settings: { ...DEFAULT_SIM, method: 'growth', horizon: 10 }, stocks: [st('A')] })
+    const ys = g.fwd.years
+    expect(ys[9]!.value).toBeGreaterThan(ys[0]!.value)
+    expect(ys[1]!.value / ys[0]!.value).toBeGreaterThan(ys[9]!.value / ys[8]!.value) // 弱めていく
+    expect(g.fwd.rows[0]!.g).toBeGreaterThan(0)
+    expect(g.fwd.rows[0]!.g).toBeLessThanOrEqual(0.1)
+    expect(g.fwd.y1).toBeCloseTo(ys[0]!.value)
+    expect(g.fwd.cum).toBeCloseTo(ys.reduce((a, y) => a + y.value, 0))
+    const f = simulate({ ...base, settings: { ...DEFAULT_SIM, method: 'flat', horizon: 10 }, stocks: [st('A')] })
+    expect(f.fwd.years[9]!.value).toBeCloseTo(f.fwd.years[0]!.value)
+    expect(f.fwd.rows[0]!.g).toBe(0)
+  })
+  it('期間不足・無配の銘柄は伸びを見込まない（横ばい）', () => {
+    const g = simulate({ ...base, settings: { ...DEFAULT_SIM, method: 'growth' }, stocks: [st('A', { divs: semi(2024, 2026) })] })
+    expect(g.fwd.rows[0]!.g).toBe(0)
+    expect(g.fwd.years[4]!.value).toBeCloseTo(g.fwd.years[0]!.value)
+  })
+})
+
+describe('FR-SIM4 FR-SIM12 元本に届く年数（選んだ方式の累計で）', () => {
+  it('毎年の額から、累計が元本に届く最初の年。届かなければ・配当が 0 なら null', async () => {
+    const { paybackYears } = await import('@shared/sim/forecast')
+    expect(paybackYears(() => 20_400, 1_000_000)).toBe(50)
+    expect(paybackYears((t) => 20_000 * 1.1 ** t, 1_000_000)).toBeLessThan(50)
+    expect(paybackYears(() => 0, 1_000_000)).toBeNull()
+    expect(paybackYears(() => 1, 1_000_000)).toBeNull()
+  })
+  it('結果に入る（伸びを見込むと横ばいより早く届く）', () => {
+    const st = (id: string): SimStock => ({
+      id,
+      kind: 'stock',
+      market: 'P',
+      sector33: '銀行業',
+      px: buildPx([], daily('2023-01-04', TODAY)),
+      divs: semi(2016, 2026, (y) => 10 * 1.08 ** (y - 2016)),
+      divFrom: '2016-01-01',
+    })
+    const base = { today: TODAY, total: 1, etf: null, members: () => [], stressPool: [], stocks: [st('A')] }
+    const f = simulate({ ...base, settings: { ...DEFAULT_SIM, method: 'flat' } })
+    const g = simulate({ ...base, settings: { ...DEFAULT_SIM, method: 'growth' } })
+    expect(f.fwd.paybackYears).not.toBeNull()
+    expect(g.fwd.paybackYears!).toBeLessThan(f.fwd.paybackYears!)
   })
 })

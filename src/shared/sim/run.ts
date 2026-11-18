@@ -18,7 +18,20 @@ import {
   tradingDays,
   wealthAt,
 } from './backtest'
-import { annualOf, lastYearEvents, monthShares, pickStressYear, type StressItem, stressRatios } from './forecast'
+import {
+  annualOf,
+  growthFactor,
+  lastYearEvents,
+  median,
+  monthShares,
+  ownGrowth,
+  paybackYears,
+  pickStressYear,
+  poolGrowth,
+  type StressItem,
+  shrinkGrowth,
+  stressRatios,
+} from './forecast'
 import { groupKey, type PeerCand, peerPath, pickPeers, rankIn } from './peers'
 import { netRate, type SimExcludeReason, type SimFwd, type SimPast, type SimResult, type SimSector, type SimSettings } from './types'
 
@@ -261,9 +274,21 @@ function fwdOf(inp: SimInput, net: number): SimFwd {
         thisYear,
       )
     : null
+  // 伸びを見込むとき: 業種（17 業種）の中央値・市場全体の中央値（母集団の暦年の合計から）
+  const growth = st.method === 'growth'
+  const by17 = new Map<string, number[]>()
+  const all: number[] = []
+  if (growth)
+    for (const i of inp.stressPool) {
+      const g = poolGrowth(i, thisYear)
+      if (g == null) continue
+      all.push(g)
+      if (i.s17) by17.set(i.s17, [...(by17.get(i.s17) ?? []), g])
+    }
+  const mkt = median(all) ?? 0
   const months = new Array<number>(12).fill(0)
-  let y1 = 0
-  let stressY1 = 0
+  /** 銘柄ごとの 1 年目の前の配当（D₀ × 株数 × 税）・伸び・ストレスの前年比 */
+  const parts: { v: number; g: number; r: number }[] = []
   const rows = xs.map(({ s, lp }) => {
     const reit = isReit(s)
     const an = annualOf(s.divs, today, reit)
@@ -271,9 +296,17 @@ function fwdOf(inp: SimInput, net: number): SimFwd {
     const shares = h ? h.qty : a / lp.c
     const v = shares * an.d0 * (h ? h.net : net)
     const r = rs?.get(s.id) ?? { r: 1, src: 'none' as const }
-    y1 += v
-    stressY1 += v * Math.min(1, r.r)
-    const ms = monthShares(s.divs, today, reit).map((x) => x * v)
+    const short = an.years < 4 || an.d0 === 0
+    // 期間不足・無配は伸びを見込まない
+    let g = 0
+    if (growth && !short) {
+      const own = ownGrowth(s.divs, today)
+      const k = groupKey(s, 's17')
+      g = shrinkGrowth(own.g, own.n, (k ? median(by17.get(k) ?? []) : null) ?? mkt)
+    }
+    parts.push({ v, g, r: Math.min(1, r.r) })
+    const v1 = v * growthFactor(g, 1)
+    const ms = monthShares(s.divs, today, reit).map((x) => x * v1)
     ms.forEach((x, i) => {
       months[i]! += x
     })
@@ -284,20 +317,31 @@ function fwdOf(inp: SimInput, net: number): SimFwd {
       d0: an.d0,
       years: an.years,
       growth5: dpsCagr(dpsBlocks(s.divs, today, 5).dps),
-      y1: v,
+      y1: v1,
+      g,
       r: r.r,
       rSrc: r.src,
       exMonths: [...new Set(lastYearEvents(s.divs, today).map((d) => Number(d.date.slice(5, 7))))],
       months: ms,
-      short: an.years < 4 || an.d0 === 0,
+      short,
     }
   })
+  // 年ごと: 選んだ方式の線と、同じ線に 1 年目の前年比（ストレス）を当て続けた線
   const years: SimFwd['years'] = []
-  let cf = 0
+  let cum = 0
   for (let t = 1; t <= st.horizon; t++) {
-    cf += y1
-    years.push({ year: t, flat: y1, stress: stressY1, cumFlat: cf })
+    let value = 0
+    let stressV = 0
+    for (const p of parts) {
+      const x = p.v * growthFactor(p.g, t)
+      value += x
+      stressV += x * p.r
+    }
+    cum += value
+    years.push({ year: t, value, stress: stressV, cum })
   }
+  const y1 = years[0]?.value ?? 0
+  const stressY1 = years[0]?.stress ?? 0
   const diff = ratioOrNull(stressY1, y1)
   return {
     amount,
@@ -305,9 +349,10 @@ function fwdOf(inp: SimInput, net: number): SimFwd {
     rows,
     y1,
     yieldOnPrincipal: y1 > 0 && amount > 0 ? y1 / amount : null,
-    cum: y1 * st.horizon,
+    cum,
     stress,
     stressY1,
+    paybackYears: paybackYears((t) => parts.reduce((a, p) => a + p.v * growthFactor(p.g, t), 0), amount),
     stressDiff: diff == null ? null : diff - 1,
     years,
     months,

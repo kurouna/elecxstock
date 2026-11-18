@@ -198,9 +198,15 @@ export function presetEntry(id: PresetId): LayoutEntry {
         docks: { left: selectDock(MAIN_LINK, 0) },
       }
     case 'holdings':
-      // §6.4 保有（FR-H11）: 左に保有の一覧（このタブの一覧。列が多いので広め）、右にチャートと銘柄情報（リンク 4）
+      // §6.4 保有（FR-H11）: スクリーナーのタブと同じ 3 列。左に保有の一覧、中央に銘柄情報、右の列は上が日足・下が配当シミュレータ（すべてリンク 4）。
+      // シミュレータは既定の 1 銘柄ではリンク 4 の保有銘柄を計算し、群（O）にすると出どころが保有になる（FR-SIM11）
       return {
-        root: R([58, 42], P('portfolio', 4), C([60, 40], P('chart', 4, { tf: 'D' }), P('info', 4))),
+        root: R(
+          [30, 22, 48],
+          P('portfolio', 4),
+          P('info', 4),
+          C([50, 50], P('chart', 4, { tf: 'D' }), P('divsim', 4, { src: 'holdings' })),
+        ),
         docks: {},
       }
     case 'folio':

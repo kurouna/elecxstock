@@ -6,6 +6,9 @@ import type { InstrumentId, JstDate } from '../types'
 export type SimTax = 'gross' | 'taxed' | 'nisa'
 /** 同業種の粒度（33 業種。足りなければ 17 業種へ切り替える ／ 17 業種） */
 export type SimSector = 's33' | 's17'
+/** これからの試算の方式（横ばい ／ 伸びを見込む。§5.2） */
+export type SimMethod = 'flat' | 'growth'
+export const SIM_METHODS: SimMethod[] = ['flat', 'growth']
 export const SIM_YEARS = [1, 3, 5] as const
 export const SIM_HORIZONS = [5, 10, 20, 30] as const
 export type SimYears = (typeof SIM_YEARS)[number]
@@ -22,8 +25,17 @@ export interface SimSettings {
   tax: SimTax
   sector: SimSector
   horizon: SimHorizon
+  method: SimMethod
 }
-export const DEFAULT_SIM: SimSettings = { years: 3, amount: 3_000_000, reinvest: false, tax: 'taxed', sector: 's33', horizon: 10 }
+export const DEFAULT_SIM: SimSettings = {
+  years: 3,
+  amount: 3_000_000,
+  reinvest: false,
+  tax: 'taxed',
+  sector: 's33',
+  horizon: 10,
+  method: 'flat',
+}
 export const netRate = (tax: SimTax): number => (tax === 'taxed' ? 1 - DIVIDEND_TAX : 1)
 
 /** 過去の段から外した理由（基準日に価格が無い ／ 配当の記録が基準日より後から ／ 上場廃止（これからの段にも入れない）） */
@@ -105,8 +117,10 @@ export interface SimFwdRow {
   years: number
   /** 5 年の 1 株配当の伸び（年率 %。値が足りなければ null） */
   growth5: number | null
-  /** 1 年目の配当（税は設定どおり） */
+  /** 1 年目の配当（税は設定どおり。伸びを見込むときは 1 年目の伸びを含む） */
   y1: number
+  /** 試算に使った伸び（年率の対数。業種の値に寄せ、打ち切ったあと。横ばい・期間不足は 0） */
+  g: number
   /** ストレスの年の前年比と、その出どころ（実績 ／ 17 業種の中央値 ／ 市場全体の中央値） */
   r: number
   rSrc: 'own' | 's17' | 'market' | 'none'
@@ -127,14 +141,16 @@ export interface SimFwd {
   /** 1 年目の配当の合計と、元本に対する利回り（合計が 0 なら null） */
   y1: number
   yieldOnPrincipal: number | null
-  /** 試算の期間の累計（横ばい） */
+  /** 試算の期間の累計（選んだ方式） */
   cum: number
   stress: { year: number; ratio: number } | null
   stressY1: number
+  /** 選んだ方式の累計が元本（保有のときは評価額）に届く年（200 年までに届かなければ null） */
+  paybackYears: number | null
   /** ストレスの 1 年目 ÷ 横ばいの 1 年目 − 1（横ばいが 0 なら null） */
   stressDiff: number | null
-  /** 年ごと（1 年目から） */
-  years: { year: number; flat: number; stress: number; cumFlat: number }[]
+  /** 年ごと（1 年目から）: value は選んだ方式の配当、stress はストレス、cum は value の累計 */
+  years: { year: number; value: number; stress: number; cum: number }[]
   /** 月ごとの配当の合計（権利確定月。0 が 1 月） */
   months: number[]
 }

@@ -122,12 +122,13 @@ test.describe('配当シミュレータのキー操作（FR-SIM3・SIM4・SIM6�
     await expect(s.getByTestId('sim-fy')).toBeVisible()
     await expect(s.locator('.c-fy h3')).toContainText('累計')
     await expect(s.getByTestId('sim-fy-note')).toContainText('元本')
-    // 年を選ぶと、図の下の固定の 1 行にその年・累計を出す（選ぶ前は場所を取ったまま見えない）
+    // 年を選ぶと、その年・累計をツールチップに出す（選ぶ前は出さない）
     await expect(s.getByTestId('sim-fy-read')).toBeHidden()
     await keys(page, 'Tab', 'Tab')
     await expect(s.locator('[data-card="fy"]')).toHaveClass(/sel/)
     await keys(page, 'ArrowRight', 'ArrowRight')
-    await expect(s.getByTestId('sim-fy-read')).toContainText('2 年目｜その年')
+    await expect(s.getByTestId('sim-fy-read')).toContainText('2 年目')
+    await expect(s.getByTestId('sim-fy-read')).toContainText('その年の配当')
     await expect(s.getByTestId('sim-fy-read')).toContainText('累計')
     await keys(page, 'Escape', 'Escape')
     await expect(s.locator('.c-cal h3')).toContainText('受取の目安')
@@ -283,5 +284,32 @@ test.describe('銘柄ジャンプで 1 銘柄へ（FR-SIM10）', () => {
     await keys(page, 'ArrowDown')
     await expect(s.locator('.cfg .scope [aria-checked="true"]')).toContainText('群')
     await expect(s.locator('[data-card="table"]')).toBeVisible()
+  })
+})
+
+test.describe('伸びを見込む（FR-SIM12。M で横ばい ⇔ 伸びを見込む）', () => {
+  test('これからで M を押すと伸びを見込んで計算し直す。前提に伸びの決め方、表に試算の伸び。過去では M を受けない', async ({ start }) => {
+    const { page } = await start()
+    const s = await openSim(page)
+    await keys(page, 'm')
+    await expect(s.locator('.cfg')).not.toContainText('伸びを見込む')
+    await keys(page, 'PageDown')
+    await expect(s.getByTestId('sim-fwd')).toBeVisible()
+    await expect(s.locator('.cfg')).toContainText('横ばいとストレスで試算')
+    await keys(page, 'm')
+    await expect(s.getByTestId('sim-loading')).toBeVisible()
+    await expect(s.getByTestId('sim-fwd')).toBeVisible()
+    await expect(s.locator('.cfg')).toContainText('伸びを見込むとストレスで試算')
+    await expect(s.getByTestId('sim-basis')).toContainText('Theil–Sen')
+    await expect(s.locator('thead')).toContainText('試算の伸び')
+  })
+})
+
+test.describe('保有のタブ（FR-H11・FR-SIM11）', () => {
+  test('スクリーナーのタブと同じ 3 列: 保有・銘柄情報・右の列（日足と配当シミュレータ）。すべてリンク 4', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'holdings')
+    for (const w of ['portfolio', 'info', 'chart', 'divsim']) await expect(page.locator(`[data-widget="${w}"]`)).toHaveCount(1)
+    await expect(page.locator('[data-widget="divsim"] .link')).toHaveText('4')
   })
 })

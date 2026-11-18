@@ -3,6 +3,7 @@
 import {
   DEFAULT_SIM,
   SIM_HORIZONS,
+  SIM_METHODS,
   SIM_YEARS,
   type SimFwdRow,
   type SimPastRow,
@@ -36,6 +37,7 @@ export function simSettingsOf(s: Record<string, unknown>): SimSettings {
     tax: pick(s.tax, SIM_TAXES, DEFAULT_SIM.tax),
     sector: pick(s.sector, SIM_SECTORS, DEFAULT_SIM.sector),
     horizon: pick(s.horizon, SIM_HORIZONS, DEFAULT_SIM.horizon),
+    method: pick(s.method, SIM_METHODS, DEFAULT_SIM.method),
   }
 }
 /** 画面だけの表示の状態（変えても計算し直さない） */
@@ -86,7 +88,7 @@ export function heldIds(hs: { code: string; quantity: number }[]): InstrumentId[
  * 過去に効かない: 受取月（V）
  */
 export function keyApplies(code: string, tab: SimTab, held: boolean): boolean {
-  if (tab === 'past') return code !== 'KeyV'
+  if (tab === 'past') return code !== 'KeyV' && code !== 'KeyM'
   if (['KeyR', 'KeyG', 'KeyB', 'KeyP'].includes(code)) return false
   return !(held && (code === 'KeyA' || code === 'KeyX'))
 }
@@ -102,7 +104,7 @@ export function pillGeom(x: number, right: number, label: string): { x: number; 
 }
 /** 計算し直すかを決める鍵: 計算する銘柄の集合と順（上限で切る順に効く）と設定。表示の状態は入れない */
 export function simKey(ids: InstrumentId[], s: SimSettings): string {
-  return `${ids.join(',')}|${s.years}|${s.amount}|${s.reinvest}|${s.tax}|${s.sector}|${s.horizon}`
+  return `${ids.join(',')}|${s.years}|${s.amount}|${s.reinvest}|${s.tax}|${s.sector}|${s.horizon}|${s.method}`
 }
 /** 元本の入力（万円で打つ）。読めなければ null */
 export function parseAmount(text: string): number | null {
@@ -181,6 +183,10 @@ export function basisNotes(r: SimResult, tab: SimTab, screen: boolean): Note[] {
   } else {
     out.push({ k: 'sim.n.estimate' })
     if (r.fwd.held) out.push({ k: 'sim.n.held' })
+    if (r.settings.method === 'growth') {
+      out.push({ k: 'sim.n.growth' })
+      out.push({ k: 'sim.n.boom', warn: true })
+    }
     if (r.fwd.stress) out.push({ k: 'sim.n.stress', a: { y: r.fwd.stress.year, p: pct(r.fwd.stress.ratio - 1) } })
     const gone = r.excluded.filter((x) => x.reason === 'delisted').length
     if (gone) out.push({ k: 'sim.n.delistedFwd', a: { n: gone }, warn: true })
@@ -196,7 +202,7 @@ export function basisNotes(r: SimResult, tab: SimTab, screen: boolean): Note[] {
 
 /** 表の並べ替えの候補（S で巡る）。値が大きい順 */
 export const PAST_SORTS = ['total', 'contrib', 'received', 'yoc', 'rank'] as const
-export const FWD_SORTS = ['y1', 'yield', 'growth', 'stress'] as const
+export const FWD_SORTS = ['y1', 'yield', 'growth', 'g', 'stress'] as const
 const pastKey = (r: SimPastRow, k: string): number =>
   k === 'contrib'
     ? r.contrib
@@ -210,7 +216,7 @@ const pastKey = (r: SimPastRow, k: string): number =>
             : -2
           : r.totalPct
 const fwdKey = (r: SimFwdRow, k: string): number =>
-  k === 'yield' ? r.d0 / r.price : k === 'growth' ? (r.growth5 ?? -1e9) : k === 'stress' ? r.r : r.y1
+  k === 'yield' ? r.d0 / r.price : k === 'growth' ? (r.growth5 ?? -1e9) : k === 'g' ? r.g : k === 'stress' ? r.r : r.y1
 export function sortPast(rows: SimPastRow[], k: string): SimPastRow[] {
   return [...rows].sort((a, b) => pastKey(b, k) - pastKey(a, k))
 }
@@ -359,6 +365,13 @@ export function simColumns(
       (v) => ({ t: o.mask ?? v.toFixed(1) }),
     ),
     num(
+      'g',
+      'sim.c.g',
+      64,
+      f((x) => (r.settings.method === 'growth' ? Math.exp(x.g) - 1 : null)),
+      (v) => ({ t: pct(v), c: signCls(v) }),
+    ),
+    num(
       'y1',
       'sim.c.y1',
       80,
@@ -445,7 +458,7 @@ export function spreadLabels(ys: number[], gap: number, lo: number, hi: number):
  * 上段はその年の配当（棒。ストレスは棒に重ねる段）、下段は累計（階段の面。ストレスの累計は破線）。
  * 元本は累計の 1.5 倍以内のときだけ下段に線を引き、届く年に印。遠ければ届く年数（横ばいで）を文で出す
  */
-export function fwdChart(years: { flat: number; stress: number; cumFlat: number }[], amount: number, w: number, h: number) {
+export function fwdChart(years: { value: number; stress: number; cum: number }[], amount: number, w: number, h: number) {
   const pad = { l: 8, r: 64, t: 16, b: 18 }
   const gap = 20
   const n = Math.max(1, years.length)
@@ -456,15 +469,17 @@ export function fwdChart(years: { flat: number; stress: number; cumFlat: number 
   const bh = Math.max(1, inner - th)
   let s = 0
   const cumStress = years.map((y) => (s += y.stress))
-  const cumFlat = years.map((y) => y.cumFlat)
-  const cumMax = cumFlat.at(-1) ?? 0
+  const cum = years.map((y) => y.cum)
+  const cumMax = cum.at(-1) ?? 0
   const principal = amount > 0 && cumMax > 0 && amount <= cumMax * 1.5 ? amount : null
-  const tMax = Math.max(1, ...years.map((y) => Math.max(y.flat, y.stress))) * 1.15
+  // 上段の上には、データラベルの余白（最大の 40%）
+  const vmax = Math.max(0, ...years.map((y) => Math.max(y.value, y.stress)))
+  const tMax = Math.max(1, vmax) * 1.4
   const bMax = Math.max(cumMax, principal ?? 0, 1) * 1.08
   const ty0 = pad.t + th
   const by0 = pad.t + th + gap + bh
   const x = (i: number) => pad.l + (iw * (i + 0.5)) / n
-  const y1 = years[0]?.flat ?? 0
+  const xTicks = n <= 10 ? years.map((_, i) => i) : years.map((_, i) => i).filter((i) => i === 0 || (i + 1) % 5 === 0)
   return {
     pad,
     iw,
@@ -473,28 +488,29 @@ export function fwdChart(years: { flat: number; stress: number; cumFlat: number 
     /** 年の枠の左右（階段の面） */
     slot: (i: number) => ({ l: pad.l + (iw * i) / n, r: pad.l + (iw * (i + 1)) / n }),
     bw: Math.max(3, (iw / n) * 0.62),
-    top: { y0: ty0, h: th, max: tMax, y: (v: number) => ty0 - (th * v) / tMax },
+    top: { y0: ty0, h: th, max: tMax, vmax, y: (v: number) => ty0 - (th * v) / tMax },
     bot: { y0: by0, h: bh, max: bMax, y: (v: number) => by0 - (bh * v) / bMax, ticks: niceTicks(0, bMax, 3) },
-    cumFlat,
+    cum,
     cumStress,
     principal,
-    payback: principal == null ? -1 : years.findIndex((yr) => yr.cumFlat >= amount),
-    paybackYears: y1 > 0 && amount > 0 ? Math.ceil(amount / y1) : null,
-    stressSame: years.every((yr) => Math.abs(yr.stress - yr.flat) < 1e-6),
-    xTicks: n <= 10 ? years.map((_, i) => i) : years.map((_, i) => i).filter((i) => i === 0 || (i + 1) % 5 === 0),
+    payback: principal == null ? -1 : years.findIndex((yr) => yr.cum >= amount),
+    stressSame: years.every((yr) => Math.abs(yr.stress - yr.value) < 1e-6),
+    xTicks,
+    /** データラベルを出す年: 10 年までは毎年、長ければ 5 年ごと（と 1 年目）。ラベルの間が 40px に満たなければ最初と最後だけ */
+    labels: (n <= 10 ? iw / n : (5 * iw) / n) < 40 ? [...new Set([0, n - 1])] : xTicks,
     indexAt: (px: number) => Math.max(0, Math.min(n - 1, Math.floor(((px - pad.l) / iw) * n))),
   }
 }
 /** 図の下の固定の 1 行（十字線の年）: その年・累計・元本に対する割合・ストレス（横ばいと違う年だけ） */
-export function fwdReadout(years: { flat: number; stress: number; cumFlat: number }[], i: number, amount: number) {
+export function fwdReadout(years: { value: number; stress: number; cum: number }[], i: number, amount: number) {
   const y = years[i]!
   const cumStress = years.slice(0, i + 1).reduce((a, x) => a + x.stress, 0)
-  const same = Math.abs(y.stress - y.flat) < 1e-6 && Math.abs(cumStress - y.cumFlat) < 1e-6
+  const same = Math.abs(y.stress - y.value) < 1e-6 && Math.abs(cumStress - y.cum) < 1e-6
   return {
     year: i + 1,
-    flat: y.flat,
-    cum: y.cumFlat,
-    pct: amount > 0 ? y.cumFlat / amount : null,
+    value: y.value,
+    cum: y.cum,
+    pct: amount > 0 ? y.cum / amount : null,
     stress: same ? null : y.stress,
     cumStress: same ? null : cumStress,
   }
