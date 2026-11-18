@@ -5,6 +5,7 @@
 // 枠の幅で並びを変える（container queries）: 〜699px は 1 列、700〜1039px は左に値段・予定・数字・右に配当、1040px〜は
 // 1 段目に値段と数字、2 段目に配当と値動きなど。配当のグラフは ← → で棒を選び、Y で年ごとと回ごとを切り替える。
 // 配当込みの騰落率・最大下落率・利回りの範囲・業種の中央値・決算発表は、表示中の銘柄だけ Core がその場で計算する（info.extra）
+import { yahooQuoteUrl } from '@shared/attribution'
 import { jstNow } from '@shared/calendar'
 import type { Dividend, InfoExtra } from '@shared/types'
 import { onMount } from 'svelte'
@@ -40,6 +41,11 @@ let { pane }: { pane: PaneNode } = $props()
 const id = $derived(paneSymbol(pane) ?? 'JP:7203')
 const m = $derived(metric(id))
 const ins = $derived(inst(id))
+/** この銘柄の Yahoo Finance のページ（FR-I10。指数は無し） */
+const quoteUrl = $derived(ins ? yahooQuoteUrl(app.settings.lang, ins.code, ins.kind) : null)
+const openQuote = () => {
+  if (quoteUrl) void window.elecxstock.openExternal(quoteUrl).catch(() => {})
+}
 const ja = $derived(app.settings.lang === 'ja')
 let divs = $state<Dividend[]>([])
 let extra = $state<InfoExtra | null>(null)
@@ -221,6 +227,11 @@ onMount(() =>
     key(e) {
       if (e.ctrlKey || e.altKey || e.metaKey) return false
       // ↑ ↓ PageUp PageDown で本文を縦にスクロールする（マウスを使わずに下のカードまで見る。FR-KB4）
+      // O でこの銘柄の Yahoo Finance のページをブラウザで開く（FR-I10）
+      if (e.code === 'KeyO' && !e.shiftKey && quoteUrl) {
+        openQuote()
+        return true
+      }
       if (scroller && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'PageDown' || e.key === 'PageUp')) {
         const page = Math.max(40, scroller.clientHeight - 40)
         const d = e.key === 'ArrowDown' ? 40 : e.key === 'ArrowUp' ? -40 : e.key === 'PageDown' ? page : -page
@@ -262,6 +273,7 @@ onMount(() =>
     title={`${t('info.refetchHint')} (${keyOf('refetch')})`}
     onclick={() => rpc('jobs.refetch', { ids: [id] }).then(() => toast(t('refetch.started', { n: 1 })))}><Icon name="refresh" /></button>
   <button type="button" class="ibtn" aria-label={t('common.about')} title={note}><Icon name="info" /></button>
+  {#if quoteUrl}<button type="button" class="ibtn" aria-label={t('info.openYahoo')} title={`${t('info.openYahoo')} (O)`} onclick={openQuote}><Icon name="external" /></button>{/if}
 </PaneHeader>
 <div class="scroll" bind:this={scroller} onscroll={(e) => (scrolled = e.currentTarget.scrollTop > 90)}>
   <div class="si">

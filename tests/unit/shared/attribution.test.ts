@@ -1,7 +1,7 @@
 // Lightweight Charts の帰属表示（§10）: 画面に出す NOTICE の 2 行が、配布物に入れる NOTICE・README と同じ文言か
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { LWC_NOTICE, LWC_NOTICE_PARTS, splitToken, TRADINGVIEW_URL, yahooUrl } from '@shared/attribution'
+import { LWC_NOTICE, LWC_NOTICE_PARTS, splitToken, TRADINGVIEW_URL, yahooQuoteUrl, yahooUrl } from '@shared/attribution'
 import { describe, expect, it } from 'vitest'
 
 const root = join(__dirname, '..', '..', '..')
@@ -43,5 +43,29 @@ describe('データ源のリンク（§10）', () => {
   it('日本語の画面は Yahoo!ファイナンス、英語は Yahoo Finance へ', () => {
     expect(yahooUrl('ja')).toBe('https://finance.yahoo.co.jp/')
     expect(yahooUrl('en')).toBe('https://finance.yahoo.com/')
+  })
+})
+
+describe('銘柄の Yahoo Finance のページ（FR-I10）', () => {
+  it('日本語の画面は Yahoo!ファイナンス、それ以外は Yahoo Finance（末尾の / あり）', () => {
+    expect(yahooQuoteUrl('ja', '8053', 'stock')).toBe('https://finance.yahoo.co.jp/quote/8053.T')
+    expect(yahooQuoteUrl('en', '8053', 'stock')).toBe('https://finance.yahoo.com/quote/8053.T/')
+  })
+
+  it('REIT・ETF と英字を含むコードも .T で開く', () => {
+    expect(yahooQuoteUrl('ja', '8951', 'reit')).toBe('https://finance.yahoo.co.jp/quote/8951.T')
+    expect(yahooQuoteUrl('en', '1306', 'etf')).toBe('https://finance.yahoo.com/quote/1306.T/')
+    expect(yahooQuoteUrl('ja', '130A', 'stock')).toBe('https://finance.yahoo.co.jp/quote/130A.T')
+  })
+
+  it('指数と、コードの形でないものは出さない', () => {
+    expect(yahooQuoteUrl('ja', 'N225', 'index')).toBeNull()
+    expect(yahooQuoteUrl('en', '', 'stock')).toBeNull()
+    expect(yahooQuoteUrl('en', '8053/../x', 'stock')).toBeNull()
+  })
+
+  it('main の外部リンクの許可リスト（finance.yahoo.co(m|.jp)）に入る', () => {
+    const allow = /^https:\/\/finance\.yahoo\.co(m|\.jp)\//
+    for (const lang of ['ja', 'en']) expect(yahooQuoteUrl(lang, '7203', 'stock')).toMatch(allow)
   })
 })

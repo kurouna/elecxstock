@@ -20,3 +20,12 @@ export const LWC_NOTICE_PARTS = splitToken(LWC_NOTICE[1], TRADINGVIEW_URL)
 
 /** データ源の Yahoo Finance のリンク先。日本語の画面では Yahoo!ファイナンス、それ以外は Yahoo Finance */
 export const yahooUrl = (lang: string) => (lang === 'ja' ? 'https://finance.yahoo.co.jp/' : 'https://finance.yahoo.com/')
+
+/**
+ * 銘柄の Yahoo Finance のページ（銘柄情報の見出しのリンク。FR-I10）。日本語の画面は Yahoo!ファイナンス（末尾の / なし）、それ以外は Yahoo Finance。
+ * 東証のコード（英数字）だけを受け付ける。指数は両方のサイトで記号がそろわないので出さない（null）
+ */
+export function yahooQuoteUrl(lang: string, code: string, kind: string): string | null {
+  if (kind === 'index' || !/^[0-9A-Z]{4,5}$/.test(code)) return null
+  return lang === 'ja' ? `https://finance.yahoo.co.jp/quote/${code}.T` : `https://finance.yahoo.com/quote/${code}.T/`
+}

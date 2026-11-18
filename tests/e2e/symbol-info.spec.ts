@@ -174,3 +174,30 @@ test.describe('値動きの表の幅（FR-V12）', () => {
     }
   })
 })
+
+test.describe('Yahoo Finance へのリンク（FR-I10, FR-KB4）', () => {
+  test('ⓘ の右のボタンと O で、この銘柄の Yahoo!ファイナンスのページを開く', async ({ start }) => {
+    const { app, page } = await start()
+    // 実際のブラウザを開かないように、main の shell.openExternal を差し替えて開いた先を記録する
+    await app.evaluate(({ shell }) => {
+      const g = globalThis as unknown as { __opened: string[] }
+      g.__opened = []
+      shell.openExternal = async (url: string) => void g.__opened.push(url)
+    })
+    const opened = () => app.evaluate(() => (globalThis as unknown as { __opened: string[] }).__opened)
+    await tab(page, 'triple')
+    const si = info(page)
+    const btns = si.locator('.ibtn')
+    const link = si.getByRole('button', { name: 'Yahoo!ファイナンスで開く' })
+    await expect(link).toBeVisible()
+    // 並びは 取り直す → ⓘ → リンク
+    await expect(btns.last()).toHaveAttribute('aria-label', 'Yahoo!ファイナンスで開く')
+    const code = (await si.locator('.sym .code').textContent())!.trim()
+    await link.click()
+    await expect.poll(opened).toEqual([`https://finance.yahoo.co.jp/quote/${code}.T`])
+    await si.locator('.meta').click()
+    await expect(si).toHaveClass(/focused/)
+    await keys(page, 'o')
+    await expect.poll(opened).toHaveLength(2)
+  })
+})

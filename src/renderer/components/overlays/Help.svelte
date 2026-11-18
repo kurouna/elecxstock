@@ -162,7 +162,12 @@ const G = $derived([
         ja ? 'ポートフォリオ: 概要 ／ 配当の分析 / 表を開く・閉じる' : 'Portfolio: overview / dividends / expand · collapse',
         'PgUp PgDn / → ← · Enter',
       ],
-      [ja ? '銘柄情報: 配当の棒を選ぶ / 年・回の切り替え' : 'Symbol info: select dividend bar / per year–payout', '← → Home End / Y'],
+      [
+        ja
+          ? '銘柄情報: 配当の棒を選ぶ / 年・回の切り替え / Yahoo!ファイナンスで開く'
+          : 'Symbol info: select dividend bar / per year–payout / open in Yahoo Finance',
+        '← → Home End / Y / O',
+      ],
       [
         ja
           ? '配当シミュレータ: 1 銘柄 ⇔ 群 / カードを巡る / 過去 ⇔ これから / 基準日・期間 / 十字線・月'

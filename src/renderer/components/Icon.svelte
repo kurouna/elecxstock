@@ -19,6 +19,8 @@ const PATHS = {
   cancel: 'M6 6l12 12M18 6L6 18',
   plus: 'M12 5v14M5 12h14',
   info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 11v6M12 7.5v.5',
+  /** 外部のページを開く: 枠と右上へ出る矢印（銘柄情報の Yahoo Finance へのリンク。FR-I10） */
+  external: 'M14 4h6v6M20 4l-9 9M18 14v6H4V6h6',
   /** 新しいウィンドウ: 窓と右上の + */
   newWindow: 'M14 5H4v14h14v-6M4 9h10M19 3v6M16 6h6',
   /** 画像の保存（FR-C11）: 額と山 */
