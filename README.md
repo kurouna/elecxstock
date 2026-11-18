@@ -143,11 +143,25 @@ npm run build && npx playwright test   # E2E（スタブのデータ・キーボ
 npm run package    # Windows のインストーラ（release/）
 npm run demo       # 紹介動画用のデモ（架空のデータ・キー操作で自動で進む）
 npm run demo:0.1.9 # 版ごとのデモ（0.1.9: タブの切り替え・最大化の動き・F11 の全画面・ニュースのペイン）
+npm run demo:0.1.12 # 0.1.12: トレンドライン（「指標」ボタン・Alt+T・山・谷へのジャンプ）
 ```
 
 ネットワークを使わずに動かすときは `ELECXSTOCK_PROVIDER=stub` を付けます。
-Electron 45・Svelte 5・TypeScript・SQLite（`node:sqlite`）・Lightweight Charts で作っています。
-設計は [docs/requirements.md](docs/requirements.md)、判断の記録は [docs/decisions.md](docs/decisions.md)、画面のモックは [docs/mock](docs/mock/README.md) にあります。
+
+#### デモデータで起動する（自分で操作して録画する）
+
+架空の値（スタブのデータ）で起動し、手で操作できます。ふだん使っているデータとは別の場所に保存し、日時を固定するので、何度録り直しても同じ足・同じ線になります（Git Bash などの bash で実行します）。
+
+```bash
+npm run build
+ELECXSTOCK_PROVIDER=stub ELECXSTOCK_NOW=2026-11-13T18:00:00+09:00 ELECXSTOCK_USER_DATA="$LOCALAPPDATA/elecxstock-demo-rec" npx electron .
+```
+
+- 初回は確認の画面で Enter を 2 回押すと、架空のデータを取り込みます（数十秒）。ウォッチリストは空なので、銘柄ジャンプ（1〜9）や Ctrl+D で足します。
+- データは `%LOCALAPPDATA%elecxstock-demo-rec` に残り、次に同じ方法で起動すると続きから使えます。まっさらな状態から録り直すときは、このフォルダを消してから起動します。
+- 値はすべて架空です（銘柄名とコードだけ実在）。動画には「値は架空」と添えてください。
+  Electron 45・Svelte 5・TypeScript・SQLite（`node:sqlite`）・Lightweight Charts で作っています。
+  設計は [docs/requirements.md](docs/requirements.md)、判断の記録は [docs/decisions.md](docs/decisions.md)、画面のモックは [docs/mock](docs/mock/README.md) にあります。
 
 ### ライセンス
 
@@ -234,6 +248,15 @@ npm run build && npx playwright test
 ```
 
 Set `ELECXSTOCK_PROVIDER=stub` to run without the network. See [docs/requirements.md](docs/requirements.md) (Japanese) for the specification.
+
+To run with demo data (fictitious values) and operate it yourself, for example to record a video, run in a bash shell such as Git Bash:
+
+```bash
+npm run build
+ELECXSTOCK_PROVIDER=stub ELECXSTOCK_NOW=2026-11-13T18:00:00+09:00 ELECXSTOCK_USER_DATA="$LOCALAPPDATA/elecxstock-demo-rec" npx electron .
+```
+
+On first run, press Enter twice to import the fictitious data. The data is kept in `%LOCALAPPDATA%elecxstock-demo-rec`, separate from your real data, and the date is fixed so recordings repeat exactly; delete that folder to start over.
 
 ### License
 
