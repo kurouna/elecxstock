@@ -266,8 +266,8 @@ export interface AlertView extends Alert {
   state: AlertState
   /** 1 つめの条件の指標の今の値（スクリーンのアラートは結果の件数） */
   now: number | null
-  /** 成り立っていない条件のうちいちばん遠いもの。kind は「あと何 %」か「あと何ポイント」 */
-  distance: { kind: 'pct' | 'pt'; value: number } | null
+  /** 成り立っていない条件のうちいちばん遠いもの。kind は「あと何 %」・「あと何ポイント」（率の指標）・「あと何円」（金額の差。EPS・BPS が 0 以下のとき） */
+  distance: { kind: 'pct' | 'pt' | 'yen'; value: number } | null
   /** 分割・併合で換算した条件（換算が無ければ無い） */
   adjusted?: Condition[]
 }

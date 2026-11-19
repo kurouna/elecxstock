@@ -9,12 +9,13 @@ import { onMount } from 'svelte'
 import { addToListDialog, keyOf, setFocus } from '../../lib/commands'
 import { drawingsState, ensureDrawings } from '../../lib/drawings/store.svelte'
 import { cls, fmt, px, sgn } from '../../lib/format'
-import { afterRemove, gridTarget, pageOf, selOnClick, swapInOwn } from '../../lib/gridNav'
+import { afterRemove, gridTarget, pageOf, removeFromOwn, replaceInOwn, selOnClick, swapInOwn } from '../../lib/gridNav'
 import type { Key } from '../../lib/i18n'
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { PERIODS, periodOfKey } from '../../lib/periods'
 import { liveConditions } from '../../lib/screens'
+import { clampSel } from '../../lib/selection'
 import { symbolDrop } from '../../lib/symbolDrag'
 import {
   app,
@@ -301,23 +302,43 @@ function dropAt(i: number, id: InstrumentId) {
   if (at >= 0 && own[at] !== id) replaceAt(at, id)
 }
 function replaceAt(at: number, id: InstrumentId) {
-  const old = own[at]
-  const next = [...own]
-  next[at] = id
-  set({ own: next.filter((x, k) => x !== id || k === at) }) // 同じ銘柄は 1 つだけ
-  if (zoom && zoom === old) zoom = id // 拡大中に差し替えたら、差し替えた銘柄を拡大して見せる
-  toast(t('grid.replaced', { from: nameOf(old), to: nameOf(id) }))
+  const r = replaceInOwn(own, at, id)
+  if (!r) {
+    // own に無い銘柄（拡大中に落とした銘柄）を差し替えるときは、拡大して見せる銘柄だけを替える（ほかのタイルを消さない）
+    if (at < 0) {
+      if (zoom) zoom = id
+      else addOwn(id)
+    }
+    return
+  }
+  set({ own: r.own })
+  if (zoom && zoom === r.old) zoom = id // 拡大中に差し替えたら、差し替えた銘柄を拡大して見せる
+  toast(t('grid.replaced', { from: nameOf(r.old), to: nameOf(id) }))
 }
 // コマンドバーを選ばずに閉じたら、差し替えをやめる
 $effect(() => {
   if (!app.overlay) replacing = null
+})
+// 見えているタイルが減ったら（大きさ・対象・絞り込みの切り替え、一覧が短くなった）、選択を残ったタイルの中へ収める。
+// 拡大中は、拡大する前の位置を保つ（Esc で戻ったときに収める）
+$effect(() => {
+  const n = pageIds.length
+  if (zoom) return
+  const c = clampSel(sel, n)
+  if (c !== sel) sel = c
 })
 /** 選んだタイル（i を渡せばそのタイル）を「このグリッドの銘柄」から外す（Delete・タイルの ✕）。拡大していた銘柄なら格子に戻る */
 function removeTile(i?: number) {
   const id = i == null ? target() : shown[i]
   if (!id) return
   if (i != null) sel = selOnClick(zoom, sel, i)
-  set({ own: own.filter((x) => x !== id) })
+  const next = removeFromOwn(own, id)
+  if (!next) {
+    // own に無い銘柄（拡大中に落とした銘柄）は外すものが無い。拡大を解くだけ
+    if (zoom === id) zoom = null
+    return
+  }
+  set({ own: next })
   // 外したあとのページのタイルの数（pageIds は own から作り直される）
   const r = afterRemove(zoom, id, sel, pageIds.length)
   zoom = r.zoom
@@ -406,12 +427,13 @@ onMount(() => {
         moveSel(k)
         return true
       }
-      if (k === 'Home' || k === 'End') {
+      // 拡大中は見えているのが 1 枚だけなので、見えない格子の選択・ページは動かさない（矢印と同じ）
+      if (!zoom && (k === 'Home' || k === 'End')) {
         sel = k === 'Home' ? 0 : Math.max(0, pageIds.length - 1)
         send()
         return true
       }
-      if (k === 'PageDown' || k === 'PageUp') {
+      if (!zoom && (k === 'PageDown' || k === 'PageUp')) {
         goPage(k === 'PageDown' ? 1 : -1, 0)
         return true
       }
@@ -568,7 +590,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
       onmouseleave={() => (hoverDate = null)}
     >
       <div class="h">
-        <span class="c">{codeOf(id)}</span><span class="n">{nameOf(id)}</span><span class="p num">{px(m?.close)}</span><span class={`r num ${cls(r)}`}>{sgn(r, 1, '%')}</span>
+        <span class="c">{codeOf(id)}</span><span class="n">{nameOf(id)}</span><span class="p num">{px(m?.close)}</span><span class={`r num ${cls(r, 1)}`}>{sgn(r, 1, '%')}</span>
         {#if zoom}<button type="button" class="back" title={`${t('grid.unzoom')} (Esc)`} onclick={(e) => { e.stopPropagation(); zoom = null }}>⤡ {t('grid.unzoom')}</button>{/if}
       </div>
       <div class="s">

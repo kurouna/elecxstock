@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createStubProvider } from '@core/providers/stub'
 import { CoreService } from '@core/service'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 
 const dir = mkdtempSync(join(tmpdir(), 'elecxstock-stop-'))
 afterAll(() => {
@@ -68,6 +68,8 @@ describe('起動の直後に閉じる・閉じる知らせが二度届く（FR-F
       (m) => logs.push(m),
     )
     c.db.setMeta('metricsStale', '1')
+    // 指標の作り直しは閉じている間の失敗をログに出さないので、呼ばれたこと自体で確かめる
+    const recompute = vi.spyOn(c.jobs, 'recomputeAll')
     const rejected: unknown[] = []
     const onRej = (e: unknown) => rejected.push(e)
     process.on('unhandledRejection', onRej)
@@ -77,6 +79,7 @@ describe('起動の直後に閉じる・閉じる知らせが二度届く（FR-F
       await c.shutdown()
       await sleep(200) // 遅らせた処理（50ms・80ms）が走るはずの時間を過ぎるまで
       expect(logs.filter((l) => l.startsWith('folio:'))).toEqual([])
+      expect(recompute).not.toHaveBeenCalled()
       expect(rejected).toEqual([])
     } finally {
       process.off('unhandledRejection', onRej)

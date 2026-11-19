@@ -62,4 +62,35 @@ describe('IME の変換中の判定をそろえる（FR-KB5）', () => {
       .map((p) => relative(root, p).split(sep).join('/'))
     expect(bad).toEqual([])
   })
+  it('欄に直に書いた Enter の処理（onkeydown={(e) => …}）は composing(e) を見る（変換を確定する Enter で決めない）', async () => {
+    const { readdirSync, readFileSync, statSync } = await import('node:fs')
+    const { join, relative, sep } = await import('node:path')
+    const root = join(__dirname, '../../../src/renderer')
+    const walk = (d: string): string[] =>
+      readdirSync(d).flatMap((n) => {
+        const p = join(d, n)
+        return statSync(p).isDirectory() ? walk(p) : n.endsWith('.svelte') ? [p] : []
+      })
+    /** onkeydown={…} の中身（波かっこの対応を数えて切り出す） */
+    const handlers = (src: string): string[] => {
+      const out: string[] = []
+      for (const m of src.matchAll(/onkeydown=\{/g)) {
+        let depth = 1
+        let i = m.index + m[0].length
+        while (i < src.length && depth > 0) {
+          if (src[i] === '{') depth++
+          else if (src[i] === '}') depth--
+          i++
+        }
+        out.push(src.slice(m.index + m[0].length, i - 1))
+      }
+      return out
+    }
+    const bad = walk(root).flatMap((p) =>
+      handlers(readFileSync(p, 'utf8'))
+        .filter((h) => /=>/.test(h) && /'Enter'/.test(h) && !/composing\(/.test(h))
+        .map((h) => `${relative(root, p).split(sep).join('/')}: ${h.trim().slice(0, 60)}`),
+    )
+    expect(bad).toEqual([])
+  })
 })

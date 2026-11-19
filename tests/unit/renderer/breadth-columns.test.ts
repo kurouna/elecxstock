@@ -55,3 +55,13 @@ describe('騰落の表の列（FR-BR2, FR-BR3）', () => {
     expect(c('name').t).toBe('銀行業')
   })
 })
+
+describe('騰落率のセルの色は「±」と揃える（FR-BR2, FR-V2）', () => {
+  it('丸めて 0 になる騰落率は ±0.00 で、色は flat', () => {
+    const r = row('銀行業', { ret: { d1: 0.004, m1: -0.004, m3: 0.006, ytd: 5, y1: 12 } })
+    const c = (id: string) => BREADTH_COLUMNS.sector.find((x) => x.id === id)!.cell(r, (k) => k)
+    expect(c('d1')).toMatchObject({ t: '±0.00', c: 'flat' })
+    expect(c('m1')).toMatchObject({ t: '±0.00', c: 'flat' })
+    expect(c('m3')).toMatchObject({ t: '+0.01', c: 'up' })
+  })
+})

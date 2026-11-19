@@ -48,6 +48,8 @@ export function setConds(pane: PaneNode, conds: Condition[]): void {
   const next = withoutLeadingOr(conds)
   patchState(pane, { conds: next })
   app.liveConds = clone(next)
+  // グリッドの「今のスクリーン」がどのスクリーンから来たか（スクリーンを消したとき、表示中のものかを見分ける。removeScreen）
+  app.liveScreenId = (pane.state.screenId as string | undefined) ?? null
 }
 export function saveScreen(pane: PaneNode): void {
   const s = screenOf(pane)
@@ -116,11 +118,13 @@ export function removeScreen(id: string): void {
   app.screens = app.screens.filter((s) => s.id !== id)
   saveScreens()
   const next = app.screens[0]
-  let reopened = app.liveScreenId === id
+  // グリッドの「今のスクリーン」を替えるのは、消したのが表示中のスクリーンのときだけ（別の場所のスクリーナーが開いていた
+  // スクリーンを消しても、表示中のスクリーンの直しかけの条件を上書きしない）。まだ開き直していなければ今のタブのペインで見る
+  const reopened =
+    app.liveScreenId === id || (app.liveScreenId == null && allPanes().some((p) => p.widget === 'screener' && p.state.screenId === id))
   for (const entry of allEntries())
     for (const p of allPanes(entry))
       if (p.widget === 'screener' && p.state.screenId === id) {
-        reopened = true
         patchState(p, {
           screenId: next?.id,
           conds: clone(next?.conditions ?? []),

@@ -66,7 +66,7 @@ async function saveImage() {
   <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (${keyOf('fav')})`} onclick={() => toggleFav(id)}>★</button>
   <button type="button" class="sym" title={`${codeOf(id)} ${nameOf(id)} — ${t('chart.change')} (C)`} onclick={() => changeSymbol(pane)}><span class="code">{codeOf(id)}</span>{nameOf(id)}</button>
   <span class="num px">{px(m?.close)}</span>
-  <span class={`num chg ${cls(m?.chgPct)}`}>{sgn(m?.chgPct, 2, '%')}</span>
+  <span class={`num chg ${cls(m?.chgPct, 2)}`}>{sgn(m?.chgPct, 2, '%')}</span>
   <button type="button" class="chip tfc" title={`${t(`tf.${tf}` as Key)} → ${t(`tf.${NEXT_TF[tf]}` as Key)} (D / W / M)`} onclick={() => patchState(pane, { tf: NEXT_TF[tf] })}>{tf}</button>
   <span class="seg">
     {#each ['D', 'W', 'M'] as x (x)}

@@ -1,6 +1,15 @@
 // チャートグリッドの操作の対象と並べ替え（FR-G7・G10。レビューの指摘）。銘柄のコードだけで、値は使わない
 import { describe, expect, it } from 'vitest'
-import { afterRemove, appendLimited, gridTarget, pageOf, selOnClick, swapInOwn } from '../../../src/renderer/lib/gridNav'
+import {
+  afterRemove,
+  appendLimited,
+  gridTarget,
+  pageOf,
+  removeFromOwn,
+  replaceInOwn,
+  selOnClick,
+  swapInOwn,
+} from '../../../src/renderer/lib/gridNav'
 
 describe('操作の対象のタイル（FR-G7）', () => {
   it('拡大していなければ選んでいるタイル', () => {
@@ -69,5 +78,20 @@ describe('拡大中のタイルの操作（FR-G7・G10。レビュー 3 回目�
   it('拡大中のタイル・★・◆のクリックは、拡大する前の位置（sel）を変えない（見えている 1 枚の位置は 0）', () => {
     expect(selOnClick('F', 5, 0)).toBe(5)
     expect(selOnClick(null, 5, 2)).toBe(2)
+  })
+})
+
+describe('このグリッドの銘柄に無い銘柄の差し替え・外し（FR-G10。拡大中に落とした銘柄）', () => {
+  it('own の中の位置で差し替え、同じ銘柄は 1 つにする。前の銘柄を返す', () => {
+    expect(replaceInOwn(['A', 'B', 'C'], 1, 'X')).toEqual({ own: ['A', 'X', 'C'], old: 'B' })
+    expect(replaceInOwn(['A', 'B', 'C'], 0, 'C')).toEqual({ own: ['C', 'B'], old: 'A' })
+  })
+  it('own に無い（位置が負）・同じ銘柄なら差し替えない（ほかのタイルを消さない）', () => {
+    expect(replaceInOwn(['A', 'B', 'X'], -1, 'X')).toBeNull()
+    expect(replaceInOwn(['A', 'B'], 1, 'B')).toBeNull()
+  })
+  it('own に無い銘柄は外さない（拡大を解くだけ）', () => {
+    expect(removeFromOwn(['A', 'B'], 'X')).toBeNull()
+    expect(removeFromOwn(['A', 'B'], 'A')).toEqual(['B'])
   })
 })

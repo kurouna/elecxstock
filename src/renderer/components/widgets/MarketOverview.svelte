@@ -10,6 +10,7 @@ import { appendLimited } from '../../lib/gridNav'
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { marketBars, periodOfKey } from '../../lib/periods'
+import { clampSel } from '../../lib/selection'
 import { app, bridge, codeOf, nameOf, t, toast } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -93,7 +94,7 @@ onMount(() => {
       if (e.ctrlKey || e.altKey || e.metaKey) return false
       const k = e.key
       if (k === 'ArrowRight' || k === 'ArrowDown') {
-        sel = Math.min(ids.length - 1, sel + 1)
+        sel = clampSel(sel + 1, ids.length)
         send()
         return true
       }
@@ -139,7 +140,7 @@ onMount(() => {
     <div class="tile" class:sel={i === sel} onclick={() => { sel = i; send() }}>
       <div class="h">
         <span class="c">{codeOf(id)}</span><span class="n">{nameOf(id)}</span>
-        <span class="p num">{px(b?.close.at(-1), priceDigits(id))}</span><span class={`r num ${cls(r)}`}>{sgn(r, 2, '%')}</span>
+        <span class="p num">{px(b?.close.at(-1), priceDigits(id))}</span><span class={`r num ${cls(r, 2)}`}>{sgn(r, 2, '%')}</span>
       </div>
       {#if b && !b.time.length}<div class="state small">{t('chart.noData')}</div>{/if}
       <canvas data-id={id}></canvas>

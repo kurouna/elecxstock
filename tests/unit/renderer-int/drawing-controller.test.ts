@@ -283,6 +283,14 @@ describe('十字線とドラッグの後始末（レビューの指摘。FR-C14�
     expect(w.ctl.mode.m).toBe('idle')
     expect(w.shown.at(-1)).toBeNull()
   })
+  it('線を選んだだけ（十字線を出していない）でフォーカスが外れても、十字線には触れない（リンクしたチャートの十字線を消さない）', async () => {
+    await w.drawOne()
+    expect(w.ctl.mode).toMatchObject({ m: 'sel', target: 'none' })
+    const n = w.shown.length
+    w.ctl.blur()
+    expect(w.ctl.mode.m).toBe('idle')
+    expect(w.shown.length).toBe(n)
+  })
   it('線をドラッグしている間に Alt+T で引き始めると、ドラッグを終えてスクロールを戻す（離すまで線を動かさない）', async () => {
     await w.drawOne()
     const m = w.mid()

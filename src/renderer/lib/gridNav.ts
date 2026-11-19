@@ -62,3 +62,20 @@ export function afterRemove<T>(zoom: T | null, removed: T, sel: number, left: nu
 export function selOnClick(zoom: unknown, sel: number, i: number): number {
   return zoom != null ? sel : i
 }
+
+/**
+ * このグリッドの銘柄（own）の at 番目を id に差し替える（C キー・一覧の行を落とす。FR-G10）。同じ銘柄は 1 つだけ残す。
+ * at が own の外（拡大中に落として own に入っていない銘柄など）や、同じ銘柄なら差し替えない（null。ほかのタイルを消さない）
+ */
+export function replaceInOwn<T>(own: readonly T[], at: number, id: T): { own: T[]; old: T } | null {
+  if (at < 0 || at >= own.length || own[at] === id) return null
+  const old = own[at]!
+  const next = [...own]
+  next[at] = id
+  return { own: next.filter((x, k) => x !== id || k === at), old }
+}
+
+/** own から id を外した並び。own に無ければ null（外したと知らせない） */
+export function removeFromOwn<T>(own: readonly T[], id: T): T[] | null {
+  return own.includes(id) ? own.filter((x) => x !== id) : null
+}

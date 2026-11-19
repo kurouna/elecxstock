@@ -27,7 +27,7 @@ import {
 import { onMount, untrack } from 'svelte'
 import { getBars } from '../../lib/barsCache'
 import { type ChartSnapshot, visibleSpan } from '../../lib/chartImage'
-import { FrameSlot, legendBar, legendIndex, rangeAfterBuild } from '../../lib/chartView'
+import { FrameSlot, type LogicalRange, legendBar, legendIndex, rangeAfterBuild } from '../../lib/chartView'
 import { DrawController } from '../../lib/drawings/controller.svelte'
 import { drawingsState } from '../../lib/drawings/store.svelte'
 import { cls, px, sgn } from '../../lib/format'
@@ -105,7 +105,7 @@ let tops = $state<number[]>([])
 let paneObs: ResizeObserver | null = null
 let token = 0
 /** 作り直したあとの表示期間・段の位置を置く次のフレーム（作り直しが続いたら最後の 1 つ。0 キー・期間の変更と閉じたときに取りやめる） */
-const rangeFrame = new FrameSlot()
+const rangeFrame = new FrameSlot<LogicalRange>()
 const paneFrame = new FrameSlot()
 /** 閉じた（遅れて走る queueMicrotask(build) でチャートを作らない） */
 let destroyed = false
@@ -298,10 +298,11 @@ function extendTime(time: string[], n: number): string[] {
 let builtTf: Timeframe | null = null
 
 function build() {
-  // 前の作り直しが頼んだ表示期間の置き直しは、ここで作るチャートには使わない（空のデータで早く戻るときも残さない）
-  rangeFrame.cancel()
+  // 前の作り直しが頼んで、まだ置いていない表示期間があれば、それを前の表示として引き継ぐ（同じフレームに作り直しが続いたとき、
+  // 作ったばかりのチャートの既定の表示を読まない）。頼みそのものは取りやめる（空のデータで早く戻るときも残さない）
+  const pending = rangeFrame.take()
   if (!host || destroyed) return
-  const keep = chart?.timeScale().getVisibleLogicalRange()
+  const keep = pending ?? chart?.timeScale().getVisibleLogicalRange()
   chart?.remove()
   alertLines = []
   targetLines = []
@@ -503,7 +504,7 @@ function build() {
     // D/W/M を替えたときは足の本数が違うので、前の時間軸の表示期間を持ち越さない
     const range = rangeAfterBuild(keep, builtTf, shownTf, b.time.length, showCount(b.time.length))
     builtTf = shownTf
-    rangeFrame.run(() => chart?.timeScale().setVisibleLogicalRange(range))
+    rangeFrame.run(() => chart?.timeScale().setVisibleLogicalRange(range), range)
   }
   lines = ls
   paneTitles = titles
@@ -732,7 +733,7 @@ onMount(() => {
         <span class="tfb">{tf}</span>
         <span>{legend.date.replaceAll('-', '/')}</span>
         <span>O <b>{px(legend.o, pdg)}</b></span><span>H <b>{px(legend.h, pdg)}</b></span><span>L <b>{px(legend.l, pdg)}</b></span><span>C <b>{px(legend.c, pdg)}</b></span>
-        <span class={cls(legend.chg)}>{sgn(legend.chg, 2, '%')}</span>
+        <span class={cls(legend.chg, 2)}>{sgn(legend.chg, 2, '%')}</span>
         <span class="vol">V <b>{Math.round(legend.v).toLocaleString()}</b></span>
         {#if legend.prov}<span class="badge">{t('chart.provisional')}</span>{/if}
         {#if legend.forming}<span class="badge">{t('chart.forming')}</span>{/if}

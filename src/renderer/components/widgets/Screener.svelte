@@ -12,7 +12,7 @@ import { conditionValueText, moveCondition, newCondition, stepValue, valueChoice
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
-import { LinkFollow, SelectionFollow } from '../../lib/selection'
+import { LinkFollow, listCurrent, SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import {
   app,
@@ -26,7 +26,7 @@ import {
   screenName,
   t,
 } from '../../stores/app.svelte'
-import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
+import { linkSeq, linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import RowCells from './RowCells.svelte'
@@ -284,7 +284,7 @@ onMount(() => {
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
     // 「いまの銘柄」はリンク先のチャートが表示している銘柄（銘柄ジャンプのあとに Ctrl+D が前の行に効かないように）
-    current: () => (pane.link ? linkSymbol(pane.link) : null) ?? rows[sel],
+    current: () => listCurrent(pane.link ? linkSymbol(pane.link) : null, rows, sel),
     selected: () => rows.slice(lo, hi + 1),
     columns: () => ({ ids: rows, cols: allCols, name: scr ? screenName(scr) : 'screener' }),
     run(action) {
@@ -425,7 +425,7 @@ onMount(() => {
 // 並べ替え・別のスクリーン・★のみ表示のあとは、リンク先が変わるまで先頭のまま（restart の hold）
 $effect(() => {
   const id = pane.link ? linkSymbol(pane.link) : null
-  const i = linkFollow.pick(id, rows)
+  const i = linkFollow.pick(id, rows, pane.link ? linkSeq(pane.link) : 0)
   if (i >= 0)
     untrack(() => {
       if (sel === i) return

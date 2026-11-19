@@ -21,10 +21,10 @@ import { date } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
-import { LinkFollow, SelectionFollow } from '../../lib/selection'
+import { LinkFollow, listCurrent, SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, bridge, inst, t } from '../../stores/app.svelte'
-import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
+import { linkSeq, linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import RowCells from './RowCells.svelte'
@@ -196,7 +196,7 @@ onMount(() => {
   const ro = new ResizeObserver(() => (width = scroller?.clientWidth ?? 600))
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
-    current: () => (drill ? ((pane.link ? linkSymbol(pane.link) : null) ?? listRows[sel]) : undefined),
+    current: () => (drill ? listCurrent(pane.link ? linkSymbol(pane.link) : null, listRows, sel) : undefined),
     selected: () => (drill ? (listRows[sel] ? [listRows[sel]!] : []) : (tableRows[sel]?.ids ?? [])),
     // 中の銘柄の一覧のときだけ、一覧の中身を出す（CSV の書き出し・一覧の取り直し）
     columns: () => (drill ? { ids: listRows, cols: listCols, name: `${t('widget.breadth')} ${name(drill)}` } : null),
@@ -261,7 +261,7 @@ onMount(() => {
 // 銘柄ジャンプなどでリンク先の銘柄が変わったら、中の一覧にあればその行を選ぶ（ウォッチリストと同じ）
 $effect(() => {
   const id = drill && pane.link ? linkSymbol(pane.link) : null
-  const i = linkFollow.pick(id, listRows)
+  const i = linkFollow.pick(id, listRows, pane.link ? linkSeq(pane.link) : 0)
   if (i >= 0)
     untrack(() => {
       if (sel !== i) sel = i

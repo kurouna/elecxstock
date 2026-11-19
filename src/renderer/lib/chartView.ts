@@ -42,16 +42,22 @@ export function rangeAfterBuild(
  * 次のフレームに 1 つだけ走らせる（作り直したあとの表示期間・段の位置）。続けて頼むと前のものは走らない。
  * 0 キー・期間の変更で表示期間を置くときと、閉じるときに取りやめる（古い表示期間で上書きしない・閉じたあとに触らない）
  */
-export class FrameSlot {
+export class FrameSlot<T = void> {
   private handle = 0
+  /** 頼んだまま、まだ走っていないものの値（表示期間）。走る・取りやめる・取り出すと消える */
+  private value: T | undefined
   constructor(
     private raf: (f: () => void) => number = (f) => requestAnimationFrame(f),
     private caf: (h: number) => void = (h) => cancelAnimationFrame(h),
   ) {}
-  run(f: () => void): void {
+  run(f: () => void, value?: T): void {
     this.cancel()
+    this.value = value
     const h = this.raf(() => {
-      if (this.handle === h) this.handle = 0
+      if (this.handle === h) {
+        this.handle = 0
+        this.value = undefined
+      }
       f()
     })
     this.handle = h
@@ -59,5 +65,15 @@ export class FrameSlot {
   cancel(): void {
     if (this.handle) this.caf(this.handle)
     this.handle = 0
+    this.value = undefined
+  }
+  /**
+   * まだ走っていないものの値を取り出して、取りやめる。作り直しが同じフレームに続いたとき、前の作り直しが置くはずだった表示期間を
+   * 次の作り直しが引き継ぐ（作ったばかりのチャートの既定の表示を、前の表示として読まない）
+   */
+  take(): T | undefined {
+    const v = this.handle ? this.value : undefined
+    this.cancel()
+    return v
   }
 }

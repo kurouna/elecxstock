@@ -5,6 +5,7 @@ import { addDays, jstNow } from '@shared/calendar'
 import { CODE_RE } from '@shared/code'
 import { isUpToDate } from '@shared/freshness'
 import type { InstrumentId, Watchlist } from '@shared/types'
+import { flushSync } from 'svelte'
 import {
   app,
   applySettingsToDom,
@@ -494,7 +495,10 @@ export function openInGrid(): void {
   // 開いた時点のスクリーナーの条件を「スクリーナーの結果」に使う（FR-SC6, G1）
   const scr = findPane(app.focus)
   // まだ条件を変えていないスクリーン（条件はスクリーンのもの）でも渡す
-  if (scr?.widget === 'screener') app.liveConds = JSON.parse(JSON.stringify(condsOf(scr)))
+  if (scr?.widget === 'screener') {
+    app.liveConds = JSON.parse(JSON.stringify(condsOf(scr)))
+    app.liveScreenId = (scr.state.screenId as string | undefined) ?? null
+  }
   setPreset('grid')
   const g = allPanes().find((p) => p.widget === 'grid')
   if (g) {
@@ -829,9 +833,24 @@ function paneRects(): { id: string; r: DOMRect }[] {
 }
 const railOf = (id: string) => (id.startsWith('__rail:') ? (id.slice(7) as DockSide) : null)
 export function moveFocus(dir: 'left' | 'right' | 'up' | 'down'): void {
+  // 最大化したペイン（.pane.maxed は position: fixed で窓いっぱい）の矩形では、どの向きにも隣が無い。並びの上の矩形で隣を探す。
+  // 測る間だけ動きなしで戻し、測り終えたら元に戻す（同じタスクの中なので描かれない）。移る先があれば goTo が F6 と同じ動きで戻す（FR-L3）
+  const maxed = app.maximized
+  if (maxed) {
+    clearMaximized()
+    flushSync()
+  }
+  const best = nearestPane(dir)
+  if (maxed) {
+    app.maximized = maxed
+    flushSync()
+  }
+  if (best) goTo(best)
+}
+function nearestPane(dir: 'left' | 'right' | 'up' | 'down'): string | null {
   const sel = app.focus ? paneSelector(app.focus) : '[data-dock-rail]:focus'
   const cur = (document.querySelector<HTMLElement>(sel) ?? document.querySelector<HTMLElement>('[data-dock-rail]'))?.getBoundingClientRect()
-  if (!cur) return
+  if (!cur) return null
   const cx = cur.x + cur.width / 2
   const cy = cur.y + cur.height / 2
   let best: string | null = null
@@ -851,8 +870,7 @@ export function moveFocus(dir: 'left' | 'right' | 'up' | 'down'): void {
       best = id
     }
   }
-  if (!best) return
-  goTo(best)
+  return best
 }
 /**
  * ペイン（またはドロワーの帯）へ移る。別のペインを最大化していたら戻す（最大化したペインが全面を覆ったまま、裏のペインへ

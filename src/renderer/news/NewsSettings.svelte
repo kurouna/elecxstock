@@ -5,6 +5,7 @@ import type { NewsFeed, NewsLang } from '@shared/news/schema'
 import { feedOn, intervalFromInput, listedFor } from '@shared/news/settings'
 import { onMount } from 'svelte'
 import type { Key } from '../lib/i18n'
+import { composing } from '../lib/keys'
 import { clampSel } from '../lib/selection'
 import { app, bridge, confirmDialog, t, toast } from '../stores/app.svelte'
 import { initNews, langChanged, loadNews, news, setNews } from './store.svelte'
@@ -108,7 +109,7 @@ const groupLabel = (g: NewsFeed['group']) => t(`news.tab.${g}` as Key)
   <div class="field">
     <span>{t('set.news.interval')}</span>
     <span class="row">
-      <input class="iv" class:bad={ivBad} bind:value={ivText} inputmode="numeric" aria-label={t('set.news.interval')} disabled={locked} onchange={applyInterval} onkeydown={(e) => e.key === 'Enter' && applyInterval()} />
+      <input class="iv" class:bad={ivBad} bind:value={ivText} inputmode="numeric" aria-label={t('set.news.interval')} disabled={locked} onchange={applyInterval} onkeydown={(e) => e.key === 'Enter' && !composing(e) && applyInterval()} />
       {#each [5, 10, 30, 60] as m (m)}<button type="button" class="chip" aria-pressed={s.interval === m} disabled={locked} onclick={() => { ivText = String(m); applyInterval() }}>{m}</button>{/each}
       <span class="muted small" class:warn={ivBad}>{ivBad ? t('set.news.intervalBad') : ivNote || t('set.news.intervalHint')}</span>
     </span>

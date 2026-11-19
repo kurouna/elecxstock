@@ -65,7 +65,7 @@ function fieldCell(f: FieldDef, v: number | null, digits?: number): Cell {
       return { t: m.n, u: m.u }
     }
     case 'percent':
-      return f.signed ? { t: sgn(v, f.digits ?? 1, ''), u: '%', c: cls(v) } : { t: fmt(v, f.digits ?? 2), u: '%' }
+      return f.signed ? { t: sgn(v, f.digits ?? 1, ''), u: '%', c: cls(v, f.digits ?? 1) } : { t: fmt(v, f.digits ?? 2), u: '%' }
     case 'ratio':
       return { t: fmt(v, f.digits ?? 2) }
     default:

@@ -112,7 +112,18 @@ class AppState {
   status = $state<DataStatus | null>(null)
   provider = $state<{ offline: boolean; paused: boolean; message?: string }>({ offline: false, paused: false })
   focus = $state<string | null>(null)
-  overlay = $state<Overlay | null>(null)
+  #overlay = $state<Overlay | null>(null)
+  /**
+   * 開いているオーバーレイ。初回起動（firstrun）の間は、ほかのオーバーレイに置き換えない（閉じる＝同意・あとで、の null だけ通す）。
+   * キー（handleKey）だけでなく、トレイの「設定」・通知のクリック・トーストのボタンなど、どの経路から開いても免責を飛ばさない（FR-FR1）
+   */
+  get overlay(): Overlay | null {
+    return this.#overlay
+  }
+  set overlay(o: Overlay | null) {
+    if (o && overlayLocked(this.#overlay, o)) return
+    this.#overlay = o
+  }
   toasts = $state<Toast[]>([])
   maximized = $state<string | null>(null)
   /** スクリーナーで今開いている条件（未保存の変更を含む）。chart-grid の「スクリーナーの結果」に使う */
@@ -356,6 +367,18 @@ export function applySettingsToDom(): void {
 }
 
 // ---------------------------------------------------------------- overlays（promise で答えを待つ）
+/** 初回起動（firstrun）の間は、ほかのオーバーレイを開かない（免責に同意するまで。FR-FR1）。app.overlay の setter と答えを待つダイアログが使う */
+export function overlayLocked(cur: Overlay | null, next: Overlay): boolean {
+  return cur?.kind === 'firstrun' && next.kind !== 'firstrun'
+}
+/** 答えを待つダイアログを開く。開けない（初回起動の間）ときは、待っている側が止まらないよう「取り消し」をすぐ返す */
+function ask<T>(make: (resolve: (v: T) => void) => Overlay, cancel: NoInfer<T>): Promise<T> {
+  return new Promise((resolve) => {
+    const o = make(resolve)
+    if (overlayLocked(app.overlay, o)) resolve(cancel)
+    else app.overlay = o
+  })
+}
 export function confirmDialog(o: {
   title: string
   body?: string
@@ -364,31 +387,21 @@ export function confirmDialog(o: {
   danger?: boolean
   check?: string
 }): Promise<{ ok: boolean; checked: boolean }> {
-  return new Promise((resolve) => {
-    app.overlay = { kind: 'confirm', ...o, resolve }
-  })
+  return ask((resolve) => ({ kind: 'confirm', ...o, resolve }), { ok: false, checked: false })
 }
 export function promptDialog(title: string, value: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    app.overlay = { kind: 'prompt', title, value, resolve }
-  })
+  return ask((resolve) => ({ kind: 'prompt', title, value, resolve }), null)
 }
 export function choiceDialog(title: string, choices: { id: string; label: string; hint?: string }[]): Promise<string | null> {
-  return new Promise((resolve) => {
-    app.overlay = { kind: 'choice', title, choices, resolve }
-  })
+  return ask((resolve) => ({ kind: 'choice', title, choices, resolve }), null)
 }
 /** 保有を足す・直すフォーム（FR-H7） */
 export function holdingDialog(holding?: Holding): Promise<Holding | null> {
-  return new Promise((resolve) => {
-    app.overlay = { kind: 'holding', ...(holding ? { holding } : {}), resolve }
-  })
+  return ask((resolve) => ({ kind: 'holding', ...(holding ? { holding } : {}), resolve }), null)
 }
 /** 条件を選ぶダイアログを開く。Enter で選んだ指標の ID を返す（取り消しは null）。onAdd は Shift+Enter で続けて足すたびに呼ぶ */
 export function fieldPicker(o: { title: string; fields: string[]; used: string[]; onAdd?: (id: string) => void }): Promise<string | null> {
-  return new Promise((resolve) => {
-    app.overlay = { kind: 'fieldPicker', ...o, resolve }
-  })
+  return ask((resolve) => ({ kind: 'fieldPicker', ...o, resolve }), null)
 }
 /** 最近足した指標を覚える（条件を選ぶダイアログの「よく使う」。新しい順に 8 件） */
 export function rememberField(id: string): void {
@@ -396,20 +409,17 @@ export function rememberField(id: string): void {
   if (next.join() !== app.settings.recentFields.join()) saveSettings({ recentFields: next })
 }
 export function alertDialog(o: { edit?: AlertView; symbol?: InstrumentId; screenId?: string }): Promise<AlertDraft | null> {
-  return new Promise((resolve) => {
-    app.overlay = { kind: 'alertForm', ...o, resolve }
-  })
+  return ask((resolve) => ({ kind: 'alertForm', ...o, resolve }), null)
 }
 export function ask3(title: string, body: string): Promise<'save' | 'discard' | 'cancel'> {
-  return new Promise((resolve) => {
-    app.overlay = { kind: 'ask3', title, body, resolve }
-  })
+  return ask((resolve) => ({ kind: 'ask3', title, body, resolve }), 'cancel')
 }
 /** 項目の入切と並べ替え（列の選択・指標のメニュー）。Space で入切、Alt+↑↓ で並べ替え、Enter で決める */
 export function checklistDialog(title: string, items: CheckItem[], reorder = false, hint?: string): Promise<CheckItem[] | null> {
-  return new Promise((resolve) => {
-    app.overlay = { kind: 'checklist', title, items: items.map((x) => ({ ...x })), reorder, ...(hint ? { hint } : {}), resolve }
-  })
+  return ask(
+    (resolve) => ({ kind: 'checklist', title, items: items.map((x) => ({ ...x })), reorder, ...(hint ? { hint } : {}), resolve }),
+    null,
+  )
 }
 /** オーバーレイを閉じる（答えを待っているものには「取り消し」を返す） */
 export function closeOverlay(): void {

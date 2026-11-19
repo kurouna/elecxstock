@@ -94,6 +94,29 @@ describe('初回起動のダイアログ（FR-FR1）', () => {
     C.handleKey(ev('KeyK', { ctrlKey: true }))
     expect(app.overlay?.kind).toBe('firstrun')
   })
+  it('トレイの「設定」・通知のクリック（キー以外の経路）でも置き換えない', async () => {
+    const { toggleAlerts } = await import('../../../src/renderer/lib/alerts')
+    app.overlay = { kind: 'firstrun' }
+    C.runAction('settings')
+    expect(app.overlay?.kind).toBe('firstrun')
+    toggleAlerts('history')
+    expect(app.overlay?.kind).toBe('firstrun')
+    app.overlay = { kind: 'palette' }
+    expect(app.overlay?.kind).toBe('firstrun')
+  })
+  it('答えを待つダイアログは開かずに「取り消し」を返す（待っている側が止まらない）', async () => {
+    const { confirmDialog, promptDialog } = await import('../../../src/renderer/stores/app.svelte')
+    app.overlay = { kind: 'firstrun' }
+    await expect(confirmDialog({ title: 't', ok: 'ok' })).resolves.toEqual({ ok: false, checked: false })
+    await expect(promptDialog('t', '')).resolves.toBeNull()
+    expect(app.overlay?.kind).toBe('firstrun')
+  })
+  it('同意して閉じたあとは、ほかのダイアログを開ける', () => {
+    app.overlay = { kind: 'firstrun' }
+    app.overlay = null
+    C.runAction('settings')
+    expect((app.overlay as { kind: string } | null)?.kind).toBe('settings') // 代入で null に絞られるのを外す
+  })
   it('ほかのダイアログは Esc で閉じる', () => {
     app.overlay = { kind: 'help' }
     C.handleKey(ev('Escape'))
@@ -136,6 +159,43 @@ describe('最大化中の F6（FR-L3, FR-KB2）', () => {
     app.focus = 'b'
     C.handleKey(ev('F6'))
     expect(app.focus).toBe('a')
+  })
+})
+
+describe('最大化中の Alt+矢印（FR-L3, FR-KB2）', () => {
+  /** 最大化したペインは窓いっぱい（.pane.maxed は position: fixed）。それ以外は並びどおりの矩形 */
+  function maxAware(id: string, x: number): FakeEl {
+    const e = paneEl(id, x)
+    const tiled = e.getBoundingClientRect()
+    const full = { x: 0, y: 0, left: 0, top: 0, right: 1000, bottom: 800, width: 1000, height: 800 }
+    e.getBoundingClientRect = () => (app.maximized === id ? full : tiled)
+    return e
+  }
+  it('最大化を戻して、並びの上で隣のペインへ移る', () => {
+    maxAware('a', 0)
+    maxAware('b', 200)
+    app.focus = 'a'
+    app.maximized = 'a'
+    C.handleKey(ev('ArrowRight', { altKey: true }))
+    expect(app.focus).toBe('b')
+    expect(app.maximized).toBeNull()
+  })
+  it('その向きに隣が無ければ最大化のまま（何も変えない）', () => {
+    maxAware('a', 0)
+    maxAware('b', 200)
+    app.focus = 'a'
+    app.maximized = 'a'
+    C.handleKey(ev('ArrowLeft', { altKey: true }))
+    expect(app.focus).toBe('a')
+    expect(app.maximized).toBe('a')
+  })
+  it('最大化していなければ今までどおり隣へ移る', () => {
+    maxAware('a', 0)
+    maxAware('b', 200)
+    app.focus = 'b'
+    C.handleKey(ev('ArrowLeft', { altKey: true }))
+    expect(app.focus).toBe('a')
+    expect(app.maximized).toBeNull()
   })
 })
 

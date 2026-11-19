@@ -38,9 +38,15 @@ export function condText(c: Condition): string {
 }
 export const condsText = (cs: Condition[]): string => cs.map(condText).join(app.settings.lang === 'ja' ? ' かつ ' : ' and ')
 
-/** 条件までの距離（あと −5.9% / あと 0.40pt） */
+/** 条件までの距離（あと −5.9% / あと 0.40pt / あと +210.0円）。円の差は 100 万円未満なら価格の書式、それ以上は万・億・兆 */
 export function distanceText(d: AlertView['distance']): string {
   if (!d) return '—'
   const s = d.value >= 0 ? '+' : '−'
-  return d.kind === 'pct' ? `${s}${fmt(Math.abs(d.value), 1)}%` : `${s}${fmt(Math.abs(d.value), 2)}pt`
+  const a = Math.abs(d.value)
+  if (d.kind === 'pct') return `${s}${fmt(a, 1)}%`
+  if (d.kind === 'pt') return `${s}${fmt(a, 2)}pt`
+  const ja = app.settings.lang === 'ja'
+  if (a < 1e6) return ja ? `${s}${px(a)}円` : `${s}¥${px(a)}`
+  const m = money(a)
+  return `${s}${m.n}${m.u}`
 }

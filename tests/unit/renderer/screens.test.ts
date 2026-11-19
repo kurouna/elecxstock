@@ -1,6 +1,6 @@
 // スクリーンの一覧とグリッドの「今のスクリーン」（FR-SC4, SC6, SC13, FR-G1）
 import type { SavedScreen } from '@shared/types'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { stubWindow } from '../../support/window'
 
 stubWindow()
@@ -46,6 +46,7 @@ describe('グリッドの「今のスクリーン」（FR-SC6, FR-G1）', () => 
     app.focus = p.id
     openInGrid()
     expect(app.liveConds).toEqual([{ field: 'income.yield', op: '>=', value: 4 }])
+    expect(app.liveScreenId).toBe('b') // スクリーンを消したとき、表示中のものかを見分ける
   })
 })
 
@@ -63,6 +64,10 @@ describe('既定のスクリーンを戻す（FR-SC15）', () => {
 })
 
 describe('スクリーンを消したあとのグリッドの条件（FR-SC4, FR-G1）', () => {
+  beforeEach(() => {
+    app.liveConds = null
+    app.liveScreenId = null
+  })
   it('スクリーナーで開いていたスクリーンを消したら、グリッドの「今のスクリーン」も残った最初のスクリーンに替わる', () => {
     app.screens = [scr('a', 3), scr('b', 4)]
     L.layout.doc = L.defaultDoc()
@@ -82,6 +87,56 @@ describe('スクリーンを消したあとのグリッドの条件（FR-SC4, FR
     app.liveScreenId = 'a'
     S.removeScreen('b')
     expect(S.liveConditions()).toEqual([{ field: 'income.yield', op: '>=', value: 3.5 }])
+  })
+  /** スクリーナーのタブで a を直している最中に、グリッドのドロワーのスクリーナーが開いている b を消す */
+  function editingAWhileOtherOpensB(liveScreenId: string | null) {
+    app.screens = [scr('a', 3), scr('b', 4), scr('c', 5)]
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('screener')
+    const editing = [{ field: 'income.yield', op: '>=', value: 3.7 }] as const
+    S.setConds(screenerPane(), [{ ...editing[0] }])
+    L.patchState(screenerPane(), { screenId: 'a' })
+    app.liveScreenId = liveScreenId
+    const other = L.layout.doc.entries.grid.docks.left!.panes.find((p) => p.widget === 'screener')!
+    L.patchState(other, { screenId: 'b', conds: [{ field: 'income.yield', op: '>=', value: 4 }] })
+    S.removeScreen('b')
+    return { other, editing }
+  }
+  it('別の場所のスクリーナーが開いていたスクリーンを消しても、表示中のスクリーンの直しかけの条件は残す', () => {
+    const { other, editing } = editingAWhileOtherOpensB('a')
+    expect(S.liveConditions()).toEqual(editing)
+    expect(app.liveScreenId).toBe('a')
+    expect(other.state.screenId).toBe('a') // 消したスクリーンを開いていたペインは、残った最初のスクリーンを開く
+  })
+  it('まだスクリーンを開き直していない（liveScreenId が無い）ときも、今のタブのペインが開いていなければ残す', () => {
+    const { editing } = editingAWhileOtherOpensB(null)
+    expect(S.liveConditions()).toEqual(editing)
+    expect(app.liveScreenId).toBeNull()
+  })
+  it('別のペインで b を開いたあと、スクリーナーで a の条件を直したら、b を消してもその直しかけを残す', async () => {
+    app.screens = [scr('a', 3), scr('b', 4)]
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('grid')
+    const other = L.layout.entry.docks.left!.panes.find((p) => p.widget === 'screener')!
+    await S.openScreen(other, 'b')
+    expect(app.liveScreenId).toBe('b')
+    L.setPreset('screener')
+    L.patchState(screenerPane(), { screenId: 'a' })
+    S.setConds(screenerPane(), [{ field: 'income.yield', op: '>=', value: 3.9 }])
+    S.removeScreen('b')
+    expect(S.liveConditions()).toEqual([{ field: 'income.yield', op: '>=', value: 3.9 }])
+    expect(app.liveScreenId).toBe('a')
+  })
+  it('liveScreenId が無く、今のタブのスクリーナーが消したスクリーンを開いていたら、残った最初のスクリーンに替える', () => {
+    app.screens = [scr('a', 3), scr('b', 4)]
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('screener')
+    L.patchState(screenerPane(), { screenId: 'b' })
+    S.setConds(screenerPane(), [{ field: 'income.yield', op: '>=', value: 4.2 }])
+    app.liveScreenId = null
+    S.removeScreen('b')
+    expect(S.liveConditions()).toEqual([{ field: 'income.yield', op: '>=', value: 3 }])
+    expect(app.liveScreenId).toBe('a')
   })
 })
 

@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { stubWindow } from '../../support/window'
 
 stubWindow()
-const { cls, date, dateTime, fmt, money, px, sgn } = await import('../../../src/renderer/lib/format')
+const { cls, date, dateTime, fmt, money, moneyCls, ownSignedMoney, px, retCls, retText, sgn } = await import(
+  '../../../src/renderer/lib/format'
+)
 const { app } = await import('../../../src/renderer/stores/app.svelte')
 
 const joined = (m: { n: string; u: string }) => `${m.n}${m.u}`
@@ -81,5 +83,38 @@ describe('書式の境界（FR-N3, FR-V2）', () => {
     expect(cls(0)).toBe('flat')
     expect(cls(-1)).toBe('down')
     expect(dateTime('not a date')).toBe('—')
+  })
+})
+
+describe('丸めて 0 になる値の色は「±」と揃える（FR-N3, FR-V2）', () => {
+  it('cls に表示の桁を渡すと、丸めて 0 になる値は flat（±0.0% を陽線・陰線の色で塗らない）', () => {
+    expect(sgn(0.04, 1, '%')).toBe('±0.0%')
+    expect(cls(0.04, 1)).toBe('flat')
+    expect(cls(-0.04, 1)).toBe('flat')
+    expect(cls(0.05, 1)).toBe('up') // +0.1%
+    expect(cls(-0.006, 2)).toBe('down') // −0.01
+    expect(cls(0.4, 0)).toBe('flat')
+    expect(cls(0.04)).toBe('up') // 桁を渡さなければ今までどおり符号だけ
+    expect(cls(Number.NaN, 1)).toBe('')
+  })
+  it('性質: どの値・桁でも、sgn の符号と cls の色が食い違わない', () => {
+    const tone = { '+': 'up', '−': 'down', '±': 'flat' } as Record<string, string>
+    for (const d of [0, 1, 2])
+      for (const v of [-1.5, -0.6, -0.05, -0.049, -0.004, 0, 0.004, 0.049, 0.05, 0.5, 0.6, 1.5, 123.456]) {
+        expect(cls(v, d), `${v} / ${d}`).toBe(tone[sgn(v, d)[0]!])
+      }
+  })
+  it('騰落率の短い書式（retText）の色は retCls', () => {
+    for (const v of [-0.04, 0.04, 0.05, -0.05, 150, -150, 0.4])
+      expect(retCls(v), String(v)).toBe({ '+': 'up', '−': 'down', '±': 'flat' }[retText(v)[0]!])
+  })
+  it('個人の金額（ownSignedMoney）の色は moneyCls（「±0万」を陽線の色にしない）', () => {
+    for (const lang of ['ja', 'en'] as const) {
+      app.settings.lang = lang
+      for (const v of [1000, -1000, 4999, 5000, -5000, 1_234_0000, -1_234_0000, 0, 49_999, 50_000]) {
+        expect(moneyCls(v), `${lang} ${v}`).toBe({ '+': 'up', '−': 'down', '±': 'flat' }[ownSignedMoney(v).n[0]!])
+      }
+    }
+    expect(moneyCls(null)).toBe('')
   })
 })

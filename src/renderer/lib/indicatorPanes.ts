@@ -81,7 +81,7 @@ export function legendValue(x: LegendLine, i: number): LegendValue {
   return {
     label: x.label,
     color: x.signColor ? undefined : x.color,
-    cls: x.signColor ? cls(v) : '',
+    cls: x.signColor ? cls(v, x.digits) : '',
     text: v == null ? '—' : x.digits != null ? fmt(v, x.digits) : px(v),
   }
 }

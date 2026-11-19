@@ -96,7 +96,10 @@ export function conditionMet(c: Condition, m: MetricsRow, held: Held | undefined
   return c.op === '>=' ? x >= t : x <= t
 }
 
-/** 条件までの距離（FR-AL8）: 成り立っていない条件のうちいちばん遠いもの。価格・相対条件は「あと何 %」、ほかは「あと何ポイント」 */
+/**
+ * 条件までの距離（FR-AL8）: 成り立っていない条件のうちいちばん遠いもの。金額（価格・EPS など）と価格どうしの相対条件は「あと何 %」、
+ * 率の指標は「あと何ポイント」。金額で今の値が 0 以下かしきい値が負（EPS・BPS）のときは % にできないので、円の差（kind: 'yen'）
+ */
 export function distanceOf(
   conditions: Condition[],
   m: MetricsRow | undefined,
@@ -111,11 +114,14 @@ export function distanceOf(
     if (x == null || t == null) continue
     if (c.op === '>=' ? x >= t : x <= t) continue
     const f = FIELD_BY_ID.get(c.field)
-    // % は今の値・しきい値がどちらも正のときだけ（EPS・BPS は負・0 になる。−100 → 100 が −200%、0 が 0% にならないよう、差にする）
-    const d: NonNullable<AlertView['distance']> =
-      ((f?.type === 'money' && !c.ref) || (c.ref && !refInPoints(c.field))) && x > 0 && t > 0
+    // % は今の値が正でしきい値が 0 以上のときだけ（EPS・BPS は負・0 になる。−100 → 100 が −200%、0 が 0% にならないよう、円の差にする）。
+    // 正の値 → 0（1 株配当 ≤ 0）は −100% のまま
+    const inMoney = (f?.type === 'money' && !c.ref) || (!!c.ref && !refInPoints(c.field))
+    const d: NonNullable<AlertView['distance']> = !inMoney
+      ? { kind: 'pt', value: t - x }
+      : x > 0 && t >= 0
         ? { kind: 'pct', value: (t / x - 1) * 100 }
-        : { kind: 'pt', value: t - x }
+        : { kind: 'yen', value: t - x }
     if (!best || Math.abs(d.value) > Math.abs(best.value)) best = d
   }
   return best

@@ -313,6 +313,11 @@ class LayoutState {
    * 中身のまま持ち、保存で書き戻す（一覧には出さない）。表示中のページの中身は `doc.entries.free` が新しい
    */
   pages = $state<SavedLayout[]>([])
+  /**
+   * リンク色ごとに、この窓で銘柄を送った回数（保存しない）。同じ銘柄へもう一度送った（銘柄ジャンプ）ときも進むので、
+   * 一覧のペインは先頭に戻したあとでもその行へ移れる（lib/selection.ts の LinkFollow）
+   */
+  linkSeq = $state<Record<string, number>>({})
   get entry(): LayoutEntry {
     return this.doc.entries[this.doc.active]
   }
@@ -814,12 +819,17 @@ export function toggleDockOpen(open: boolean, side: DockSide | null = layout.doc
 export function setLinkSymbol(group: number, id: InstrumentId): void {
   if (!group) return
   layout.doc.links[String(group)] = id
+  layout.linkSeq[String(group)] = (layout.linkSeq[String(group)] ?? 0) + 1
   saveLayout()
   // ほかのウィンドウの同じリンク色にも知らせる（R3、main のバス）
   if (typeof window !== 'undefined') window.elecxstock?.busPublish?.(`link:${group}`, id)
 }
 export function linkSymbol(group: number): InstrumentId | undefined {
   return layout.doc.links[String(group)]
+}
+/** リンク色に銘柄を送った回数（同じ銘柄でも進む。LinkFollow.pick に渡す） */
+export function linkSeq(group: number): number {
+  return layout.linkSeq[String(group)] ?? 0
 }
 /** ペインが表示する銘柄: リンク色があればそのグループの銘柄、無ければペイン自身の銘柄（FR-L11） */
 export function paneSymbol(pane: PaneNode): InstrumentId | undefined {

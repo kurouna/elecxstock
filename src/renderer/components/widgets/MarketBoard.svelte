@@ -11,10 +11,10 @@ import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
-import { LinkFollow, SelectionFollow } from '../../lib/selection'
+import { LinkFollow, listCurrent, SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, bridge, ensureMetrics, t } from '../../stores/app.svelte'
-import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
+import { linkSeq, linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import RowCells from './RowCells.svelte'
@@ -99,7 +99,7 @@ onMount(() => {
   const ro = new ResizeObserver(() => (width = scroller?.clientWidth ?? 600))
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
-    current: () => (pane.link ? linkSymbol(pane.link) : null) ?? rows[sel],
+    current: () => listCurrent(pane.link ? linkSymbol(pane.link) : null, rows, sel),
     selected: () => (rows[sel] ? [rows[sel]!] : []),
     key(e) {
       const k = e.key
@@ -160,7 +160,7 @@ onMount(() => {
 // 銘柄ジャンプなどでリンク先の銘柄が変わったら、一覧にあればその行を選ぶ（ウォッチリストと同じ）
 $effect(() => {
   const id = pane.link ? linkSymbol(pane.link) : null
-  const i = linkFollow.pick(id, rows)
+  const i = linkFollow.pick(id, rows, pane.link ? linkSeq(pane.link) : 0)
   if (i >= 0)
     untrack(() => {
       if (sel !== i) sel = i

@@ -6,7 +6,7 @@ import { ACCOUNT_TYPES } from '@shared/api'
 import type { AccountType, Holding } from '@shared/types'
 import { onMount } from 'svelte'
 import { importedAtText } from '../../lib/folio'
-import { cls, fmt, ownMoney, ownSignedMoney, px, sgn } from '../../lib/format'
+import { cls, fmt, moneyCls, ownMoney, ownSignedMoney, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import {
   accountName,
@@ -148,13 +148,13 @@ onMount(() =>
     </div>
     <div class="stat">
       <div class="k">{t('hold.pnl')}</div>
-      <div class={`v num ${cls(total.pnl)}`}>{ownSignedMoney(total.pnl).n}<small>{ownSignedMoney(total.pnl).u}</small></div>
-      <div class={`s num ${cls(total.pnl)}`}>{sgn(pct(total.pnl, total.cost), 2, '%')}</div>
+      <div class={`v num ${moneyCls(total.pnl)}`}>{ownSignedMoney(total.pnl).n}<small>{ownSignedMoney(total.pnl).u}</small></div>
+      <div class={`s num ${cls(pct(total.pnl, total.cost), 2)}`}>{sgn(pct(total.pnl, total.cost), 2, '%')}</div>
     </div>
     <div class="stat">
       <div class="k">{t('hold.dayPnl')}</div>
-      <div class={`v num ${cls(total.dayPnl)}`}>{ownSignedMoney(total.dayPnl).n}<small>{ownSignedMoney(total.dayPnl).u}</small></div>
-      <div class={`s num ${cls(total.dayPnl)}`}>{sgn(pct(total.dayPnl, total.value - total.dayPnl), 2, '%')}</div>
+      <div class={`v num ${moneyCls(total.dayPnl)}`}>{ownSignedMoney(total.dayPnl).n}<small>{ownSignedMoney(total.dayPnl).u}</small></div>
+      <div class={`s num ${cls(pct(total.dayPnl, total.value - total.dayPnl), 2)}`}>{sgn(pct(total.dayPnl, total.value - total.dayPnl), 2, '%')}</div>
     </div>
     <div class="stat">
       <div class="k">{t('hold.divNet')}</div>
@@ -164,7 +164,7 @@ onMount(() =>
     {#if meta && (meta.realized != null || meta.dividends != null)}
       <div class="stat" title={t('hold.totalsTip')}>
         <div class="k">{t('hold.totals')}</div>
-        <div class="s num">{t('hold.realized')} <span class={cls(meta.realized)}>{secret(sgn(meta.realized, 0))}</span></div>
+        <div class="s num">{t('hold.realized')} <span class={cls(meta.realized, 0)}>{secret(sgn(meta.realized, 0))}</span></div>
         <div class="s num">{t('hold.received')} {secret(fmt(meta.dividends, 0))}</div>
       </div>
     {/if}
@@ -203,10 +203,10 @@ onMount(() =>
               <td>{secret(fmt(r.h.quantity, 0))}</td>
               <td>{px(r.h.avgCost)}</td>
               <td>{px(v.close)}</td>
-              <td class={cls(v.chgPct)}>{sgn(v.chgPct, 2, '%')}</td>
+              <td class={cls(v.chgPct, 2)}>{sgn(v.chgPct, 2, '%')}</td>
               <td>{secret(fmt(v.value, 0))}</td>
-              <td class={cls(v.pnl)}>{secret(sgn(v.pnl, 0))}</td>
-              <td class={cls(v.pnlPct)}>{sgn(v.pnlPct, 1, '%')}</td>
+              <td class={cls(v.pnl, 0)}>{secret(sgn(v.pnl, 0))}</td>
+              <td class={cls(v.pnlPct, 1)}>{sgn(v.pnlPct, 1, '%')}</td>
               <td>{fmt(pct(v.value ?? 0, total.value), 1)}<span class="unit">%</span></td>
               <td>{fmt(v.yoc, 2)}<span class="unit">%</span></td>
             </tr>
@@ -214,8 +214,8 @@ onMount(() =>
             <tr class="sub">
               <td class="l" colspan="6"><span class="dot" style:background={`var(--acct-${r.account})`}></span>{accountName(r.account)} <span class="n">{t('hold.count', { n: r.n })}</span></td>
               <td>{secret(fmt(r.value, 0))}</td>
-              <td class={cls(r.pnl)}>{secret(sgn(r.pnl, 0))}</td>
-              <td class={cls(r.pnl)}>{sgn(pct(r.pnl, r.cost), 1, '%')}</td>
+              <td class={cls(r.pnl, 0)}>{secret(sgn(r.pnl, 0))}</td>
+              <td class={cls(pct(r.pnl, r.cost), 1)}>{sgn(pct(r.pnl, r.cost), 1, '%')}</td>
               <td>{fmt(pct(r.value, total.value), 1)}<span class="unit">%</span></td>
               <td></td>
             </tr>

@@ -97,12 +97,13 @@ function cut(s: string, n: number): string {
   const c = s.charCodeAt(n - 1)
   return s.slice(0, c >= 0xd800 && c <= 0xdbff ? n - 1 : n)
 }
-/** 文書がルートの要素（rss・rdf:RDF・feed）の閉じタグで終わっているか（後ろの空白・コメントは除く）。途中で切れた文書を見分ける */
+/** 文書がルートの要素（rss・rdf:RDF・feed）の閉じタグで終わっているか（後ろの空白・NUL・コメント・処理命令は除く）。途中で切れた文書を見分ける */
 function closed(xml: string): boolean {
   // ルートの後ろに置ける空白・コメント・処理命令（XML の Misc）を後ろから外す（長いコメントが末尾の数 KB をまたいでもよい）
   let end = xml.length
   for (;;) {
-    while (end > 0 && /\s/.test(xml[end - 1]!)) end--
+    // 空白と、サーバーが末尾に詰めた NUL
+    while (end > 0 && /[\s\0]/.test(xml[end - 1]!)) end--
     const [open, close] = xml.endsWith('-->', end) ? ['<!--', '-->'] : xml.endsWith('?>', end) ? ['<?', '?>'] : [null, '']
     if (!open) break
     // 開きの記号は閉じの記号より前に丸ごと置かれている（<!--> や <?> のように重なったものは、コメント・処理命令ではない）

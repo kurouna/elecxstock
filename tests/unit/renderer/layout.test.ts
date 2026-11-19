@@ -455,3 +455,18 @@ describe('保有のタブの初期の並び（§6.4 保有・FR-H11・FR-SIM11�
     expect(L.allPanes(L.presetEntry('holdings'), false).every((p) => p.link === 4)).toBe(true)
   })
 })
+
+describe('リンクを送った回数（FR-L11。一覧が先頭に戻したあとの銘柄ジャンプ）', () => {
+  it('同じ銘柄をもう一度送っても回数が進む。ほかの窓から届いたリンクと、リンク色 0 では進まない', () => {
+    const n0 = L.linkSeq(3)
+    L.setLinkSymbol(3, 'JP:7203')
+    L.setLinkSymbol(3, 'JP:7203')
+    expect(L.linkSeq(3)).toBe(n0 + 2)
+    expect(L.linkSymbol(3)).toBe('JP:7203')
+    L.applyRemoteLink(3, 'JP:6758')
+    expect(L.linkSeq(3)).toBe(n0 + 2)
+    const z = L.linkSeq(0)
+    L.setLinkSymbol(0, 'JP:7203')
+    expect(L.linkSeq(0)).toBe(z)
+  })
+})

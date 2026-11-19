@@ -107,3 +107,12 @@ describe('段ごとの凡例（FR-C3）', () => {
     expect(legendByPane(lines, {}, 0).subs).toEqual([])
   })
 })
+
+describe('凡例の符号の色は表示の桁と揃える（FR-C3, FR-V2）', () => {
+  it('桁で丸めて 0 になる値（0.0 と書く）は上げ・下げの色にしない', () => {
+    const h = { label: 'Hist', color: '', values: [0.04, -0.04, 0.06], pane: 2, digits: 1, signColor: true }
+    expect(legendValue(h, 0)).toMatchObject({ text: '0.0', cls: 'flat' })
+    expect(legendValue(h, 1)).toMatchObject({ text: '0.0', cls: 'flat' })
+    expect(legendValue(h, 2)).toMatchObject({ text: '0.1', cls: 'up' })
+  })
+})

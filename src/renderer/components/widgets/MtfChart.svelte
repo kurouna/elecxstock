@@ -65,7 +65,7 @@ onMount(() =>
   <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (${keyOf('fav')})`} onclick={() => toggleFav(id)}>★</button>
   <button type="button" class="sym" title={`${codeOf(id)} ${nameOf(id)} — ${t('chart.change')} (C)`} onclick={() => changeSymbol(pane)}><span class="code">{codeOf(id)}</span>{nameOf(id)}</button>
   <span class="num px">{px(m?.close)}</span>
-  <span class={`num chg ${cls(m?.chgPct)}`}>{sgn(m?.chgPct, 2, '%')}</span>
+  <span class={`num chg ${cls(m?.chgPct, 2)}`}>{sgn(m?.chgPct, 2, '%')}</span>
   <button type="button" class="chip tfc" title={`${t(`tf.${atf}` as Key)}（${t('mtf.activeRow')}） → ${t(`tf.${NEXT_TF[atf]}` as Key)} (D / W / M)`} onclick={() => setTf(active, NEXT_TF[atf])}>{atf}</button>
   <span class="seg">
     {#each ['D', 'W', 'M'] as x (x)}

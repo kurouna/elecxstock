@@ -32,7 +32,8 @@ const pct = (id: string, key: Key, v: (r: BreadthRow) => number | null): Breadth
   sort: v,
   cell: (r) => {
     const x = v(r)
-    return x == null ? { t: '—' } : { t: sgn(x, x != null && Math.abs(x) >= 100 ? 1 : 2, ''), u: '%', c: cls(x) }
+    const d = Math.abs(x ?? 0) >= 100 ? 1 : 2
+    return x == null ? { t: '—' } : { t: sgn(x, d, ''), u: '%', c: cls(x, d) }
   },
 })
 const NAME = (key: Key): BreadthCol => ({

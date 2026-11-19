@@ -55,3 +55,17 @@ describe('保有の列の作り直し（FR-H4）', () => {
     expect(col.sort!('JP:9001')).toBeCloseTo(100, 6)
   })
 })
+
+describe('符号つきの % の列の色は「±」と揃える（FR-SC6, FR-V2）', () => {
+  it('丸めて 0 になる値は ± で、色は flat', () => {
+    const col = COLUMN_BY_ID.get('price.chgPct')!
+    const at = (v: number) => {
+      app.metrics.set('JP:9001' as InstrumentId, row('9001', { chgPct: v }))
+      return col.cell('JP:9001' as InstrumentId)
+    }
+    const d = at(0.004).t.length - at(0.004).t.indexOf('.') - 1 // 列の桁
+    expect(at(0.4 / 10 ** d)).toMatchObject({ t: expect.stringMatching(/^±/), c: 'flat' })
+    expect(at(-0.4 / 10 ** d)).toMatchObject({ t: expect.stringMatching(/^±/), c: 'flat' })
+    expect(at(1)).toMatchObject({ c: 'up' })
+  })
+})

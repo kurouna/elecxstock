@@ -162,24 +162,36 @@ describe('条件までの距離（FR-AL8）', () => {
     // 成り立っていれば null
     expect(distanceOf([{ field: 'price.close', op: '<=', value: 3200 }], m, undefined, 'JP:7203')).toBeNull()
   })
-  it('負・0 になる 1 株あたりの金額（EPS・BPS）は %ではなく差（今の値・しきい値のどちらかが 0 以下なら）', () => {
-    // EPS −100 → 目標 100: % にすると −200%（向きが逆）、EPS 0 だと 0%（達成済みに見える）
-    expect(distanceOf([{ field: 'value.eps', op: '>=', value: 100 }], row({ eps: -100 }), undefined, 'JP:7203')).toEqual({
-      kind: 'pt',
-      value: 200,
+  it('負・0 になる 1 株あたりの金額（EPS・BPS）は %ではなく円の差（今の値が 0 以下か、しきい値が負なら）', () => {
+    // EPS −100 → 目標 110: % にすると −210%（向きが逆）、EPS 0 だと 0%（達成済みに見える）。差は円（pt ではない）
+    expect(distanceOf([{ field: 'value.eps', op: '>=', value: 110 }], row({ eps: -100 }), undefined, 'JP:7203')).toEqual({
+      kind: 'yen',
+      value: 210,
     })
     expect(distanceOf([{ field: 'value.eps', op: '>=', value: 50 }], row({ eps: 0 }), undefined, 'JP:7203')).toEqual({
-      kind: 'pt',
+      kind: 'yen',
       value: 50,
     })
     expect(distanceOf([{ field: 'value.bps', op: '<=', value: -10 }], row({ bps: 40 }), undefined, 'JP:7203')).toEqual({
-      kind: 'pt',
+      kind: 'yen',
       value: -50,
     })
     // どちらも正なら今までどおり %
     expect(distanceOf([{ field: 'value.eps', op: '>=', value: 110 }], row({ eps: 100 }), undefined, 'JP:7203')).toEqual({
       kind: 'pct',
       value: expect.closeTo(10, 5),
+    })
+  })
+  it('今の値が正でしきい値が 0 なら %（1 株配当 100 → ≤ 0 は −100%）', () => {
+    expect(distanceOf([{ field: 'income.div12', op: '<=', value: 0 }], row({ div12: 100 }), undefined, 'JP:7203')).toEqual({
+      kind: 'pct',
+      value: -100,
+    })
+  })
+  it('率の指標の差は今までどおりポイント（EPS などの円の差と混ぜない）', () => {
+    expect(distanceOf([{ field: 'income.yield', op: '>=', value: 1 }], row({ yieldTrailing: -0.5 }), undefined, 'JP:7203')).toEqual({
+      kind: 'pt',
+      value: 1.5,
     })
   })
 })

@@ -64,21 +64,34 @@ export function moveSel(key: string, sel: number, n: number, page = 10): number 
  * リンク先の銘柄（銘柄ジャンプ・同じ色のほかのペイン）の行を一覧で選ぶ。リンク先か一覧が変わるたびに pick(id, rows) を呼び、
  * 0 以上ならその行を選ぶ（結果が遅れて届いた・取得で並びが変わったときもリンク先の行に置く）。
  * 並べ替え・別の一覧・★のみ表示の切り替えで先頭から選び直すときは hold() を呼ぶ。リンク先が変わるまでは、一覧が変わっても
- * 選び直さない（SelectionFollow.reset() で先頭に置いた行を、リンク先の行へ戻さないため）
+ * 選び直さない（SelectionFollow.reset() で先頭に置いた行を、リンク先の行へ戻さないため）。
+ * seq はリンクを送った回数（stores/layout.svelte.ts の linkSeq）。同じ銘柄へもう一度リンクした（銘柄ジャンプ）ときも、hold() を解いてその行へ移る
  */
 export class LinkFollow<T> {
   private last: T | null = null
+  private lastSeq: number | undefined = undefined
   private held: T | null = null
 
   hold(): void {
     this.held = this.last
   }
 
-  pick(link: T | null | undefined, rows: readonly T[]): number {
+  pick(link: T | null | undefined, rows: readonly T[], seq?: number): number {
     const id = link ?? null
-    if (id !== this.last) this.held = null
+    if (id !== this.last || (seq !== undefined && this.lastSeq !== undefined && seq !== this.lastSeq)) this.held = null
     this.last = id
+    this.lastSeq = seq
     if (id == null || id === this.held) return -1
     return rows.indexOf(id)
   }
+}
+
+/**
+ * 一覧のペインの操作の対象（current()。★・アラートの作成など）。リンク先が一覧にあれば、光っている行（rows[sel]）。
+ * 並べ替え・★のみ表示で先頭に戻したあと（LinkFollow.hold）は、リンク先が X のままでも先頭の行が光っているので、その行にする。
+ * リンク先が一覧に無い（一覧に無い銘柄へ銘柄ジャンプした）ときはリンク先、リンクが無ければ光っている行
+ */
+export function listCurrent<T>(link: T | null | undefined, rows: readonly T[], sel: number): T | undefined {
+  if (link == null || rows.includes(link)) return rows[sel]
+  return link
 }

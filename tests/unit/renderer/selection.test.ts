@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clampSel, indexIn, LinkFollow, moveSel, SelectionFollow } from '../../../src/renderer/lib/selection'
+import { clampSel, indexIn, LinkFollow, listCurrent, moveSel, SelectionFollow } from '../../../src/renderer/lib/selection'
 
 describe('FR-KB2 FR-SC3 一覧で選んでいる行は銘柄で追う（取得で並びが入れ替わっても動かない）', () => {
   it('indexIn: 前の一覧の i 番目が新しい一覧の何番目か', () => {
@@ -100,5 +100,27 @@ describe('FR-KB2 FR-SC3 リンク先の銘柄の行を選ぶ（並べ替え・�
     expect(l.pick('c', ['b', 'c', 'a'])).toBe(-1) // 別のスクリーンの結果が遅れて届いた・取得
     expect(l.pick('b', ['b', 'c', 'a'])).toBe(0) // ↓ で送った・銘柄ジャンプ: また追う
     expect(l.pick('b', ['c', 'b', 'a'])).toBe(1)
+  })
+  it('hold() のあとでも、同じ銘柄へもう一度リンクした（銘柄ジャンプ・ほかのペインが送った）ら、その行へ移る', () => {
+    const l = new LinkFollow<string>()
+    expect(l.pick('c', ['a', 'b', 'c'], 1)).toBe(2)
+    l.hold()
+    expect(l.pick('c', ['c', 'b', 'a'], 1)).toBe(-1) // 並べ替えた: 先頭のまま
+    expect(l.pick('c', ['b', 'a', 'c'], 1)).toBe(-1) // 取得で並びが変わった: まだ先頭のまま
+    expect(l.pick('c', ['b', 'a', 'c'], 2)).toBe(2) // 同じ c へ銘柄ジャンプ（リンクの回数が進んだ）
+    expect(l.pick('c', ['c', 'b', 'a'], 2)).toBe(0) // また追う
+  })
+})
+
+describe('FR-KB2 FR-L11 一覧のペインの操作の対象（★・アラートの作成）は光っている行', () => {
+  it('リンク先が一覧にあれば、選んでいる行（並べ替えで先頭に戻したあと、リンク先がまだ X でも先頭の行）', () => {
+    expect(listCurrent('x', ['a', 'b', 'x'], 0)).toBe('a')
+    expect(listCurrent('x', ['a', 'b', 'x'], 2)).toBe('x')
+  })
+  it('リンク先が一覧に無ければリンク先（一覧に無い銘柄へ銘柄ジャンプした）。リンクが無ければ選んでいる行', () => {
+    expect(listCurrent('z', ['a', 'b'], 1)).toBe('z')
+    expect(listCurrent(null, ['a', 'b'], 1)).toBe('b')
+    expect(listCurrent(undefined, ['a', 'b'], 0)).toBe('a')
+    expect(listCurrent(null, [], 0)).toBeUndefined()
   })
 })

@@ -25,9 +25,21 @@ export function sgn(v: number | null | undefined, digits = 2, suffix = ''): stri
 export function retText(v: number | null | undefined): string {
   return sgn(v, v != null && Math.abs(v) >= 100 ? 0 : 1, '%')
 }
-/** 増減の色（--up / --down）。数でない値（欠損・NaN・Infinity）は色を付けない */
-export function cls(v: number | null | undefined): string {
-  return v == null || !Number.isFinite(v) ? '' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat'
+/**
+ * 増減の色（--up / --down）。数でない値（欠損・NaN・Infinity）は色を付けない。
+ * digits は並べて書く sgn の桁: 丸めて 0 になる値（sgn が「±」と書く）は flat にする（±0.0% を陽線・陰線の色で塗らない）
+ */
+export function cls(v: number | null | undefined, digits?: number): string {
+  if (v == null || !Number.isFinite(v)) return ''
+  if (digits != null && roundsToZero(v, digits)) return 'flat'
+  return v > 0 ? 'up' : v < 0 ? 'down' : 'flat'
+}
+/** retText と並べる色（retText と同じ桁で丸める） */
+export const retCls = (v: number | null | undefined): string => cls(v, v != null && Math.abs(v) >= 100 ? 0 : 1)
+/** ownSignedMoney と並べる色（money の単位で丸めて 0 になる値は flat。プライバシーモードでも色は今までどおり付ける） */
+export function moneyCls(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return ''
+  return /[1-9]/.test(money(Math.abs(v)).n) ? cls(v) : 'flat'
 }
 /** 個人の金額（保有の評価額・損益・配当）の money。プライバシーモードでは単位ごと隠す（単位で桁が分かるため。FR-H12） */
 export const ownMoney = (v: number | null | undefined): { n: string; u: string } => (privacy.on ? { n: MASK, u: '' } : money(v))

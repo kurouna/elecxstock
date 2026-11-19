@@ -13,7 +13,7 @@ import { condsText, distanceText } from '../../lib/alertText'
 import { changeSymbol } from '../../lib/chartMenu'
 import { keyOf } from '../../lib/commands'
 import { annualDividends, eventYoy, nextRightsDates, recordDayOf, yearsThatFit } from '../../lib/dividends'
-import { cls, date, fmt, money, px, retText, sgn } from '../../lib/format'
+import { cls, date, fmt, money, px, retCls, retText, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { accountName, valuation } from '../../lib/portfolio'
@@ -271,7 +271,7 @@ onMount(() =>
 <PaneHeader {pane}>
   <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (${keyOf('fav')})`} onclick={() => toggleFav(id)}>★</button>
   <button type="button" class="sym" title={`${t('chart.change')} (C)`} onclick={() => changeSymbol(pane)}><span class="code">{codeOf(id)}</span>{nameOf(id)}</button>
-  {#if scrolled}<span class="hp num">{px(m?.close)} <span class={cls(m?.chgPct)}>{sgn(m?.chgPct, 2, '%')}</span></span>{/if}
+  {#if scrolled}<span class="hp num">{px(m?.close)} <span class={cls(m?.chgPct, 2)}>{sgn(m?.chgPct, 2, '%')}</span></span>{/if}
   <button
     type="button"
     class="ibtn"
@@ -305,7 +305,7 @@ onMount(() =>
     <section class="hero" aria-label={t('si.price')}>
       <div class="top">
         <span class="price num">{px(m?.close)}</span>
-        <span class={`chg num ${cls(m?.chg)}`}>{sgn(m?.chg, (m?.close ?? 0) < 1000 ? 1 : 0)} ({sgn(m?.chgPct, 2, '%')})</span>
+        <span class={`chg num ${cls(m?.chg, (m?.close ?? 0) < 1000 ? 1 : 0)}`}>{sgn(m?.chg, (m?.close ?? 0) < 1000 ? 1 : 0)} ({sgn(m?.chgPct, 2, '%')})</span>
         {#if m?.fromHi52 != null}<span class="fh">{t('si.fromHi')} <span class="num">{sgn(m.fromHi52, 1, '%')}</span></span>{/if}
       </div>
       {#if m?.hi52 != null && m.lo52 != null}
@@ -320,7 +320,7 @@ onMount(() =>
             {#if pos(m.close, m.lo52, m.hi52) != null}<span class="me" style:left={`${pos(m.close, m.lo52, m.hi52)}%`}></span>{/if}
           </div>
           <div class="legend">
-            {#each mas as x (x.n)}<span><i style:background={x.color}></i>{t('si.fromMa', { n: x.n })} <span class={`num ${cls(x.dev)}`}>{sgn(x.dev, 1, '%')}</span></span>{/each}
+            {#each mas as x (x.n)}<span><i style:background={x.color}></i>{t('si.fromMa', { n: x.n })} <span class={`num ${cls(x.dev, 1)}`}>{sgn(x.dev, 1, '%')}</span></span>{/each}
           </div>
         </div>
       {/if}
@@ -334,7 +334,7 @@ onMount(() =>
       {#if held}
         <div class="heldbar">
           <span>{t('si.held')} <span class="num">{secret(fmt(held.qty, 0))}</span>{unitWord}</span>
-          <span>{t('hold.pnl')} <b class={`num ${cls(held.pnl)}`}>{secret(sgn(held.pnl, 0))}{ja ? '円' : ''}</b> <span class={`num ${cls(held.pnl)}`}>{sgn(held.pnlPct, 1, '%')}</span></span>
+          <span>{t('hold.pnl')} <b class={`num ${cls(held.pnl, 0)}`}>{secret(sgn(held.pnl, 0))}{ja ? '円' : ''}</b> <span class={`num ${cls(held.pnlPct, 1)}`}>{sgn(held.pnlPct, 1, '%')}</span></span>
           <span>{t('hold.yoc')} <span class="num">{held.yoc != null ? `${fmt(held.yoc)}%` : '—'}</span></span>
           {#if held.annual != null}<span>{reit ? t('si.annualDivReit') : t('si.annualDiv')} <span class="num">{secret(fmt(held.annual, 0))}</span>{ja ? '円' : ''}</span>{/if}
         </div>
@@ -475,12 +475,12 @@ onMount(() =>
             <tbody>
               <tr>
                 <td>{t('si.rowPrice')}</td>
-                {#each [m?.ret1m, m?.ret3m, m?.ret1y, m?.ret3y, extra?.ret5y] as v, i (i)}<td class={v == null ? 'na' : cls(v)}>{retText(v)}</td>{/each}
+                {#each [m?.ret1m, m?.ret3m, m?.ret1y, m?.ret3y, extra?.ret5y] as v, i (i)}<td class={v == null ? 'na' : retCls(v)}>{retText(v)}</td>{/each}
               </tr>
               <tr title={t('si.noteTotal')}>
                 <td>{t('si.rowTotal')}</td>
                 <td class="na"></td><td class="na"></td>
-                {#each [extra?.tr.y1, extra?.tr.y3, extra?.tr.y5] as v, i (i)}<td class={v == null ? 'na' : cls(v)}>{retText(v)}</td>{/each}
+                {#each [extra?.tr.y1, extra?.tr.y3, extra?.tr.y5] as v, i (i)}<td class={v == null ? 'na' : retCls(v)}>{retText(v)}</td>{/each}
               </tr>
             </tbody>
           </table>
@@ -491,7 +491,7 @@ onMount(() =>
         {#if held}
           <section class="card c-held held">
             <h5>{t('info.gHeld')}<span class="grow"></span><span class="muted accts">{held.accounts}</span></h5>
-            <div class="pnl"><span class={`v num ${cls(held.pnl)}`}>{secret(sgn(held.pnl, 0))}<span class="u">{ja ? '円' : ''}</span></span><span class={`num ${cls(held.pnl)}`}>{sgn(held.pnlPct, 1, '%')}</span></div>
+            <div class="pnl"><span class={`v num ${cls(held.pnl, 0)}`}>{secret(sgn(held.pnl, 0))}<span class="u">{ja ? '円' : ''}</span></span><span class={`num ${cls(held.pnlPct, 1)}`}>{sgn(held.pnlPct, 1, '%')}</span></div>
             <div class="kv"><span>{t('hold.qty')}</span><span>{secret(fmt(held.qty, 0))}<span class="u">{unitWord}</span></span></div>
             <div class="kv"><span>{t('hold.avgShort')}</span><span>{px(held.avg)}<span class="u">{ja ? '円' : ''}</span></span></div>
             <div class="kv"><span>{t('hold.value')}</span><span>{secret(fmt(held.value, 0))}<span class="u">{ja ? '円' : ''}</span></span></div>
