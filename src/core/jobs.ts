@@ -167,6 +167,15 @@ export class JobRunner {
     this.h.repo.db.run(`UPDATE jobs SET status = 'queued' WHERE status IN ('running','waiting-offline','provider-paused')`)
     this.kick()
   }
+  /**
+   * 実行中のジョブの待ち（通信断・プロバイダの停止）と、待ちから戻ったことを DB にも書く（jobs.list で読み直しても待ちに見える）。
+   * 待っている間に一時停止・取り消し・閉じる（待ちに戻す）で変わった状態は上書きしない
+   */
+  private setWaiting(j: JobRow, status: 'waiting-offline' | 'provider-paused' | 'running'): void {
+    const from = status === 'running' ? j.status : 'running'
+    j.status = status
+    this.h.repo.db.run(`UPDATE jobs SET status = ?, updated = ? WHERE id = ? AND status = ?`, status, nowIso(), j.id, from)
+  }
   private kick(): void {
     if (this.running || this.stopping) return
     this.running = true
@@ -261,24 +270,24 @@ export class JobRunner {
             if (!this.offline) this.h.log(`offline ${item}: ${pe.message}`)
             this.offline = true
             this.h.emitProvider({ offline: true, paused: false, message: pe.message })
-            j.status = 'waiting-offline'
+            this.setWaiting(j, 'waiting-offline')
             this.h.emitProgress(this.progressOf(j, undefined, items.length))
             await sleep(30_000, this.abort.signal).catch(() => {})
-            j.status = 'running'
+            this.setWaiting(j, 'running')
             continue
           }
           if (pe.scope === 'provider') {
             this.consecutiveProviderErrors++
             this.h.log(`provider error ${item} (${this.consecutiveProviderErrors}): ${pe.message}`) // NFR-R3
             if (this.consecutiveProviderErrors >= 5) {
-              j.status = 'provider-paused'
+              this.setWaiting(j, 'provider-paused')
               this.h.log(`provider paused for 10 min: ${pe.message}`)
               this.h.emitProvider({ offline: false, paused: true, message: pe.message })
               this.h.emitProgress(this.progressOf(j, pe.message, items.length))
               await sleep(10 * 60_000, this.abort.signal).catch(() => {})
               this.consecutiveProviderErrors = 0
               this.h.emitProvider({ offline: false, paused: false })
-              j.status = 'running'
+              this.setWaiting(j, 'running')
               continue
             }
             await sleep(Math.min(60_000, 2000 * 2 ** this.consecutiveProviderErrors), this.abort.signal).catch(() => {})

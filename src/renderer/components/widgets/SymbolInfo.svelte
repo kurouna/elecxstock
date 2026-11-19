@@ -69,9 +69,15 @@ $effect(() => {
   void app.dataVersion
   const my = ++token
   ensureMetrics([id])
-  bridge.call('dividends.get', { id }).then((d) => {
-    if (my === token) divs = d
-  })
+  bridge
+    .call('dividends.get', { id })
+    .then((d) => {
+      if (my === token) divs = d
+    })
+    .catch(() => {
+      // 前の銘柄の配当を出したままにしない
+      if (my === token) divs = []
+    })
   bridge
     .call('info.extra', { id })
     .then((x) => {
@@ -271,7 +277,10 @@ onMount(() =>
     class="ibtn"
     aria-label={t('info.refetch')}
     title={`${t('info.refetchHint')} (${keyOf('refetch')})`}
-    onclick={() => rpc('jobs.refetch', { ids: [id] }).then(() => toast(t('refetch.started', { n: 1 })))}><Icon name="refresh" /></button>
+    onclick={() =>
+      rpc('jobs.refetch', { ids: [id] })
+        .then(() => toast(t('refetch.started', { n: 1 })))
+        .catch(() => {})}><Icon name="refresh" /></button>
   <button type="button" class="ibtn" aria-label={t('common.about')} title={note}><Icon name="info" /></button>
   {#if quoteUrl}<button type="button" class="ibtn" aria-label={t('info.openYahoo')} title={`${t('info.openYahoo')} (O)`} onclick={openQuote}><Icon name="external" /></button>{/if}
 </PaneHeader>

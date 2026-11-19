@@ -38,7 +38,9 @@ export function dropGlitches<T extends { c: number }>(pts: T[], maxRun: number):
           break
         }
       }
-      if (back > 0 && jump(pts[back - 1]!.c, pts[back]!.c)) {
+      // 戻る直前の点もまだ前の値から ±50% を超えて離れていること。戻りの動きそのもので比べると、
+      // 上に外れて戻る区間（100 → 200 → 100 の戻りは −50%）を飛ばせない
+      if (back > 0 && jump(prev.c, pts[back - 1]!.c)) {
         dropped += back - i
         i = back
         continue

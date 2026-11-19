@@ -16,7 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { dirname, extname, join, normalize, sep } from 'node:path'
+import { dirname, extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { launchAction, savedBackground, secondInstance, startHiddenNow } from '@shared/background'
 import { jstNow } from '@shared/calendar'
@@ -31,7 +31,6 @@ import {
   Menu,
   MessageChannelMain,
   Notification,
-  net,
   protocol,
   screen,
   session,
@@ -43,6 +42,7 @@ import {
 import { appUserModelId } from './appId'
 import { createBackground } from './background'
 import { clockOffset } from './clock-init'
+import { appFilePath, cycleSlot, isExternalAllowed } from './guards'
 import { cleanCopyText } from './news/clipboard'
 import { readNewsPolicy } from './news/policy'
 import { type DisplayLike, type Placement, parseState, place, remember, type WindowStateV2 } from './placement'
@@ -90,15 +90,10 @@ function pruneLogs(): void {
 process.on('uncaughtException', (e) => log(`uncaught ${e.stack ?? e}`))
 process.on('unhandledRejection', (e) => log(`unhandled ${String(e)}`))
 
-const EXTERNAL_ALLOW = [
-  /^https:\/\/(www\.)?tradingview\.com\//,
-  /^https:\/\/github\.com\/kurouna\/elecxstock/,
-  /^https:\/\/(www\.)?jpx\.co\.jp\//,
-  /^https:\/\/finance\.yahoo\.co(m|\.jp)\//,
-]
+// 外部のリンクの許可（EXTERNAL_ALLOW）は guards.ts
 /** 記事を開いてよいホスト（Core が準備のときに全フィードの linkHosts を渡す。docs/design-news.md §9） */
 let newsLinkHosts = new Set<string>()
-const externalOk = (url: string) => EXTERNAL_ALLOW.some((r) => r.test(url)) || isNewsLink(url, newsLinkHosts)
+const externalOk = (url: string) => isExternalAllowed(url) || isNewsLink(url, newsLinkHosts)
 /** 管理者がニュースを止めているか（起動のときに 1 回読む。§3.2） */
 let newsPolicyOff = false
 const CSP =
@@ -431,10 +426,16 @@ function registerProtocol(): void {
     '.json': 'application/json',
   }
   protocol.handle('app', async (req) => {
-    const url = new URL(req.url)
-    const p = normalize(join(root, decodeURIComponent(url.pathname)))
-    if (!p.startsWith(root + sep) || !existsSync(p)) return new Response('not found', { status: 404 })
-    const body = await readFile(p)
+    // 不正な % の並び・root の外・ディレクトリ・読めないファイルは 404（例外で要求の処理を落とさない）
+    const p = appFilePath(root, new URL(req.url).pathname)
+    if (!p) return new Response('not found', { status: 404 })
+    let body: Buffer<ArrayBuffer>
+    try {
+      if (!statSync(p).isFile()) return new Response('not found', { status: 404 })
+      body = await readFile(p)
+    } catch {
+      return new Response('not found', { status: 404 })
+    }
     return new Response(body, {
       headers: {
         'content-type': types[extname(p)] ?? 'application/octet-stream',
@@ -443,10 +444,19 @@ function registerProtocol(): void {
       },
     })
   })
-  void net
 }
 
 // ---------------------------------------------------------------- small IPC（ファイルの保存・読み込み・外部リンク）
+/** 選んだ場所へ書く。書けない（読み取り専用・ほかのアプリが開いている・空きが無い）ときは false（invoke を例外にしない） */
+function writeSafely(file: string, data: string | Uint8Array): boolean {
+  try {
+    writeFileSync(file, data)
+    return true
+  } catch (err) {
+    log(`write ${file}: ${String(err)}`)
+    return false
+  }
+}
 function fromApp(e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
   const u = e.senderFrame?.url ?? ''
   return u.startsWith('app://elecxstock/') || (isDev && u.startsWith(process.env.ELECTRON_RENDERER_URL!))
@@ -474,8 +484,7 @@ ipcMain.handle('app:saveText', async (e, name: unknown, text: unknown) => {
     filters: [{ name: label, extensions: [ext] }],
   })
   if (r.canceled || !r.filePath) return false
-  writeFileSync(r.filePath, text)
-  return true
+  return writeSafely(r.filePath, text)
 })
 // チャートの画像（FR-C11）。renderer が描いた PNG のバイト列を、選んだ場所へ書く。PNG の印で始まらないものは書かない
 const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
@@ -488,8 +497,7 @@ ipcMain.handle('app:savePng', async (e, name: unknown, bytes: unknown) => {
     filters: [{ name: 'PNG', extensions: ['png'] }],
   })
   if (r.canceled || !r.filePath) return false
-  writeFileSync(r.filePath, bytes)
-  return true
+  return writeSafely(r.filePath, bytes)
 })
 // ウィンドウの枠（最小化・最大化・閉じるのボタン）の色と高さを、テーマと表示倍率に合わせる（FR-V8）。送り元の窓に効かせる
 ipcMain.handle('app:setChrome', (e, theme: unknown, scale: unknown) => {
@@ -510,7 +518,13 @@ ipcMain.handle('app:setChrome', (e, theme: unknown, scale: unknown) => {
 ipcMain.handle('app:notices', (e) => {
   if (!fromApp(e)) return ''
   const cands = [join(dirname(process.execPath), 'THIRD_PARTY_NOTICES.txt'), join(app.getAppPath(), 'out', 'THIRD_PARTY_NOTICES.txt')]
-  for (const p of cands) if (existsSync(p)) return readFileSync(p, 'utf8')
+  for (const p of cands) {
+    try {
+      if (existsSync(p)) return readFileSync(p, 'utf8')
+    } catch (err) {
+      log(`notices: ${String(err)}`)
+    }
+  }
   return ''
 })
 ipcMain.handle('app:openFile', async (e, kind: unknown) => {
@@ -524,8 +538,15 @@ ipcMain.handle('app:openFile', async (e, kind: unknown) => {
         : [{ name: 'JSON', extensions: ['json'] }]
   const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters })
   if (r.canceled || !r.filePaths[0]) return null
-  if (statSync(r.filePaths[0]).size > 20_000_000) return null
-  const buf = readFileSync(r.filePaths[0])
+  let buf: Buffer
+  try {
+    if (statSync(r.filePaths[0]).size > 20_000_000) return null
+    buf = readFileSync(r.filePaths[0])
+  } catch (err) {
+    // 消えた・ほかのアプリが開いている・権限が無いファイル（読めなかったのは選ばなかったのと同じに扱う）
+    log(`openFile: ${String(err)}`)
+    return null
+  }
   // 証券会社の CSV は Shift_JIS のことが多いので、バイト列のまま渡して renderer で文字コードを判定する
   return kind === 'xlsx' || kind === 'csv' ? new Uint8Array(buf) : buf.toString('utf8')
 })
@@ -538,8 +559,13 @@ ipcMain.handle('app:exportBackup', async (e, file: unknown) => {
   if (!existsSync(src)) return false
   const r = await dialog.showSaveDialog(win, { defaultPath: file, filters: [{ name: 'SQLite', extensions: ['db'] }] })
   if (r.canceled || !r.filePath) return false
-  copyFileSync(src, r.filePath)
-  return true
+  try {
+    copyFileSync(src, r.filePath)
+    return true
+  } catch (err) {
+    log(`exportBackup: ${String(err)}`)
+    return false
+  }
 })
 // ログのフォルダを開く（ジョブ・設定から。NFR-O1）
 ipcMain.handle('app:openLogs', (e) => {
@@ -587,10 +613,9 @@ ipcMain.handle('win:info', (e) => {
 ipcMain.handle('win:cycle', (e, dir: unknown) => {
   if (!fromApp(e)) return null
   const open = SLOTS.filter((s) => wins.has(s))
-  const from = slotOf(e.sender) ?? activeSlot
-  const i = open.indexOf(from)
-  const next = open[(i + (dir === -1 ? -1 : 1) + open.length) % open.length]!
-  const w = wins.get(next)!.win
+  const next = cycleSlot(open, slotOf(e.sender) ?? activeSlot, dir)
+  const w = next ? wins.get(next)?.win : undefined
+  if (!next || !w || w.isDestroyed()) return null
   if (w.isMinimized()) w.restore()
   w.focus()
   activeSlot = next
@@ -792,4 +817,6 @@ app.on('before-quit', (e) => {
   c.once('exit', done)
   c.postMessage({ type: 'shutdown' })
 })
+// 終了が決まったら、トレイのアイコンをすぐに消す（Windows の通知領域に影を残さない）
+app.on('will-quit', () => background.dispose())
 app.on('window-all-closed', () => app.quit())

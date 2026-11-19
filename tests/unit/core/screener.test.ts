@@ -200,3 +200,17 @@ describe('無効な条件と「または」（FR-SC5, FR-SC11）', () => {
     expect(r.ids).toEqual(['JP:1'])
   })
 })
+
+describe('数でない値は欠損（FR-SC8。アラートの判定 FR-AL3 と同じ）', () => {
+  it('NaN・Infinity の指標は欠損として扱う（除外・含めるに従う。相手の指標も同じ）', () => {
+    const mm = new Map(metrics)
+    mm.set('JP:8306', { ...mm.get('JP:8306')!, yieldTrailing: Number.POSITIVE_INFINITY })
+    mm.set('JP:7203', { ...mm.get('JP:7203')!, yieldTrailing: Number.NaN })
+    const go = (conditions: Parameters<typeof runScreen>[0]['conditions']) =>
+      runScreen({ conditions, instruments, metrics: mm, favorites: new Set(), watchlists: {} }).ids
+    expect(go([{ field: 'income.yield', op: '>=', value: 3.5 }])).toEqual(['JP:8951'])
+    expect(go([{ field: 'income.yield', op: '<=', value: 3.5, includeMissing: true }])).toEqual(['JP:8306', 'JP:7203', 'JP:1306'])
+    mm.set('JP:8951', { ...mm.get('JP:8951')!, ma75: Number.NEGATIVE_INFINITY })
+    expect(go([{ field: 'price.close', op: '>=', value: 0, ref: 'price.ma75' }])).toEqual([])
+  })
+})

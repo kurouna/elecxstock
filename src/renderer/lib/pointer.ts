@@ -20,3 +20,11 @@ export function tipBeside(
   const z = zoom > 0 ? zoom : 1
   return { x: Math.max(0, Math.min(anchor.right / z + 8, viewportWidth / z - tipWidth)), y: anchor.top / z - 4 }
 }
+/**
+ * 区切り線のドラッグ（FR-L1）: 両隣を合わせた幅（span）に対する、ポインタの位置の比（8%〜92%）。pos・start・span はどれも
+ * getBoundingClientRect・clientX の px（倍率が掛かったもの同士）。幅が 0 以下（隠れている・縮みきった）なら null（NaN でサイズを壊さない）
+ */
+export function gutterRatio(pos: number, start: number, span: number): number | null {
+  if (!(span > 0)) return null
+  return Math.max(0.08, Math.min(0.92, (pos - start) / span))
+}

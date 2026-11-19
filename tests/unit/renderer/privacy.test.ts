@@ -42,3 +42,16 @@ describe('プライバシーモードの書式（FR-H12）', () => {
     expect(blockedInFree('privacy')).toBe(true)
   })
 })
+
+describe('符号つきの個人の金額（FR-H12）', () => {
+  it('オフなら符号と単位、オンなら符号ごと ****（評価損益・前日比の符号から損得が分からない）', async () => {
+    const { ownSignedMoney } = await import('../../../src/renderer/lib/format')
+    expect(ownSignedMoney(1_234_0000)).toEqual({ n: '+1,234', u: '万' })
+    expect(ownSignedMoney(-1_234_0000)).toEqual({ n: '−1,234', u: '万' })
+    expect(ownSignedMoney(1000).n).toBe('±0')
+    expect(ownSignedMoney(null)).toEqual({ n: '—', u: '' })
+    privacy.on = true
+    expect(ownSignedMoney(1_234_0000)).toEqual({ n: MASK, u: '' })
+    expect(ownSignedMoney(-1_234_0000)).toEqual({ n: MASK, u: '' })
+  })
+})

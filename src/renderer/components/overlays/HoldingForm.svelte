@@ -24,25 +24,32 @@ let found = $state<Instrument | null>(null)
 let cands = $state<Instrument[]>([])
 let ci = $state(0)
 let codeFocused = $state(false)
-let candToken = 0
 let codeEl = $state<HTMLInputElement>()
 let qtyEl = $state<HTMLInputElement>()
 let token = 0
 
 const C = $derived(code.normalize('NFKC').trim().toUpperCase())
+// 候補と、打ったコードの銘柄の名前を 1 回の検索で取る（コードが一致する銘柄は先頭に来る）
 $effect(() => {
-  const q = code.normalize('NFKC').trim()
-  const my = ++candToken
-  if (!q || holding) {
-    cands = []
-    return
-  }
-  void rpc('instruments.search', { q, limit: 8 }).then((r) => {
-    if (my !== candToken) return
-    cands = r
-    ci = 0
-    moved = false
-  })
+  const raw = code.normalize('NFKC').trim()
+  const exact = C
+  const my = ++token
+  const wantCands = !!raw && !holding
+  const wantFound = CODE_RE.test(exact)
+  if (!wantCands) cands = []
+  if (!wantFound) found = null
+  if (!wantCands && !wantFound) return
+  void rpc('instruments.search', { q: raw, limit: 8 })
+    .then((r) => {
+      if (my !== token) return
+      if (wantCands) {
+        cands = r
+        ci = 0
+        moved = false
+      }
+      if (wantFound) found = r.find((x) => x.code === exact) ?? null
+    })
+    .catch(() => {})
 })
 const showCands = $derived(codeFocused && cands.length > 0 && !(cands.length === 1 && cands[0]!.code === C))
 /** 候補を矢印キーで選んだか（選んでいなければ、打ったコードを優先する） */
@@ -72,17 +79,6 @@ function codeKey(e: KeyboardEvent) {
     pick(cands[ci])
   }
 }
-$effect(() => {
-  const q = C
-  const my = ++token
-  if (!CODE_RE.test(q)) {
-    found = null
-    return
-  }
-  void rpc('instruments.search', { q, limit: 5 }).then((r) => {
-    if (my === token) found = r.find((x) => x.code === q) ?? null
-  })
-})
 const num = (s: string) => {
   const v = Number(s.replace(/[,，円¥\s]/g, ''))
   return Number.isFinite(v) ? v : Number.NaN

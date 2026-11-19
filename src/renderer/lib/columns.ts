@@ -26,13 +26,23 @@ export interface ListCol {
   cell: (id: InstrumentId) => Cell
   /** 列の選択で外せない列 */
   fixed?: boolean
+  /** CSV に書く値（並べ替えの値で書けない列。権利確定月のように複数の値を持つ列） */
+  csv?: (id: InstrumentId) => string
 }
 
-/** 保有の合計（保有割合の分母）。保有と、保有の銘柄の終値が変わったときだけ作り直す */
+/** 保有の合計（保有割合の分母）。保有と、保有の銘柄の終値・業種（遅れて届く）が変わったときだけ作り直す */
 let ctxMemo: { key: string; holdings: unknown; ctx: ComputeContext } | null = null
 function computeContext(): ComputeContext {
   const today = jstNow().date
-  const key = today + app.holdings.map((h) => `${h.code}:${metric(`JP:${h.code}`)?.close ?? ''}`).join(',')
+  const key =
+    today +
+    app.holdings
+      .map((h) => {
+        const id: InstrumentId = `JP:${h.code}`
+        const i = inst(id)
+        return `${h.code}:${metric(id)?.close ?? ''}:${i?.kind ?? ''}:${i?.sectorJa ?? ''}`
+      })
+      .join(',')
   if (ctxMemo?.holdings === app.holdings && ctxMemo.key === key) return ctxMemo.ctx
   const holdings = heldFrom(app.holdings)
   // 保有割合の分母は保有のすべての銘柄の終値で出す（画面に出ていない保有の銘柄も。届いたら key が変わって作り直す）
@@ -130,6 +140,8 @@ export const COLUMNS: ListCol[] = [
     w: 72,
     sort: (id) => metric(id)?.recordMonths[0] ?? null,
     cell: (id) => ({ t: metric(id)?.recordMonths.join('・') || '—' }),
+    // 並べ替えは先頭の月だけで比べるが、CSV にはすべての月を書く（「3 9」）
+    csv: (id) => metric(id)?.recordMonths.join(' ') ?? '',
   },
   {
     id: 'asOf',
@@ -228,6 +240,7 @@ export function toCsv(ids: InstrumentId[], cols: ListCol[], nameOf: (id: Instrum
   const raw = (id: InstrumentId, c: ListCol): string => {
     if (c.id === 'code') return inst(id)?.code ?? id.replace(/^\w+:/, '')
     if (c.id === 'name') return nameOf(id)
+    if (c.csv) return c.csv(id)
     const v = c.sort?.(id)
     if (typeof v === 'number') return String(Math.round(v * 1e6) / 1e6)
     return v == null ? '' : c.cell(id).t

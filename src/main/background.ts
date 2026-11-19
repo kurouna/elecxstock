@@ -51,11 +51,15 @@ export interface Background {
   attach(slot: string, win: BrowserWindow, deferred?: { maximized: boolean; fullScreen?: boolean }): void
   loginItem(): LoginState
   setLoginItem(on: boolean, hidden: boolean): LoginState
+  /** 終了するとき: トレイのアイコンをすぐに消す（残すと Windows の通知領域にアイコンの影が残る） */
+  dispose(): void
 }
 
 interface TrayLike {
   show(lang: SavedBackground['lang']): void
   hide(): void
+  /** 終了するときにすぐ壊す（hide は次のイベントまで待つので、終了の途中では間に合わないことがある） */
+  destroy(): void
 }
 interface LoginBackend {
   available: boolean
@@ -84,6 +88,11 @@ function realTray(icon: string, actions: Record<'open' | 'settings' | 'quit', ()
       const t = tray
       tray = null
       if (t) setImmediate(() => t.destroy())
+    },
+    destroy() {
+      const t = tray
+      tray = null
+      if (t && !t.isDestroyed()) t.destroy()
     },
   }
 }
@@ -144,6 +153,9 @@ export function createBackground(deps: BackgroundDeps): Background {
           stubTray.lang = lang
         },
         hide: () => {
+          stubTray.visible = false
+        },
+        destroy: () => {
           stubTray.visible = false
         },
       }
@@ -249,6 +261,9 @@ export function createBackground(deps: BackgroundDeps): Background {
     setLoginItem(on, hidden) {
       if (login.available) login.write(on, hidden)
       return bg.loginItem()
+    },
+    dispose() {
+      tray.destroy()
     },
   }
 

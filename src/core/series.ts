@@ -143,7 +143,8 @@ export function adjustMonthly(
     const i = monthly.findIndex((b) => monthKey(b.d) >= m)
     if (i <= 0) continue
     const prev = monthly[i - 1]!.c
-    if (!(prev > 0)) continue
+    // 日足の adjust と同じく、前の終値以上・0 以下の配当（記録の誤りなど）は掛けない（倍率が 0 以下・1 より大きくなるため）
+    if (!(prev > 0) || !(dv.amount > 0) || dv.amount >= prev) continue
     const f = 1 - dv.amount / prev
     for (let k = 0; k < i; k++) factors[k]! *= f
   }

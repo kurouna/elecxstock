@@ -334,7 +334,12 @@ export class SimData {
       xs.push({ y: Number(r.d.slice(0, 4)), v: r.value })
       by.set(r.id, xs)
     }
-    const monthly = new Set(this.repo.db.all<{ id: string }>('SELECT id FROM fetch_state WHERE last_monthly IS NOT NULL').map((r) => r.id))
+    // 10 年分の配当を持つのは、10 年分を入れた版（div10Since）より後に月次系列を取った銘柄だけ（divCoverFrom と同じ）
+    const monthly = new Set(
+      this.repo.db
+        .all<{ id: string }>('SELECT id FROM fetch_state WHERE last_monthly IS NOT NULL AND last_monthly >= ?', this.div10Since)
+        .map((r) => r.id),
+    )
     const cover10 = Number(addYears(today, -10).slice(0, 4))
     const coverRet = Number(retentionStart(today, this.retentionYears()).slice(0, 4))
     const out: StressItem[] = []

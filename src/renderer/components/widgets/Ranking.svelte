@@ -8,7 +8,7 @@ import { COLUMN_BY_ID, type ListCol, resolveColumns, sortIds } from '../../lib/c
 import type { Key } from '../../lib/i18n'
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
-import { SelectionFollow } from '../../lib/selection'
+import { moveSel, SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, bridge, isFav, t } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
@@ -68,6 +68,12 @@ function send() {
   if (id) setLinkSymbol(pane.link, id)
   prefetch([rows[sel + 1], rows[sel - 1]])
 }
+/** 指標・向き・市場・★のみ表示を変える（キーでもマウスでも、先頭の行から選び直す） */
+function change(p: Record<string, unknown>) {
+  patchState(pane, p)
+  sel = 0
+  follow.reset()
+}
 
 onMount(() =>
   registerPane(pane.id, {
@@ -78,28 +84,23 @@ onMount(() =>
       const k = e.key
       const ctrl = e.ctrlKey || e.metaKey
       if (ctrl && e.shiftKey && e.code === 'KeyF') {
-        patchState(pane, { starOnly: !starOnly })
+        change({ starOnly: !starOnly })
         return true
       }
       if (ctrl || e.altKey) return false
-      if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Home' || k === 'End' || k === 'PageDown' || k === 'PageUp') {
-        const d = { ArrowDown: 1, ArrowUp: -1, PageDown: 10, PageUp: -10 }[k as string] ?? 0
-        sel = k === 'Home' ? 0 : k === 'End' ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, sel + d))
+      const to = moveSel(k, sel, rows.length)
+      if (to != null) {
+        sel = to
         send()
         queueMicrotask(() => scroller?.querySelector('tr.sel')?.scrollIntoView({ block: 'nearest' }))
         return true
       }
       if (e.code === 'KeyS') {
-        if (e.shiftKey) patchState(pane, { dir: -dir })
-        else patchState(pane, { key: KEYS[(KEYS.indexOf(key) + 1) % KEYS.length] })
-        sel = 0
-        follow.reset()
+        change(e.shiftKey ? { dir: -dir } : { key: KEYS[(KEYS.indexOf(key) + 1) % KEYS.length] })
         return true
       }
       if (e.code === 'KeyG') {
-        patchState(pane, { mk: (mk + (e.shiftKey ? MARKETS.length - 1 : 1)) % MARKETS.length })
-        sel = 0
-        follow.reset()
+        change({ mk: (mk + (e.shiftKey ? MARKETS.length - 1 : 1)) % MARKETS.length })
         return true
       }
       if (k === 'Enter') {
@@ -117,13 +118,13 @@ const mkLabel = (i: number) => (MARKETS[i] ?? []).map((m) => t(`mkt.${m}` as Key
   <span class="dim">{COLUMN_BY_ID.get(key)?.label()} · {dir < 0 ? t('rank.top') : t('rank.bottom')}</span>
 </PaneHeader>
 <div class="bar">
-  <select title={`${t('rank.metric')} (S)`} aria-label={t('rank.metric')} value={key} onchange={(e) => patchState(pane, { key: (e.currentTarget as HTMLSelectElement).value })}>
+  <select title={`${t('rank.metric')} (S)`} aria-label={t('rank.metric')} value={key} onchange={(e) => change({ key: (e.currentTarget as HTMLSelectElement).value })}>
     {#each KEYS as k (k)}<option value={k}>{COLUMN_BY_ID.get(k)?.label()}</option>{/each}
   </select>
-  <button type="button" class="chip" title={`${t('rank.dir')} (Shift+S)`} onclick={() => patchState(pane, { dir: -dir })}>{dir < 0 ? `▼ ${t('rank.top')}` : `▲ ${t('rank.bottom')}`}</button>
-  <button type="button" class="chip" title={`${t('rank.market')} (G / Shift+G)`} onclick={() => patchState(pane, { mk: (mk + 1) % MARKETS.length })}>{mkLabel(mk)}</button>
+  <button type="button" class="chip" title={`${t('rank.dir')} (Shift+S)`} onclick={() => change({ dir: -dir })}>{dir < 0 ? `▼ ${t('rank.top')}` : `▲ ${t('rank.bottom')}`}</button>
+  <button type="button" class="chip" title={`${t('rank.market')} (G / Shift+G)`} onclick={() => change({ mk: (mk + 1) % MARKETS.length })}>{mkLabel(mk)}</button>
   <span class="grow"></span>
-  <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>★</button>
+  <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => change({ starOnly: !starOnly })}><span class="box"></span>★</button>
 </div>
 <div class="scroll body" bind:this={scroller}>
   {#if !rows.length}

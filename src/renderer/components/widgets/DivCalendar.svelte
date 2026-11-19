@@ -1,6 +1,7 @@
 <script lang="ts">
 // 配当カレンダー（P2 の先取り）: 権利確定月ごとに、すべてのウォッチリストの銘柄を並べる。選んだ銘柄はリンクグループへ送る。
 
+import { jstNow } from '@shared/calendar'
 import type { InstrumentId } from '@shared/types'
 import { onMount } from 'svelte'
 import { fmt } from '../../lib/format'
@@ -11,7 +12,8 @@ import { type PaneNode, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 
 let { pane }: { pane: PaneNode } = $props()
-let mi = $state(new Date().getMonth())
+// 今月は日本時間で決める（FR-T1。PC の時刻帯によらない）
+let mi = $state(Number(jstNow().date.slice(5, 7)) - 1)
 let ri = $state(0)
 let host = $state<HTMLElement>()
 // 選んだ行が月の枠の外に出たら見える位置まで動かす（月の銘柄は全部並べ、枠の中でスクロールする）

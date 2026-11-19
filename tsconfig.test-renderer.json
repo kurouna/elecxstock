@@ -14,6 +14,7 @@
     "tests/unit/renderer/**/*.ts",
     "tests/unit/renderer-int/**/*.ts",
     "tests/unit/registry/**/*.ts",
+    "tests/unit/news/store.test.ts",
     "tests/support/**/*.ts"
   ]
 }

@@ -2,7 +2,7 @@
 import { untrack } from 'svelte'
 // ドロワー（§6.12）: 閉じているときは細い帯だけ。ポインタを 200ms 載せるか Ctrl+B で本体の上にスライドインし、
 // フォーカスとポインタが外れたら閉じる。ピン留めすると本体の幅を詰めて並ぶ。帯にフォーカスがあれば ↑↓ が中の一覧に届く（FR-DR4）。
-import { keyOf, setFocus } from '../lib/commands'
+import { keyOf, openDock, setFocus, togglePin } from '../lib/commands'
 import type { Key } from '../lib/i18n'
 import { ink } from '../lib/ink'
 import { playIn, takeTabHint } from '../lib/paneMax'
@@ -63,12 +63,12 @@ $effect(() => {
 function choose(i: number, focus = true) {
   dock.active = i
   saveLayout()
-  toggleDockOpen(true, side)
+  openDock(side) // 最大化していたら戻す（最大化したペインがドロワーを覆うため。FR-DR3）
   if (focus) setFocus(dock.panes[i]!.id)
 }
 function enterRail() {
   if (timer) clearTimeout(timer)
-  timer = setTimeout(() => toggleDockOpen(true, side), 200)
+  timer = setTimeout(() => openDock(side), 200)
 }
 function leavePanel() {
   if (dock.pinned) return
@@ -98,14 +98,12 @@ function dropIn(e: DragEvent) {
   if (!id) return
   e.preventDefault()
   if (moveToDock(id, side)) {
-    toggleDockOpen(true, side)
+    openDock(side)
     setFocus(id)
   }
 }
 function pin() {
-  dock.pinned = !dock.pinned
-  layout.dockOpen = dock.pinned ? side : null
-  saveLayout()
+  togglePin(side)
 }
 function resize(e: MouseEvent) {
   e.preventDefault()
@@ -126,7 +124,7 @@ function resize(e: MouseEvent) {
 
 <div class="dock" class:open class:pinned={dock.pinned} class:right={side === 'right'} bind:this={wrap}>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="rail" data-dock-rail={side} tabindex="0" title={t('drawer.hint')} onmouseenter={enterRail} onmouseleave={leaveRail} onkeydown={railKey} ondragover={dragOver} ondrop={dropIn} role="toolbar" aria-label="drawer">
+  <div class="rail" data-dock-rail={side} tabindex="0" title={t('drawer.hint')} onmouseenter={enterRail} onmouseleave={leaveRail} onkeydown={railKey} ondragover={dragOver} ondrop={dropIn} role="toolbar" aria-label={t(side === 'left' ? 'a11y.drawerLeft' : 'a11y.drawerRight')}>
     {#each dock.panes as p, i (p.id)}
       <button type="button" class:on={i === dock.active} onclick={() => choose(i)}><span>{t(`widget.${p.widget}` as Key)}</span></button>
     {/each}
@@ -135,7 +133,7 @@ function resize(e: MouseEvent) {
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="panel" style:width={`${dock.width}px`} onmouseleave={leavePanel} onmouseenter={() => timer && clearTimeout(timer)}>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="tabs" bind:this={tabsEl} ondragover={dragOver} ondrop={dropIn}>
+    <div class="tabs" role="tablist" aria-label={t(side === 'left' ? 'a11y.drawerLeft' : 'a11y.drawerRight')} tabindex="-1" bind:this={tabsEl} ondragover={dragOver} ondrop={dropIn}>
       {#each dock.panes as p, i (p.id)}
         <button type="button" role="tab" aria-selected={i === dock.active} onclick={() => choose(i)}>{t(`widget.${p.widget}` as Key)}</button>
       {/each}

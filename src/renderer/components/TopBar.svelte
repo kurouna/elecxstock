@@ -67,7 +67,7 @@ onMount(() => {
     {#each PRESET_IDS as p, i (p)}
       <!-- マイレイアウト（FR-L14）: 表示中のときだけページの名前を出す（長い名前は CSS で切り、全体はツールチップ）。右の ▾ でページのメニュー -->
       {@const pg = p === 'free' && layout.doc.active === 'free' ? pageLabel : ''}
-      <button type="button" data-preset={p} aria-current={layout.doc.active === p} onclick={() => setPreset(p)} title={`${t(`preset.${p}` as Key)}${pg ? ` · ${pg}` : ''} (Ctrl+Shift+${i + 1})`}>
+      <button type="button" data-preset={p} aria-current={layout.doc.active === p} onclick={() => setPreset(p)} title={`${t(`preset.${p}` as Key)}${pg ? ` · ${pg}` : ''}${keyOf(`layout.${p}`) ? ` (${keyOf(`layout.${p}`)})` : ''}`}>
         <span class="lbl">{t(`preset.${p}` as Key)}{#if pg}<span class="pg"> · {pg}</span>{/if}</span><kbd class="keycap">{i + 1}</kbd>
       </button>
       {#if p === 'free'}

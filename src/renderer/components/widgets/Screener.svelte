@@ -12,7 +12,7 @@ import { conditionValueText, moveCondition, newCondition, stepValue, valueChoice
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
-import { SelectionFollow } from '../../lib/selection'
+import { LinkFollow, SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import {
   app,
@@ -99,6 +99,7 @@ $effect(() => {
 // 結果が変わったら、選んでいた銘柄の行に移る（並びが入れ替わっても動かない）。消えたら同じ位置（短くなれば最後の行）に寄せ、
 // 見える位置まで送る（一覧が短くなると、スクロールの位置が描く範囲の外に残るため）
 const follow = new SelectionFollow<InstrumentId>()
+const linkFollow = new LinkFollow<InstrumentId>()
 $effect(() => {
   const r = follow.sync(rows, sel, anchor)
   if (r.anchor !== anchor) anchor = r.anchor
@@ -106,17 +107,24 @@ $effect(() => {
   sel = r.sel
   void tick().then(scrollSel)
 })
+/** 先頭の行から選び直す（並べ替え・別のスクリーン・★のみ表示）。リンク先の行へも戻さない（リンク先が変わるまで） */
+function restart() {
+  sel = 0
+  anchor = -1
+  follow.reset()
+  linkFollow.hold()
+}
 // 別のスクリーンを開いたら先頭の行から。スクリーンの ID だけを見る（patchState は pane.state を丸ごと置き換えるので、
 // pane.state.screenId を直に読むと、条件・列・上位 N 件を変えただけでも走って先頭に戻ってしまう）
 const screenId = $derived(pane.state.screenId)
 $effect(() => {
   void screenId
-  untrack(() => {
-    sel = 0
-    anchor = -1
-    follow.reset()
-  })
+  untrack(restart)
 })
+function toggleStarOnly() {
+  patchState(pane, { starOnly: !starOnly })
+  restart()
+}
 const ROW = $derived(app.settings.density === 'compact' ? 20 : 24)
 const start = $derived(Math.max(0, Math.floor(scrollTop / ROW) - 10))
 const end = $derived(Math.min(rows.length, Math.ceil((scrollTop + viewH) / ROW) + 10))
@@ -223,8 +231,7 @@ async function pickColumns() {
 }
 function sortBy(k: string) {
   patchState(pane, { sort: { k, dir: sort.k === k ? (-sort.dir as 1 | -1) : -1 } })
-  sel = 0
-  follow.reset()
+  restart()
 }
 /** 保有の記録が無いときは、保有の指標を出さない（FR-H6） */
 const available = (f: FieldDef) => !f.requires?.includes('holdings') || app.holdings.length > 0
@@ -290,9 +297,7 @@ onMount(() => {
       const k = e.key
       const ctrl = e.ctrlKey || e.metaKey
       if (ctrl && e.shiftKey && !e.altKey && e.code === 'KeyF') {
-        patchState(pane, { starOnly: !starOnly })
-        sel = 0
-        follow.reset()
+        toggleStarOnly()
         return true
       }
       if (ctrl && !e.altKey && e.code === 'KeyS') {
@@ -416,10 +421,11 @@ onMount(() => {
     off()
   }
 })
-// 銘柄ジャンプなどでリンク先の銘柄が変わったら（結果が変わって行の位置が動いたときも）、一覧にあればその行を選ぶ
+// 銘柄ジャンプなどでリンク先の銘柄が変わったら（結果が変わって行の位置が動いたときも）、一覧にあればその行を選ぶ。
+// 並べ替え・別のスクリーン・★のみ表示のあとは、リンク先が変わるまで先頭のまま（restart の hold）
 $effect(() => {
   const id = pane.link ? linkSymbol(pane.link) : null
-  const i = id ? rows.indexOf(id) : -1
+  const i = linkFollow.pick(id, rows)
   if (i >= 0)
     untrack(() => {
       if (sel === i) return
@@ -435,7 +441,7 @@ $effect(() => {
   {#if dirty}<span class="dirty">● {t('scr.modified')}</span>{/if}
   <button type="button" class="ibtn" aria-label={t('scr.save')} title={`${t('scr.save')} (Ctrl+S)`} disabled={!dirty} onclick={() => saveScreen(pane)}><Icon name="save" /></button>
   <button type="button" class="ibtn" aria-label={t('scr.saveAsLabel')} title={`${t('scr.saveAsLabel')} (Ctrl+Shift+S)`} onclick={() => saveScreenAs(pane)}><Icon name="saveAs" /></button>
-  <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>★</button>
+  <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={toggleStarOnly}><span class="box"></span>★</button>
   <button type="button" class="ibtn" aria-label={t('scr.openGrid')} title={`${t('scr.openGridTip')} (${keyOf('openGrid')})`} onclick={openInGrid}><Icon name="grid" /></button>
 </PaneHeader>
 <div class="conds">

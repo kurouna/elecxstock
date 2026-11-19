@@ -6,7 +6,9 @@ import { onMount } from 'svelte'
 import { keyOf, startUpdate } from '../../lib/commands'
 import { dateTime } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
+import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
+import { clampSel } from '../../lib/selection'
 import { app, bridge, codeOf, nameOf, rpc, t } from '../../stores/app.svelte'
 import { type PaneNode, setLinkSymbol } from '../../stores/layout.svelte'
 import Icon from '../Icon.svelte'
@@ -15,10 +17,16 @@ import PaneHeader from '../PaneHeader.svelte'
 let { pane }: { pane: PaneNode } = $props()
 let fails = $state<FetchFailure[]>([])
 let sel = $state(0)
+const fresh = latest()
 $effect(() => {
   void app.dataVersion
   void app.jobs
-  bridge.call('data.failures', {}).then((f) => (fails = f))
+  const ok = fresh()
+  bridge.call('data.failures', {}).then((f) => {
+    if (!ok()) return // 取得の進捗で続けて頼んだとき、古い応答で上書きしない
+    fails = f
+    sel = clampSel(sel, f.length) // 失敗が減ったら、選んでいる行を最後に寄せる
+  })
 })
 onMount(() =>
   registerPane(pane.id, {

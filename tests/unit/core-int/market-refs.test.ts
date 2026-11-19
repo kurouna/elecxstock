@@ -74,3 +74,13 @@ describe('参照の行はスクリーナーに出ない・連動 ETF は出る�
     for (const id of REF_ETF_IDS) expect(etf.ids).toContain(id)
   })
 })
+
+describe('連動 ETF の月次系列の取り直し（FR-D7, FR-MB3）', () => {
+  it('連動 ETF（東証の ETF。プライム・REIT ではない）の月次系列が無ければ、日々の更新が拾う', () => {
+    for (const id of REF_ETF_IDS) core.svc.repo.needMonthly(id)
+    const missing = core.svc.repo.missingMonthly()
+    for (const id of REF_ETF_IDS) expect(missing, id).toContain(id)
+    // 指数（月次系列を使わない）は含めない
+    for (const r of REF_INDEX_ROWS) expect(missing).not.toContain(r.id)
+  })
+})

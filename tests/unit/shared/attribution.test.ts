@@ -62,6 +62,9 @@ describe('銘柄の Yahoo Finance のページ（FR-I10）', () => {
     expect(yahooQuoteUrl('ja', 'N225', 'index')).toBeNull()
     expect(yahooQuoteUrl('en', '', 'stock')).toBeNull()
     expect(yahooQuoteUrl('en', '8053/../x', 'stock')).toBeNull()
+    // コードの形は取り込み・フォームと同じ（src/shared/code.ts の CODE_RE。先頭は数字）
+    expect(yahooQuoteUrl('ja', 'N225', 'stock')).toBeNull()
+    expect(yahooQuoteUrl('ja', '94345', 'stock')).toBe('https://finance.yahoo.co.jp/quote/94345.T')
   })
 
   it('main の外部リンクの許可リスト（finance.yahoo.co(m|.jp)）に入る', () => {

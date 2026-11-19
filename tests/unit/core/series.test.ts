@@ -39,4 +39,12 @@ describe('月足の配当込み（FR-C4）: 日足の期間より前の月足も
     expect(un[0]!.c).toBe(200)
     expect(un[3]!.c).toBe(100)
   })
+  it('前月の終値以上・0 以下の配当（記録の誤り）は掛けない（日足の adjust と同じ。価格が 0 以下にならない）', () => {
+    const adjDaily = daily.map((b, i) => (i < 2 ? { ...b, c: 90 } : b))
+    for (const amount of [100, 150, 0, -5]) {
+      const m = adjustMonthly(monthly, 'total', [], [{ date: '2026-02-02', amount }, dividends[1]!], daily, adjDaily)
+      expect(m[0]!.c, String(amount)).toBeCloseTo(90) // 2 月の配当は無かったことにする（5 月の配当の 0.9 倍だけ）
+      for (const b of m) expect(b.c).toBeGreaterThan(0)
+    }
+  })
 })

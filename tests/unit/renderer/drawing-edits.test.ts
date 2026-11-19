@@ -431,3 +431,36 @@ describe('レビュー（消す操作の画面への反映・やり直せるか�
     expect(edits.canUndo('p1')).toBe(true)
   })
 })
+
+describe('断られた書き込みの間の編集のタイマー（レビューの指摘。FR-C17）', () => {
+  it('書いている間に動かし、書き込みが断られたら、その編集のタイマーも止める（あとの編集を 300ms より早く書かない）', async () => {
+    await edits.create('p1', ID, line('a'))
+    const other = core.db.get(ID)![0]!
+    await core.io.update(ID, { ...other, extend: 'both' }, other.updated) // ほかの窓
+    let go: () => void = () => {}
+    const gate = new Promise<void>((r) => (go = r))
+    const orig = core.io.update
+    core.io.update = async (...a) => {
+      await gate
+      return orig(...a)
+    }
+    edits.edit('p1', ID, { ...store.list(ID)[0]!, extend: 'right' })
+    const f = edits.flush()
+    await Promise.resolve()
+    // 書いている間に動かす（タイマーを張る）
+    edits.edit('p1', ID, { ...store.list(ID)[0]!, priceLabel: false })
+    go()
+    await f
+    expect(notices).toEqual(['conflict'])
+    core.io.update = orig
+    // 断られて今の値になったあと、少し置いてから動かす
+    await vi.advanceTimersByTimeAsync(200)
+    edits.edit('p1', ID, { ...store.list(ID)[0]!, extend: 'none' })
+    const n = core.calls.filter((c) => c.startsWith('update')).length
+    // 断られた間の編集のタイマー（300ms）が残っていると、ここで書いてしまう
+    await vi.advanceTimersByTimeAsync(150)
+    expect(core.calls.filter((c) => c.startsWith('update')).length).toBe(n)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(core.calls.filter((c) => c.startsWith('update')).length).toBe(n + 1)
+  })
+})

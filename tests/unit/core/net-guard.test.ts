@@ -9,9 +9,11 @@ type Route = { status: number; location?: string; body?: string }
 function fakeFetch(routes: Record<string, Route>) {
   const hits: { url: string; method: string; body: unknown }[] = []
   const auth: (string | null)[] = []
+  const heads: Headers[] = []
   const one = async (url: string, init?: RequestInit, depth = 0): Promise<Response> => {
     hits.push({ url, method: init?.method ?? 'GET', body: init?.body ?? null })
     auth.push(new Headers(init?.headers).get('authorization'))
+    heads.push(new Headers(init?.headers))
     const r = routes[url] ?? { status: 404 }
     const headers = new Headers(r.location ? { location: r.location } : {})
     const res = new Response(r.status >= 300 && r.status < 400 ? null : (r.body ?? ''), { status: r.status, headers })
@@ -25,7 +27,7 @@ function fakeFetch(routes: Record<string, Route>) {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     return one(url, init)
   }) as typeof fetch
-  return { f, hits, auth }
+  return { f, hits, auth, heads }
 }
 
 const Y = 'https://query1.finance.yahoo.com/v8/finance/chart/7203.T'
@@ -129,6 +131,42 @@ describe('NFR-S1 リダイレクトで送る見出し', () => {
     const { f, auth } = fakeFetch({ [a]: { status: 302, location: b }, [b]: { status: 200 } })
     await guardFetch(f, allow)(a, { headers: { authorization: 'token x' } })
     expect(auth).toEqual(['token x', null])
+  })
+
+  it('別のオリジンへ移るときは Cookie・Proxy-Authorization も送らない（本物の fetch と同じ）', async () => {
+    const a = 'https://fc.yahoo.com/'
+    const b = 'https://guce.yahoo.com/consent'
+    const { f, heads } = fakeFetch({ [a]: { status: 302, location: b }, [b]: { status: 200 } })
+    await guardFetch(f, ALLOWED_HOSTS)(a, { headers: { cookie: 'A=1', 'proxy-authorization': 'Basic x', 'x-keep': 'k' } })
+    expect(heads.map((h) => [h.get('cookie'), h.get('proxy-authorization'), h.get('x-keep')])).toEqual([
+      ['A=1', 'Basic x', 'k'],
+      [null, null, 'k'],
+    ])
+  })
+
+  it('同じオリジンの中のリダイレクトでは見出しをそのまま送る', async () => {
+    const a = 'https://query1.finance.yahoo.com/a'
+    const b = 'https://query1.finance.yahoo.com/b'
+    const { f, heads } = fakeFetch({ [a]: { status: 302, location: b }, [b]: { status: 200 } })
+    await guardFetch(f, ALLOWED_HOSTS)(a, { headers: { cookie: 'A=1', authorization: 'token x' } })
+    expect(heads.map((h) => [h.get('cookie'), h.get('authorization')])).toEqual([
+      ['A=1', 'token x'],
+      ['A=1', 'token x'],
+    ])
+  })
+})
+
+describe('NFR-S1 Request で渡した要求のリダイレクト', () => {
+  it('Request の本文も 307・308 では送り直す', async () => {
+    const p = 'https://query1.finance.yahoo.com/post'
+    const k = 'https://query1.finance.yahoo.com/keep'
+    for (const status of [307, 308]) {
+      const { f, hits } = fakeFetch({ [p]: { status, location: k }, [k]: { status: 200 } })
+      await guardFetch(f, ALLOWED_HOSTS)(new Request(p, { method: 'POST', body: 'q=1' }))
+      expect(hits[1]?.method).toBe('POST')
+      const body = hits[1]?.body
+      expect(body == null ? null : new TextDecoder().decode(body as ArrayBuffer)).toBe('q=1')
+    }
   })
 })
 

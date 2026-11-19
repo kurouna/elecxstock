@@ -2,7 +2,7 @@
 // 描画は canvas の大きさを getBoundingClientRect（表示倍率が掛かった px）で取り、右の目盛りの幅 48 もその px で描くので、
 // ポインタの側も同じ px のまま割る（CSS の px に直すと、倍率 100% 以外で右の目盛りの幅の分だけずれる）
 import { describe, expect, it } from 'vitest'
-import { cssPx, TILE_PAD_R, tileIndexAt, tileSize, tileX } from '../../../src/renderer/components/widgets/gridDraw'
+import { cssPx, TILE_PAD_R, tileIndexAt, tileLookKey, tileSize, tileX } from '../../../src/renderer/components/widgets/gridDraw'
 
 describe('グリッドのタイルの足の位置とポインタ（FR-G3・FR-V10）', () => {
   it('描いた足の真ん中にポインタを置くと、その足を選ぶ（表示倍率で幅が変わっても）', () => {
@@ -32,5 +32,15 @@ describe('CSS の幅の読み取り（FR-V10）', () => {
     expect(cssPx('123.5px', 123)).toBe(123.5)
     expect(cssPx('auto', 120)).toBe(120)
     expect(cssPx('0px', 120)).toBe(120)
+  })
+})
+
+describe('タイルを描き直すきっかけ（FR-V8・FR-C9。レビューの指摘）', () => {
+  it('テーマ・陽線/陰線の色のどちらを替えても変わる（グリッドとマーケットの小さなチャートが描き直す）', () => {
+    const base = { theme: 'dark', candleStyle: 'jp' }
+    const k = tileLookKey(base)
+    expect(tileLookKey({ ...base, theme: 'light' })).not.toBe(k)
+    expect(tileLookKey({ ...base, candleStyle: 'us' })).not.toBe(k)
+    expect(tileLookKey({ ...base })).toBe(k)
   })
 })

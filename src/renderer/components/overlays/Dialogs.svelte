@@ -1,6 +1,7 @@
 <script lang="ts">
 // 確認・名前の入力・選択・保存の確認（FR-SC13）。すべてキーボードで操作できる（FR-KB2）。
 import { onMount } from 'svelte'
+import { clampSel } from '../../lib/selection'
 import { app, type Overlay, t } from '../../stores/app.svelte'
 
 let { overlay }: { overlay: Overlay } = $props()
@@ -35,12 +36,13 @@ const intoView = () => queueMicrotask(() => box?.querySelector('.it.sel')?.scrol
 function choiceKey(e: KeyboardEvent) {
   if (overlay.kind !== 'choice') return
   const n = overlay.choices.length
-  if (e.key === 'ArrowDown') sel = Math.min(n - 1, sel + 1)
+  if (e.key === 'ArrowDown') sel = clampSel(sel + 1, n)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
-  else if (e.key === 'PageDown') sel = Math.min(n - 1, sel + 10)
+  else if (e.key === 'PageDown') sel = clampSel(sel + 10, n)
   else if (e.key === 'PageUp') sel = Math.max(0, sel - 10)
   else if (e.key === 'Home') sel = 0
-  else if (e.key === 'End') sel = n - 1
+  else if (e.key === 'End')
+    sel = clampSel(n - 1, n) // 空の一覧で -1 にしない
   else if (e.key === 'Enter') {
     e.preventDefault()
     done(overlay.resolve, overlay.choices[sel]?.id ?? null)
@@ -83,12 +85,15 @@ function checkKey(e: KeyboardEvent) {
       ;[it[sel], it[j]] = [it[j]!, it[sel]!]
       sel = j
     }
-  } else if (e.key === 'ArrowDown') sel = Math.min(n - 1, sel + 1)
+  } else if (e.key === 'ArrowDown') sel = clampSel(sel + 1, n)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
   else if (e.key === 'Home') sel = 0
-  else if (e.key === 'End') sel = n - 1
-  else if (e.code === 'Space') it[sel]!.on = !it[sel]!.on
-  else if (e.key === 'Enter') {
+  else if (e.key === 'End')
+    sel = clampSel(n - 1, n) // 空の一覧で -1 にしない
+  else if (e.code === 'Space') {
+    const x = it[sel]
+    if (x) x.on = !x.on
+  } else if (e.key === 'Enter') {
     e.preventDefault()
     done(overlay.resolve, $state.snapshot(it))
     return

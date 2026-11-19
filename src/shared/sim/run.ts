@@ -243,6 +243,13 @@ function pastOf(inp: SimInput, net: number): { past: SimPast | null; excluded: S
       if (e.d > ago) lastYear += e.net
     }
 
+  // 銘柄ごとの 今の価値 ÷ 入れた金額。利回り加重で配分が 0 円の銘柄（基準日に無配）は、元本と積立を全部入れたときの値
+  // （株数は端数のまま持つので金額によらない）。0 ÷ 0 で NaN にしない
+  const ratios = used.map((s, i) => {
+    if (amt[i]! > 0) return wealthAt(hs[i]!.path[n - 1]!, st.reinvest) / (amt[i]! + st.monthly * ws[i]! * addDates.length)
+    const u = hold({ px: s.px, divs: s.divs, base, amount: st.amount, reinvest: st.reinvest, net, adds: addsOf(1) }, ends)!
+    return wealthAt(u.path[n - 1]!, st.reinvest) / (st.amount + st.monthly * addDates.length)
+  })
   let yocSum = 0
   const rows = used.map((s, i) => {
     const h = hs[i]!
@@ -261,14 +268,14 @@ function pastOf(inp: SimInput, net: number): { past: SimPast | null; excluded: S
       value: end.v,
       gain: w - inv - end.r,
       received: end.r,
-      totalPct: w / inv - 1,
+      totalPct: ratios[i]! - 1,
       contrib: w - inv,
       // 順位は一括で回した相手と比べるので、積立のときは出さない
       rank:
         g && !dca
           ? {
               ...rankIn(
-                w / amt[i]!,
+                ratios[i]!,
                 g.peers.map((p) => p.ratio),
               ),
               s17: g.s17,
@@ -299,7 +306,7 @@ function pastOf(inp: SimInput, net: number): { past: SimPast | null; excluded: S
     ? null
     : luckOf(
         used.map((_, i) => ({
-          mine: wealthAt(hs[i]!.path[n - 1]!, st.reinvest) / amt[i]!,
+          mine: ratios[i]!,
           peers: groups[i]?.peers.map((p) => p.ratio) ?? [],
           w: amt[i]!,
         })),
@@ -398,9 +405,10 @@ function fwdOf(inp: SimInput, net: number): SimFwd {
       g = shrinkGrowth(own.g, own.n, (k ? median(by17.get(k) ?? []) : null) ?? mkt)
     }
     // 直線トレンド試算: 年ごとの 1 株配当に直線を当てて延ばす（期間不足・無配は横ばい）
-    const fit = st.method === 'trend' && !short ? linearFit(trendSeries(s.divs, today)) : null
+    const series = st.method === 'trend' && !short ? trendSeries(s.divs, today) : null
+    const fit = series ? linearFit(series) : null
     const per = h ? h.net : net
-    const nPts = fit ? trendSeries(s.divs, today).length : 0
+    const nPts = series?.length ?? 0
     const at = fit ? (t: number) => shares * per * fit.at(nPts - 1 + t) : (t: number) => v * growthFactor(g, t)
     parts.push({ id: s.id, s17: groupKey(s, 's17'), at, r: Math.min(1, r.r) })
     const v1 = at(1)

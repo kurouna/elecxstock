@@ -95,9 +95,13 @@ interface ParentPort {
   postMessage(m: unknown): void
 }
 const parentPort = (process as unknown as { parentPort: ParentPort }).parentPort
+/** 閉じる知らせを受けた（セッションの終わりと終了の両方から届くことがある。2 回目は無視する） */
+let stopping = false
 parentPort.on('message', (e) => {
   const d = e.data as { type?: string }
   if (d?.type === 'shutdown') {
+    if (stopping) return
+    stopping = true
     // 閉じる直前に renderer が送った保存（レイアウト・ウォッチリスト）を先に処理してから止める
     news.shutdown() // 見えたまま終わるときの「ここまで見た」
     setTimeout(() => {

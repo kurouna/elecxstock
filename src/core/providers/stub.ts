@@ -360,11 +360,12 @@ function monthly(bars: RawBar[]): RawBar[] {
   }
   return out
 }
-const idxCache: { bars?: RawBar[] } = {}
+/** 指数の足（取引の終わった最新の日ごと。株の足の cache と同じく、時刻が進めば作り直す） */
+const idxCache: { end?: string; bars?: RawBar[] } = {}
 function idx(from: string, interval: '1d' | '1mo'): HistoryResult {
-  if (!idxCache.bars) {
+  const end = lastClosedSession()
+  if (!idxCache.bars || idxCache.end !== end) {
     const r = rng('N225')
-    const end = lastClosedSession()
     const days = tradingDaysTo(end)
     let c = 38000 // 架空の水準
     const arr: RawBar[] = []
@@ -374,6 +375,7 @@ function idx(from: string, interval: '1d' | '1mo'): HistoryResult {
       c = c / (1 + (r() - 0.48) * 0.024)
     }
     idxCache.bars = arr.reverse()
+    idxCache.end = end
   }
   const bars = idxCache.bars.filter((b) => b.d >= from)
   return { bars: interval === '1mo' ? monthly(bars) : bars, dividends: [], splits: [] }

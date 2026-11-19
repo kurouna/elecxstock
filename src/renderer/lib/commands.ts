@@ -60,6 +60,7 @@ import {
   splitPane,
   suspendLayoutSave,
   swapPane,
+  toggleDockOpen,
   undoResetSizes,
   WIDGETS,
   type WidgetId,
@@ -68,10 +69,10 @@ import { canUndoRemoveAlert, createAlert, toggleAlerts, undoRemoveAlert } from '
 import { toCsv } from './columns'
 import { dateTime } from './format'
 import type { Key } from './i18n'
-import { matches, normalizeKey, reservedKey } from './keys'
+import { composing, matches, normalizeKey, reservedKey } from './keys'
 import { currentPageName, freeResetTarget, openPageMenu, pageShapeChoices, undoRemove } from './pages'
 import { clearMaximized, setMaximized, setTabHint } from './paneMax'
-import { paneApi } from './panes'
+import { paneApi, paneSelector } from './panes'
 import { exportHoldings, importBrokerCsv, importHoldings, undoHoldingsImport } from './portfolio'
 import { condsOf, confirmCloseScreen } from './screens'
 import { blockedInFree, FREE_WIDGETS, freeNo, IS_FREE } from './windowSlot'
@@ -128,7 +129,7 @@ export function setFocus(id: string | null): void {
   queueMicrotask(() => {
     // その間にダイアログ（未保存の 3 択など）が開いていたら、ダイアログからフォーカスを奪わない
     if (app.overlay) return
-    const el = document.querySelector<HTMLElement>(`[data-pane-id="${id}"]`)
+    const el = document.querySelector<HTMLElement>(paneSelector(id))
     if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true })
   })
 }
@@ -155,8 +156,9 @@ export function sendSymbol(id: InstrumentId): void {
   }
   const group = pane?.link || 1
   setLinkSymbol(group, id)
-  // 今のタブに同じリンク色のチャート・銘柄情報が無ければ、選んでも何も見えない。MTF タブに移って表示する（FR-K1）
-  if (!shownInTab(group)) showInMtf(id)
+  // 今のタブに同じリンク色のチャート・銘柄情報が無ければ、選んでも何も見えない。MTF タブに移って表示する（FR-K1）。
+  // フリー N はタブが無いので移らない（1 枚目の MTF に切り替えると窓の配置が壊れる。リンク色はほかの窓のチャートが追う。FR-L7）
+  if (!IS_FREE && !shownInTab(group)) showInMtf(id)
 }
 /** 今のタブ（本体と、ピン留め・開いているドロワー）に、このリンク色の銘柄を出すペインがあるか */
 function shownInTab(group: number): boolean {
@@ -226,12 +228,25 @@ export function pinDock(): void {
     toast(t('layout.noDrawer'))
     return
   }
-  // ピン留めで開くときも、最大化したペインがドロワーを覆わないよう戻す（toggleDock と同じ）
+  togglePin(side)
+  toast(`${t('drawer.pin')}: ${d.pinned ? 'ON' : 'OFF'}`)
+}
+/**
+ * ドロワーをピン留めする・外す（キーと、ドロワーの「ピン留め」のボタン）。ピン留めで開くときも、最大化したペイン（z-index 30）が
+ * ドロワー（20）を覆わないよう戻す（toggleDock と同じ。FR-DR3）
+ */
+export function togglePin(side: DockSide): void {
+  const d = layout.entry.docks[side]
+  if (!d) return
   if (!d.pinned && app.maximized) clearMaximized()
   d.pinned = !d.pinned
   layout.dockOpen = d.pinned ? side : null
   saveLayout()
-  toast(`${t('drawer.pin')}: ${d.pinned ? 'ON' : 'OFF'}`)
+}
+/** ドロワーを開く（帯にポインタを載せた・帯やタブを押した・見出しを落とした）。最大化したペインがドロワーを覆わないよう戻す（FR-DR3） */
+export function openDock(side: DockSide): void {
+  if (app.maximized) clearMaximized()
+  toggleDockOpen(true, side)
 }
 
 export function doResetSizes(): void {
@@ -711,10 +726,15 @@ export const ACTIONS: Action[] = [
   { id: 'zoomReset', label: () => t('act.zoomReset'), key: 'Ctrl+Alt+0', when: 'global', run: () => void zoomThisWindow(0) },
   { id: 'sendToFree', label: () => t('act.sendToFree'), key: 'Ctrl+Alt+Enter', when: 'global', run: () => sendToFree() },
 ]
-// フリー N では、タブ・ドロワー・設定・利用者のデータの編集を使わない（1 枚目で）
+/** この窓で使えるアクションか（フリー N では、タブ・ドロワー・設定・利用者のデータの編集を使わない） */
+export const allowedHere = (id: string): boolean => !(IS_FREE && blockedInFree(id))
 for (const a of ACTIONS) {
   const orig = a.run
-  a.run = () => (IS_FREE && blockedInFree(a.id) ? toast(t('win.notInFree')) : orig())
+  a.run = () => (allowedHere(a.id) ? orig() : toast(t('win.notInFree')))
+}
+/** コマンドバー（Ctrl+K）に出すアクション: この窓で使えるものだけ（FR-KB1, FR-L7） */
+export function paletteActions(): Action[] {
+  return ACTIONS.filter((a) => allowedHere(a.id))
 }
 /** 新しいフリー N を開く（Ctrl+Alt+N）: 初期の形を選ぶ。前に閉じた番号の配置が残っていれば「前回の配置」も選べる */
 async function newWindowDialog(): Promise<void> {
@@ -742,7 +762,8 @@ async function sendToFree(): Promise<void> {
   const sel = paneApi(app.focus)?.selected?.()
   const ids = sel?.length ? sel : focusedSymbol() ? [focusedSymbol()!] : []
   if (!ids.length) return
-  const to = await window.elecxstock.sendToFree(ids)
+  // 選択は Svelte の状態（Proxy）のことがある。main へは素の配列で渡す（構造化複製できない）
+  const to = await window.elecxstock.sendToFree([...ids])
   if (to) toast(t('win.sent', { n: freeNo(to), count: ids.length }))
 }
 
@@ -807,7 +828,7 @@ function paneRects(): { id: string; r: DOMRect }[] {
 }
 const railOf = (id: string) => (id.startsWith('__rail:') ? (id.slice(7) as DockSide) : null)
 export function moveFocus(dir: 'left' | 'right' | 'up' | 'down'): void {
-  const sel = app.focus ? `[data-pane-id="${app.focus}"]` : '[data-dock-rail]:focus'
+  const sel = app.focus ? paneSelector(app.focus) : '[data-dock-rail]:focus'
   const cur = (document.querySelector<HTMLElement>(sel) ?? document.querySelector<HTMLElement>('[data-dock-rail]'))?.getBoundingClientRect()
   if (!cur) return
   const cx = cur.x + cur.width / 2
@@ -830,9 +851,17 @@ export function moveFocus(dir: 'left' | 'right' | 'up' | 'down'): void {
     }
   }
   if (!best) return
-  const rail = railOf(best)
+  goTo(best)
+}
+/**
+ * ペイン（またはドロワーの帯）へ移る。別のペインを最大化していたら戻す（最大化したペインが全面を覆ったまま、裏のペインへ
+ * フォーカスだけ移って何も見えないため。revealPane と同じ。FR-L3）
+ */
+function goTo(id: string): void {
+  if (app.maximized && app.maximized !== id) setMaximized(null)
+  const rail = railOf(id)
   if (rail) focusRail(rail)
-  else setFocus(best)
+  else setFocus(id)
 }
 /** 閉じているドロワーの帯にフォーカスを置く（FR-DR4）。帯にいる間の ↑↓ はドロワーの一覧に届く */
 export function focusRail(side: DockSide = 'left'): void {
@@ -855,10 +884,11 @@ function cycle(back: boolean): void {
   const focusedRail = (document.activeElement as HTMLElement | null)?.dataset?.dockRail
   const cur = app.focus ?? (focusedRail ? `__rail:${focusedRail}` : ids[0]!)
   const i = ids.indexOf(cur)
-  const next = ids[(i + (back ? -1 : 1) + ids.length) % ids.length]!
-  const rail = railOf(next)
-  if (rail) focusRail(rail)
-  else setFocus(next)
+  goTo(ids[(i + (back ? -1 : 1) + ids.length) % ids.length]!)
+}
+/** オーバーレイ（ダイアログ・コマンドバー）を閉じたあと、フォーカスしていたペインの要素へフォーカスを戻す（FR-KB2, KB3。閉じた要素に残さない） */
+export function refocusPane(): void {
+  if (app.focus) setFocus(app.focus)
 }
 
 const ARROW: Record<string, 'left' | 'right' | 'up' | 'down'> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }
@@ -879,10 +909,12 @@ export const keyCapture = { on: false }
 
 /** アプリ全体のキー処理（§6.5）。true を返したら既定の動作を止める */
 export function handleKey(e: KeyboardEvent): boolean {
-  if (e.isComposing || keyCapture.on) return false
+  if (composing(e) || keyCapture.on) return false
   const ctrl = e.ctrlKey || e.metaKey
   const c = e.code
   if (app.overlay) {
+    // 初回起動は免責に同意するまで閉じない（背景を押しても閉じないのと同じ。FR-FR1）
+    if (app.overlay.kind === 'firstrun') return false
     // 欄の中の Esc は欄が受け取る（アラートのダイアログの値の欄: 条件の行に戻る）
     if (c === 'Escape' && !(e.target as Element | null)?.closest?.('[data-esc-local]')) {
       closeOverlay()
@@ -901,7 +933,7 @@ export function handleKey(e: KeyboardEvent): boolean {
       closeOverlay()
       return true
     }
-    if (ctrl && !e.shiftKey && c === 'KeyK' && app.overlay.kind !== 'palette') {
+    if (ctrl && !e.shiftKey && !e.altKey && c === 'KeyK' && app.overlay.kind !== 'palette') {
       closeOverlay() // 答えを待っているダイアログには「取り消し」を返してから
       app.overlay = { kind: 'palette' }
       return true
@@ -1013,7 +1045,7 @@ export function runAction(id: string): boolean {
 function run(id: string): boolean {
   const a = ACTIONS.find((x) => x.id === id)
   if (a) void a.run()
-  return true
+  return !!a
 }
 
 export function candidatesListName(): string {

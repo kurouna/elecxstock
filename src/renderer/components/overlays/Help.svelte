@@ -2,6 +2,7 @@
 // ショートカット一覧（F1。FR-KB7）。フォーカス中のペインで効くキーに印を付ける。
 // 割り当てを変えられるキー（アクションの登録表）は、今の割り当てを出す（FR-KB6）。
 import { keyOf } from '../../lib/commands'
+import { helpSection } from '../../lib/panes'
 import { newsHelp } from '../../news/help'
 import { app, t } from '../../stores/app.svelte'
 import { findPane } from '../../stores/layout.svelte'
@@ -204,28 +205,8 @@ const G = $derived([
   },
   newsHelp(ja, t('help.news')),
 ])
-const ctx = $derived(
-  (
-    {
-      watchlist: 'list',
-      screener: 'screener',
-      chart: 'chart',
-      mtf: 'chart',
-      grid: 'grid',
-      divcal: 'list',
-      jobs: 'list',
-      info: 'general',
-      heatmap: 'market',
-      ranking: 'market',
-      board: 'market',
-      breadth: 'market',
-      market: 'market',
-      portfolio: 'market',
-      divsim: 'market',
-      news: 'news',
-    } as Record<string, string>
-  )[findPane(app.focus)?.widget ?? ''] ?? '',
-)
+// いまのペインの段（ペインの種類から。lib/panes.ts の helpSection）
+const ctx = $derived(helpSection(findPane(app.focus)?.widget))
 </script>
 
 <div class="dialog help" role="dialog" aria-label={t('help.title')}>

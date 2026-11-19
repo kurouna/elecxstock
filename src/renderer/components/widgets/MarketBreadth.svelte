@@ -21,7 +21,7 @@ import { date } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
-import { SelectionFollow } from '../../lib/selection'
+import { LinkFollow, SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, bridge, inst, t } from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
@@ -126,6 +126,8 @@ $effect(() => {
   sel = r.sel
   scrollSel()
 })
+// 並べ替えのあとは、リンク先が変わるまでリンク先の行へ戻さない（先頭から。lib/selection.ts の LinkFollow）
+const linkFollow = new LinkFollow<InstrumentId>()
 $effect(() => {
   if (drill) ensure(listRows)
 })
@@ -174,10 +176,10 @@ function back(): boolean {
 }
 function sortBy(k: string) {
   const ok = drill ? !!COLUMN_BY_ID.get(k)?.sort && k !== 'code' : k !== 'name'
-  if (!ok) return patchState(pane, { [sortKey]: undefined })
-  patchState(pane, { [sortKey]: { k, dir: sort?.k === k ? -sort.dir : -1 } })
+  patchState(pane, { [sortKey]: ok ? { k, dir: sort?.k === k ? -sort.dir : -1 } : undefined })
   sel = 0
   follow.reset()
+  linkFollow.hold()
 }
 async function pickColumns() {
   if (drill) {
@@ -259,7 +261,7 @@ onMount(() => {
 // 銘柄ジャンプなどでリンク先の銘柄が変わったら、中の一覧にあればその行を選ぶ（ウォッチリストと同じ）
 $effect(() => {
   const id = drill && pane.link ? linkSymbol(pane.link) : null
-  const i = id ? listRows.indexOf(id) : -1
+  const i = linkFollow.pick(id, listRows)
   if (i >= 0)
     untrack(() => {
       if (sel !== i) sel = i

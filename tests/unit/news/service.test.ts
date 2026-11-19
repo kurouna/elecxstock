@@ -3,6 +3,7 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { guardFetch } from '@core/netGuard'
 import { NewsService } from '@core/news/service'
 import type { NewsFeed } from '@shared/news/schema'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -39,7 +40,7 @@ const rss = (items: { t: string; at?: string; link?: string; d?: string }[]) =>
 
 type Reply = { status: number; body?: string; headers?: Record<string, string> } | 'offline' | 'timeout' | 'broken'
 /** 偽の時計・タイマー・fetch。タイマーは時計を進めたときに期限の来たものを回す */
-function harness(registry: NewsFeed[] | null = [A, B, C], opts: { policyOff?: boolean; canFetch?: () => boolean } = {}) {
+function harness(registry: NewsFeed[] | null = [A, B, C], opts: { policyOff?: boolean; canFetch?: () => boolean; guard?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'news-'))
   let now = T0
   let seq = 0
@@ -70,7 +71,8 @@ function harness(registry: NewsFeed[] | null = [A, B, C], opts: { policyOff?: bo
     new NewsService({
       dir,
       registry: reg,
-      fetch: opts.policyOff ? null : fetch,
+      // guard: 製品（worker.ts）と同じく、オンのフィードのホストだけに絞った fetch
+      fetch: opts.policyOff ? null : opts.guard ? guardFetch(fetch, (u) => svc.allowed(u)) : fetch,
       now: () => now,
       setTimer: (fn, ms) => {
         const id = ++seq
@@ -83,7 +85,7 @@ function harness(registry: NewsFeed[] | null = [A, B, C], opts: { policyOff?: bo
       version: '9.9.9',
       canFetch: opts.canFetch ?? (() => true),
     })
-  let svc = make()
+  let svc: NewsService = make()
   /** 時計を進め、期限の来たタイマーを順に回す（回した中の非同期の取得も待つ） */
   async function advance(ms: number) {
     const end = now + ms
@@ -416,6 +418,13 @@ describe('FR-NW2 通信先', () => {
     await answer(false)
     expect(h.svc.allowed(new URL(A.url))).toBe(false)
   })
+  it('同じホストでも、ポートの違う URL・認証情報の付いた URL には出ない', async () => {
+    await answer()
+    const u = new URL(A.url)
+    expect(h.svc.allowed(new URL(`https://${u.hostname}:8443/rss.xml`))).toBe(false)
+    expect(h.svc.allowed(new URL(`https://user:pass@${u.hostname}/rss.xml`))).toBe(false)
+    expect(h.svc.allowed(new URL(`https://${u.hostname}:443/other.xml`))).toBe(true) // 既定のポートは同じ
+  })
   it('記事を開いてよいホストは全フィードの linkHosts', () => {
     expect(h.svc.linkHosts()).toEqual(['news.example'])
   })
@@ -450,6 +459,32 @@ describe('FR-NW5 巡回の頑健さ（レビューの指摘）', () => {
     await h.svc.call('news.settings.set', { feeds: { [C.id]: true } }, 'main')
     await h.svc.idle()
     expect(h.calls.filter((c) => c.url === C.url)).toHaveLength(1)
+  })
+  it('巡回の最中にニュースを切ったら、残りのフィードは取らず、失敗（blocked）にも数えない', async () => {
+    const D = feed('ja.d')
+    h = harness([A, B, D], { guard: true })
+    for (const f of [A, B, D]) h.set(f.url, ok(`架空の見出し ${f.id}`))
+    await answer()
+    await h.svc.call('news.watch', { on: true, lang: 'ja' }, 'main') // 巡回が始まる（同時に 2 本。D は待ち）
+    await answer(false)
+    await h.svc.idle()
+    expect(h.calls.map((c) => c.url)).not.toContain(D.url)
+    await answer()
+    const l = await h.svc.call('news.list', {}, 'main')
+    for (const s of l.feeds) expect(s.error, s.id).toBeUndefined()
+    expect(l.feeds.find((s) => s.id === D.id)?.retryAt).toBeUndefined()
+  })
+  it('巡回の最中にフィードを切ったら、そのフィードは取らず、失敗にも数えない', async () => {
+    const D = feed('ja.d')
+    h = harness([A, B, D], { guard: true })
+    for (const f of [A, B, D]) h.set(f.url, ok(`架空の見出し ${f.id}`))
+    await answer()
+    await h.svc.call('news.watch', { on: true, lang: 'ja' }, 'main')
+    await h.svc.call('news.settings.set', { feeds: { [D.id]: false } }, 'main')
+    await h.svc.idle()
+    expect(h.calls.map((c) => c.url)).not.toContain(D.url)
+    const l = await h.svc.call('news.list', {}, 'main')
+    expect(l.feeds.find((s) => s.id === D.id)?.error).toBeUndefined()
   })
   it('ペインを隠している間にオンにしたフィードは、次に見えたときに取る（巡回の時刻の前でも）', async () => {
     h.set(C.url, ok('架空の見出し C'))

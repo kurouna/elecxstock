@@ -7,7 +7,7 @@ export type MoreItem = { id: string; label: string; hint?: string; run: () => vo
 // ペインの見出し（FR-V5）: リンク色の印・種類・主要な値。操作ボタンはポインタを載せたときかフォーカス中に出す。
 // 幅が足りないときは中身（children）の側を切り、閉じるボタンは必ず残す。狭いペインでは操作ボタンを「⋯」にまとめる
 import type { Snippet } from 'svelte'
-import { keyOf, runAction, setFocus } from '../lib/commands'
+import { allowedHere, keyOf, runAction, setFocus } from '../lib/commands'
 import type { Key } from '../lib/i18n'
 import { confirmCloseScreen } from '../lib/screens'
 import { app, choiceDialog, t } from '../stores/app.svelte'
@@ -31,7 +31,8 @@ const PANE_OPS = ['split', 'splitDown', 'changeWidget', 'toDrawer', 'max'] as co
 async function openMore() {
   setFocus(pane.id)
   const extra = more?.() ?? []
-  const ops = PANE_OPS.map((id) => ({ id: `op:${id}`, label: t(`act.${id}` as Key), ...(id === 'toDrawer' ? {} : { hint: keyOf(id) }) }))
+  // フリー N はドロワーを持たない（FR-L7）。使えない操作は出さない
+  const ops = PANE_OPS.filter(allowedHere).map((id) => ({ id: `op:${id}`, label: t(`act.${id}` as Key), ...(id === 'toDrawer' ? {} : { hint: keyOf(id) }) }))
   const c = await choiceDialog(t('act.more'), [...extra.map(({ id, label, hint }) => ({ id: `x:${id}`, label, ...(hint ? { hint } : {}) })), ...ops])
   if (!c) return
   if (c.startsWith('op:')) act(c.slice(3))
@@ -75,7 +76,7 @@ function act(id: string) {
       <button type="button" class="op" title={`${t('act.split')} (${keyOf('split')})`} aria-label={t('act.split')} onclick={() => act('split')}>◫</button>
       <button type="button" class="op" title={`${t('act.splitDown')} (${keyOf('splitDown')})`} aria-label={t('act.splitDown')} onclick={() => act('splitDown')}>⊟</button>
       <button type="button" class="op" title={`${t('act.changeWidget')} (${keyOf('changeWidget')})`} aria-label={t('act.changeWidget')} onclick={() => act('changeWidget')}>▾</button>
-      <button type="button" class="op" title={t('act.toDrawer')} aria-label={t('act.toDrawer')} onclick={() => act('toDrawer')}>⇤</button>
+      {#if allowedHere('toDrawer')}<button type="button" class="op" title={t('act.toDrawer')} aria-label={t('act.toDrawer')} onclick={() => act('toDrawer')}>⇤</button>{/if}
       <button type="button" class="op" title={`${t('act.max')} (${keyOf('max')})`} aria-label={t('act.max')} onclick={() => act('max')}>⤢</button>
       <button type="button" title={`${t('act.close')} (${keyOf('close')})`} aria-label={t('act.close')} onclick={async () => { if (await confirmCloseScreen(pane)) closePane(pane.id) }}>✕</button>
     </span>

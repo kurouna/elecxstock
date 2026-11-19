@@ -11,7 +11,7 @@ import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
-import { SelectionFollow } from '../../lib/selection'
+import { LinkFollow, SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import { app, bridge, ensureMetrics, t } from '../../stores/app.svelte'
 import { linkSymbol, type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
@@ -60,6 +60,8 @@ $effect(() => {
   sel = r.sel
   scrollSel()
 })
+// 並べ替えのあとは、リンク先が変わるまでリンク先の行へ戻さない（先頭から。lib/selection.ts の LinkFollow）
+const linkFollow = new LinkFollow<InstrumentId>()
 
 function send(i = sel) {
   const id = rows[i]
@@ -81,10 +83,10 @@ function stepGroup(d: number) {
 }
 function sortBy(k: string) {
   const c = COLUMN_BY_ID.get(k)
-  if (!c?.sort || k === 'code') return patchState(pane, { sort: undefined })
-  patchState(pane, { sort: { k, dir: sort?.k === k ? -sort.dir : -1 } })
+  patchState(pane, { sort: !c?.sort || k === 'code' ? undefined : { k, dir: sort?.k === k ? -sort.dir : -1 } })
   sel = 0
   follow.reset()
+  linkFollow.hold()
 }
 async function pickColumns() {
   const ids = await chooseColumns(allCols)
@@ -156,7 +158,7 @@ onMount(() => {
 // 銘柄ジャンプなどでリンク先の銘柄が変わったら、一覧にあればその行を選ぶ（ウォッチリストと同じ）
 $effect(() => {
   const id = pane.link ? linkSymbol(pane.link) : null
-  const i = id ? rows.indexOf(id) : -1
+  const i = linkFollow.pick(id, rows)
   if (i >= 0)
     untrack(() => {
       if (sel !== i) sel = i

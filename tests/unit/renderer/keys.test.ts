@@ -1,7 +1,7 @@
 // キーの表記と照合（FR-KB5, KB6）・ツリーマップの配置
 import { describe, expect, it } from 'vitest'
 import { assignable, eventKey, normalizeKey } from '../../../src/renderer/lib/keys'
-import { neighbor, squarify } from '../../../src/renderer/lib/treemap'
+import { neighbor, sectorMembers, squarify } from '../../../src/renderer/lib/treemap'
 
 const ev = (code: string, m: Partial<KeyboardEvent> = {}) =>
   ({ code, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...m }) as KeyboardEvent
@@ -27,5 +27,15 @@ describe('ツリーマップ', () => {
     expect(r[0]!.w * r[0]!.h).toBeCloseTo((6 / 24) * 600 * 400, 0)
     for (const p of r) expect(p.x + p.w).toBeLessThanOrEqual(600.001)
     expect(neighbor(r, 0, 'right')).not.toBe(0)
+  })
+})
+
+describe('ヒートマップの業種のタイルで選ぶ銘柄（FR-W4）', () => {
+  it('タイルに描いた銘柄だけ（★のみ表示なら★の銘柄だけ）。業種の無い銘柄は「—」のタイル', () => {
+    const sec: Record<string, string> = { a: '銀行業', b: '銀行業', c: '', d: '輸送用機器' }
+    const pool = ['a', 'c', 'd'] // ★のみ表示で b は出ていない
+    expect(sectorMembers(pool, '銀行業', (x) => sec[x])).toEqual(['a'])
+    expect(sectorMembers(pool, '—', (x) => sec[x])).toEqual(['c'])
+    expect(sectorMembers(pool, '電気機器', (x) => sec[x])).toEqual([])
   })
 })

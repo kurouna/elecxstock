@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clampSel, indexIn, SelectionFollow } from '../../../src/renderer/lib/selection'
+import { clampSel, indexIn, LinkFollow, moveSel, SelectionFollow } from '../../../src/renderer/lib/selection'
 
 describe('FR-KB2 FR-SC3 一覧で選んでいる行は銘柄で追う（取得で並びが入れ替わっても動かない）', () => {
   it('indexIn: 前の一覧の i 番目が新しい一覧の何番目か', () => {
@@ -61,5 +61,44 @@ describe('FR-KB2 FR-SC3 一覧で選んでいる行は銘柄で追う（取得�
     f.sync(rows, 0)
     expect(f.sync(rows, 2).sel).toBe(2)
     expect(f.sync(rows, 9).sel).toBe(2)
+  })
+})
+
+describe('FR-KB2 一覧のキーで選ぶ位置（↑↓・PageUp/PageDown・Home/End）', () => {
+  it('端で止まり、空の一覧では 0（-1 にしない）', () => {
+    expect(moveSel('ArrowDown', 0, 3)).toBe(1)
+    expect(moveSel('ArrowDown', 2, 3)).toBe(2)
+    expect(moveSel('ArrowUp', 0, 3)).toBe(0)
+    expect(moveSel('PageDown', 0, 30)).toBe(10)
+    expect(moveSel('PageUp', 5, 30)).toBe(0)
+    expect(moveSel('Home', 5, 30)).toBe(0)
+    expect(moveSel('End', 0, 30)).toBe(29)
+    for (const k of ['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End']) expect(moveSel(k, 0, 0)).toBe(0)
+    expect(moveSel('Enter', 1, 3)).toBeNull()
+  })
+})
+
+describe('FR-KB2 FR-SC3 リンク先の銘柄の行を選ぶ（並べ替え・別の一覧では先頭のまま）', () => {
+  it('リンク先が変わったら、一覧にあればその行', () => {
+    const l = new LinkFollow<string>()
+    expect(l.pick('b', ['a', 'b'])).toBe(1)
+    expect(l.pick('c', ['a', 'b'])).toBe(-1)
+    expect(l.pick('a', ['a', 'b'])).toBe(0)
+    expect(l.pick(null, ['a', 'b'])).toBe(-1)
+  })
+  it('一覧だけが変わったとき（結果が遅れて届いた・取得で並びが変わった）も、リンク先の行', () => {
+    const l = new LinkFollow<string>()
+    expect(l.pick('b', [])).toBe(-1)
+    expect(l.pick('b', ['a', 'b'])).toBe(1)
+    expect(l.pick('b', ['b', 'a'])).toBe(0)
+  })
+  it('hold() のあと（並べ替え・別の一覧・★のみ表示）は、リンク先が変わるまで一覧の変化では選び直さない', () => {
+    const l = new LinkFollow<string>()
+    expect(l.pick('c', ['a', 'b', 'c'])).toBe(2)
+    l.hold()
+    expect(l.pick('c', ['c', 'b', 'a'])).toBe(-1) // 並べ替えた: 先頭のまま
+    expect(l.pick('c', ['b', 'c', 'a'])).toBe(-1) // 別のスクリーンの結果が遅れて届いた・取得
+    expect(l.pick('b', ['b', 'c', 'a'])).toBe(0) // ↓ で送った・銘柄ジャンプ: また追う
+    expect(l.pick('b', ['c', 'b', 'a'])).toBe(1)
   })
 })

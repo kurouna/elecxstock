@@ -24,6 +24,8 @@ const urlOf = (input: RequestInfo | URL): URL => new URL(typeof input === 'strin
 /** 追うリダイレクトの数の上限（本物の fetch の既定は 20） */
 export const MAX_REDIRECTS = 20
 const REDIRECT = new Set([301, 302, 303, 307, 308])
+/** 別のオリジンへのリダイレクトで落とす見出し */
+const CROSS_ORIGIN_DROP = ['authorization', 'proxy-authorization', 'cookie'] as const
 
 /**
  * 許可リストで絞った fetch。
@@ -40,10 +42,12 @@ export function guardFetch(realFetch: typeof fetch, allow: Allow): typeof fetch 
     const mode = init?.redirect ?? (input instanceof Request ? input.redirect : 'follow')
     if (mode === 'manual') return realFetch(input, init)
 
+    // Request の本文は 1 回読むと送り直せないので、先に写しを取っておく（307・308 で同じ本文を送る）
+    const reqBody = init?.body === undefined && input instanceof Request && input.body !== null ? await input.clone().arrayBuffer() : null
     let res = await realFetch(input, { ...init, redirect: 'manual' })
     // 2 回目からは Request ではなく URL と init で送る（本文はリダイレクトで送り直せる形のときだけ。下）
     let method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
-    let body = init?.body ?? null
+    let body: BodyInit | null = init?.body ?? reqBody
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
     const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
     for (let hops = 0; REDIRECT.has(res.status); hops++) {
@@ -61,7 +65,8 @@ export function guardFetch(realFetch: typeof fetch, allow: Allow): typeof fetch 
         // 読み終えたストリームは送り直せない（本物の fetch も同じく失敗にする）
         throw new TypeError('cannot follow redirect with a streamed body')
       }
-      if (next.origin !== url.origin) headers.delete('authorization')
+      // 別のオリジンへは資格情報を送らない（本物の fetch〔undici〕と同じ見出し）
+      if (next.origin !== url.origin) for (const h of CROSS_ORIGIN_DROP) headers.delete(h)
       await res.body?.cancel().catch(() => {})
       url = next
       res = await realFetch(url.href, { ...init, method, body, headers, signal, redirect: 'manual' })

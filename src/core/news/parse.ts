@@ -90,7 +90,17 @@ function plain(v: unknown, max: number): string {
     .replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, ' ')
     .replace(/<[^>]*>/g, ' ')
   const s = decodeEntities(html).replace(/\s+/g, ' ').trim()
-  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s
+  return s.length > max ? `${cut(s, max - 1).trimEnd()}…` : s
+}
+/** 先頭の n 文字（UTF-16 の単位）。サロゲートペア（絵文字など）の途中で切らない */
+function cut(s: string, n: number): string {
+  const c = s.charCodeAt(n - 1)
+  return s.slice(0, c >= 0xd800 && c <= 0xdbff ? n - 1 : n)
+}
+/** 文書がルートの要素（rss・rdf:RDF・feed）の閉じタグで終わっているか（後ろの空白・コメントは除く）。途中で切れた文書を見分ける */
+function closed(xml: string): boolean {
+  const tail = xml.slice(-4096).replace(/<!--[\s\S]*?-->/g, '')
+  return /<\/(?:[\w.-]+:)?(?:rss|RDF|feed)\s*>\s*$/.test(tail)
 }
 
 /** <link> が指す URL（RSS は文字、Atom は href。Atom の self・enclosure は記事ではない） */
@@ -132,6 +142,8 @@ export function parseFeed(xml: string): ParsedFeed {
   const doc = parser.parse(xml) as unknown
   const root = isNode(doc) ? [doc.rss, doc.RDF, doc.feed].find(isNode) : undefined
   if (!root) throw new Error('not a feed')
+  // 寛容な読み取りは途中で切れた文書も読めてしまう（見出しが 0 件になり、前の見出しを空で上書きする）
+  if (!closed(xml)) throw new Error('truncated feed')
   const channel = isNode(root.channel) ? root.channel : root
   const nodes = [root.item, root.entry, channel === root ? undefined : channel.item].flatMap(asArray).filter(isNode)
   const items: RawItem[] = []

@@ -8,7 +8,7 @@ import type { Key } from '../../lib/i18n'
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { SelectionFollow } from '../../lib/selection'
-import { neighbor, type Placed, squarify } from '../../lib/treemap'
+import { neighbor, type Placed, sectorMembers, sectorTileKey, squarify } from '../../lib/treemap'
 import { app, bridge, inst, isFav, nameOf, t } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -63,15 +63,17 @@ interface Cell {
   ret: number | null
   id?: InstrumentId
 }
+/** タイルに描く銘柄（★のみ表示なら★の銘柄だけ） */
+const pool = $derived(starOnly ? ids.filter((x) => isFav(x)) : ids)
+const sectorOf = (x: InstrumentId) => inst(x)?.sectorJa
 const cells = $derived.by((): Cell[] => {
   void app.metrics.size
-  const pool = starOnly ? ids.filter((x) => isFav(x)) : ids
   if (sector) {
-    return pool.filter((x) => inst(x)?.sectorJa === sector).map((x) => ({ key: x, label: nameOf(x), cap: cap(x), ret: ret(x), id: x }))
+    return sectorMembers(pool, sector, sectorOf).map((x) => ({ key: x, label: nameOf(x), cap: cap(x), ret: ret(x), id: x }))
   }
   const by = new Map<string, { cap: number; w: number; n: number }>()
   for (const x of pool) {
-    const s = inst(x)?.sectorJa || '—'
+    const s = sectorTileKey(sectorOf(x))
     const c = cap(x)
     const r = ret(x)
     const e = by.get(s) ?? { cap: 0, w: 0, n: 0 }
@@ -132,7 +134,7 @@ onMount(() => {
     selected: () => {
       const p = placed[sel]
       if (p?.item.id) return [p.item.id]
-      return ids.filter((x) => inst(x)?.sectorJa === p?.item.key)
+      return p ? sectorMembers(pool, p.item.key, sectorOf) : []
     },
     key(e) {
       const k = e.key

@@ -546,3 +546,18 @@ describe('メニューの位置（FR-L14 §3.1, FR-V 文字の大きさ）', () 
     expect(menuPosition({ right: 1600, bottom: 35 }, 320, 1000, 1).left).toBe(1000 - 320 - 4) // 右にはみ出さない
   })
 })
+
+describe('上限に達したときの複製・タブの写し（FR-L14）', () => {
+  it('30 枚あれば、名前を尋ねる前に断る（新しいページと同じ）', async () => {
+    const { duplicate, copyTab } = await import('../../../src/renderer/lib/pages')
+    L.useLoadedLayout(L.defaultDoc(), [page('a')])
+    while (L.openablePages().length < L.PAGES_MAX) L.addPage('n', L.presetEntry('free'))
+    app.overlay = null
+    app.toasts = []
+    void duplicate('a')
+    expect(app.overlay).toBeNull()
+    void copyTab()
+    expect(app.overlay).toBeNull()
+    expect(app.toasts.length).toBeGreaterThan(0)
+  })
+})

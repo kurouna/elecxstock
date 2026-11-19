@@ -1,5 +1,6 @@
 // ペインごとのキー操作の窓口。ウィジェットは自分のキー処理と「今選んでいる銘柄」を登録する。
 import type { InstrumentId } from '@shared/types'
+import type { WidgetId } from '../stores/layout.svelte'
 import type { ListCol } from './columns'
 
 export interface PaneApi {
@@ -25,4 +26,34 @@ export function registerPane(id: string, api: PaneApi): () => void {
 }
 export function paneApi(id: string | null | undefined): PaneApi | undefined {
   return id ? apis.get(id) : undefined
+}
+
+/** ペインの要素を引くセレクタ。ID はディスクから読んだレイアウトの文字列なので、" や \ を逃がす（壊れたセレクタで querySelector が投げない） */
+export function paneSelector(id: string): string {
+  const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id.replace(/["\\]/g, '\\$&')
+  return `[data-pane-id="${esc}"]`
+}
+
+/** F1 の一覧（Help.svelte）で、そのペインの種類のキーを載せた段の ID（FR-KB7。いまのペインの段に印を付ける） */
+const HELP_SECTION: Record<WidgetId, string> = {
+  watchlist: 'list',
+  screener: 'screener',
+  chart: 'chart',
+  mtf: 'chart',
+  grid: 'grid',
+  divcal: 'list',
+  jobs: 'list',
+  info: 'market',
+  heatmap: 'market',
+  ranking: 'market',
+  board: 'market',
+  breadth: 'market',
+  market: 'market',
+  portfolio: 'market',
+  folio: 'market',
+  divsim: 'market',
+  news: 'news',
+}
+export function helpSection(widget: WidgetId | string | undefined): string {
+  return HELP_SECTION[widget as WidgetId] ?? ''
 }

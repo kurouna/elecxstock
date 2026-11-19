@@ -111,13 +111,35 @@ export function distanceOf(
     if (x == null || t == null) continue
     if (c.op === '>=' ? x >= t : x <= t) continue
     const f = FIELD_BY_ID.get(c.field)
+    // % は今の値・しきい値がどちらも正のときだけ（EPS・BPS は負・0 になる。−100 → 100 が −200%、0 が 0% にならないよう、差にする）
     const d: NonNullable<AlertView['distance']> =
-      (f?.type === 'money' && !c.ref) || (c.ref && !refInPoints(c.field))
-        ? { kind: 'pct', value: x !== 0 ? (t / x - 1) * 100 : 0 }
+      ((f?.type === 'money' && !c.ref) || (c.ref && !refInPoints(c.field))) && x > 0 && t > 0
+        ? { kind: 'pct', value: (t / x - 1) * 100 }
         : { kind: 'pt', value: t - x }
     if (!best || Math.abs(d.value) > Math.abs(best.value)) best = d
   }
   return best
+}
+
+/**
+ * アラートを作るときの既定の条件（FR-AL7。ダイアログで指標を選んだとき）。1 株あたりの金額は今の値の 5% 下（≤）、ほかは今の値（≥）、
+ * 今の値が無ければ登録表の既定。step(v) はその値の刻み（丸めに使う）。
+ * 5% は絶対値から引き、丸めたあとも今の値より下に置く（負・0 になる EPS・BPS で、作った直後から成り立たないように）
+ */
+export function defaultAlertCondition(field: string, now: number | null, step: (v: number) => number): Condition {
+  const f = FIELD_BY_ID.get(field)
+  const base: Condition = { field, op: '<=', value: 0 }
+  const round = (v: number, st: number) => Math.round(Math.round(v / st) * st * 1e6) / 1e6 || 0
+  if (f && perShare(f) && now != null) {
+    const raw = now - Math.abs(now) * 0.05
+    const st = step(raw)
+    let v = round(raw, st)
+    if (v >= now) v = round(Math.floor(raw / st) * st, st)
+    if (v >= now) v = round(v - st, st)
+    return { ...base, value: v }
+  }
+  if (now != null) return { ...base, op: '>=', value: round(now, f?.type === 'percent' ? 0.1 : (f?.step ?? 1)) }
+  return { ...base, value: typeof f?.default === 'number' ? f.default : 0 }
 }
 
 /** 1 つめの条件の指標の今の値（一覧の「現在」） */

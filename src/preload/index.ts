@@ -20,6 +20,11 @@ ipcRenderer.on('core-port', (e) => {
     w.reject({ code: 'busy', message: 'core restarted' } satisfies CoreError)
     pending.delete(id)
   }
+  // 前のポート（止まった Core のもの）は閉じる。遅れて届く応答を新しい要求の番号と取り違えない
+  if (port) {
+    port.onmessage = null
+    port.close()
+  }
   port = p
   port.onmessage = (ev: MessageEvent) => {
     const m = ev.data as { id?: number; result?: unknown; error?: CoreError; event?: string; data?: unknown }

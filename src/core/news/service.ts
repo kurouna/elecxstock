@@ -71,7 +71,8 @@ interface FeedRun {
   fails: number
   lastTry?: number
 }
-type Outcome = 'ok' | 'offline' | 'fail'
+/** skip: 巡回の途中でニュース・そのフィードを切った（取らない。失敗に数えない） */
+type Outcome = 'ok' | 'offline' | 'fail' | 'skip'
 type Why = 'show' | 'timer' | 'manual' | 'new'
 type Method = keyof NewsResults
 
@@ -116,7 +117,13 @@ export class NewsService {
   }
   /** ニュースの fetch が出てよい URL: https・オンのフィードのホストの完全一致（毎回の要求で判断する） */
   allowed(url: URL): boolean {
-    return url.protocol === 'https:' && this.onFeeds().some((f) => new URL(f.url).hostname === url.hostname)
+    // ポートも同じ（host は既定のポートを含まない）で、認証情報の付いた URL には出ない
+    if (url.protocol !== 'https:' || url.username || url.password) return false
+    return this.onFeeds().some((f) => new URL(f.url).host === url.host)
+  }
+  /** そのフィードが今もオンか（巡回の途中で切られたか） */
+  private stillOn(f: NewsFeed): boolean {
+    return this.onFeeds().some((x) => x.id === f.id)
   }
   /** オンのフィードのホスト（設定の「このアプリの通信先」） */
   hosts(): string[] {
@@ -337,16 +344,19 @@ export class NewsService {
     const out: { f: NewsFeed; o: Outcome }[] = []
     const worker = async () => {
       for (let f = queue.shift(); f; f = queue.shift()) {
+        // 巡回の途中でニュース・そのフィードを切ったら、残りは取らない（許可から外れて blocked の失敗に数えない）
         // 1 本の思わぬ例外で巡回を止めない（そのフィードの失敗にする）
-        out.push({ f, o: await this.fetchOne(f).catch(() => this.fail(f, 'network')) })
+        const o: Outcome = this.stillOn(f) ? await this.fetchOne(f).catch(() => this.fail(f, 'network')) : 'skip'
+        out.push({ f, o })
         this.progress.done++
         this.d.emit('news.updated', { round: { ...this.round(), running: true } })
       }
     }
     await Promise.all(Array.from({ length: PARALLEL }, worker))
     // どれも通信の段で失敗したらオフライン（失敗に数えない）。ほかが取れていれば、そのフィードの失敗
-    this.offline = out.every((x) => x.o === 'offline')
-    if (!this.offline) for (const x of out) if (x.o === 'offline') this.fail(x.f, 'network')
+    const tried = out.filter((x) => x.o !== 'skip')
+    if (tried.length) this.offline = tried.every((x) => x.o === 'offline')
+    if (!this.offline) for (const x of tried) if (x.o === 'offline') this.fail(x.f, 'network')
     if (!this.cache.seenAt) this.cache.seenAt = this.d.now() // 初回に取った分はすべて線より下
     this.saveCache()
   }
@@ -375,7 +385,7 @@ export class NewsService {
     } catch (e) {
       const err = e as Error
       if (err.name === 'TimeoutError' || err.name === 'AbortError') return fail('timeout')
-      if (/^blocked/.test(err.message)) return fail('blocked')
+      if (/^blocked/.test(err.message)) return this.stillOn(f) ? fail('blocked') : 'skip'
       // 通信の段の失敗は、巡回の全部がそうならオフライン（失敗に数えない）。ほかが取れていれば失敗に数える（runRound）
       if (err instanceof TypeError) return 'offline'
       return fail('network')

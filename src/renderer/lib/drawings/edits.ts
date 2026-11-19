@@ -205,6 +205,9 @@ export class DrawingEdits {
           this.rebase(r.drawing, before.updated)
           this.push(p.scope, { t: 'update', id: p.id, before, after: r.drawing })
         } else {
+          // 書いている間の編集も捨てる（そのタイマーも止める。残すと、あとの編集を早く書いてしまう）
+          const again = this.pending.get(k)
+          if (again?.timer) clearTimeout(again.timer)
           this.pending.delete(k)
           this.conflict(p.id, k, r.current)
         }

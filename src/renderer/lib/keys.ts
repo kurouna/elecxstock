@@ -73,3 +73,9 @@ export function assignable(key: string): boolean {
   if (/^F([1-9]|1[0-2])$/.test(n.split('+').pop()!)) return true
   return n.includes('Ctrl+') || n.includes('Alt+')
 }
+/**
+ * IME の変換中か（FR-KB5）。isComposing に加え、変換を始めるキー（Chromium では isComposing が false のまま keyCode 229・key 'Process' で届く）も変換中とみなす
+ */
+export function composing(e: KeyboardEvent): boolean {
+  return e.isComposing || e.keyCode === 229
+}

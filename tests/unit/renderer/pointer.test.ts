@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { histIndexAt } from '../../../src/renderer/lib/folio'
 import { trendIndexAt } from '../../../src/renderer/lib/folioTips'
-import { localX, tipBeside } from '../../../src/renderer/lib/pointer'
+import { gutterRatio, localX, tipBeside } from '../../../src/renderer/lib/pointer'
 
 describe('表示倍率とポインタ（FR-V10）', () => {
   it('ポインタの x を要素の中の CSS の px に直す（倍率 150% なら 1.5 で割る）', () => {
@@ -35,5 +35,17 @@ describe('表示倍率とポインタ（FR-V10）', () => {
     // 右が足りなければ詰める（窓の幅も CSS の px に直す）
     expect(tipBeside({ right: 1400, top: 0 }, 320, 1500, 1.5).x).toBe(1000 - 320)
     expect(tipBeside({ right: 300, top: 150 }, 320, 1500, 0).x).toBe(308)
+  })
+})
+
+describe('区切り線のドラッグ（FR-L1）', () => {
+  it('両隣の幅に対する位置を 8%〜92% に収める', () => {
+    expect(gutterRatio(150, 100, 200)).toBeCloseTo(0.25)
+    expect(gutterRatio(0, 100, 200)).toBe(0.08)
+    expect(gutterRatio(900, 100, 200)).toBe(0.92)
+  })
+  it('両隣の幅が 0（隠れている・縮みきった）なら比を出さない（NaN でサイズを壊さない）', () => {
+    expect(gutterRatio(120, 100, 0)).toBeNull()
+    expect(gutterRatio(120, 100, -5)).toBeNull()
   })
 })

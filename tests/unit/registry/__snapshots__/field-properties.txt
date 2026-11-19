@@ -39,7 +39,7 @@ tech.ytdFromHi | tech | percent | metrics |  | - | 1 | o |  | o | o
 tech.ytdFromLo | tech | percent | metrics |  | - | 1 | o |  | o | o
 tech.maDev200 | tech | percent | metrics |  | - | 1 | o | tech.maDev25 tech.maDev75 | o | o
 risk.vol60 | risk | percent | metrics |  | - | 1 | o |  | o | o
-risk.beta | risk | ratio | metrics |  | - | 1 | o |  | o | o
+risk.beta | risk | number | metrics |  | - | 1 | o |  | o | o
 risk.mdd3y | risk | percent | metrics |  | - | 1 | o |  | o | o
 ret.6m | ret | percent | metrics |  | - | 1 | o | ret.1m ret.3m ret.1y ret.3y ret.ytd ret.tr1y ret.tr3y | o | o
 ret.ytd | ret | percent | metrics |  | - | 1 | o | ret.1m ret.3m ret.1y ret.3y ret.6m ret.tr1y ret.tr3y | o | o

@@ -79,7 +79,10 @@ describe('チャートの画像の保存（FR-C11）', () => {
 describe('チャートの画像の保存の流れ（FR-C11）', () => {
   const g = globalThis as Record<string, unknown>
   /** document と window を最小限に差し替える（キャンバスは描いたことにして PNG の印のバイト列を返す） */
-  function stub(savePng: (name: string, b: Uint8Array) => Promise<boolean>) {
+  function stub(
+    savePng: (name: string, b: Uint8Array) => Promise<boolean>,
+    buf: () => Promise<ArrayBuffer> = async () => new Uint8Array([0x89, 0x50]).buffer,
+  ) {
     const ctx = new Proxy(
       {},
       { get: (_t, p) => (p === 'measureText' ? (s: string) => ({ width: s.length * 7 }) : () => {}), set: () => true },
@@ -88,8 +91,7 @@ describe('チャートの画像の保存の流れ（FR-C11）', () => {
       width: 0,
       height: 0,
       getContext: () => ctx,
-      toBlob: (cb: (b: { arrayBuffer: () => Promise<ArrayBuffer> }) => void) =>
-        cb({ arrayBuffer: async () => new Uint8Array([0x89, 0x50]).buffer }),
+      toBlob: (cb: (b: { arrayBuffer: () => Promise<ArrayBuffer> }) => void) => cb({ arrayBuffer: buf }),
     })
     g.document = { createElement: canvas, documentElement: {} }
     g.getComputedStyle = () => ({ getPropertyValue: () => '' })
@@ -141,5 +143,17 @@ describe('チャートの画像の保存の流れ（FR-C11）', () => {
     await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2))
     done(true)
     expect(await again).toBe('saved')
+  })
+
+  it('PNG のバイト列を読めなかった（arrayBuffer が reject）ら failed で、保存中のままにしない（次の保存ができる）', async () => {
+    const save = vi.fn(async () => true)
+    const shot = stub(save, async () => {
+      throw new Error('NotReadableError')
+    })
+    const snap: ChartSnapshot = { canvas: shot, tf: 'D', scale: 1 }
+    const r = await Promise.race([saveChartImage(snap, opts), new Promise((res) => setTimeout(() => res('hung'), 200))])
+    expect(r).toBe('failed')
+    const ok = stub(save)
+    expect(await saveChartImage({ canvas: ok, tf: 'D', scale: 1 }, opts)).toBe('saved')
   })
 })

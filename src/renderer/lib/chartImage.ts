@@ -105,7 +105,17 @@ export function composeChartImage(shot: HTMLCanvasElement, title: string, range:
 /** キャンバスを PNG のバイト列にする */
 export function canvasPng(c: HTMLCanvasElement): Promise<Uint8Array | null> {
   return new Promise((resolve) => {
-    c.toBlob((b) => (b ? b.arrayBuffer().then((x) => resolve(new Uint8Array(x))) : resolve(null)), 'image/png')
+    // 読めなかったときも答える（待ち続けると、保存中のままで次の保存ができなくなる）
+    c.toBlob(
+      (b) =>
+        b
+          ? b.arrayBuffer().then(
+              (x) => resolve(new Uint8Array(x)),
+              () => resolve(null),
+            )
+          : resolve(null),
+      'image/png',
+    )
   })
 }
 

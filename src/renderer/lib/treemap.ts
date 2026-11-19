@@ -91,3 +91,10 @@ export function neighbor(rs: Rect[], from: number, dir: 'left' | 'right' | 'up' 
   })
   return best
 }
+
+/** ヒートマップの業種のタイルの名前（業種の無い銘柄は「—」のタイルにまとめる） */
+export const sectorTileKey = (sectorJa: string | null | undefined): string => sectorJa || '—'
+/** 業種のタイルの銘柄（選んだタイルの銘柄をまとめて送る。pool はタイルに描いた銘柄で、★のみ表示なら★の銘柄だけ。FR-W4） */
+export function sectorMembers<T>(pool: readonly T[], key: string, sectorOf: (x: T) => string | null | undefined): T[] {
+  return pool.filter((x) => sectorTileKey(sectorOf(x)) === key)
+}

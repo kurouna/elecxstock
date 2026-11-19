@@ -63,6 +63,8 @@ export const SCREEN_REBASE: Partial<Record<string, Rebase>> = {
   'portfolio.applyCsv': 'user',
   'portfolio.undoImport': 'user',
 }
+/** 業種の中央値（FR-I7）で比べる組: J-REIT はまとめて 1 つ */
+const sectorOf = (i: { kind: string; sectorJa: string }) => (i.kind === 'reit' ? 'REIT' : i.sectorJa)
 const RELEASES = 'https://api.github.com/repos/kurouna/elecxstock/releases/latest'
 /** 'v0.1.2' と '0.1.10' を数で比べる */
 export function newerVersion(latest: string, current: string): boolean {
@@ -177,8 +179,21 @@ export class CoreService {
   }
 
   /** アプリを閉じるとき: 取得を止めて続きを次の起動に回し、DB を閉じる（WAL を書き戻す） */
-  async shutdown(): Promise<void> {
+  /** 閉じる知らせが二度届いても（セッションの終わりと終了の両方）、閉じる処理は 1 回だけ */
+  shutdown(): Promise<void> {
+    this.closing ??= this.teardown()
+    return this.closing
+  }
+  private closing: Promise<void> | null = null
+  /** 起動で遅らせた処理。閉じるときに取り消す */
+  private timers = new Set<ReturnType<typeof setTimeout>>()
+  /** 指標の作り直し（起動のあと。閉じるときは止まるのを待つ） */
+  private recomputing: Promise<void> | null = null
+  private async teardown(): Promise<void> {
+    for (const t of this.timers) clearTimeout(t)
+    this.timers.clear()
     await this.jobs.stop()
+    await this.recomputing
     try {
       this.db.raw.exec('PRAGMA optimize; PRAGMA wal_checkpoint(TRUNCATE);')
     } catch {
@@ -186,21 +201,35 @@ export class CoreService {
     }
     this.db.close()
   }
+  /** 閉じていなければ ms のあとに f を呼ぶ */
+  private later(f: () => void, ms: number): void {
+    const t = setTimeout(() => {
+      this.timers.delete(t)
+      if (!this.closing) f()
+    }, ms)
+    this.timers.add(t)
+  }
   start(): void {
     this.user.load('settings')
     if (this.user.error) this.emit('user.error', { message: this.user.error })
-    // 指標の列を足した版に上げたら、日足から作り直す（DB の移行 v2）
+    // 指標の列を足した版に上げたら、日足から作り直す（DB の移行 v2）。途中で閉じたら印を残し、次の起動でやり直す
     if (this.db.meta('metricsStale') === '1') {
-      setTimeout(async () => {
-        await this.jobs.recomputeAll()
-        this.db.setMeta('metricsStale', '0')
-        this.metricsCache = null
-        this.evaluateAlerts()
+      this.later(() => {
+        this.recomputing = this.jobs
+          .recomputeAll()
+          .then(() => {
+            this.db.setMeta('metricsStale', '0')
+            this.metricsCache = null
+            this.evaluateAlerts()
+          })
+          .catch((e) => {
+            if (!this.closing) this.log(`recompute: ${String((e as Error)?.message ?? e)}`)
+          })
       }, 50)
     }
     this.jobs.resume()
     // 起動したら、起動しなかった日を補完し、今日（取引の終わった最新の日）を記録する（値がそろっていなければ暫定）
-    setTimeout(() => this.recordFolio(), 80)
+    this.later(() => this.recordFolio(), 80)
   }
 
   /** 市場データ（日足・配当・分割）を記録と計算に渡す形（1 回の計算の間だけ覚える） */
@@ -302,6 +331,24 @@ export class CoreService {
       this.metricsCache = new Map(this.repo.metrics().map((m) => [m.id, { ...m, stale: !m.asOf || m.asOf < session }]))
     }
     return this.metricsCache
+  }
+  /** 業種ごとの中央値（FR-I7）。指標の写し（metricsMap）が同じ間は覚えておく（銘柄を切り替えるたびに全銘柄をなめない） */
+  private sectorMemo: { src: Map<InstrumentId, MetricsRow>; by: Map<string, ReturnType<typeof sectorStats>> } | null = null
+  private sectorMedian(sector: string): ReturnType<typeof sectorStats> {
+    const metrics = this.metricsMap()
+    if (this.sectorMemo?.src !== metrics) this.sectorMemo = { src: metrics, by: new Map() }
+    const by = this.sectorMemo.by
+    if (!by.has(sector)) {
+      const rows = this.repo
+        .universe()
+        .filter((i) => screenable(i) && i.kind !== 'etf' && sectorOf(i) === sector)
+        .flatMap((i) => {
+          const m = metrics.get(i.id)
+          return m ? [{ sector, m }] : []
+        })
+      by.set(sector, sectorStats(rows, sector))
+    }
+    return by.get(sector) ?? null
   }
 
   private bars(id: InstrumentId, tf: Timeframe, adj: Adjustment) {
@@ -444,19 +491,10 @@ export class CoreService {
         // 表示中の銘柄だけ: 5 年分の日足（約 1,250 本）を 1 回なめて計算する（全銘柄の指標には入れない。decisions.md）
         const id = P.id as InstrumentId
         const ins = r.instrument(id)
-        const group = (i: { kind: string; sectorJa: string }) => (i.kind === 'reit' ? 'REIT' : i.sectorJa)
-        const metrics = this.metricsMap()
-        const rows = r
-          .universe()
-          .filter((i) => screenable(i) && i.kind !== 'etf')
-          .flatMap((i) => {
-            const m = metrics.get(i.id)
-            return m ? [{ sector: group(i), m }] : []
-          })
         return {
           ...computeInfoExtra(id, r.recentDaily(id, EXTRA_BARS), r.dividends(id)),
           // 業種の無い銘柄（指数・ETF・業種名の無い利用者の銘柄）は比べない
-          sector: ins && ins.kind !== 'etf' && group(ins) ? sectorStats(rows, group(ins)) : null,
+          sector: ins && ins.kind !== 'etf' && sectorOf(ins) ? this.sectorMedian(sectorOf(ins)) : null,
           earnings: earningsOf(r.quote(id), jstNow().date),
           split: r.splits(id).at(-1) ?? null,
         } as Results[M]
@@ -496,10 +534,8 @@ export class CoreService {
       case 'user.saveSettings': {
         const prev = this.user.load('settings')
         // 利用者の銘柄は Core が持つ（取り込み・追加は Core で行い、外すのは instruments.removeUser）。
-        // renderer の設定の写しは古いことがあるので、その userInstruments では上書きしない
+        // renderer の設定の写しは古いことがあるので、その userInstruments では上書きしない（利用者の銘柄は変わらないので、取得の対象も変わらない）
         this.user.save('settings', { ...(P.settings as object), userInstruments: prev.userInstruments } as never)
-        const next = this.user.load('settings')
-        if (prev.userInstruments.join() !== next.userInstruments.join()) r.setUserAdded(this.trackedCodes())
         return undefined as Results[M]
       }
       case 'user.saveWatchlists': {
@@ -536,10 +572,12 @@ export class CoreService {
         const w = lists.find((x) => x.id === P.list || x.builtin === P.list)
         if (!w) throw Object.assign(new Error('no such list'), { code: 'not-found' })
         const id = String(P.id)
-        w.items = w.items.includes(id) ? w.items.filter((x) => x !== id) : [...w.items, id]
-        this.user.save('watchlists', lists)
+        // 読んだ一覧（キャッシュ）は書き換えずに新しい一覧を作る（保存に失敗したときに、手元の写しだけが変わらないように）
+        const items = w.items.includes(id) ? w.items.filter((x) => x !== id) : [...w.items, id]
+        const next = lists.map((x) => (x === w ? { ...x, items } : x))
+        this.user.save('watchlists', next)
         this.syncTracked()
-        return lists as Results[M]
+        return this.user.load('watchlists') as Results[M]
       }
       case 'user.saveLayouts':
         this.user.save('layouts', P.layouts as never)

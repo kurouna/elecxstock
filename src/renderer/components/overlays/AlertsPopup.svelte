@@ -2,6 +2,7 @@
 // アラートのポップアップ（FR-AL8。design-alerts.md §6.1）: アラートの一覧と鳴った履歴。画面の上寄りに重ねて開き、
 // レイアウトは変えない。Insert 作る・E 直す・Space 有効と停止・Delete 消す・Enter 銘柄（スクリーンはスクリーナー）を開く・
 // H 切り替え・R 既読・Ctrl+Shift+F 成立中だけ・Esc 閉じる。一覧は app.alerts（チャートの点線と同じもの）
+import { jstDateTimeText } from '@shared/calendar'
 import type { AlertFire, AlertView } from '@shared/types'
 import { onMount, tick } from 'svelte'
 import {
@@ -47,11 +48,8 @@ type St = 'on' | 'off' | 'met' | 'bad'
 // スクリーンのアラートは「成立中」を持たない（結果に銘柄があるのはふつうのこと）
 const stOf = (a: AlertView): St => (!a.enabled ? 'off' : a.state.invalid ? 'bad' : a.state.met && a.target.kind === 'symbol' ? 'met' : 'on')
 const MARK: Record<St, string> = { on: '●', off: '○', met: '◎', bad: '!' }
-const atText = (iso: string) => {
-  const d = new Date(iso)
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
+// 鳴った時刻は日本時間で出す（FR-T1。PC の時刻帯によらない）
+const atText = jstDateTimeText
 
 function open(x: { screenId?: string; instrument?: AlertFire['instrument'] }) {
   closeOverlay()

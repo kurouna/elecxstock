@@ -7,7 +7,7 @@ import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
 import { registerPane } from '../../lib/panes'
-import { SelectionFollow } from '../../lib/selection'
+import { LinkFollow, SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
 import {
   app,
@@ -94,6 +94,18 @@ $effect(() => {
   sel = r.sel
   scrollSel()
 })
+const linkFollow = new LinkFollow<InstrumentId>()
+/** 先頭の行から選び直す（並べ替え・並べ替えの解除・別の一覧・★のみ表示）。リンク先の行へも戻さない（リンク先が変わるまで） */
+function restart() {
+  sel = 0
+  anchor = -1
+  follow.reset()
+  linkFollow.hold()
+}
+function toggleStarOnly() {
+  patchState(pane, { starOnly: !starOnly })
+  restart()
+}
 
 function send(i = sel) {
   const id = rows[i]
@@ -105,8 +117,7 @@ function scrollSel() {
 }
 function setList(id: string) {
   patchState(pane, { list: id })
-  sel = 0
-  follow.reset()
+  restart()
   send(0)
 }
 async function newList() {
@@ -191,10 +202,9 @@ function moveRow(d: number) {
 }
 function sortBy(k: string) {
   const c = COLUMN_BY_ID.get(k)
-  if (!c?.sort || k === 'code') return patchState(pane, { sort: undefined })
-  patchState(pane, { sort: { k, dir: sort?.k === k ? -sort.dir : -1 } })
-  sel = 0
-  follow.reset()
+  // コードの列（と並べ替えられない列）は並べ替えの解除（一覧の並びに戻す）。解除も先頭から
+  patchState(pane, { sort: !c?.sort || k === 'code' ? undefined : { k, dir: sort?.k === k ? -sort.dir : -1 } })
+  restart()
 }
 async function pickColumns() {
   const ids = await chooseColumns(allCols)
@@ -267,9 +277,7 @@ onMount(() => {
         return true
       }
       if (e.code === 'KeyF' && ctrl && e.shiftKey) {
-        patchState(pane, { starOnly: !starOnly })
-        sel = 0
-        follow.reset()
+        toggleStarOnly()
         return true
       }
       if (k === 'Enter') {
@@ -302,10 +310,10 @@ onMount(() => {
     off()
   }
 })
-// 銘柄ジャンプなどでリンク先の銘柄が変わったら、一覧にあればその行を選ぶ
+// 銘柄ジャンプなどでリンク先の銘柄が変わったら、一覧にあればその行を選ぶ（並べ替え・別の一覧のあとは、リンク先が変わるまで先頭のまま）
 $effect(() => {
   const id = pane.link ? linkSymbol(pane.link) : null
-  const i = id ? rows.indexOf(id) : -1
+  const i = linkFollow.pick(id, rows)
   if (i >= 0)
     untrack(() => {
       if (sel !== i) sel = i
@@ -325,7 +333,7 @@ $effect(() => {
   <button type="button" class="add" title={t('list.new')} onclick={newList}>＋</button>
 </div>
 <div class="filter">
-  <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={() => patchState(pane, { starOnly: !starOnly })}><span class="box"></span>★</button>
+  <button type="button" class="toggle" class:on={starOnly} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={toggleStarOnly}><span class="box"></span>★</button>
   <span class="grow"></span>
   {#if anchor >= 0}<span class="num">{t('list.selectedN', { n: hi - lo + 1 })}</span>{/if}
   <span class="num">{t('list.items', { n: rows.length })}</span>

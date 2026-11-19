@@ -14,3 +14,9 @@ describe('文言のカタログ（FR-N1, N6, NFR-Q6）', () => {
     }
   })
 })
+
+describe('保存した条件の組の呼び方（FR-SC4。requirements.md §5.2）', () => {
+  it('日本語は「スクリーニング条件」と書き、「スクリーン」だけにしない（画面と読まれる）', () => {
+    for (const [k, v] of Object.entries(ja)) expect(v, k).not.toMatch(/スクリーン(?!ニング|ナー|ショット)/)
+  })
+})

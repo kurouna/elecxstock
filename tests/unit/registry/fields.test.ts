@@ -44,3 +44,15 @@ describe('指標の版と移行（FR-FD5）', () => {
     expect(usable(FIELDS.find((f) => f.id === 'user.held'))).toBe(true)
   })
 })
+
+describe('指標の表し方（FR-FD4, FR-SC18, FR-H4）', () => {
+  const f = (id: string) => FIELDS.find((x) => x.id === id)!
+  it('損益率は符号と増減の色を付ける（ほかの騰落率と同じ）', () => {
+    expect(f('holding.pnlPct').signed).toBe(true)
+  })
+  it('ベータは係数で、倍（×）を付けない。小数 2 桁', () => {
+    expect(f('risk.beta').type).not.toBe('ratio')
+    expect(f('risk.beta').unit).toBeUndefined()
+    expect(f('risk.beta').digits).toBe(2)
+  })
+})

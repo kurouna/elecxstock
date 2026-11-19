@@ -405,7 +405,8 @@ export interface Events extends NewsEvents {
   'provider.state': { offline: boolean; paused: boolean; message?: string }
   /** 利用者のデータが変わった（マルチモニタ）。from は変えたウィンドウ。op は★・◆の切り替え */
   'user.changed': {
-    kind: 'settings' | 'watchlists' | 'holdings' | 'screens' | 'alerts' | 'drawings' | 'all'
+    /** folio: 資産推移の記録（FR-PF2）。CHANGES（core/changes.ts）の種類はこの型から取る */
+    kind: 'settings' | 'watchlists' | 'holdings' | 'screens' | 'alerts' | 'folio' | 'drawings' | 'all'
     from: string
     op?: { list: string; id: string }
     /** 描画を変えた銘柄（kind が drawings のとき） */

@@ -48,12 +48,13 @@ function test(c: Condition, ins: Instrument, m: MetricsRow, inp: ScreenInput, wl
       const hit = x.some((v) => vs.includes(String(v)))
       return c.op === 'notin' ? !hit : hit
     }
-    if (x == null || typeof x !== 'number') return null
+    // NaN・Infinity は欠損（アラートの fieldValue と同じ。src/shared/alerts.ts）
+    if (typeof x !== 'number' || !Number.isFinite(x)) return null
     let v = Number(c.value)
     if (c.ref) {
       const g = FIELD_BY_ID.get(c.ref)!
       const y = g.source.kind === 'metrics' ? (m as unknown as Row)[g.source.column] : null
-      if (y == null || typeof y !== 'number') return null
+      if (typeof y !== 'number' || !Number.isFinite(y)) return null
       v = refTarget(c.field, y, Number(c.value)) // 価格は相手の ± %、% の指標どうしは ± ポイント
     }
     return c.op === '>=' ? x >= v : c.op === '<=' ? x <= v : false
@@ -68,7 +69,7 @@ function test(c: Condition, ins: Instrument, m: MetricsRow, inp: ScreenInput, wl
   if (src.kind === 'user' && src.key === 'held') return (inp.holdings?.has(ins.id) ?? false) === Boolean(c.value)
   if (src.kind === 'compute') {
     const x = computeValue(src.key, ins, m, inp)
-    if (x == null) return null
+    if (x == null || !Number.isFinite(x)) return null
     const v = Number(c.value)
     return c.op === '>=' ? x >= v : c.op === '<=' ? x <= v : false
   }

@@ -260,3 +260,30 @@ describe('FR-SIM8 当時の条件で選び直す（sim.run）', () => {
     expect(r.past!.rows.length).toBeGreaterThan(0)
   })
 })
+
+describe('FR-SIM4 FR-SIM8 ストレスの母集団も 10 年分の配当を入れる前の版で取った銘柄を 10 年に数えない（レビューの反映）', () => {
+  it('月次系列が古い版なら、配当の記録の始まりを日足の保存期間の年にする（新しい版は 10 年前）', async () => {
+    const { SimData, DIV10_SINCE } = await import('@core/sim')
+    const { retentionStart } = await import('@core/calendar')
+    const { addYears } = await import('@shared/calendar')
+    const db = core.svc.repo.db
+    const keep = db.all<{ id: string; m: string | null }>(`SELECT id, last_monthly m FROM fetch_state WHERE id IN ('JP:8058','JP:8001')`)
+    db.run(`UPDATE fetch_state SET last_monthly = '2026-11-01T03:00:00.000Z' WHERE id = 'JP:8058'`)
+    db.run(`UPDATE fetch_state SET last_monthly = '2026-11-15T03:00:00.000Z' WHERE id = 'JP:8001'`)
+    const sd = new SimData(
+      core.svc.repo,
+      () => 3,
+      () => {},
+      DIV10_SINCE,
+    ) as unknown as {
+      stressPool: (today: string) => { id: string; from: number }[]
+    }
+    const today = '2026-11-13'
+    const pool = sd.stressPool(today)
+    const from = (id: string) => pool.find((x) => x.id === id)!.from
+    expect(from('JP:8058')).toBeGreaterThanOrEqual(Number(retentionStart(today, 3).slice(0, 4)))
+    expect(from('JP:8001')).toBeLessThanOrEqual(Number(addYears(today, -10).slice(0, 4)) + 1)
+    expect(from('JP:8001')).toBeLessThan(from('JP:8058'))
+    for (const k of keep) db.run('UPDATE fetch_state SET last_monthly = ? WHERE id = ?', k.m, k.id)
+  })
+})

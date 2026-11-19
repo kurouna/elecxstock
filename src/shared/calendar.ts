@@ -14,6 +14,13 @@ export function toJstDate(t: Date | number): JstDate {
   return new Date((typeof t === 'number' ? t : t.getTime()) + JST_OFFSET_MS).toISOString().slice(0, 10)
 }
 
+/** ISO 8601 の時刻を日本時間の 'YYYY-MM-DD HH:MM' にする（PC の時刻帯によらない）。読めなければ空 */
+export function jstDateTimeText(iso: string): string {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return ''
+  return new Date(t + JST_OFFSET_MS).toISOString().slice(0, 16).replace('T', ' ')
+}
+
 export function addDays(d: JstDate, n: number): JstDate {
   const t = Date.parse(`${d}T00:00:00Z`) + n * 86400_000
   return new Date(t).toISOString().slice(0, 10)
@@ -21,8 +28,11 @@ export function addDays(d: JstDate, n: number): JstDate {
 export function dayOfWeek(d: JstDate): number {
   return new Date(`${d}T00:00:00Z`).getUTCDay()
 }
+/** n 年後（前）の同じ月日。うるう日（2/29）から平年へは 2/28 にする（実在しない日付を作らない） */
 export function addYears(d: JstDate, n: number): JstDate {
   const y = Number(d.slice(0, 4)) + n
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+  if (d.slice(5) === '02-29' && !leap) return `${y}-02-28`
   return `${y}${d.slice(4)}`
 }
 

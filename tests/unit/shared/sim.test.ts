@@ -967,3 +967,58 @@ describe('FR-SIM5 データの誤りと見られる値を飛ばす（設計 §21
     expect(simulate({ ...base, etf: null, stocks: [ok] }).glitch).toBeNull()
   })
 })
+
+describe('FR-SIM8 利回り加重で無配の銘柄が混ざる（配分 0 円。レビューの反映）', () => {
+  const stock = (id: string, rise: number, o: Partial<SimStock> = {}): SimStock => ({
+    id,
+    kind: 'stock',
+    market: 'P',
+    sector33: '銀行業',
+    px: buildPx(
+      [],
+      daily('2023-01-04', TODAY, (d) => (d > '2024-01-01' ? 1000 * (1 + rise) : 1000)),
+    ),
+    divs: semi(2023, 2026),
+    divFrom: '2016-01-01',
+    ...o,
+  })
+  const peers = [0, 0.05, 0.1, 0.15, 0.2, 0.25].map((x, i) => stock(`P${i}`, x))
+  // Z は基準日の直近 1 年に配当が無い（利回り 0 → 配分 0 円）。値動きは相手のどれより小さい
+  const zero = stock('Z', -0.2, { divs: [] })
+  const base = {
+    today: TODAY,
+    total: 2,
+    etf: null,
+    stressPool: [],
+    settings: { ...DEFAULT_SIM, years: 3 as const, tax: 'gross' as const, weight: 'yield' as const },
+    members: (key: string) => (key === '銀行業' ? [stock('A', 0.3), zero, ...peers] : []),
+  }
+  it('配分 0 円の銘柄も、その銘柄だけのリターンと順位を出す（NaN・1 位にしない）', () => {
+    const r = simulate({ ...base, stocks: [stock('A', 0.3), zero] })
+    const z = r.past!.rows.find((x) => x.id === 'Z')!
+    expect(z.shares0).toBe(0)
+    expect(Number.isFinite(z.totalPct)).toBe(true)
+    expect(z.totalPct).toBeCloseTo(-0.2)
+    expect(z.rank!.k).toBe(z.rank!.n) // 相手の誰よりも下
+  })
+  it('偶然との比較は配分 0 円の銘柄を入れない（NaN にしない）', async () => {
+    const r = simulate({ ...base, stocks: [stock('A', 0.3), zero] })
+    const l = r.past!.luck!
+    expect(Number.isFinite(l.mine)).toBe(true)
+    expect(Number.isFinite(l.lo) && Number.isFinite(l.hi)).toBe(true)
+    expect(l.mine).toBeCloseTo(r.past!.hero.totalPct)
+    const { luckOf } = await import('@shared/sim/peers')
+    expect(luckOf([{ mine: Number.NaN, peers: [1], w: 0 }], 's')).toBeNull()
+  })
+})
+
+describe('FR-SIM5 データの誤り: 戻りの判定は前の値から（レビューの反映）', () => {
+  const pts = (cs: number[]) => cs.map((c, i) => ({ d: addDays('2026-03-23', i), c }))
+  it('前の値の +50% を超えて上に外れ、すぐ戻る区間も飛ばす（100 → 200 → 100）', async () => {
+    const { dropGlitches } = await import('@shared/sim/backtest')
+    expect(dropGlitches(pts([100, 100, 200, 100]), 5).dropped).toBe(1)
+    expect(dropGlitches(pts([100, 100, 160, 170, 101]), 5).dropped).toBe(2)
+    // ±50% 以内の動きはこれまでどおり飛ばさない
+    expect(dropGlitches(pts([100, 100, 150, 100]), 5).dropped).toBe(0)
+  })
+})

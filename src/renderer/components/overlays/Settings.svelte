@@ -22,7 +22,10 @@ let nav = $state<HTMLElement>()
 onMount(() => {
   cur = tab
   queueMicrotask(() => nav?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus())
-  void bridge.call('data.status', {}).then((s) => (app.status = s))
+  void bridge
+    .call('data.status', {})
+    .then((s) => (app.status = s))
+    .catch(() => {})
 })
 function navKey(e: KeyboardEvent) {
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
@@ -119,9 +122,11 @@ async function importJpx() {
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <nav bind:this={nav} onkeydown={navKey}>
     <h3>{t('set.title')}</h3>
-    {#each TABS as x (x)}
-      <button type="button" role="tab" aria-selected={cur === x} tabindex={cur === x ? 0 : -1} onclick={() => (cur = x)}>{t(`set.${x}` as Key)}</button>
-    {/each}
+    <div role="tablist" aria-orientation="vertical" aria-label={t('a11y.settingsTabs')}>
+      {#each TABS as x (x)}
+        <button type="button" role="tab" aria-selected={cur === x} tabindex={cur === x ? 0 : -1} onclick={() => (cur = x)}>{t(`set.${x}` as Key)}</button>
+      {/each}
+    </div>
   </nav>
   <div class="body">
     {#if cur === 'general'}
@@ -149,11 +154,11 @@ async function importJpx() {
       </div>
       <div class="field">
         <span>{t('set.autoUpdate')}</span>
-        <span class="row"><button type="button" class="toggle" class:on={app.settings.autoUpdate} aria-label={t('set.autoUpdate')} onclick={() => saveSettings({ autoUpdate: !app.settings.autoUpdate })}><span class="box"></span></button><span class="muted small">{t('set.autoUpdateHint')}</span></span>
+        <span class="row"><button type="button" class="toggle" class:on={app.settings.autoUpdate} aria-pressed={app.settings.autoUpdate} aria-label={t('set.autoUpdate')} onclick={() => saveSettings({ autoUpdate: !app.settings.autoUpdate })}><span class="box"></span></button><span class="muted small">{t('set.autoUpdateHint')}</span></span>
       </div>
       <div class="field">
         <span>{t('set.alertNotify')}</span>
-        <span class="row"><button type="button" class="toggle" class:on={app.settings.alertNotify} aria-label={t('set.alertNotify')} onclick={() => saveSettings({ alertNotify: !app.settings.alertNotify })}><span class="box"></span></button></span>
+        <span class="row"><button type="button" class="toggle" class:on={app.settings.alertNotify} aria-pressed={app.settings.alertNotify} aria-label={t('set.alertNotify')} onclick={() => saveSettings({ alertNotify: !app.settings.alertNotify })}><span class="box"></span></button></span>
       </div>
       <!-- 常駐と自動起動（FR-BG1・BG6・BG7）。押せるか・注意は loginView が決める -->
       <div class="field">
@@ -171,7 +176,7 @@ async function importJpx() {
       <div class="field">
         <span>{t('set.checkUpdates')}</span>
         <span class="row">
-          <button type="button" class="toggle" class:on={app.settings.checkUpdates} aria-label={t('set.checkUpdates')} onclick={() => saveSettings({ checkUpdates: !app.settings.checkUpdates })}><span class="box"></span></button>
+          <button type="button" class="toggle" class:on={app.settings.checkUpdates} aria-pressed={app.settings.checkUpdates} aria-label={t('set.checkUpdates')} onclick={() => saveSettings({ checkUpdates: !app.settings.checkUpdates })}><span class="box"></span></button>
           <button type="button" class="chip" onclick={() => checkUpdate(true)}>{t('act.checkUpdate')}</button>
           {#if app.update}<button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(app.update!.url)}>{t('update.available', { v: app.update.version })}</button>{/if}
         </span>
@@ -206,11 +211,11 @@ async function importJpx() {
       </div>
       <div class="field">
         <span>{t('set.motion')}</span>
-        <button type="button" class="toggle" class:on={app.settings.reduceMotion} aria-label={t('set.motion')} onclick={() => saveSettings({ reduceMotion: !app.settings.reduceMotion })}><span class="box"></span></button>
+        <button type="button" class="toggle" class:on={app.settings.reduceMotion} aria-pressed={app.settings.reduceMotion} aria-label={t('set.motion')} onclick={() => saveSettings({ reduceMotion: !app.settings.reduceMotion })}><span class="box"></span></button>
       </div>
       <div class="field">
         <span title={t('set.focusAlwaysHint')}>{t('set.focusAlways')}</span>
-        <button type="button" class="toggle" class:on={app.settings.focusAlways} aria-label={t('set.focusAlways')} onclick={() => saveSettings({ focusAlways: !app.settings.focusAlways })}><span class="box"></span></button>
+        <button type="button" class="toggle" class:on={app.settings.focusAlways} aria-pressed={app.settings.focusAlways} aria-label={t('set.focusAlways')} onclick={() => saveSettings({ focusAlways: !app.settings.focusAlways })}><span class="box"></span></button>
       </div>
       <div class="field">
         <span>{t('set.layout')}</span>

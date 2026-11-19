@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { stubWindow } from '../../support/window'
 
 stubWindow()
-const { date, dateTime, fmt, money, px } = await import('../../../src/renderer/lib/format')
+const { cls, date, dateTime, fmt, money, px, sgn } = await import('../../../src/renderer/lib/format')
 const { app } = await import('../../../src/renderer/stores/app.svelte')
 
 const joined = (m: { n: string; u: string }) => `${m.n}${m.u}`
@@ -49,5 +49,28 @@ describe('言語に合わせた書式（FR-N3）', () => {
       expect(fmt(Number.NaN)).toBe('—')
       expect(money(null)).toEqual({ n: '—', u: '' })
     }
+  })
+})
+
+describe('書式の境界（FR-N3, FR-V2）', () => {
+  it('負の金額も正と同じ桁（100 億円以上は整数）', () => {
+    app.settings.lang = 'ja'
+    expect(joined(money(-5.6e10))).toBe('-560億')
+    expect(joined(money(-3.45e9))).toBe('-34.5億')
+  })
+  it('丸めて 0 になる負の値は −0 にしない', () => {
+    expect(fmt(-0.001, 2)).toBe('0.00')
+    expect(fmt(-0, 0)).toBe('0')
+    expect(px(-0.01)).toBe('0.0')
+    expect(sgn(-0.001, 2, '%')).toBe('±0.00%')
+    expect(sgn(0.004, 2)).toBe('±0.00')
+    expect(sgn(-0.006, 2)).toBe('−0.01')
+  })
+  it('数でない値は色を付けない・読めない日時は —', () => {
+    expect(cls(Number.NaN)).toBe('')
+    expect(cls(Number.POSITIVE_INFINITY)).toBe('')
+    expect(cls(0)).toBe('flat')
+    expect(cls(-1)).toBe('down')
+    expect(dateTime('not a date')).toBe('—')
   })
 })

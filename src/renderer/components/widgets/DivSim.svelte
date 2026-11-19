@@ -16,7 +16,9 @@ import { fitColumns } from '../../lib/columns'
 import {
   basisNotes,
   blockedWhileLoading,
+  clearTicks,
   cycle,
+  fromLimit,
   fwdSorts,
   indexAt,
   lineScale,
@@ -41,10 +43,12 @@ import {
   parseMonthly,
   sensitivity,
   decompSteps,
+  goalArgs,
   goalOf,
   fwdChart,
   fwdReadout,
   altApplies,
+  showsCards,
   showsLoading,
   growthCell,
   keyApplies,
@@ -238,6 +242,8 @@ $effect(() => {
     const key = keyOf(want, st)
     if (!want.length) {
       token++
+      // 作り直されたときに前の群の結果を出さない
+      LAST.delete(pane.id)
       result = null
       error = null
       loading = false
@@ -253,14 +259,15 @@ $effect(() => {
     // 計算中の古い要求の結果は、入力が変わった時点で捨てる
     const my = ++token
     const held = useHeld
-    timer = setTimeout(() => void run(want, st, key, my, held, quiet), wait)
+    // 選び直しの入力もキーを作った時点のものを送る（間引きの間に変わっても、キーと中身をずらさない）
+    const rs = rescreenIn
+    timer = setTimeout(() => void run(want, st, key, my, held, quiet, rs), wait)
   })
 })
-async function run(ids: InstrumentId[], st: typeof settings, key: string, my = ++token, held = useHeld, quiet = false) {
+async function run(ids: InstrumentId[], st: typeof settings, key: string, my = ++token, held = useHeld, quiet = false, rs = rescreenIn) {
   const t0 = performance.now()
   announce = ''
   try {
-    const rs = rescreenIn
     const r = await bridge.call('sim.run', {
       ids: [...ids],
       settings: { ...st },
@@ -287,6 +294,7 @@ async function run(ids: InstrumentId[], st: typeof settings, key: string, my = +
     const x = e as { message?: string; code?: string }
     error = x?.message || x?.code || String(e)
     result = null
+    LAST.delete(pane.id)
   } finally {
     if (my === token) loading = false
   }
@@ -382,7 +390,7 @@ async function pickFrom() {
   const v = await promptDialog(t('sim.fromTitle'), settings.from ?? '')
   if (v == null) return
   if (!v.trim()) return set({ from: null })
-  const d = parseFrom(v, result?.asOf ?? '9999-12-31')
+  const d = parseFrom(v, fromLimit(result?.asOf))
   if (d == null) toast(t('sim.fromBad'), undefined, 3000, 'error')
   else set({ from: d })
 }
@@ -506,6 +514,8 @@ const ends = $derived.by(() => {
   )
   return xs.map((x, i) => ({ ...x, ly: ys[i]! }))
 })
+/** 右端の目盛りの値を書く目盛り（終点の札に重なるものは書かない。線は引く） */
+const tickText = $derived(hsc ? new Set(clearTicks(hsc.ticks, hsc.y, ends.map((e) => e.ly))) : new Set<number>())
 function histMove(e: MouseEvent) {
   if (!hsc) return
   card = 'hist'
@@ -553,11 +563,13 @@ const monthPeople = $derived(msel >= 0 ? monthBy.filter((x) => (x.ms[msel] ?? 0)
 const nzMonths = $derived(monthTotals.filter((v) => v > 0).length)
 
 // ---------------------------------------------------------------- キー（§9）
+/** カード・表が出ているか（過去が 0 件の案内だけの画面では、見えないカード・行へ動かさない） */
+const cardsShown = $derived(showsCards({ loading, hasResult: !!result, tab, hasPast: !!past }))
 function key(e: KeyboardEvent): boolean {
   const c = e.code
   const k = e.key
   if (c === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
-    if (loading || !result) return true
+    if (!cardsShown) return true
     // 1 銘柄: 表と感応度（1 銘柄では意味が無い）は無い
     const cs = isOne ? CARDS[tab].filter((x) => !['table', 'sens', 'wf', 'luck'].includes(x)) : CARDS[tab]
     const i = card ? cs.indexOf(card) : -1
@@ -581,7 +593,7 @@ function key(e: KeyboardEvent): boolean {
     return true
   }
   // 読み込み中・結果が無いときは、画面に出ていないカード・行を動かさない（設定のキーは受ける）
-  if ((loading || !result) && blockedWhileLoading(c)) return true
+  if (!cardsShown && blockedWhileLoading(c)) return true
   const n = rows.length
   const page = Math.max(1, Math.floor((body?.clientHeight ?? 400) / 48))
   if ((k === 'PageUp' || k === 'PageDown') && card !== 'table') {
@@ -736,6 +748,7 @@ onMount(() =>
         {#if isScreen && !isOne}{#each splitTemplate(t('sim.s.rs')) as p, i (i)}{@render word(p)}{/each}{/if}
       </span>
     {/if}
+    <button type="button" class="tok sc" title={`${t('sim.sc.title')} (K)`} onclick={() => void pickScenario()}>{t('sim.sc.title')}…</button>
   </div>
 </div>
 <div class="body" bind:this={body} class:calc={loading} data-runs={runs}>
@@ -820,7 +833,7 @@ onMount(() =>
               <svg viewBox={`0 0 ${hw} ${hh}`} aria-label={t('sim.hist')}>
                 {#each hsc.ticks as v (v)}
                   <line x1={hsc.pad.l} x2={hw - hsc.pad.r} y1={hsc.y(v)} y2={hsc.y(v)} class="grid" />
-                  <text x={hw - 4} y={hsc.y(v) + 3} class="ax end">{fmtV(v)}</text>
+                  {#if tickText.has(v)}<text x={hw - 4} y={hsc.y(v) + 3} class="ax end">{fmtV(v)}</text>{/if}
                 {/each}
                 <path class="base" fill="none" d={hs.base.map((v, k) => `${k ? `L${hsc.x(k).toFixed(1)},${hsc.y(hs.base[k - 1]!).toFixed(1)}L` : 'M'}${hsc.x(k).toFixed(1)},${hsc.y(v).toFixed(1)}`).join('')} />
                 {#if !settings.reinvest}
@@ -940,7 +953,7 @@ onMount(() =>
           </dl>
           <div class="goal" data-testid="sim-goal">
             {#if goal}
-              {t(fwd.held ? 'sim.goalHeld' : 'sim.goal', { m: money(app.settings.divGoal), p: pct(goal.pct, 0, false), need: goal.need == null ? '—' : money(goal.need) })}
+              {t(fwd.held ? 'sim.goalHeld' : 'sim.goal', goalArgs(goal, app.settings.divGoal, money, hide, MASK))}
             {:else}
               {#if IS_FREE}<span class="dim">{t('sim.goalSetFree')}</span>{:else}<button type="button" class="linkbtn" onclick={() => runAction('folioGoal')}>{t('sim.goalSet')}</button>{/if}
             {/if}
@@ -1553,11 +1566,16 @@ onMount(() =>
     gap: 4px;
     font-size: var(--fs-1);
   }
+  /* 行ごとの grid なので、数字の列は幅を固定して右寄せにする（行どうしで右端をそろえる） */
   .sens li {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) 10em 5.5em;
     gap: 10px;
     align-items: baseline;
+  }
+  .sens li > .num {
+    text-align: right;
+    white-space: nowrap;
   }
   .sens .nm {
     overflow: hidden;

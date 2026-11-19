@@ -690,3 +690,41 @@ describe('FR-SIM1 FR-SIM12 これからの既定と設定の文（利用者の�
     }
   })
 })
+
+describe('FR-SIM2 FR-SIM8 FR-H12 図の目盛り・基準日の上限・過去が無いときのキー・目標の達成率（レビューの反映）', () => {
+  it('右端の目盛りの値は、終点の名前と値に重なるものだけ出さない', async () => {
+    const { clearTicks } = await import('../../../src/renderer/lib/divsim')
+    const y = (v: number) => 200 - v
+    // 終点の札は ly（名前）と ly + 11（値）の 2 行
+    expect(clearTicks([0, 50, 100, 150], y, [150])).toEqual([0, 100, 150])
+    expect(clearTicks([0, 50, 100], y, [])).toEqual([0, 50, 100])
+    expect(clearTicks([100], y, [97])).toEqual([])
+    expect(clearTicks([100], y, [60])).toEqual([100])
+  })
+  it('基準日の日付の上限: 結果が無いとき（読み込み中・エラー）は今日（日本時間）。未来の日付を通さない', async () => {
+    const { fromLimit, parseFrom } = await import('../../../src/renderer/lib/divsim')
+    expect(fromLimit('2026-11-12')).toBe('2026-11-12')
+    const lim = fromLimit(undefined, Date.parse('2026-11-13T18:00:00+09:00'))
+    expect(lim).toBe('2026-11-13')
+    expect(parseFrom('2030-01-01', lim)).toBeNull()
+    expect(parseFrom('2026-11-12', lim)).toBe('2026-11-12')
+  })
+  it('過去のタブで過去が 0 件のとき（案内だけの画面）は、カード・行を動かすキーを受けない（PgUp・PgDn のタブの切り替えは受ける）', async () => {
+    const { showsCards, blockedWhileLoading } = await import('../../../src/renderer/lib/divsim')
+    expect(showsCards({ loading: false, hasResult: true, tab: 'past', hasPast: false })).toBe(false)
+    expect(showsCards({ loading: false, hasResult: true, tab: 'fwd', hasPast: false })).toBe(true)
+    expect(showsCards({ loading: false, hasResult: true, tab: 'past', hasPast: true })).toBe(true)
+    expect(showsCards({ loading: true, hasResult: true, tab: 'fwd', hasPast: true })).toBe(false)
+    expect(showsCards({ loading: false, hasResult: false, tab: 'fwd', hasPast: false })).toBe(false)
+    expect(blockedWhileLoading('ArrowDown')).toBe(true)
+    expect(blockedWhileLoading('PageDown')).toBe(false)
+  })
+  it('目標の文: 保有のプライバシーモードでは金額と達成率を隠す（達成率と目標の額から配当の額が分かるため。FR-H12）', async () => {
+    const { goalArgs, goalOf } = await import('../../../src/renderer/lib/divsim')
+    const g = goalOf(50_000, 120_000, 3_000_000)!
+    const fmt = (v: number) => String(Math.round(v))
+    expect(goalArgs(g, 50_000, fmt, false, '****')).toEqual({ m: '50000', p: '20%', need: '15000000' })
+    expect(goalArgs(g, 50_000, () => '****', true, '****')).toEqual({ m: '****', p: '****', need: '****' })
+    expect(goalArgs({ ...g, need: null }, 50_000, fmt, false, '****').need).toBe('—')
+  })
+})

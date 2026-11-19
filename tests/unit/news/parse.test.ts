@@ -72,6 +72,22 @@ describe('FR-NW6 フィードの読み取り（RSS 2.0・RDF・Atom）', () => {
     expect(() => parseFeed('<html><body>not a feed</body></html>')).toThrow()
     expect(() => parseFeed('not xml at all')).toThrow()
   })
+  it('途中で切れた文書は失敗にする（空の一覧で前の見出しを上書きしない）', () => {
+    expect(() => parseFeed('<rss><channel>')).toThrow()
+    expect(() => parseFeed('<rss><channel><item><title>架空 A</title></item><item><title>架空 B')).toThrow()
+    expect(() => parseFeed('<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>架空</title></entry>')).toThrow()
+    // 閉じた文書は、後ろに空白・コメントがあっても読む（RDF は名前空間の接頭辞つき）
+    expect(parseFeed('<rss><channel><item><title>架空 A</title></item></channel></rss>\n<!-- 架空 -->\n').items).toHaveLength(1)
+    expect(parseFeed('<rdf:RDF><item><title>架空 R</title></item></rdf:RDF>').items).toHaveLength(1)
+  })
+  it('切り詰めた見出し・要約の末尾でサロゲートペア（絵文字など）を割らない', () => {
+    const title = `${'あ'.repeat(298)}😀😀`
+    const p = parseFeed(`<rss><channel><item><title>${title}</title></item></channel></rss>`)
+    const t = p.items[0]!.title
+    expect(t.endsWith('…')).toBe(true)
+    // 対になっていないサロゲートが無い
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(t)).toBe(false)
+  })
 })
 
 describe('FR-NW6 日付の揺れ', () => {

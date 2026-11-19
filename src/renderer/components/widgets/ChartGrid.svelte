@@ -9,7 +9,9 @@ import { onMount } from 'svelte'
 import { addToListDialog, keyOf, setFocus } from '../../lib/commands'
 import { drawingsState, ensureDrawings } from '../../lib/drawings/store.svelte'
 import { cls, fmt, px, sgn } from '../../lib/format'
+import { gridTarget, pageOf, swapInOwn } from '../../lib/gridNav'
 import type { Key } from '../../lib/i18n'
+import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { PERIODS, periodOfKey } from '../../lib/periods'
 import { liveConditions } from '../../lib/screens'
@@ -36,7 +38,7 @@ import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.sv
 import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import PeriodPicker from '../PeriodPicker.svelte'
-import { drawTile, tileIndexAt } from './gridDraw'
+import { drawTile, tileIndexAt, tileLookKey } from './gridDraw'
 
 let { pane }: { pane: PaneNode } = $props()
 const GRIDS: [number, number][] = [
@@ -104,12 +106,20 @@ const srcIds = $derived.by((): InstrumentId[] => {
   return app.watchlists.find((w) => w.id === src)?.items ?? []
 })
 const fromDate = $derived(addDays(jstNow().date, -PERIODS[period]!.days)) // 日本時間の日付（FR-T1）
+const freshRets = latest()
 $effect(() => {
   const ids = srcIds
   ensureMetrics(ids)
   if (sortKey !== 'ret' || !ids.length) return
   void app.dataVersion
-  bridge.call('returns.get', { ids: ids.slice(0, 5000), from: fromDate }).then((r) => (rets = r))
+  const ok = freshRets()
+  // 期間・対象を続けて変えたとき、古い応答で並びを上書きしない。失敗したら前の値のまま
+  bridge.call('returns.get', { ids: ids.slice(0, 5000), from: fromDate }).then(
+    (r) => {
+      if (ok()) rets = r
+    },
+    () => {},
+  )
 })
 const codes = $derived.by(() => {
   let ids = srcIds
@@ -126,6 +136,8 @@ const pageIds = $derived(codes.slice(Math.min(page, pages - 1) * perPage, Math.m
 const rows = $derived(zoom ? 1 : Math.max(1, Math.min(dims[1], Math.ceil(pageIds.length / dims[0]))))
 const cols = $derived(zoom ? 1 : dims[0])
 const shown = $derived(zoom ? [zoom] : pageIds)
+/** 操作の対象の銘柄（拡大中は拡大している銘柄。sel は拡大する前の位置のまま） */
+const target = () => gridTarget(zoom, shown, sel)
 
 // 見えているタイルの足だけを取る（FR-G9）
 $effect(() => {
@@ -164,7 +176,8 @@ $effect(() => {
   void hoverDate
   void rows
   void cols
-  void app.settings.candleStyle
+  // テーマ・陽線/陰線の色（タイルは描くときに CSS の変数を読む）
+  void tileLookKey(app.settings)
   // 目標利回りの線（FR-C12）: 設定と指標（配当）が変わったら描き直す
   void app.settings.yieldLine
   void app.settings.yieldTargets
@@ -209,7 +222,7 @@ const periodRet = (id: InstrumentId) => {
   return b && b.close.length > 1 ? (b.close.at(-1)! / b.close[0]! - 1) * 100 : null
 }
 function send() {
-  const id = shown[sel]
+  const id = target()
   // リンク色の無いグリッド（フリー N の既定）は、ほかのチャートの銘柄を変えない
   if (id && pane.link) setLinkSymbol(pane.link, id)
 }
@@ -255,9 +268,9 @@ function addOwn(id: InstrumentId) {
  * 対象がウォッチリストやスクリーナーのときは、今の並びを「このグリッドの銘柄」に固定してから差し替える（FR-G10）
  */
 let replacing: number | null = null
-function startReplace(i = sel) {
-  if (!shown[i]) return
-  const cur = shown[i]
+function startReplace(i?: number) {
+  const cur = i == null ? target() : shown[i]
+  if (!cur) return
   if (src !== 'own') {
     set({ own: [...codes], src: 'own', sort: 'none' })
   } else if (sortKey !== 'none') {
@@ -266,8 +279,8 @@ function startReplace(i = sel) {
   }
   // ★・◆で絞り込んでいるときは見えている並びと own がずれるので、銘柄で own の位置を探す
   replacing = ownIndex(cur)
-  sel = i
-  app.overlay = { kind: 'palette', q: '', title: t('grid.replaceTitle', { name: nameOf(shown[i]) }) }
+  if (i != null && !zoom) sel = i
+  app.overlay = { kind: 'palette', q: '', title: t('grid.replaceTitle', { name: nameOf(cur) }) }
 }
 /** このグリッドの銘柄（own）の中での位置。絞り込み中も見えているタイルの銘柄から探す */
 function ownIndex(id: InstrumentId): number {
@@ -292,6 +305,7 @@ function replaceAt(at: number, id: InstrumentId) {
   const next = [...own]
   next[at] = id
   set({ own: next.filter((x, k) => x !== id || k === at) }) // 同じ銘柄は 1 つだけ
+  if (zoom && zoom === old) zoom = id // 拡大中に差し替えたら、差し替えた銘柄を拡大して見せる
   toast(t('grid.replaced', { from: nameOf(old), to: nameOf(id) }))
 }
 // コマンドバーを選ばずに閉じたら、差し替えをやめる
@@ -330,11 +344,12 @@ onMount(() => {
   const ro = new ResizeObserver(() => schedule())
   if (tiles) ro.observe(tiles)
   const off = registerPane(pane.id, {
-    current: () => shown[sel],
+    current: () => target(),
     // Ctrl+Shift+A（リストに追加）はグリッドでは候補をまとめて送る（FR-G5）。候補が無ければ選択中のタイル
     selected: () => {
       const c = [...(candidates()?.items ?? [])]
-      return c.length ? c : shown[sel] ? [shown[sel]!] : []
+      const id = target()
+      return c.length ? c : id ? [id] : []
     },
     receive: (id) => {
       if (replacing != null) {
@@ -353,13 +368,13 @@ onMount(() => {
         return true
       }
       if (e.altKey && !e.shiftKey && !ctrl && src === 'own' && sortKey === 'none' && (k === 'ArrowLeft' || k === 'ArrowRight')) {
-        const i = Math.min(page, pages - 1) * perPage + sel
-        const j = i + (k === 'ArrowLeft' ? -1 : 1)
-        if (j >= 0 && j < own.length) {
-          const next = [...own]
-          ;[next[i], next[j]] = [next[j]!, next[i]!]
-          set({ own: next })
-          sel += j - i
+        if (zoom) return true // 拡大中は並びが見えないので並べ替えない
+        // 位置は見えている並び（★・◆の絞り込み後）で数え、own の中は銘柄で探す。ページを越えたらそのページへ
+        const r = swapInOwn(own, codes, Math.min(page, pages - 1) * perPage + sel, k === 'ArrowLeft' ? -1 : 1)
+        if (r) {
+          const p = pageOf(r.at, perPage)
+          set({ own: r.own, page: p.page })
+          sel = p.sel
         }
         return true
       }
@@ -417,7 +432,7 @@ onMount(() => {
         return true
       }
       if (c === 'KeyX') {
-        hoverDate = hoverDate ? null : (bars[shown[sel] ?? '']?.time.at(-1) ?? null)
+        hoverDate = hoverDate ? null : (bars[target() ?? '']?.time.at(-1) ?? null)
         return true
       }
       if (k === '+' || k === ';' || c === 'NumpadAdd') {
@@ -442,7 +457,8 @@ onMount(() => {
         return true
       }
       if (c === 'KeyF') {
-        if (shown[sel]) toggleFav(shown[sel]!)
+        const id = target()
+        if (id) toggleFav(id)
         return true
       }
       if (c === 'Space' && e.shiftKey) {
@@ -451,18 +467,20 @@ onMount(() => {
         return true
       }
       if (c === 'Space') {
-        toggleCand(shown[sel])
+        toggleCand(target())
         return true
       }
       if (k === 'Enter') {
-        zoom = zoom ? null : (shown[sel] ?? null)
+        zoom = zoom ? null : (target() ?? null)
         return true
       }
       if (k === 'Delete' && src === 'own') {
-        const id = shown[sel]
+        const id = target()
         if (id) {
           set({ own: own.filter((x) => x !== id) })
-          sel = Math.max(0, sel - 1)
+          // 拡大していた銘柄を外したら格子に戻る
+          if (zoom === id) zoom = null
+          else sel = Math.max(0, sel - 1)
           toast(t('grid.removed', { name: nameOf(id) }))
         }
         return true
@@ -472,6 +490,7 @@ onMount(() => {
   })
   return () => {
     ro.disconnect()
+    cancelAnimationFrame(raf) // 閉じたあとに描かない
     off()
   }
 })

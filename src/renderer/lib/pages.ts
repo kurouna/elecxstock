@@ -145,12 +145,15 @@ export async function newPage(): Promise<void> {
 export async function duplicate(id = layout.doc.page): Promise<void> {
   const p = layout.pages.find((x) => x.id === id)
   if (!p) return
+  // 名前を打たせてから断らない（新しいページと同じ）
+  if (openablePages().length >= PAGES_MAX) return refused('limit')
   const name = await promptDialog(t('lay.saveTitle'), t('lay.dupName', { name: nameOfPage(p) }))
   if (!name) return backToMenu()
   added(duplicatePage(p.id, name))
 }
 /** 今のタブを写してページに足す（名前付きの保存の代わり）。写したあとは新しいページを開く */
 export async function copyTab(): Promise<void> {
+  if (openablePages().length >= PAGES_MAX) return refused('limit')
   const name = await promptDialog(t('lay.saveTitle'), '')
   if (!name) return backToMenu()
   added(copyToPage(name))

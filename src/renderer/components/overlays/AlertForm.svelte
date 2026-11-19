@@ -2,7 +2,7 @@
 // アラートを作る・直す（FR-AL7。design-alerts.md §6.2）。対象は銘柄かスクリーン（FR-AL2。← → で切り替え）。キーだけで入れられる:
 // 条件の行で F 指標・O ≥ と ≤・R 相対条件・← → 値・Enter 値を入力・Delete 条件を外す・Insert 条件を足す。
 // Tab で項目を移り、Ctrl+Enter で保存、Esc で取り消し（メモ欄の文字と単キーがぶつからないよう、単キーは条件の行だけ）
-import { alertConditionOk, conditionMet, distanceOf, fieldValue, heldFrom, SCREEN_ALERT_LIMIT } from '@shared/alerts'
+import { alertConditionOk, conditionMet, defaultAlertCondition, distanceOf, fieldValue, heldFrom, SCREEN_ALERT_LIMIT } from '@shared/alerts'
 import { editText, parseConditionValue, refOffsetText, valueUnit } from '@shared/conditionInput'
 import { FIELD_BY_ID, FIELDS, type FieldDef, perShare, refFields, usable } from '@shared/fields'
 import type { AlertView, Condition, InstrumentId } from '@shared/types'
@@ -59,18 +59,9 @@ function stepOf(c: Condition): number {
 const fieldNow = (field: string) => (m ? fieldValue(field, m, held, id) : null)
 const round = (v: number, st: number) => Math.round(Math.round(v / st) * st * 1e6) / 1e6
 
-/** 指標を選んだときの既定の条件（終値なら今の 5% 下、ほかは今の値か登録表の既定） */
-function defaultCond(field: string): Condition {
-  const f = FIELD_BY_ID.get(field)
-  const now = fieldNow(field)
-  const base: Condition = { field, op: '<=', value: 0 }
-  if (f && perShare(f) && now != null) {
-    const v = now * 0.95
-    return { ...base, value: round(v, stepOf({ ...base, value: v })) }
-  }
-  if (now != null) return { ...base, op: '>=', value: round(now, f?.type === 'percent' ? 0.1 : (f?.step ?? 1)) }
-  return { ...base, value: typeof f?.default === 'number' ? f.default : 0 }
-}
+/** 指標を選んだときの既定の条件（終値なら今の 5% 下、ほかは今の値か登録表の既定。src/shared/alerts.ts） */
+const defaultCond = (field: string): Condition =>
+  defaultAlertCondition(field, fieldNow(field), (v) => stepOf({ field, op: '<=', value: v }))
 
 // svelte-ignore state_referenced_locally
 let conds = $state<Condition[]>(edit ? structuredClone($state.snapshot(edit.adjusted ?? edit.conditions)) : [defaultCond('price.close')])

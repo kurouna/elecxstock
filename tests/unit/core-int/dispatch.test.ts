@@ -1,4 +1,5 @@
 // renderer からの要求の処理（§8.1, FR-W, NFR-A1）: 窓ごとの制限・zod の検証・利用者のデータの変更の通知。worker と同じ dispatch を通す
+import { CHANGES, FREE_WRITES } from '@core/changes'
 import { dispatch } from '@core/dispatch'
 import { PARAMS } from '@shared/api'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -43,6 +44,32 @@ describe('フリー N は読むだけ（FR-W）', () => {
     ] as const)
       expect((await call('free2', m, p)).reply, m).toMatchObject({ error: { code: 'invalid-params', message: 'main window only' } })
     expect((await call('main', 'alerts.remove', { id })).reply).toHaveProperty('result')
+  })
+  it('利用者のデータを書くメソッドは、許可したもの（FREE_WRITES）のほかは 1 枚目だけ。全データの削除・銘柄一覧の取り込みも', async () => {
+    // 引数は検証で落ちる形（{}）で送る: 窓の制限が先に効くなら「main window only」、効かなければ zod のエラーになる（Core は呼ばれない）
+    for (const m of Object.keys(CHANGES).filter((x) => !FREE_WRITES.has(x)))
+      expect((await call('free2', m, { __: 1 })).reply, m).toMatchObject({ error: { code: 'invalid-params', message: 'main window only' } })
+    for (const m of ['user.saveLayout', 'user.saveLayouts', 'alerts.markRead', 'jobs.reset', 'data.importJpx'])
+      expect((await call('free3', m, { __: 1 })).reply, m).toMatchObject({ error: { code: 'invalid-params', message: 'main window only' } })
+    // 1 枚目は同じ要求を検証まで通す
+    expect((await call('main', 'user.saveWatchlists', { __: 1 })).reply).toMatchObject({ error: { code: 'invalid-params' } })
+    expect((await call('main', 'user.saveWatchlists', { __: 1 })).reply).not.toMatchObject({ error: { message: 'main window only' } })
+  })
+  it('フリー N が使う書き込み（★・◆・移動平均の期間などの設定・一覧に無い銘柄へのジャンプ・描画）は通る', async () => {
+    const u = await core.call('user.load', {})
+    expect((await call('free2', 'user.saveSettings', { settings: u.settings })).reply).toHaveProperty('result')
+    expect((await call('free2', 'watchlists.toggleItem', { list: 'favorites', id: 'JP:8306' })).reply).toHaveProperty('result')
+    expect((await call('free2', 'watchlists.toggleItem', { list: 'favorites', id: 'JP:8306' })).reply).toHaveProperty('result')
+    expect((await call('free2', 'instruments.addUser', { code: '7203' })).reply).toHaveProperty('result')
+    // 読むメソッドは窓を問わない
+    for (const [m, p] of [
+      ['user.load', {}],
+      ['metrics.get', { ids: ['JP:7203'] }],
+      ['bars.get', { id: 'JP:7203', tf: 'D' }],
+      ['portfolio.list', {}],
+      ['jobs.list', {}],
+    ] as const)
+      expect((await call('free4', m, p)).reply, m).toHaveProperty('result')
   })
   it('窓の配置は自分の分だけ書ける。配置の無い要求は検証で弾く', async () => {
     const entry = { root: { kind: 'pane', id: 'p1', widget: 'chart', state: {} } }

@@ -4,10 +4,10 @@
 import { CODE_RE } from '@shared/code'
 import type { Instrument } from '@shared/types'
 import { onMount } from 'svelte'
-import { ACTIONS, type Action, focusedWatchlist, holdingsTabLocked, keyOf, sendSymbol } from '../../lib/commands'
+import { type Action, focusedWatchlist, holdingsTabLocked, keyOf, paletteActions, sendSymbol } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
 import { pageCommands } from '../../lib/pages'
-import { openScreenAnywhere } from '../../lib/screens'
+import { openScreenAnywhere, paletteScreens } from '../../lib/screens'
 import { addToList, app, bridge, isFav, listName, rpc, screenName, t, toast, toggleFav } from '../../stores/app.svelte'
 
 /** title があるときは銘柄だけを選ぶ（chart-grid のタイルの差し替えなど） */
@@ -34,15 +34,18 @@ $effect(() => {
     syms = []
     return
   }
-  bridge.call('instruments.search', { q: s, limit: 10 }).then((r) => {
-    if (my === token) syms = r
-  })
+  bridge
+    .call('instruments.search', { q: s, limit: 10 })
+    .then((r) => {
+      if (my === token) syms = r
+    })
+    .catch(() => {})
 })
 const tracked = (i: Instrument) => i.userAdded || i.market === 'P' || i.market === 'R' || i.market === 'I'
 const items = $derived.by((): Item[] => {
-  // マイレイアウトのページを開く項目は ACTIONS に入れず、ここで足す（FR-L14。フリー N では出ない）
+  // マイレイアウトのページを開く項目は ACTIONS に入れず、ここで足す（FR-L14。フリー N では出ない）。フリー N で使えないアクション・スクリーンは出さない（FR-L7）
   const pages: Action[] = pageCommands().map((c) => ({ id: c.id, label: () => c.label, run: c.run }))
-  const acts = (title ? [] : [...ACTIONS, ...pages])
+  const acts = (title ? [] : [...paletteActions(), ...pages])
     .filter((a) => !qq || a.label().toLowerCase().includes(qq) || a.id.toLowerCase().includes(qq))
     .map((a) => ({
       kind: 'act' as const,
@@ -51,7 +54,7 @@ const items = $derived.by((): Item[] => {
   const scrs =
     actOnly || title
       ? []
-      : app.screens
+      : paletteScreens()
           .filter((s) => !qq || screenName(s).toLowerCase().includes(qq))
           .slice(0, 6)
           .map((s) => ({ kind: 'scr' as const, id: s.id, name: screenName(s) }))

@@ -17,6 +17,12 @@ export function tileIndexAt(px: number, rectW: number, n: number): number {
   return Math.max(0, Math.min(n - 1, Math.floor((px / Math.max(1, rectW - TILE_PAD_R)) * n)))
 }
 
+/**
+ * タイルの見た目のきっかけ（FR-V8・FR-C9）: タイルは色を CSS の変数から描くときに読むので、テーマ・陽線/陰線の色を替えたら
+ * 描き直す（取り直しはしない）。チャートグリッドとマーケットの小さなチャートが共有する
+ */
+export const tileLookKey = (s: { theme: string; candleStyle: string }): string => `${s.theme}|${s.candleStyle}`
+
 /** getComputedStyle の幅・高さ（"123.5px"）を数にする。読めなければ代わりの値（clientWidth など） */
 export function cssPx(v: string, fallback: number): number {
   const n = Number.parseFloat(v)

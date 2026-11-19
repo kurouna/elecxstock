@@ -11,6 +11,9 @@ export const feedOf = (id: string): NewsFeed | undefined => registry.get(id)
 let seq = 0
 /** 一覧と登録表を読み直す（続けて届いた知らせでは、最後の応答だけを使う） */
 export async function loadNews(): Promise<void> {
+  // 表示言語は先に伝える（ペインを開いていないときに言語を変えても、設定の「ニュース」が新しい言語のオンのフィード・通信先を読む）。
+  // 同じ値なら送らない。同じポートで送るので、Core は読む前に言語を受け取る
+  sendWatch()
   const n = ++seq
   const [list, view] = await Promise.all([bridge.call('news.list', {}), bridge.call('news.settings.get', {})])
   if (n !== seq) return

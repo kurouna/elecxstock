@@ -4,6 +4,7 @@ import { app, ask3, promptDialog, saveScreens, screenName, t, toast } from '../s
 import { allEntries, allPanes, type PaneNode, patchState, setPreset } from '../stores/layout.svelte'
 import { revealPane } from './commands'
 import { withoutLeadingOr } from './conditionEdit'
+import { IS_FREE } from './windowSlot'
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
 
@@ -66,7 +67,7 @@ export async function saveScreenAs(pane: PaneNode): Promise<void> {
   if (!name) return
   const now = Date.now()
   const s: SavedScreen = {
-    id: `s${now.toString(36)}`,
+    id: newScreenId(now),
     name: { ja: name, en: name },
     conditions: clone(condsOf(pane)),
     created: now,
@@ -115,9 +116,11 @@ export function removeScreen(id: string): void {
   app.screens = app.screens.filter((s) => s.id !== id)
   saveScreens()
   const next = app.screens[0]
+  let reopened = app.liveScreenId === id
   for (const entry of allEntries())
     for (const p of allPanes(entry))
-      if (p.widget === 'screener' && p.state.screenId === id)
+      if (p.widget === 'screener' && p.state.screenId === id) {
+        reopened = true
         patchState(p, {
           screenId: next?.id,
           conds: clone(next?.conditions ?? []),
@@ -125,6 +128,23 @@ export function removeScreen(id: string): void {
           cols: next?.columns ? [...next.columns] : undefined,
           limit: next?.limit,
         })
+      }
+  // グリッドの「スクリーナーの結果（表示中）」も、ペインが開き直したスクリーンに合わせる（消したスクリーンの条件を残さない。FR-G1）
+  if (reopened) {
+    app.liveConds = clone(next?.conditions ?? [])
+    app.liveScreenId = next?.id ?? null
+  }
+}
+/** 新しいスクリーンの ID（作った時刻から。同じミリ秒に続けて作っても、ほかのスクリーンと重ならないようにずらす） */
+export function newScreenId(now = Date.now()): string {
+  const have = new Set(app.screens.map((s) => s.id))
+  let n = now
+  while (have.has(`s${n.toString(36)}`)) n++
+  return `s${n.toString(36)}`
+}
+/** コマンドバーに出すスクリーニング条件（フリー N はスクリーナーを置かないので出さない。FR-L7） */
+export function paletteScreens(): SavedScreen[] {
+  return IS_FREE ? [] : app.screens
 }
 /** グリッドの「スクリーナーの結果（表示中）」の条件。スクリーナーで条件をすべて消したら空（全銘柄）、まだ触っていなければ最初のスクリーン */
 export function liveConditions(): Condition[] {
@@ -140,6 +160,7 @@ export async function confirmCloseScreen(pane: PaneNode | null | undefined): Pro
 }
 /** スクリーン一覧・コマンドバーから開く。スクリーナーのペインが無ければスクリーナーのレイアウトに切り替える */
 export function openScreenAnywhere(id: string): void {
+  if (IS_FREE) return // フリー N にはスクリーナーのタブが無い（1 枚目のレイアウトに切り替えない。FR-L7）
   let p = allPanes().find((x) => x.widget === 'screener')
   if (!p) {
     setPreset('screener')

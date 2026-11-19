@@ -42,11 +42,14 @@ $effect(() => {
     cand = []
     return
   }
-  bridge.call('instruments.search', { q, limit: 6 }).then((r) => {
-    if (my !== token) return
-    cand = r.filter((i) => i.code.startsWith(q))
-    sel = 0
-  })
+  bridge
+    .call('instruments.search', { q, limit: 6 })
+    .then((r) => {
+      if (my !== token) return
+      cand = r.filter((i) => i.code.startsWith(q))
+      sel = 0
+    })
+    .catch(() => {})
 })
 function onKey(e: KeyboardEvent) {
   if (e.isComposing) return

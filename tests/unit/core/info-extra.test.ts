@@ -74,6 +74,16 @@ describe('配当込みの騰落率と最大下落率（1 回の走査）', () =>
     expect(short.mdd!.years).toBe(2)
     expect(computeInfoExtra('JP:9999', [], []).day).toBeNull()
   })
+  it('0 以下の配当（壊れた記録）は配当込みの値と利回りに入れない。同じ日の配当は並びによらず同じ値', () => {
+    const bad = [...divs, { date: bs[300]!.d, amount: -50 }, { date: bs[900]!.d, amount: 0 }]
+    const y = computeInfoExtra('JP:9999', bs, bad)
+    for (const k of ['y1', 'y3', 'y5'] as const) expect(y.tr[k]).toBeCloseTo(x.tr[k]!, 9)
+    expect(y.mdd?.pct).toBeCloseTo(x.mdd!.pct, 9)
+    expect(y.yieldRange).toEqual(x.yieldRange)
+    // 同じ日に 2 件（記念配当など）: 渡す順を変えても同じ
+    const two = [...divs, { date: divs[3]!.date, amount: 5 }]
+    expect(computeInfoExtra('JP:9999', bs, [...two].reverse())).toEqual(computeInfoExtra('JP:9999', bs, two))
+  })
   it('速さ: 1,250 本の 1 回の計算は 2ms 以内', () => {
     const t0 = performance.now()
     for (let i = 0; i < 100; i++) computeInfoExtra('JP:9999', bs, divs)

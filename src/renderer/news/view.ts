@@ -123,7 +123,7 @@ export function tagsOf(it: NewsItem, f: NewsFeed | undefined, lang: NewsLang, la
   return out
 }
 /** 開く先のホスト（詳細の行・プレビュー） */
-export const hostOf = (u?: string) => (u ? new URL(u).hostname : '')
+export const hostOf = (u?: string) => (u && URL.canParse(u) ? new URL(u).hostname : '')
 /** フィードの失敗の理由（http-503 → HTTP 503） */
 export const errText = (e: string | undefined, t: Tr) => (e ? (e.startsWith('http-') ? `HTTP ${e.slice(5)}` : t(`news.err.${e}`)) : '')
 /** PgUp・PgDn で動かす行の数（見えている行の数 − 1） */

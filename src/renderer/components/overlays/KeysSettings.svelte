@@ -4,6 +4,7 @@
 import { onMount } from 'svelte'
 import { ACTIONS, conflicts, keyCapture, keyOf } from '../../lib/commands'
 import { assignable, eventKey, normalizeKey, reservedKey } from '../../lib/keys'
+import { clampSel } from '../../lib/selection'
 import { app, confirmDialog, saveSettings, t, toast } from '../../stores/app.svelte'
 
 let sel = $state(0)
@@ -13,6 +14,10 @@ let box = $state<HTMLDivElement>()
 const rows = $derived(
   ACTIONS.filter((a) => !q || a.label().toLowerCase().includes(q.toLowerCase()) || keyOf(a).toLowerCase().includes(q.toLowerCase())),
 )
+// 絞り込みで行が減ったら、選んでいる行を最後に寄せる（範囲の外を選んだままにしない）
+$effect(() => {
+  if (sel >= rows.length) sel = clampSel(sel, rows.length)
+})
 const custom = (id: string) => app.settings.keymap[id] != null
 function setKey(id: string, key: string | null) {
   const km = { ...app.settings.keymap }
@@ -65,7 +70,7 @@ function key(e: KeyboardEvent) {
     return
   }
   const a = rows[sel]
-  if (e.key === 'ArrowDown') sel = Math.min(rows.length - 1, sel + 1)
+  if (e.key === 'ArrowDown') sel = clampSel(sel + 1, rows.length)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
   else if (e.key === 'Enter' && a) recording = true
   else if (e.key === 'Delete' && a) setKey(a.id, '')

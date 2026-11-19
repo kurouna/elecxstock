@@ -6,7 +6,7 @@ import { ACCOUNT_TYPES } from '@shared/api'
 import type { AccountType, Holding } from '@shared/types'
 import { onMount } from 'svelte'
 import { importedAtText } from '../../lib/folio'
-import { cls, fmt, ownMoney, px, sgn } from '../../lib/format'
+import { cls, fmt, ownMoney, ownSignedMoney, px, sgn } from '../../lib/format'
 import { registerPane } from '../../lib/panes'
 import {
   accountName,
@@ -19,9 +19,9 @@ import {
   valuation,
 } from '../../lib/portfolio'
 import { secret } from '../../lib/privacy.svelte'
-import { SelectionFollow } from '../../lib/selection'
+import { moveSel, SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
-import { app, choiceDialog, codeOf, ensureMetrics, nameOf, t } from '../../stores/app.svelte'
+import { app, choiceDialog, codeOf, ensureMetrics, nameOf, t, toast } from '../../stores/app.svelte'
 import { type PaneNode, setLinkSymbol } from '../../stores/layout.svelte'
 import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
@@ -103,14 +103,9 @@ onMount(() =>
     key(e) {
       const k = e.key
       if (e.ctrlKey || e.altKey || e.metaKey) return false
-      if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Home' || k === 'End' || k === 'PageDown' || k === 'PageUp') {
-        const step = k === 'PageDown' || k === 'PageUp' ? 10 : 1
-        sel =
-          k === 'Home'
-            ? 0
-            : k === 'End'
-              ? items.length - 1
-              : Math.max(0, Math.min(items.length - 1, sel + (k === 'ArrowDown' || k === 'PageDown' ? step : -step)))
+      const to = moveSel(k, sel, items.length)
+      if (to != null) {
+        sel = to
         send()
         scrollSel()
         return true
@@ -142,7 +137,7 @@ onMount(() =>
   <button type="button" class="ibtn" aria-label={t('hold.addLabel')} title={`${t('hold.addTitle')} (Insert) · ${t('hold.editKeys')}`} onclick={() => editHolding()}><Icon name="plus" /></button>
   <button type="button" class="ibtn" aria-label={t('hold.importLabel')} title={t('hold.importTip')} onclick={importAny}><Icon name="import" /></button>
   <button type="button" class="ibtn" aria-label={t('hold.exportLabel')} title={t('hold.exportTip')} onclick={exportHoldings}><Icon name="export" /></button>
-  <button type="button" class="ibtn" aria-label={t('common.about')} title={t('hold.note')}><Icon name="info" /></button>
+  <button type="button" class="ibtn" aria-label={t('common.about')} title={t('hold.note')} onclick={() => toast(t('hold.note'), undefined, 8000)}><Icon name="info" /></button>
 </PaneHeader>
 {#if items.length}
   <div class="summary">
@@ -153,12 +148,12 @@ onMount(() =>
     </div>
     <div class="stat">
       <div class="k">{t('hold.pnl')}</div>
-      <div class={`v num ${cls(total.pnl)}`}>{total.pnl >= 0 ? '+' : '−'}{ownMoney(Math.abs(total.pnl)).n}<small>{ownMoney(total.pnl).u}</small></div>
+      <div class={`v num ${cls(total.pnl)}`}>{ownSignedMoney(total.pnl).n}<small>{ownSignedMoney(total.pnl).u}</small></div>
       <div class={`s num ${cls(total.pnl)}`}>{sgn(pct(total.pnl, total.cost), 2, '%')}</div>
     </div>
     <div class="stat">
       <div class="k">{t('hold.dayPnl')}</div>
-      <div class={`v num ${cls(total.dayPnl)}`}>{total.dayPnl >= 0 ? '+' : '−'}{ownMoney(Math.abs(total.dayPnl)).n}<small>{ownMoney(total.dayPnl).u}</small></div>
+      <div class={`v num ${cls(total.dayPnl)}`}>{ownSignedMoney(total.dayPnl).n}<small>{ownSignedMoney(total.dayPnl).u}</small></div>
       <div class={`s num ${cls(total.dayPnl)}`}>{sgn(pct(total.dayPnl, total.value - total.dayPnl), 2, '%')}</div>
     </div>
     <div class="stat">

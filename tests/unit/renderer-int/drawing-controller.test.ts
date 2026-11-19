@@ -32,7 +32,7 @@ const bars = {
 }
 
 type Listener = (e: unknown) => void
-function makeWorld(id: string) {
+function makeWorld(id: string, o: { log?: boolean } = {}) {
   let range = { from: 0, to: 79 }
   const opts: Record<string, unknown> = {}
   const shown: (number | null)[] = []
@@ -59,8 +59,9 @@ function makeWorld(id: string) {
       prim = p
       p.attached({ chart, series, requestUpdate: () => {} })
     },
-    priceToCoordinate: (p: number) => (2000 - p) / 5,
-    coordinateToPrice: (y: number) => 2000 - y * 5,
+    // 対数目盛り: 500〜2000 円を 400〜0 px に（価格の比が同じなら px の差が同じ）
+    priceToCoordinate: (p: number) => (o.log ? 400 - (Math.log(p / 500) / Math.log(4)) * 400 : (2000 - p) / 5),
+    coordinateToPrice: (y: number) => (o.log ? 500 * 4 ** ((400 - y) / 400) : 2000 - y * 5),
   }
   const host = {
     dataset: {} as Record<string, string>,
@@ -77,7 +78,7 @@ function makeWorld(id: string) {
     tf: () => 'D',
     adj: () => 'split',
     ctype: () => 'candle',
-    log: () => false,
+    log: () => !!o.log,
     compare: () => false,
     bars: () => bars as never,
     chart: () => chart as never,
@@ -254,5 +255,66 @@ describe('レビュー（端点の付け替え・選ぶ順・FR-C14）', () => {
       seen.push((w.ctl.mode as { id: string }).id)
     }
     expect(seen.sort()).toEqual(['A', 'B', 'C'])
+  })
+})
+
+describe('十字線とドラッグの後始末（レビューの指摘。FR-C14・C15）', () => {
+  it('動かす対象を選んで十字線を出したまま Delete で消すと、十字線・凡例を戻す', async () => {
+    await w.drawOne()
+    w.key('Space') // 全体（始点に十字線）
+    expect(w.shown.at(-1)).not.toBeNull()
+    w.key('Delete')
+    expect(w.ctl.mode.m).toBe('idle')
+    expect(w.shown.at(-1)).toBeNull()
+  })
+  it('動かす対象を選んだままフォーカスが外れると、十字線・凡例を戻す', async () => {
+    await w.drawOne()
+    w.key('Space')
+    w.ctl.blur()
+    expect(w.ctl.mode.m).toBe('idle')
+    expect(w.shown.at(-1)).toBeNull()
+  })
+  it('線をドラッグしている間に Alt+T で引き始めると、ドラッグを終えてスクロールを戻す（離すまで線を動かさない）', async () => {
+    await w.drawOne()
+    const m = w.mid()
+    w.ptr('pointerdown', m.x, m.y)
+    expect(w.opts.handleScroll).toBe(false)
+    w.key('KeyT', { alt: true })
+    expect(w.ctl.mode.m).toBe('start')
+    expect(w.opts.handleScroll).toBe(true)
+    expect(w.captured.size).toBe(0)
+    const before = JSON.stringify(drawingsOf(w.id))
+    w.ptr('pointermove', m.x + 80, m.y + 40)
+    expect(JSON.stringify(drawingsOf(w.id))).toBe(before)
+  })
+  it('線をドラッグしている間に G で別の線を選ぶと、ドラッグを終える（選んだ線と違う線を動かし続けない）', async () => {
+    await w.drawOne()
+    const first = drawingsOf(w.id)[0]!
+    await drawingEdits.create(`p1|${w.id}`, w.id, { ...first, id: 'other', a: { ...first.a, raw: 900 }, b: { ...first.b, raw: 920 } })
+    w.ctl.refresh()
+    const m = w.mid()
+    w.ptr('pointerdown', m.x, m.y)
+    expect((w.ctl.mode as { id: string }).id).toBe(first.id)
+    w.key('KeyG')
+    expect((w.ctl.mode as { id: string }).id).not.toBe(first.id)
+    expect(w.opts.handleScroll).toBe(true)
+    const before = JSON.stringify(drawingsOf(w.id))
+    w.ptr('pointermove', m.x + 80, m.y + 40)
+    expect(JSON.stringify(drawingsOf(w.id))).toBe(before)
+  })
+})
+
+describe('対数目盛りでのキーの移動（レビューの指摘。FR-C14）', () => {
+  it('全体を ↑ ↓ で動かしても、線の傾き（画面の上の 2 点の高さの差）は変わらない', async () => {
+    const lw = makeWorld(`JP:${1301 + n++}`, { log: true })
+    await lw.drawOne()
+    lw.key('Space') // 全体
+    const d0 = drawingsOf(lw.id)[0]!
+    const y = (p: number) => 400 - (Math.log(p / 500) / Math.log(4)) * 400
+    const gap0 = y(d0.b.raw) - y(d0.a.raw)
+    lw.ctl.key({ code: 'ArrowUp', key: 'ArrowUp', shiftKey: true, ctrlKey: false, altKey: false, metaKey: false } as KeyboardEvent)
+    const d1 = drawingsOf(lw.id)[0]!
+    expect(d1.a.raw).toBeGreaterThan(d0.a.raw)
+    expect(y(d1.b.raw) - y(d1.a.raw)).toBeCloseTo(gap0, 6)
   })
 })

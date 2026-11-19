@@ -125,6 +125,7 @@ describe('FR-NW1 状態の文字・印・失敗の理由', () => {
   it('ホスト・失敗の理由・ページ送りの行数', () => {
     expect(hostOf('https://news.example/a?b')).toBe('news.example')
     expect(hostOf(undefined)).toBe('')
+    expect(hostOf('not a url')).toBe('') // 読めない URL（壊れたキャッシュなど）で描画を落とさない
     expect(errText('http-503', t)).toBe('HTTP 503')
     expect(errText('timeout', t)).toBe('news.err.timeout')
     expect(errText(undefined, t)).toBe('')

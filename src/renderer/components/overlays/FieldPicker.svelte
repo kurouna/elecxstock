@@ -6,6 +6,7 @@
 import { DEFAULT_RECENT_FIELDS, FIELD_BY_ID, FIELD_GROUPS, type FieldDef, MISSING_FIELDS, NEW_FIELD_IDS } from '@shared/fields'
 import { onMount, tick } from 'svelte'
 import { SvelteSet } from 'svelte/reactivity'
+import { highlightHtml } from '../../lib/highlight'
 import { rootZoom, tipBeside } from '../../lib/pointer'
 import { app, closeOverlay, t } from '../../stores/app.svelte'
 import Icon from '../Icon.svelte'
@@ -87,12 +88,8 @@ function unitOf(f: FieldDef): string {
   return ''
 }
 const isNew = (id: string) => NEW_FIELD_IDS.has(id) && !usedSet.has(id) && !app.settings.recentFields.includes(id)
-function hl(s: string): string {
-  const e = s.replaceAll('&', '&amp;').replaceAll('<', '&lt;')
-  if (!q) return e
-  const i = norm(e).indexOf(norm(q))
-  return i < 0 ? e : `${e.slice(0, i)}<mark>${e.slice(i, i + q.length)}</mark>${e.slice(i + q.length)}`
-}
+/** 名前の当たった所を <mark> で囲む（lib/highlight.ts。エスケープは切ったあと・元の文字の位置で切る） */
+const hl = (s: string): string => highlightHtml(s, q)
 
 function pick(id: string, keep: boolean) {
   if (!id) return

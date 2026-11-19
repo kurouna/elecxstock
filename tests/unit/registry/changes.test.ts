@@ -1,6 +1,6 @@
 // 利用者のデータを書くメソッドの登録表（CHANGES・SCREEN_REBASE）の網羅（FR-W・FR-AL2。docs/testing.md の L2）。
 // API にメソッドを足すと、ここで「ほかの窓に知らせるか」「スクリーンのアラートの基準を取り直すか」の分類を求められる
-import { CHANGES } from '@core/changes'
+import { CHANGES, FREE_WRITES, MAIN_ONLY } from '@core/changes'
 import { SCREEN_REBASE } from '@core/service'
 import { PARAMS } from '@shared/api'
 import { describe, expect, it } from 'vitest'
@@ -58,5 +58,23 @@ describe('利用者のデータを書くメソッドの分類（FR-W, FR-AL2）'
     expect(CHANGES['instruments.removeUser']).toBe('settings')
     expect(CHANGES['jobs.applyRetention']).toBe('settings')
     expect(CHANGES['user.saveScreens']).toBe('screens')
+  })
+})
+
+describe('フリー N から書けるメソッド（FR-W。docs/design-multimonitor.md §3.3）', () => {
+  it('許可リストは、知らせる書き込み（CHANGES）の中だけ。1 枚目だけのメソッドと重ならず、API に実在する', () => {
+    for (const m of FREE_WRITES) expect(m in CHANGES, m).toBe(true)
+    for (const m of MAIN_ONLY) {
+      expect(m in PARAMS, m).toBe(true)
+      expect(FREE_WRITES.has(m), m).toBe(false)
+    }
+  })
+  it('知らせない書き込みは、フリー N 自身の配置のほかは 1 枚目だけ', () => {
+    for (const m of Object.keys(NO_NOTICE)) if (m !== 'user.saveWindowLayout') expect(MAIN_ONLY.has(m), m).toBe(true)
+  })
+  it('保有・スクリーン・ウォッチリストの丸ごとの保存・取り込みは、フリー N から書けない', () => {
+    for (const [m, kind] of Object.entries(CHANGES))
+      if (kind === 'holdings' || kind === 'screens' || kind === 'all' || kind === 'folio') expect(FREE_WRITES.has(m), m).toBe(false)
+    expect(FREE_WRITES.has('user.saveWatchlists')).toBe(false)
   })
 })

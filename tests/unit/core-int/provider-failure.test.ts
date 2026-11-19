@@ -140,6 +140,8 @@ describe('プロバイダが取れないとき（NFR-R3）', () => {
       message?: string
     }
     expect(st.message).toContain('503')
+    // 一覧の読み直し（jobs.list）でも止まっていることがわかる（知らせだけでなく DB にも残す）
+    expect((await call('jobs.list', {})).find((j) => j.id === jobId)?.status).toBe('provider-paused')
     // 止まっている間の閲覧・スクリーニング
     const during = await browse()
     expect(during.bars.close).toEqual(before.bars.close)
@@ -173,12 +175,14 @@ describe('プロバイダが取れないとき（NFR-R3）', () => {
     }
     expect(offline()).toHaveLength(1)
     expect(offline()[0]).toContain('ENOTFOUND')
+    expect((await call('jobs.list', {})).find((j) => j.id === id)?.status).toBe('waiting-offline')
     mode = 'ok'
     for (let i = 0; i < 20 && !logs.includes('online again'); i++) {
       await vi.advanceTimersByTimeAsync(30_000)
       await new Promise((r) => setImmediate(r))
     }
     expect(logs.filter((l) => l === 'online again')).toHaveLength(1)
+    expect((await call('jobs.list', {})).find((j) => j.id === id)?.status).not.toBe('waiting-offline')
     await call('jobs.cancel', { id })
     vi.useRealTimers()
     await idle()

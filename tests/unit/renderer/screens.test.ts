@@ -1,6 +1,6 @@
 // スクリーンの一覧とグリッドの「今のスクリーン」（FR-SC4, SC6, SC13, FR-G1）
 import type { SavedScreen } from '@shared/types'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { stubWindow } from '../../support/window'
 
 stubWindow()
@@ -59,5 +59,40 @@ describe('既定のスクリーンを戻す（FR-SC15）', () => {
   })
   it('既定がまだ届いていなければ空', () => {
     expect(S.missingDefaults([], [])).toEqual([])
+  })
+})
+
+describe('スクリーンを消したあとのグリッドの条件（FR-SC4, FR-G1）', () => {
+  it('スクリーナーで開いていたスクリーンを消したら、グリッドの「今のスクリーン」も残った最初のスクリーンに替わる', () => {
+    app.screens = [scr('a', 3), scr('b', 4)]
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('screener')
+    const p = screenerPane()
+    L.patchState(p, { screenId: 'a', conds: [{ field: 'income.yield', op: '>=', value: 3 }] })
+    app.liveConds = [{ field: 'income.yield', op: '>=', value: 3 }]
+    S.removeScreen('a')
+    expect(S.liveConditions()).toEqual([{ field: 'income.yield', op: '>=', value: 4 }])
+  })
+  it('開いていないスクリーンを消しても、グリッドの条件は変えない', () => {
+    app.screens = [scr('a', 3), scr('b', 4)]
+    L.layout.doc = L.defaultDoc()
+    L.setPreset('screener')
+    L.patchState(screenerPane(), { screenId: 'a', conds: [{ field: 'income.yield', op: '>=', value: 3.5 }] })
+    app.liveConds = [{ field: 'income.yield', op: '>=', value: 3.5 }]
+    app.liveScreenId = 'a'
+    S.removeScreen('b')
+    expect(S.liveConditions()).toEqual([{ field: 'income.yield', op: '>=', value: 3.5 }])
+  })
+})
+
+describe('スクリーンの ID（FR-SC4, SC12）', () => {
+  it('同じミリ秒に続けて作っても重ならない', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
+    app.screens = []
+    const a = S.newScreenId()
+    app.screens = [{ ...scr('x', 1), id: a }]
+    const b = S.newScreenId()
+    now.mockRestore()
+    expect(a).not.toBe(b)
   })
 })

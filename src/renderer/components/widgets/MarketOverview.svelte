@@ -6,6 +6,7 @@ import { priceDigits } from '@shared/markets'
 import type { Bars, InstrumentId, Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
 import { cls, px, sgn } from '../../lib/format'
+import { appendLimited } from '../../lib/gridNav'
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { marketBars, periodOfKey } from '../../lib/periods'
@@ -13,10 +14,12 @@ import { app, bridge, codeOf, nameOf, t, toast } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
 import PeriodPicker from '../PeriodPicker.svelte'
-import { drawTile } from './gridDraw'
+import { drawTile, tileLookKey } from './gridDraw'
 
 let { pane }: { pane: PaneNode } = $props()
 const DEFAULT = ['IDX:N225', 'JP:1306', 'IDX:DJI', 'IDX:USDJPY']
+/** 小さなチャートの上限 */
+const MAX = 12
 const ids = $derived((pane.state.ids as InstrumentId[] | undefined) ?? DEFAULT)
 const tf = $derived(((pane.state.tf as Timeframe) ?? 'D') as Timeframe)
 /** 表示期間（PERIODS の位置）。無ければ時間軸ごとの既定の本数 */
@@ -52,8 +55,14 @@ $effect(() => {
   void tf
   void period
   void app.dataVersion
-  void app.settings.theme
   void load()
+})
+// テーマ・陽線/陰線の色を替えたら描き直す（取り直さない。タイルは描くときに CSS の変数を読む）
+let raf = 0
+$effect(() => {
+  void tileLookKey(app.settings)
+  cancelAnimationFrame(raf)
+  raf = requestAnimationFrame(draw)
 })
 const ret = (id: InstrumentId) => {
   const b = bars[id]
@@ -68,8 +77,11 @@ onMount(() => {
   const off = registerPane(pane.id, {
     current: () => ids[sel],
     receive: (id) => {
-      if (!ids.includes(id)) patchState(pane, { ids: [...ids, id].slice(0, 12) })
-      toast(t('grid.added', { name: nameOf(id) }))
+      const r = appendLimited(ids, id, MAX)
+      if (r.result === 'added') {
+        patchState(pane, { ids: r.ids })
+        toast(t('grid.added', { name: nameOf(id) }))
+      } else if (r.result === 'full') toast(t('mkt.full', { n: MAX }))
       return true
     },
     key(e) {
@@ -108,6 +120,7 @@ onMount(() => {
   })
   return () => {
     ro.disconnect()
+    cancelAnimationFrame(raf)
     off()
   }
 })

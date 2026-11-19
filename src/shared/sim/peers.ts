@@ -89,10 +89,11 @@ export interface Luck {
  * 1,000 回の中で、選んだ群のトータルリターンが下から何 % にいるか。順位であって検定ではない。比べられる銘柄が無ければ null
  */
 export function luckOf(groups: { mine: number; peers: number[]; w?: number }[], seed: string): Luck | null {
-  const gs = groups.filter((g) => g.peers.length > 0)
+  // 重みが 0 以下の銘柄（利回り加重で配分が 0 円）は群に入っていないので比べない
+  const gs = groups.filter((g) => g.peers.length > 0 && (g.w == null || g.w > 0))
   if (!gs.length) return null
   // 銘柄ごとの重み（配分の金額。無ければ均等）で平均する。無作為の群も同じ重み
-  const ws = gs.map((g) => (g.w != null && g.w > 0 ? g.w : 1))
+  const ws = gs.map((g) => g.w ?? 1)
   const wsum = ws.reduce((a, b) => a + b, 0)
   const mine = gs.reduce((a, g, i) => a + g.mine * ws[i]!, 0) / wsum - 1
   const next = seededRng(seed)

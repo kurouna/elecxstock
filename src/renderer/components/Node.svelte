@@ -1,5 +1,6 @@
 <script lang="ts">
 // レイアウトの木を描く（再帰）。区切り線はドラッグで動かし、ダブルクリックで両隣を等分する（FR-L1）。
+import { gutterRatio } from '../lib/pointer'
 import { t } from '../stores/app.svelte'
 import { type LNode, type SplitNode, setSizes } from '../stores/layout.svelte'
 import Node from './Node.svelte'
@@ -19,7 +20,8 @@ function drag(e: MouseEvent, split: SplitNode, i: number) {
   const total = split.sizes[i]! + split.sizes[i + 1]!
   document.body.classList.add(row ? 'resizing-x' : 'resizing-y')
   const move = (ev: MouseEvent) => {
-    const r = Math.max(0.08, Math.min(0.92, ((row ? ev.clientX : ev.clientY) - start) / span))
+    const r = gutterRatio(row ? ev.clientX : ev.clientY, start, span)
+    if (r == null) return
     const s = [...split.sizes]
     s[i] = total * r
     s[i + 1] = total * (1 - r)

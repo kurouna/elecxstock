@@ -181,13 +181,18 @@ export class DrawController {
     const was = this.mode.m
     this.mode = step(this.mode, e)
     this.note = null
-    const drawing = this.mode.m === 'start' || this.mode.m === 'end'
+    const now = this.mode.m
+    const drawing = now === 'start' || now === 'end'
     if (!drawing) {
       this.cur = null
-      if (was === 'start' || was === 'end') this.c.showBar(null)
+      // 引く途中から抜けた、または選択（動かす対象で十字線を出していることがある）から通常に戻った（Delete・フォーカスが外れた・
+      // ほかの窓で消された・描けない表示になった）: 十字線・凡例を戻す
+      if (was === 'start' || was === 'end' || (was === 'sel' && now === 'idle')) this.c.showBar(null)
     }
-    // 通常に戻った（Esc・Delete・フォーカスが外れた・銘柄が変わった）: 押したまま・ドラッグの途中なら、止めたスクロールとポインタを解く
-    if (this.mode.m === 'idle') this.endPointer()
+    // 通常に戻った（Esc・Delete・フォーカスが外れた・銘柄が変わった）か、ドラッグしている線の選択が外れた（Alt+T・G）:
+    // 押したまま・ドラッグの途中なら、止めたスクロールとポインタを解く
+    const s = this.mode
+    if (s.m === 'idle' || (this.drag && !(s.m === 'sel' && s.id === this.drag.id))) this.endPointer()
     if (this.mode.m !== 'sel') this.order = null
     this.redraw()
   }
@@ -317,6 +322,14 @@ export class DrawController {
     const bottom = s?.coordinateToPrice(h)
     const span = top != null && bottom != null ? Math.abs(top - bottom) : 0
     return (span / 100) * (big ? 10 : 1)
+  }
+  /** 価格を画面の上で 1 段（本体の段の高さの 1/100。big は 10 段）上か下へずらした価格。座標に直せなければ価格の 1 段 */
+  private shiftPrice(p: number, up: 1 | -1, big: boolean): number {
+    const s = this.c.series()
+    const h = this.c.chart()?.panes()[0]?.getHeight() ?? 0
+    const y = s?.priceToCoordinate(p)
+    const moved = y == null || !h ? null : s?.coordinateToPrice(y - up * (h / 100) * (big ? 10 : 1))
+    return moved ?? p + up * this.priceStep(big)
   }
   /** 足 i へ（吸着していれば同じ種類の点、いなければ同じ価格） */
   private moveTo(i: number, k: SnapKey | null, p: number): { i: number; p: number; k: SnapKey | null } {
@@ -519,9 +532,10 @@ export class DrawController {
         const rb = this.raw(bp, nb)
         if (ra && rb) next = { ...d, a: { date: na, raw: ra }, b: { date: nb, raw: rb } }
       } else {
-        const st = this.priceStep(e.shiftKey) * (e.key === 'ArrowUp' ? 1 : -1)
-        const ra = this.raw(ap + st, d.a.date)
-        const rb = this.raw(bp + st, d.b.date)
+        // 画面の上で同じ高さだけずらす（対数目盛りで価格に同じ額を足すと、2 点のずれる高さが違って傾きが変わる）
+        const up = e.key === 'ArrowUp' ? 1 : -1
+        const ra = this.raw(this.shiftPrice(ap, up, e.shiftKey), d.a.date)
+        const rb = this.raw(this.shiftPrice(bp, up, e.shiftKey), d.b.date)
         if (ra && rb && ra > 0 && rb > 0) next = { ...d, a: { ...d.a, raw: ra }, b: { ...d.b, raw: rb } }
       }
     } else if (s.target === 'a' || s.target === 'b') {

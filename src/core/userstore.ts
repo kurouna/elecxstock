@@ -207,7 +207,7 @@ export class UserStore {
   }
   /** opts.generation: 間引かずに必ず世代を残す（取り込み・元に戻す） */
   save<N extends Name>(n: N, value: z.infer<(typeof FILES)[N]['schema']>, opts: { generation?: boolean } = {}): void {
-    if (this.readOnly) throw Object.assign(new Error('read-only'), { code: 'read-only' })
+    this.writable()
     const parsed = FILES[n].schema.parse(value)
     const p = this.path(n)
     const body = JSON.stringify({ version: STORE_VERSION, data: parsed }, null, 1)
@@ -248,8 +248,13 @@ export class UserStore {
       return []
     }
   }
-  /** 取り込みの前の記録を残す（FR-H9: 元に戻せる） */
+  /** 読み取り専用なら書かずに断る（取り込みの記録・退避も書き換えない。FR-S12） */
+  private writable(): void {
+    if (this.readOnly) throw Object.assign(new Error('read-only'), { code: 'read-only' })
+  }
+  /** 取り込みの前の記録を残す（FR-H9: 元に戻せる）。読み取り専用なら、前の取り込みの記録を上書きせずに断る */
   keepBefore(n: Name, tag: string): void {
+    this.writable()
     const p = this.path(n)
     const q = join(this.dir, 'backups', `${n}.${tag}.json`)
     if (existsSync(p)) writeFileSync(q, readFileSync(p))
@@ -284,6 +289,7 @@ export class UserStore {
     )
   }
   importAll(json: string): { watchlists: number; screens: number } {
+    this.writable() // 前の取り込みの記録を消す前に断る
     const o = JSON.parse(json) as {
       format?: string
       watchlists?: unknown
@@ -298,6 +304,7 @@ export class UserStore {
     const wl = z.array(watchlistSchema).parse(o.watchlists ?? [])
     const sc = z.array(screenSchema).parse(o.screens ?? [])
     const ly = o.layouts ? S.layouts.parse(o.layouts) : null
+    if (o.settings && (typeof o.settings !== 'object' || Array.isArray(o.settings))) throw new Error('settings: not an object')
     const st = o.settings ? settingsSchema.parse({ ...this.load('settings'), ...(o.settings as object) }) : null
     const al = o.alerts ? z.array(alertSchema).max(500).parse(o.alerts) : null
     const dr = o.drawings ? S.drawings.parse(o.drawings) : null
@@ -327,6 +334,8 @@ function pickPages(data: readonly unknown[]): { ok: unknown[]; dropped: number }
 }
 
 function parse(schema: z.ZodType, n: Name, data: unknown): unknown {
+  // 設定は既定値と浅くマージする。オブジェクトでないもの（null・数・文字列・配列）はマージすると既定値で通ってしまうので、壊れたとみなす
+  if (n === 'settings' && (!data || typeof data !== 'object' || Array.isArray(data))) throw new Error('not an object')
   const parsed = schema.safeParse(n === 'settings' ? { ...DEFAULT_SETTINGS, ...(data as object) } : data)
   if (!parsed.success) throw new Error(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '))
   return parsed.data

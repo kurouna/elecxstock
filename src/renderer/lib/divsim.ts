@@ -1,6 +1,7 @@
 // 配当シミュレータのペイン（docs/design-simulator.md §6〜§9）の画面の側の計算: 設定の読み取りと切り替え・前提の文・表の列・図の座標。
 // 純粋な関数（テストは tests/unit/renderer/divsim.test.ts）。計算そのものは src/shared/sim/（Core の sim.run）。
 
+import { toJstDate } from '@shared/calendar'
 import { FIELD_BY_ID } from '@shared/fields'
 import type { Band } from '@shared/sim/forecast'
 import {
@@ -114,6 +115,9 @@ export const showsLoading = (x: { prev: string; next: string; hasResult: boolean
 /** 読み込み中・結果が無いときに受けないキー（画面に出ていないカード・表の行を動かさない。設定のキーは受ける） */
 const MOVE_KEYS = new Set(['Tab', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Home', 'End', 'KeyN', 'KeyS', 'Escape'])
 export const blockedWhileLoading = (code: string): boolean => MOVE_KEYS.has(code)
+/** カード・表が出ているか（読み込み中・結果が無い・過去のタブで過去が 0 件（案内だけの画面）のときは出ていない。出ていなければ MOVE_KEYS を受けない） */
+export const showsCards = (x: { loading: boolean; hasResult: boolean; tab: SimTab; hasPast: boolean }): boolean =>
+  !x.loading && x.hasResult && (x.tab !== 'past' || x.hasPast)
 /** 縦線に添える札（「元本を回収」）: 文字の幅に合わせ、右端に近ければ縦線の左に出す */
 export function pillGeom(x: number, right: number, label: string): { x: number; w: number } {
   const w = [...label].reduce((s, ch) => s + (ch.charCodeAt(0) > 0x7f ? 10 : 5.6), 0) + 8
@@ -136,6 +140,8 @@ export function parseAmount(text: string): number | null {
   const yen = Math.round(v * 10_000)
   return yen >= 10_000 && yen <= 1e10 ? yen : null
 }
+/** 基準日の日付の上限（parseFrom の today）: 結果のデータの基準の日。結果が無い（読み込み中・エラー）なら今日（日本時間） */
+export const fromLimit = (asOf: string | undefined, now: number = Date.now()): string => asOf ?? toJstDate(now)
 /** 基準日の日付の入力（YYYY-MM-DD・/ 区切り・全角）。今日より後・2000 年より前・読めなければ null */
 export function parseFrom(text: string, today: string): string | null {
   const m = text
@@ -483,9 +489,16 @@ export function indexAt(px: number, scale: { pad: { l: number }; iw: number; n: 
   const i = Math.round(((px - scale.pad.l) / scale.iw) * (scale.n - 1))
   return Math.max(0, Math.min(scale.n - 1, i))
 }
-/** 円の系列を元本に対する比（%）にする */
-export const toPct = (xs: number[] | null, principal: number): number[] | null =>
-  xs && principal > 0 ? xs.map((v) => v / principal - 1) : null
+/**
+ * 右端の目盛りの値のうち、終点の札（名前の行 ly と値の行 ly + 11。どちらも右の余白に書く）に重ならないものだけ。
+ * 目盛りの値は y + 3 を下端に約 9px、札は ly − 9 から ly + 13 まで
+ */
+export function clearTicks(ticks: number[], y: (v: number) => number, labelYs: number[]): number[] {
+  return ticks.filter((v) => {
+    const ty = y(v)
+    return labelYs.every((ly) => ty <= ly - 14 || ty >= ly + 19)
+  })
+}
 
 /** 文の形の設定の帯: 「{years}に{amount}を…」を文字と差し込む語（押せる語）に分ける */
 export function splitTemplate(text: string): (string | { k: string })[] {
@@ -607,6 +620,19 @@ export function sensitivity(
     .sort((a, b) => b.y1 - a.y1)
     .slice(0, n)
     .map((x) => ({ id: x.id, y1: x.y1, share: x.y1 / total, cut: x.y1 * (1 - Math.min(1, x.r)) }))
+}
+/**
+ * 目標の文の差し込み（m: 目標の月額・p: 達成率・need: 届くのに要る元本）。hide（保有のプライバシーモード）では達成率も隠す
+ * （図の長さと同じく、達成率と目標の額から配当の額が分かるため。FR-H12）。money は hide のとき隠す書式を渡す
+ */
+export function goalArgs(
+  g: { need: number | null; pct: number },
+  monthly: number,
+  money: (v: number) => string,
+  hide: boolean,
+  mask: string,
+): { m: string; p: string; need: string } {
+  return { m: money(monthly), p: hide ? mask : pct(g.pct, 0, false), need: g.need == null ? '—' : money(g.need) }
 }
 /** 目標の配当（月・円）: 年の目標、届くのに要る元本（今の見込みの利回りで）、今の見込みが目標の何 %。目標が 0 なら null */
 export function goalOf(monthly: number, y1: number, amount: number): { annual: number; need: number | null; pct: number } | null {

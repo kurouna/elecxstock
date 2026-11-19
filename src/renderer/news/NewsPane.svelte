@@ -208,7 +208,8 @@ function onKey(e: KeyboardEvent): boolean {
     void bridge.call('news.refresh', {})
     return true
   }
-  if (k === 'Escape' && q) {
+  // 絞り込みの欄が開いていれば、空でも閉じる（一覧にフォーカスがあるとき。欄の中の Esc は filterKey）
+  if (k === 'Escape' && (q || filterOn)) {
     endFilter()
     return true
   }
@@ -302,7 +303,7 @@ const status = $derived(statusText(list?.round, news.view?.settings.interval, t 
                 class:read={read.has(r.item.key)}
                 role="option"
                 aria-selected={r.index === sel}
-                onclick={() => { sel = r.index; setFocus(pane.id) }}
+                onclick={() => { move(r.index); setFocus(pane.id) }}
                 ondblclick={() => open(r.item)}
               >
                 <span class="t">{rowTime(r.item)}</span>

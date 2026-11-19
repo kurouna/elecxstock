@@ -1,4 +1,5 @@
 <script lang="ts">
+import { refocusPane } from '../../lib/commands'
 import { app, closeOverlay } from '../../stores/app.svelte'
 import AlertForm from './AlertForm.svelte'
 import AlertsPopup from './AlertsPopup.svelte'
@@ -13,6 +14,13 @@ import Palette from './Palette.svelte'
 import ScreensList from './ScreensList.svelte'
 import Settings from './Settings.svelte'
 
+// 閉じたら、フォーカスしていたペインへ戻す（閉じた要素に残すと Tab・枠の表示が迷子になる。FR-KB2, KB3）。続けて別のダイアログが開くときは戻さない
+let shown = false
+$effect(() => {
+  const on = !!app.overlay
+  if (shown && !on) refocusPane()
+  shown = on
+})
 function backdrop(e: MouseEvent) {
   if (e.target === e.currentTarget && app.overlay?.kind !== 'firstrun') closeOverlay()
 }
@@ -81,6 +89,8 @@ function backdrop(e: MouseEvent) {
     border-radius: var(--radius);
     color: var(--text);
     max-height: calc(100vh - 120px);
+    /* 幅を決めたダイアログも、狭い窓・大きい文字（ルートの zoom）で左右が見切れないよう、背景の幅に収める（% は zoom の掛からない CSS の px） */
+    max-width: calc(100% - 32px);
     overflow: auto;
   }
   :global(.dialog h3) {

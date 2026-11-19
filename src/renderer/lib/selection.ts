@@ -51,3 +51,34 @@ export class SelectionFollow<T> {
     return { sel: s, anchor: a }
   }
 }
+
+/** ↑↓・PageUp/PageDown・Home/End で選ぶ位置（端で止まる。空の一覧では 0 で、-1 にしない）。ほかのキーは null */
+export function moveSel(key: string, sel: number, n: number, page = 10): number | null {
+  if (key === 'Home') return 0
+  if (key === 'End') return clampSel(n - 1, n)
+  const d = key === 'ArrowDown' ? 1 : key === 'ArrowUp' ? -1 : key === 'PageDown' ? page : key === 'PageUp' ? -page : null
+  return d == null ? null : clampSel(sel + d, n)
+}
+
+/**
+ * リンク先の銘柄（銘柄ジャンプ・同じ色のほかのペイン）の行を一覧で選ぶ。リンク先か一覧が変わるたびに pick(id, rows) を呼び、
+ * 0 以上ならその行を選ぶ（結果が遅れて届いた・取得で並びが変わったときもリンク先の行に置く）。
+ * 並べ替え・別の一覧・★のみ表示の切り替えで先頭から選び直すときは hold() を呼ぶ。リンク先が変わるまでは、一覧が変わっても
+ * 選び直さない（SelectionFollow.reset() で先頭に置いた行を、リンク先の行へ戻さないため）
+ */
+export class LinkFollow<T> {
+  private last: T | null = null
+  private held: T | null = null
+
+  hold(): void {
+    this.held = this.last
+  }
+
+  pick(link: T | null | undefined, rows: readonly T[]): number {
+    const id = link ?? null
+    if (id !== this.last) this.held = null
+    this.last = id
+    if (id == null || id === this.held) return -1
+    return rows.indexOf(id)
+  }
+}

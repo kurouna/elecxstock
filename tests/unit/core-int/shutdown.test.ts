@@ -55,3 +55,36 @@ describe('取得中に閉じて、次の起動で再開する（FR-F1）', () =>
     await b.shutdown()
   }, 180_000)
 })
+
+describe('起動の直後に閉じる・閉じる知らせが二度届く（FR-F1）', () => {
+  it('起動で遅らせた処理（資産推移の記録・指標の作り直し）は、閉じたあとに走らない。二度閉じても投げない', async () => {
+    const d = mkdtempSync(join(tmpdir(), 'elecxstock-stop2-'))
+    const logs: string[] = []
+    const c = new CoreService(
+      d,
+      createStubProvider(),
+      () => {},
+      'test',
+      (m) => logs.push(m),
+    )
+    c.db.setMeta('metricsStale', '1')
+    const rejected: unknown[] = []
+    const onRej = (e: unknown) => rejected.push(e)
+    process.on('unhandledRejection', onRej)
+    try {
+      c.start()
+      await Promise.all([c.shutdown(), c.shutdown()])
+      await c.shutdown()
+      await sleep(200) // 遅らせた処理（50ms・80ms）が走るはずの時間を過ぎるまで
+      expect(logs.filter((l) => l.startsWith('folio:'))).toEqual([])
+      expect(rejected).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onRej)
+      try {
+        rmSync(d, { recursive: true, force: true })
+      } catch {
+        /* Windows では閉じた直後に消せないことがある */
+      }
+    }
+  })
+})

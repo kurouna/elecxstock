@@ -154,16 +154,18 @@ export class Repo {
   search(q: string, limit: number): Instrument[] {
     const s = q.normalize('NFKC').trim().toUpperCase()
     if (!s) return []
-    const like = `%${s}%`
+    // 打った % と _ は文字として探す（LIKE のワイルドカードにしない）
+    const e = s.replace(/[\\%_]/g, (c) => `\\${c}`)
+    const like = `%${e}%`
     return this.db
       .all<InstRow>(
-        `SELECT * FROM instruments WHERE code LIKE ? OR UPPER(name_ja) LIKE ? OR UPPER(name_en) LIKE ?
-         ORDER BY CASE WHEN code = ? THEN 0 WHEN code LIKE ? THEN 1 WHEN market IN ('P','R') THEN 2 ELSE 3 END, code LIMIT ?`,
-        `${s}%`,
+        `SELECT * FROM instruments WHERE code LIKE ? ESCAPE '\\' OR UPPER(name_ja) LIKE ? ESCAPE '\\' OR UPPER(name_en) LIKE ? ESCAPE '\\'
+         ORDER BY CASE WHEN code = ? THEN 0 WHEN code LIKE ? ESCAPE '\\' THEN 1 WHEN market IN ('P','R') THEN 2 ELSE 3 END, code LIMIT ?`,
+        `${e}%`,
         like,
         like,
         s,
-        `${s}%`,
+        `${e}%`,
         limit,
       )
       .map(toInst)
@@ -448,7 +450,7 @@ export class Repo {
   needMonthly(id: InstrumentId): void {
     this.db.run('UPDATE fetch_state SET last_monthly = NULL WHERE id = ?', id)
   }
-  /** 日足はあるのに月次系列が無い（取り直しが要る）取得対象の銘柄。指数（月次系列を使わない）は除く */
+  /** 日足はあるのに月次系列が無い（取り直しが要る）取得対象の銘柄（連動 ETF を含む）。指数（月次系列を使わない）は除く */
   missingMonthly(now = new Date()): InstrumentId[] {
     // 取得に失敗し続ける銘柄を毎日取りに行かない: 直近 7 日に失敗していれば見送る
     const since = new Date(now.getTime() - 7 * 86400_000).toISOString()
@@ -456,9 +458,10 @@ export class Repo {
       .all<{ id: string }>(
         `SELECT f.id FROM fetch_state f JOIN instruments i ON i.id = f.id
           WHERE f.last_full IS NOT NULL AND f.last_monthly IS NULL
-            AND i.status = 'active' AND (i.market IN ('P', 'R') OR i.user_added = 1)
+            AND i.status = 'active' AND (i.market IN ('P', 'R') OR i.user_added = 1 OR i.id IN (${REF_ETF_IDS.map(() => '?').join(', ')}))
             AND (f.fails = 0 OR f.last_error_at IS NULL OR f.last_error_at < ?)
           ORDER BY i.code`,
+        ...REF_ETF_IDS,
         since,
       )
       .map((r) => r.id)

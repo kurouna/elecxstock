@@ -27,6 +27,7 @@ import {
 import { onMount, untrack } from 'svelte'
 import { getBars } from '../../lib/barsCache'
 import { type ChartSnapshot, visibleSpan } from '../../lib/chartImage'
+import { legendBar, legendIndex, rangeAfterBuild } from '../../lib/chartView'
 import { DrawController } from '../../lib/drawings/controller.svelte'
 import { drawingsState } from '../../lib/drawings/store.svelte'
 import { cls, px, sgn } from '../../lib/format'
@@ -288,6 +289,9 @@ function extendTime(time: string[], n: number): string[] {
   return out
 }
 
+/** 前に足を描いたときの時間軸（替わったら前の表示期間を持ち越さない） */
+let builtTf: Timeframe | null = null
+
 function build() {
   if (!host) return
   const keep = chart?.timeScale().getVisibleLogicalRange()
@@ -489,9 +493,10 @@ function build() {
       markers.setMarkers(ms)
     }
     draw.attach()
-    const n = b.time.length
-    const show = showCount(n)
-    requestAnimationFrame(() => chart?.timeScale().setVisibleLogicalRange(keep ?? { from: Math.max(0, n - show), to: n + 3 }))
+    // D/W/M を替えたときは足の本数が違うので、前の時間軸の表示期間を持ち越さない
+    const range = rangeAfterBuild(keep, builtTf, shownTf, b.time.length, showCount(b.time.length))
+    builtTf = shownTf
+    requestAnimationFrame(() => chart?.timeScale().setVisibleLogicalRange(range))
   }
   lines = ls
   paneTitles = titles
@@ -518,8 +523,8 @@ function watchPanes() {
 }
 
 const legend = $derived.by(() => {
-  if (!bars?.time.length) return null
-  const i = legendIdx ?? bars.time.length - 1
+  const i = legendBar(legendIdx, bars?.time.length ?? 0)
+  if (!bars || i == null) return null
   const p = i > 0 ? bars.close[i - 1]! : null
   const c = bars.close[i]!
   return {
@@ -619,7 +624,8 @@ function wire() {
   chart.subscribeCrosshairMove((param) => {
     if (!bars) return
     const time = (param.time as string | undefined) ?? null
-    legendIdx = time ? bars.time.indexOf(time) : null
+    // 一目の先行スパンが描く未来の日付は足に無い（凡例は最後の足に戻す）
+    legendIdx = legendIndex(time, bars.time)
     // 知らせは描き直しのときに非同期に届くので、プログラムで置いた十字線の知らせを送ると、リンクしたチャートの間で行き来して
     // 足の始まりの日付へずれていく。マウスで動かした・マウスが出たときだけ送る（chartSync.ts の sendCrosshair）
     if (!sendCrosshair(param)) return
@@ -694,6 +700,7 @@ onMount(() => {
     },
   })
   return () => {
+    token++ // 読み込み中の足は捨てる（閉じたあとにチャートを作らない）
     unbind()
     draw.blur()
     draw.register(pane.id, false)

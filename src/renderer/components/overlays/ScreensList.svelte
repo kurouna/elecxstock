@@ -3,7 +3,8 @@
 // 並べ替え（Alt+↑↓）・既定のスクリーンを戻す（Ctrl+Shift+R、FR-SC15。戻せるものがあるときだけ案内を出す）。
 import type { SavedScreen } from '@shared/types'
 import { onMount } from 'svelte'
-import { missingDefaults, openScreenAnywhere, removeScreen } from '../../lib/screens'
+import { missingDefaults, newScreenId, openScreenAnywhere, removeScreen } from '../../lib/screens'
+import { clampSel } from '../../lib/selection'
 import { app, promptDialog, rpc, saveScreens, screenName, t, toast } from '../../stores/app.svelte'
 import { allPanes } from '../../stores/layout.svelte'
 
@@ -31,7 +32,7 @@ async function key(e: KeyboardEvent) {
     sel = j
     saveScreens()
   } else if (e.ctrlKey && e.shiftKey && e.code === 'KeyR') void restoreDefaults()
-  else if (e.key === 'ArrowDown') sel = Math.min(items.length - 1, sel + 1)
+  else if (e.key === 'ArrowDown') sel = clampSel(sel + 1, items.length)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
   else if (e.key === 'Enter' && x) {
     app.overlay = null
@@ -55,7 +56,7 @@ async function key(e: KeyboardEvent) {
     const now = Date.now()
     app.screens.splice(app.screens.indexOf(x) + 1, 0, {
       ...JSON.parse(JSON.stringify(x)),
-      id: `s${now.toString(36)}`,
+      id: newScreenId(now),
       name: { ja: t('scr.copyOf', { name: x.name.ja }), en: `${x.name.en} copy` },
       created: now,
       updated: now,
@@ -73,7 +74,9 @@ function restoreDefaults() {
   toast(t('scr.restored', { n: add.length }))
 }
 onMount(() => {
-  void rpc('user.defaultScreens', {}).then((d) => (defs = d))
+  void rpc('user.defaultScreens', {})
+    .then((d) => (defs = d))
+    .catch(() => {}) // 読めなければ「既定を戻す」の案内を出さないだけ
   sel = Math.max(
     0,
     app.screens.findIndex((s) => s.id === openId),

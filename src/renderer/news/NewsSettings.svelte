@@ -6,7 +6,7 @@ import { feedOn, intervalFromInput, listedFor } from '@shared/news/settings'
 import { onMount } from 'svelte'
 import type { Key } from '../lib/i18n'
 import { app, bridge, confirmDialog, t, toast } from '../stores/app.svelte'
-import { initNews, loadNews, news, setNews } from './store.svelte'
+import { initNews, langChanged, loadNews, news, setNews } from './store.svelte'
 import { errText, hm, type Tr } from './view'
 
 const lang = $derived<NewsLang>(app.settings.lang === 'en' ? 'en' : 'ja')
@@ -23,6 +23,11 @@ let endpoints = $state<{ app: string[]; news: string[] } | null>(null)
 onMount(() => {
   initNews()
   void loadNews().then(() => (ivText = s?.interval ? String(s.interval) : ''))
+})
+// 表示言語を変えたら Core に伝える（ペインを開いていなくても。Core が知らせ、一覧を読み直す）
+$effect(() => {
+  void lang
+  langChanged()
 })
 // 通信先（フィードを変えたら変わる）
 $effect(() => {

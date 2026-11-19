@@ -55,7 +55,8 @@
 | リンク・十字線                                     | —                    | 最初の版では同期しない（フリー N のペインはリンク色なしが既定）                                                                                                                                                  |
 
 - 1 枚目の状態の持ち方（renderer が持ち、配列ごと保存）は **変えない**。フリー N は利用者のデータを書かない（★だけは Core の専用の操作で）。
-- **例外: チャートの描画**（[design-drawings.md](design-drawings.md) §7。FR-C17）。フリー N でも `drawings.create` / `update` / `remove` / `clear` で書ける。1 本ずつ書き、読んだときの `updated` で確かめるので、窓どうしで同時に直しても他の線を上書きしない。`dispatch.ts` の窓の制限には足さない。
+- **例外: チャートの描画**（[design-drawings.md](design-drawings.md) §7。FR-C17）。フリー N でも `drawings.create` / `update` / `remove` / `clear` で書ける。1 本ずつ書き、読んだときの `updated` で確かめるので、窓どうしで同時に直しても他の線を上書きしない。
+- **Core が許可リストで守る**（renderer の `blockedInFree` に頼らない）。`src/core/changes.ts` の `FREE_WRITES`（★・◆の `watchlists.toggleItem`・アラートの新規の `alerts.save`・移動平均の期間などの `user.saveSettings`・銘柄ジャンプの `instruments.addUser`・`drawings.*`）と自分の `user.saveWindowLayout` のほかは、利用者のデータを書くメソッド（`CHANGES`）と `MAIN_ONLY`（レイアウトのページ・既読・全データの削除・銘柄一覧の取り込み）を `dispatch.ts` が断る。書き込みのメソッドを `CHANGES` に足すと、`FREE_WRITES` に足さない限りフリー N からは書けない。
 
 ### 3.4 レイアウトの保存: 今の形に足すだけ
 

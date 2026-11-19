@@ -1,7 +1,7 @@
 // renderer からの 1 件の要求を処理する（§8.1）: 窓（スロット）ごとの制限 → zod の検証 → Core の呼び出し → 利用者のデータの変更の通知。
 // worker（製品）と単体テストの窓口（tests/support/bridge.ts）が同じものを使う。electron を import しない（NFR-A1）。
 import { type CoreError, type Events, type Method, PARAMS } from '@shared/api'
-import { CHANGES } from './changes'
+import { CHANGES, FREE_WRITES, MAIN_ONLY } from './changes'
 import { ALLOWED_HOST_NAMES } from './netGuard'
 import type { NewsService } from './news/service'
 import type { CoreService } from './service'
@@ -32,15 +32,15 @@ export async function dispatch(
       ctx.prioritize(slot, ids)
       return { reply: { id, result: null } }
     }
-    // アラートの変更は 1 枚目だけ。フリー N は新しく作ることだけできる（AL2。★・◆の切り替えと同じ例外）
-    const newAlert = method === 'alerts.save' && !(msg.params as { alert?: { id?: unknown } } | null)?.alert?.id
-    if (slot !== 'main' && /^alerts\.(save|remove|restore|setEnabled|markRead)$/.test(method) && !newAlert)
-      throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
-    // 資産推移の記録を消すのは 1 枚目だけ（FR-PF2）
-    if (slot !== 'main' && method === 'folio.clear') throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
-    // 1 枚目のレイアウトとマイレイアウトのページを書くのは 1 枚目だけ（フリー N は開くときに読むだけ。FR-L14）
-    if (slot !== 'main' && (method === 'user.saveLayout' || method === 'user.saveLayouts'))
-      throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
+    // フリー N は利用者のデータを読むだけ。書けるのは許可リスト（FREE_WRITES）のメソッドだけで、ほかの書き込み（CHANGES）と
+    // MAIN_ONLY は 1 枚目だけ（docs/design-multimonitor.md §3.3。renderer の blockedInFree に頼らない）。
+    // アラートは新しく作ることだけ（AL2。直す・消す・止める・既読は 1 枚目）。資産推移の記録を消す（FR-PF2）・レイアウトのページ（FR-L14）も 1 枚目
+    if (slot !== 'main') {
+      const newAlert = method === 'alerts.save' && !(msg.params as { alert?: { id?: unknown } } | null)?.alert?.id
+      const writes = method in CHANGES || MAIN_ONLY.has(method)
+      if (writes && (!FREE_WRITES.has(method) || (method === 'alerts.save' && !newAlert)))
+        throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
+    }
     // フリー N は自分の配置だけを書ける
     if (method === 'user.saveWindowLayout' && (msg.params as { slot?: unknown } | null)?.slot !== slot)
       throw { code: 'invalid-params', message: 'slot' } satisfies CoreError
@@ -63,13 +63,13 @@ export async function dispatch(
     const kind = CHANGES[method]
     if (!kind) return { reply: { id, result } }
     const p = parsed.data as { list?: string; id?: string }
-    const data = {
+    const data: Events['user.changed'] = {
       kind,
       from: slot,
-      ...(method === 'watchlists.toggleItem' ? { op: { list: p.list, id: p.id } } : {}),
+      ...(method === 'watchlists.toggleItem' ? { op: { list: String(p.list), id: String(p.id) } } : {}),
       ...(kind === 'drawings' ? { id: p.id } : {}),
     }
-    return { reply: { id, result }, notice: { event: 'user.changed', data: data as Events['user.changed'] } }
+    return { reply: { id, result }, notice: { event: 'user.changed', data } }
   } catch (e) {
     const err = e as Partial<CoreError> & { message?: string; code?: string }
     const code = (err.code === 'read-only' ? 'read-only' : (err.code as CoreError['code'])) ?? 'internal'

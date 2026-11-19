@@ -1,6 +1,7 @@
 // アラートの判定（FR-AL1・AL3・AL4・AL8・NFR-AL1。design-alerts.md §3）。値はすべて架空
 import { decide, decideScreen, type EvalInput, evaluateAlert } from '@core/alerts'
-import { adjustedConditions, alertConditionOk, distanceOf, splitFactorAfter } from '@shared/alerts'
+import { adjustedConditions, alertConditionOk, defaultAlertCondition, distanceOf, splitFactorAfter } from '@shared/alerts'
+import { FIELD_BY_ID } from '@shared/fields'
 import type { Alert, Instrument, MetricsRow } from '@shared/types'
 import { describe, expect, it } from 'vitest'
 
@@ -160,6 +161,48 @@ describe('条件までの距離（FR-AL8）', () => {
     )
     // 成り立っていれば null
     expect(distanceOf([{ field: 'price.close', op: '<=', value: 3200 }], m, undefined, 'JP:7203')).toBeNull()
+  })
+  it('負・0 になる 1 株あたりの金額（EPS・BPS）は %ではなく差（今の値・しきい値のどちらかが 0 以下なら）', () => {
+    // EPS −100 → 目標 100: % にすると −200%（向きが逆）、EPS 0 だと 0%（達成済みに見える）
+    expect(distanceOf([{ field: 'value.eps', op: '>=', value: 100 }], row({ eps: -100 }), undefined, 'JP:7203')).toEqual({
+      kind: 'pt',
+      value: 200,
+    })
+    expect(distanceOf([{ field: 'value.eps', op: '>=', value: 50 }], row({ eps: 0 }), undefined, 'JP:7203')).toEqual({
+      kind: 'pt',
+      value: 50,
+    })
+    expect(distanceOf([{ field: 'value.bps', op: '<=', value: -10 }], row({ bps: 40 }), undefined, 'JP:7203')).toEqual({
+      kind: 'pt',
+      value: -50,
+    })
+    // どちらも正なら今までどおり %
+    expect(distanceOf([{ field: 'value.eps', op: '>=', value: 110 }], row({ eps: 100 }), undefined, 'JP:7203')).toEqual({
+      kind: 'pct',
+      value: expect.closeTo(10, 5),
+    })
+  })
+})
+
+describe('アラートの既定のしきい値（FR-AL7）', () => {
+  const st = (v: number) => (Math.abs(v) >= 1 ? Math.max(1, 10 ** (Math.floor(Math.log10(Math.abs(v))) - 2)) : 1)
+  it('1 株あたりの金額は今の値の 5% 下（≤）。負・0 でも作った直後に成り立たない', () => {
+    for (const now of [3000, 512.3, -100, -0.4, 0, 0.3]) {
+      const c = defaultAlertCondition('price.close', now, st)
+      expect(c.op).toBe('<=')
+      expect(Number(c.value)).toBeLessThan(now)
+    }
+    expect(defaultAlertCondition('price.close', 3000, st).value).toBe(2850)
+    expect(defaultAlertCondition('value.eps', -100, st).value).toBe(-105)
+    expect(defaultAlertCondition('value.eps', 0, st).value).toBe(-1)
+  })
+  it('ほかの指標は今の値（≥）、今の値が無ければ登録表の既定', () => {
+    expect(defaultAlertCondition('income.yield', 4.23, st)).toEqual({ field: 'income.yield', op: '>=', value: 4.2 })
+    expect(defaultAlertCondition('price.close', null, st)).toEqual({
+      field: 'price.close',
+      op: '<=',
+      value: FIELD_BY_ID.get('price.close')!.default,
+    })
   })
 })
 

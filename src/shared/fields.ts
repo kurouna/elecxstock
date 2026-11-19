@@ -340,7 +340,8 @@ export const FIELDS: FieldDef[] = [
     digits: 1,
     step: 5,
   }),
-  num('risk.beta', 'ベータ(対日経平均)', 'Beta (vs Nikkei 225)', 'value', 'ratio', 'beta1y', {
+  // 係数（倍ではない）なので number。小数 2 桁
+  num('risk.beta', 'ベータ(対日経平均)', 'Beta (vs Nikkei 225)', 'value', 'number', 'beta1y', {
     description: L(
       '日経平均と日付で突き合わせた 1 年の日次の騰落率から。120 日未満は欠損。薄商いの銘柄は低く出やすい',
       'From one year of daily returns matched by date with the Nikkei 225. Missing under 120 days',
@@ -348,6 +349,7 @@ export const FIELDS: FieldDef[] = [
     operators: ['<=', '>='],
     default: 1,
     step: 0.1,
+    digits: 2,
   }),
   num('risk.mdd3y', '最大下落率(3年)', 'Max drawdown (3Y)', 'return', 'percent', 'mdd3y', {
     description: L('3 年の中で高値からいちばん下げた割合（配当込み）', 'Largest fall from a high within three years (total return)'),
@@ -686,7 +688,7 @@ const ALIAS_OF: Record<string, string> = {
   'liq.turnover20': '出来高',
   'value.marketCap': '時価',
 }
-const SIGNED = new Set(['price.chgPct', 'income.divYoy', 'income.divCagr5', 'risk.mdd3y'])
+const SIGNED = new Set(['price.chgPct', 'income.divYoy', 'income.divCagr5', 'risk.mdd3y', 'holding.pnlPct'])
 /** 説明の無い既存の指標に説明を足す（ダイアログの下の段と ⓘ に出す） */
 const DESC_OF: Record<string, LocalizedName> = {
   'price.close': L('最新の終値（分割調整済み）', 'Latest close (split-adjusted)'),

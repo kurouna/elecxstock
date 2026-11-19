@@ -277,10 +277,12 @@ export function flushListSaves(): Promise<unknown> {
 /** フリー N の★・◆: 利用者のデータは Core が書き、ほかの窓へ知らせる（マルチモニタ） */
 function toggleViaCore(list: 'favorites' | 'candidates', id: InstrumentId, on: Key, off: Key): void {
   const was = (list === 'favorites' ? favorites() : candidates()).items.includes(id)
-  void rpc('watchlists.toggleItem', { list, id }).then((ls) => {
-    app.watchlists = ls
-    toast(t(was ? off : on, { name: nameOf(id) }))
-  })
+  void rpc('watchlists.toggleItem', { list, id })
+    .then((ls) => {
+      app.watchlists = ls
+      toast(t(was ? off : on, { name: nameOf(id) }))
+    })
+    .catch(() => {}) // Core の立ち上げ直しの間など。★は変わらないまま（次の押下でやり直せる）
 }
 export function toggleFav(id: InstrumentId | null | undefined): void {
   if (!id) return
@@ -417,6 +419,5 @@ export function closeOverlay(): void {
   if (o.kind === 'confirm') o.resolve({ ok: false, checked: false })
   else if (o.kind === 'prompt' || o.kind === 'choice' || o.kind === 'checklist') o.resolve(null)
   else if (o.kind === 'ask3') o.resolve('cancel')
-  else if (o.kind === 'alertForm') o.resolve(null)
-  else if (o.kind === 'fieldPicker') o.resolve(null)
+  else if (o.kind === 'alertForm' || o.kind === 'fieldPicker' || o.kind === 'holding') o.resolve(null)
 }

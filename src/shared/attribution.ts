@@ -1,6 +1,7 @@
 // Lightweight Charts の帰属表示（§10）。TradingView は NOTICE の帰属表示と tradingview.com へのリンクを、利用者が見る画面に載せることを求めている。
 // 文言は上流の NOTICE のまま（「(с)」の с はキリル文字。上流のとおり）。npm のパッケージには NOTICE が入っていないので、
 // 同じ文言を scripts/notices/lightweight-charts.NOTICE に置き、THIRD_PARTY_NOTICES.txt に入れる（一致は単体テストが確かめる）
+import { CODE_RE } from './code'
 
 /** NOTICE の 2 行（設定の「このアプリについて」と初回の画面にそのまま出す） */
 export const LWC_NOTICE = ['TradingView Lightweight Charts™', 'Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/'] as const
@@ -23,9 +24,9 @@ export const yahooUrl = (lang: string) => (lang === 'ja' ? 'https://finance.yaho
 
 /**
  * 銘柄の Yahoo Finance のページ（銘柄情報の見出しのリンク。FR-I10）。日本語の画面は Yahoo!ファイナンス（末尾の / なし）、それ以外は Yahoo Finance。
- * 東証のコード（英数字）だけを受け付ける。指数は両方のサイトで記号がそろわないので出さない（null）
+ * 東証のコードの形（CODE_RE。取り込み・フォームと同じ）だけを受け付ける。指数は両方のサイトで記号がそろわないので出さない（null）
  */
 export function yahooQuoteUrl(lang: string, code: string, kind: string): string | null {
-  if (kind === 'index' || !/^[0-9A-Z]{4,5}$/.test(code)) return null
+  if (kind === 'index' || !CODE_RE.test(code)) return null
   return lang === 'ja' ? `https://finance.yahoo.co.jp/quote/${code}.T` : `https://finance.yahoo.com/quote/${code}.T/`
 }

@@ -113,13 +113,21 @@ $effect(() => ensureMetrics(ids))
 let gen = 0
 async function loadAll() {
   const my = ++gen
-  const [s, m, y, d, a] = await Promise.all([
-    rpc('folio.series', { est }),
-    rpc('folio.contrib', { period: 'month' }),
-    rpc('folio.contrib', { period: 'year' }),
-    rpc('folio.dividends', {}),
-    rpc('alerts.list', {}).catch(() => [] as AlertView[]),
-  ])
+  let got: [FolioSeries, FolioContrib, FolioContrib, FolioDividends, AlertView[]]
+  try {
+    got = await Promise.all([
+      rpc('folio.series', { est }),
+      rpc('folio.contrib', { period: 'month' }),
+      rpc('folio.contrib', { period: 'year' }),
+      rpc('folio.dividends', {}),
+      rpc('alerts.list', {}).catch(() => [] as AlertView[]),
+    ])
+  } catch {
+    // エラーは rpc が知らせる。読み込み中（スケルトン）のまま止めず、前の値か空で出す
+    if (my === gen) loaded = true
+    return
+  }
+  const [s, m, y, d, a] = got
   if (my !== gen) return
   series = s
   contribM = m
@@ -144,10 +152,15 @@ $effect(() => {
     bench = []
     return
   }
-  void rpc('bars.get', { id, tf: 'D', adjustment: 'split' }).then((b) => {
-    // 素早く切り替えたとき、古い応答で新しいベンチマークを上書きしない
-    if (benchId === id) bench = b.time.map((d, i) => ({ d, c: b.close[i]! }))
-  })
+  void rpc('bars.get', { id, tf: 'D', adjustment: 'split' })
+    .then((b) => {
+      // 素早く切り替えたとき、古い応答で新しいベンチマークを上書きしない
+      if (benchId === id) bench = b.time.map((d, i) => ({ d, c: b.close[i]! }))
+    })
+    .catch(() => {
+      // 前のベンチマークの線を出したままにしない
+      if (benchId === id) bench = []
+    })
 })
 
 // ---- 行と数 ----
@@ -173,9 +186,13 @@ $effect(() => {
     at = null
     return
   }
-  void rpc('folio.at', { d }).then((x) => {
-    if (crossDay === d) at = x
-  })
+  void rpc('folio.at', { d })
+    .then((x) => {
+      if (crossDay === d) at = x
+    })
+    .catch(() => {
+      if (crossDay === d) at = null
+    })
 })
 const shown = $derived(crossDay && at ? rowsAtDay(at, rows, (c) => nameOf(`JP:${c}`)) : rows)
 const tot = $derived(totalsOf(shown))

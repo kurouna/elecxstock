@@ -25,7 +25,8 @@ export function computeInfoExtra(
 
   // 5 年の窓（足りなければ、ある分だけ）
   const start = Math.max(0, n - 1 - Y * 5)
-  const divs = [...dividends].sort((a, b) => (a.date < b.date ? -1 : 1))
+  // 0 以下の配当（壊れた記録）は使わない。同じ日の配当は 0 を返して並びを保つ（比べ方が食い違わないように）
+  const divs = dividends.filter((d) => d.amount > 0).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
   // 1 回の走査: 配当込みの値 V（落ちた分を戻す）・最大下落・過去 12 か月の配当の移動合計
   const v = new Float64Array(n)
   let g = 1 // 窓の始まりからの「配当で落ちた分を戻す」倍率

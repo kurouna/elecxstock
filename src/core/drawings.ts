@@ -102,11 +102,13 @@ export class DrawingBook {
   }
   /** タイル用: 分割調整の表示の価格にした線 */
   shown(ids: readonly string[]): Record<string, ShownLine[]> {
-    const all = this.all()
+    // 頼まれた銘柄の図形だけを確かめる（全銘柄の図形を毎回読み直さない）
+    const file = this.file()
     const out: Record<string, ShownLine[]> = {}
     for (const id of ids) {
-      const list = all[id]
-      if (!list?.length) continue
+      const raw = Object.hasOwn(file, id) ? file[id] : undefined
+      const list = raw ? readDrawings(raw) : []
+      if (!list.length) continue
       const sp = this.splits(id)
       out[id] = list.map((d) => ({
         id: d.id,
