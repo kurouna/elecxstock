@@ -110,12 +110,15 @@ export class Repo {
       )
     }
   }
+  /** 利用者の追加（user_added）を書き換えた回数。スクリーナーの対象（screenable）が変わるので、それを覚えている計算の鍵にする */
+  userAddedRev = 0
   setUserAdded(codes: string[]): void {
     const set = new Set(codes.map((c) => idOf(c.toUpperCase())))
     this.db.tx(() => {
       this.db.run('UPDATE instruments SET user_added = 0 WHERE user_added = 1')
       for (const id of set) this.db.run('UPDATE instruments SET user_added = 1 WHERE id = ?', id)
     })
+    this.userAddedRev++
   }
   /** 取得する銘柄: プライム・J-REIT と利用者の追加、参照の行と連動 ETF（FR-U1〜U3, U6）。廃止銘柄は取らない（FR-U8） */
   fetchSet(): { id: string; yahoo: string; kind: InstrumentKind }[] {

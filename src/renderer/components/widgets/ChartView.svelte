@@ -298,6 +298,8 @@ function extendTime(time: string[], n: number): string[] {
 let builtTf: Timeframe | null = null
 
 function build() {
+  // 前の作り直しが頼んだ表示期間の置き直しは、ここで作るチャートには使わない（空のデータで早く戻るときも残さない）
+  rangeFrame.cancel()
   if (!host || destroyed) return
   const keep = chart?.timeScale().getVisibleLogicalRange()
   chart?.remove()
@@ -515,6 +517,7 @@ function placePanes() {
   tops = chart ? paneTops(chart.panes().map((p) => p.getHeight())) : []
 }
 function watchPanes() {
+  paneFrame.cancel()
   paneObs?.disconnect()
   paneObs = null
   tops = []

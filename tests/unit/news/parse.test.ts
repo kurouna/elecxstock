@@ -88,6 +88,13 @@ describe('FR-NW6 フィードの読み取り（RSS 2.0・RDF・Atom）', () => {
     expect(() => parseFeed('<rss><channel><item><title>架空 A</title><?pi x?>')).toThrow()
     expect(() => parseFeed(`<rss><channel><item><title>架空 A</title>${'y'.repeat(5000)}-->`)).toThrow()
   })
+  it('開きと閉じの記号が重なった末尾（<!--> ・ <?>）は、コメント・処理命令とみなさない', () => {
+    const doc = '<rss><channel><item><title>架空 A</title></item></channel></rss>'
+    expect(() => parseFeed(`${doc}<!-->`)).toThrow()
+    expect(() => parseFeed(`${doc}<?>`)).toThrow()
+    // ふつうの空のコメント・処理命令は読む
+    expect(parseFeed(`${doc}<!---->`).items).toHaveLength(1)
+  })
   it('切り詰めた見出し・要約の末尾でサロゲートペア（絵文字など）を割らない', () => {
     const title = `${'あ'.repeat(298)}😀😀`
     const p = parseFeed(`<rss><channel><item><title>${title}</title></item></channel></rss>`)

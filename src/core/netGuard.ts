@@ -57,8 +57,10 @@ export function guardFetch(realFetch: typeof fetch, allow: Allow): typeof fetch 
         : null
     /** 本文を落とした（GET にした）あとは、写しを読まない */
     let useSpare = spare !== null
+    /** 今のリダイレクトの応答（断って投げるときに本文を取りやめる） */
+    let res: Response | undefined
     try {
-      let res = await realFetch(input, { ...init, redirect: 'manual' })
+      res = await realFetch(input, { ...init, redirect: 'manual' })
       // 2 回目からは Request ではなく URL と init で送る（本文はリダイレクトで送り直せる形のときだけ。下）
       let body: BodyInit | null = init?.body ?? null
       const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
@@ -89,6 +91,10 @@ export function guardFetch(realFetch: typeof fetch, allow: Allow): typeof fetch 
         res = await realFetch(url.href, { ...init, method, body, headers, signal, redirect: 'manual' })
       }
       return res
+    } catch (e) {
+      // 断ったリダイレクトの本文を読まずに捨てる（接続を握ったままにしない）
+      if (res && !res.bodyUsed) void res.body?.cancel().catch(() => {})
+      throw e
     } finally {
       // 読まなかった写しは捨てる（tee の片方に溜まり続けないように）
       if (spare && !spare.bodyUsed) void spare.body?.cancel().catch(() => {})

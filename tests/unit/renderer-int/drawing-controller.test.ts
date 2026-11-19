@@ -381,4 +381,16 @@ describe('レビュー 3 回目（FR-C14・C15）', () => {
     // 段の高さ 400 px の 1/100 = 4 px
     expect(lw.series.priceToCoordinate(p0) - lw.series.priceToCoordinate(p1)).toBeCloseTo(4, 6)
   })
+  it('座標から価格に直した値が有限でない（極端な対数目盛り）ときは、価格の 1 段で動かす（カーソル・端点に Infinity を置かない）', () => {
+    const lw = makeWorld(`JP:${1301 + n++}`, { log: true })
+    lw.key('KeyT', { alt: true })
+    const st = () => JSON.parse(lw.host.dataset.drawState!) as { price: number | null }
+    lw.key('ArrowUp', { shift: true })
+    const p0 = st().price!
+    lw.series.coordinateToPrice = () => Number.POSITIVE_INFINITY
+    lw.key('ArrowUp', { shift: true })
+    const p1 = st().price
+    expect(Number.isFinite(p1)).toBe(true)
+    expect(p1!).toBeGreaterThan(p0)
+  })
 })

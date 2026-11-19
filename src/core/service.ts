@@ -334,18 +334,21 @@ export class CoreService {
   }
   /**
    * 業種ごとの中央値（FR-I7）。指標の写し（metricsMap）と銘柄の一覧の版（universeUpdated。一覧だけの取り直し・JPX の取り込みで
-   * 業種・市場が変わる）が同じ間は覚えておく（銘柄を切り替えるたびに全銘柄をなめない）
+   * 業種・市場が変わる）・利用者の追加の版（スクリーナーの対象が変わる）が同じ間は覚えておく（銘柄を切り替えるたびに全銘柄をなめない）
    */
   private sectorMemo: {
     src: Map<InstrumentId, MetricsRow>
     uni: string | null
+    added: number
     by: Map<string, ReturnType<typeof sectorStats>>
   } | null = null
   private sectorMedian(sector: string): ReturnType<typeof sectorStats> {
     const metrics = this.metricsMap()
     const uni = this.db.meta('universeUpdated')
-    if (this.sectorMemo?.src !== metrics || this.sectorMemo.uni !== uni) this.sectorMemo = { src: metrics, uni, by: new Map() }
-    const by = this.sectorMemo.by
+    const added = this.repo.userAddedRev
+    let m = this.sectorMemo
+    if (m?.src !== metrics || m.uni !== uni || m.added !== added) m = this.sectorMemo = { src: metrics, uni, added, by: new Map() }
+    const by = m.by
     if (!by.has(sector)) {
       const rows = this.repo
         .universe()

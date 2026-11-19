@@ -103,9 +103,12 @@ function closed(xml: string): boolean {
   let end = xml.length
   for (;;) {
     while (end > 0 && /\s/.test(xml[end - 1]!)) end--
-    const open = xml.endsWith('-->', end) ? '<!--' : xml.endsWith('?>', end) ? '<?' : null
+    const [open, close] = xml.endsWith('-->', end) ? ['<!--', '-->'] : xml.endsWith('?>', end) ? ['<?', '?>'] : [null, '']
     if (!open) break
-    const at = xml.lastIndexOf(open, end - open.length - 1)
+    // 開きの記号は閉じの記号より前に丸ごと置かれている（<!--> や <?> のように重なったものは、コメント・処理命令ではない）
+    const maxAt = end - close.length - open.length
+    if (maxAt < 0) return false
+    const at = xml.lastIndexOf(open, maxAt)
     if (at < 0) return false
     end = at
   }

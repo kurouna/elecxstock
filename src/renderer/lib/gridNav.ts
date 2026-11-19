@@ -46,11 +46,13 @@ export function appendLimited<T>(ids: readonly T[], id: T, max: number): { ids: 
 
 /**
  * タイルを外したあと（Delete・タイルの ✕。FR-G10）の拡大と選択: 拡大していた銘柄を外したら格子に戻る（選んでいた位置は保つ）。
- * 拡大していなければ 1 つ前のタイルを選ぶ
+ * 拡大していなければ 1 つ前のタイルを選ぶ。どちらも、外したあとにページに残ったタイルの数（left）の範囲に収める
+ * （拡大中に末尾のタイルを外したとき、格子に戻って範囲の外を選んだままにしない）
  */
-export function afterRemove<T>(zoom: T | null, removed: T, sel: number): { zoom: T | null; sel: number } {
-  if (zoom != null && zoom === removed) return { zoom: null, sel }
-  return { zoom, sel: Math.max(0, sel - 1) }
+export function afterRemove<T>(zoom: T | null, removed: T, sel: number, left: number): { zoom: T | null; sel: number } {
+  const inRange = (i: number) => Math.max(0, Math.min(i, left - 1))
+  if (zoom != null && zoom === removed) return { zoom: null, sel: inRange(sel) }
+  return { zoom, sel: inRange(sel - 1) }
 }
 
 /**

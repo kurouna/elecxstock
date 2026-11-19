@@ -318,7 +318,8 @@ function removeTile(i?: number) {
   if (!id) return
   if (i != null) sel = selOnClick(zoom, sel, i)
   set({ own: own.filter((x) => x !== id) })
-  const r = afterRemove(zoom, id, sel)
+  // 外したあとのページのタイルの数（pageIds は own から作り直される）
+  const r = afterRemove(zoom, id, sel, pageIds.length)
   zoom = r.zoom
   sel = r.sel
   toast(t('grid.removed', { name: nameOf(id) }))

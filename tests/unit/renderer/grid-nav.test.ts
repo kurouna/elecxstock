@@ -53,11 +53,18 @@ describe('マーケットの小さなチャートに足す（FR-U6。レビュ�
 
 describe('拡大中のタイルの操作（FR-G7・G10。レビュー 3 回目）', () => {
   it('拡大している銘柄を外す（Delete・✕）と格子に戻り、選んでいた位置は保つ', () => {
-    expect(afterRemove('F', 'F', 5)).toEqual({ zoom: null, sel: 5 })
+    expect(afterRemove('F', 'F', 5, 9)).toEqual({ zoom: null, sel: 5 })
   })
   it('拡大していなければ、外したあとは 1 つ前のタイルを選ぶ（先頭では先頭）', () => {
-    expect(afterRemove(null, 'C', 2)).toEqual({ zoom: null, sel: 1 })
-    expect(afterRemove(null, 'A', 0)).toEqual({ zoom: null, sel: 0 })
+    expect(afterRemove(null, 'C', 2, 5)).toEqual({ zoom: null, sel: 1 })
+    expect(afterRemove(null, 'A', 0, 5)).toEqual({ zoom: null, sel: 0 })
+  })
+  it('外したあとの選択は、残ったタイルの範囲に収める（拡大中に末尾のタイルを外しても、格子に戻ったとき範囲の外を選ばない）', () => {
+    // 4 枚の 4 枚目（sel = 3）を拡大して外すと、残りは 3 枚
+    expect(afterRemove('D', 'D', 3, 3)).toEqual({ zoom: null, sel: 2 })
+    expect(afterRemove('D', 'D', 1, 3)).toEqual({ zoom: null, sel: 1 })
+    expect(afterRemove('A', 'A', 0, 0)).toEqual({ zoom: null, sel: 0 })
+    expect(afterRemove(null, 'C', 5, 2)).toEqual({ zoom: null, sel: 1 })
   })
   it('拡大中のタイル・★・◆のクリックは、拡大する前の位置（sel）を変えない（見えている 1 枚の位置は 0）', () => {
     expect(selOnClick('F', 5, 0)).toBe(5)

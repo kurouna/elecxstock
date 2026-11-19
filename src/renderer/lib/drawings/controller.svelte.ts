@@ -326,13 +326,21 @@ export class DrawController {
     const span = top != null && bottom != null ? Math.abs(top - bottom) : 0
     return (span / 100) * (big ? 10 : 1)
   }
-  /** 価格を画面の上で 1 段（本体の段の高さの 1/100。big は 10 段）上か下へずらした価格。座標に直せなければ価格の 1 段 */
+  /**
+   * 価格を画面の上で 1 段（本体の段の高さの 1/100。big は 10 段）上か下へずらした価格。座標に直せなければ価格の 1 段、
+   * それも有限でなければ（極端な対数目盛り）価格の 1 %（big は 10 %）。正の有限の値か、直せなければ元の価格を返す
+   */
   private shiftPrice(p: number, up: 1 | -1, big: boolean): number {
     const s = this.c.series()
     const h = this.c.chart()?.panes()[0]?.getHeight() ?? 0
     const y = s?.priceToCoordinate(p)
     const moved = y == null || !h ? null : s?.coordinateToPrice(y - up * (h / 100) * (big ? 10 : 1))
-    return moved ?? p + up * this.priceStep(big)
+    const ok = (v: number | null | undefined): v is number => v != null && Number.isFinite(v) && v > 0
+    if (ok(moved)) return moved
+    const byStep = p + up * this.priceStep(big)
+    if (ok(byStep)) return byStep
+    const byPct = p * (1 + up * 0.01 * (big ? 10 : 1))
+    return ok(byPct) ? byPct : p
   }
   /** 足 i へ（吸着していれば同じ種類の点、いなければ同じ価格） */
   private moveTo(i: number, k: SnapKey | null, p: number): { i: number; p: number; k: SnapKey | null } {
@@ -401,7 +409,7 @@ export class DrawController {
     if (!b || !this.cur) return
     const date = b.time[this.cur.i]!
     const raw = this.raw(this.cur.p, date)
-    if (raw == null || !(raw > 0)) return
+    if (raw == null || !Number.isFinite(raw) || !(raw > 0)) return
     const point = { date, raw }
     if (s.m === 'start') {
       this.send({ t: 'enter', point })
@@ -558,7 +566,7 @@ export class DrawController {
       if (!to || to.i === oi) return true
       const date = b.time[to.i]!
       const raw = this.raw(to.p, date)
-      if (!raw || raw <= 0) return true
+      if (!raw || !Number.isFinite(raw) || raw <= 0) return true
       const moved = { ...d, [s.target]: { date, raw } } as Drawing
       next = normalizeDrawing(moved)
       // 始点と終点が入れ替わったら、動かしている点の名前もそろえる

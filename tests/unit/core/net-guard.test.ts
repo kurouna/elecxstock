@@ -233,3 +233,33 @@ describe('NFR-S1 許可を述語で渡す（ニュースの fetch。docs/design-
     expect(hits).toEqual([])
   })
 })
+
+describe('NFR-S1 リダイレクトを断るときの後始末', () => {
+  /** 本文（ストリーム）付きの 3xx を返す偽の fetch。本文が取りやめられたかを見る */
+  function withBody(status: number, location: string) {
+    let cancelled = false
+    const f = (async () => {
+      const body = new ReadableStream({
+        pull(c) {
+          c.enqueue(new TextEncoder().encode('x'))
+        },
+        cancel() {
+          cancelled = true
+        },
+      })
+      return new Response(body, { status, headers: { location } })
+    }) as typeof fetch
+    return { f, cancelled: () => cancelled }
+  }
+  it('許可していない行き先・error のときも、3xx の本文を取りやめてから失敗にする', async () => {
+    const a = withBody(302, EVIL)
+    await expect(guardFetch(a.f, ALLOWED_HOSTS)(Y)).rejects.toThrow(/blocked redirect/)
+    expect(a.cancelled()).toBe(true)
+    const b = withBody(302, Y)
+    await expect(guardFetch(b.f, ALLOWED_HOSTS)(Y, { redirect: 'error' })).rejects.toThrow(/redirect not allowed/)
+    expect(b.cancelled()).toBe(true)
+    const c = withBody(302, Y)
+    await expect(guardFetch(c.f, ALLOWED_HOSTS)(Y)).rejects.toThrow(/too many redirects/)
+    expect(c.cancelled()).toBe(true)
+  })
+})

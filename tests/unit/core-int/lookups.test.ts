@@ -67,4 +67,37 @@ describe('業種の中央値（FR-I7）', () => {
       spy.mockRestore()
     }
   })
+
+  it('プライム・REIT 以外の銘柄を利用者の追加から外したら、指標が同じでも数え直す（スクリーナーの対象から外れる）', async () => {
+    // スタブのグロースの銘柄（130A）を、いちばん大きい業種に入れて（一覧の取り直し）から、利用者の追加に出し入れする。
+    // 上のテストが業種を動かしているので、別の Core で確かめる
+    const own = makeCore()
+    const { call, svc } = own
+    const all = await call('instruments.all', {})
+    const by = new Map<string, string[]>()
+    for (const i of all) if (i.kind === 'stock' && i.sectorJa && i.market === 'P') by.set(i.sectorJa, [...(by.get(i.sectorJa) ?? []), i.id])
+    const [sector, ids] = [...by].sort((a, b) => b[1].length - a[1].length)[0]!
+    const code = '130A'
+    const provider = (svc as unknown as { provider: { fetchUniverse: (o: unknown) => Promise<{ code: string; sectorJa: string }[]> } })
+      .provider
+    const real = provider.fetchUniverse.bind(provider)
+    const spy = vi
+      .spyOn(provider, 'fetchUniverse')
+      .mockImplementation(async (o) => (await real(o)).map((r) => (r.code === code ? { ...r, sectorJa: sector } : r)))
+    try {
+      await call('jobs.start', { kind: 'universe' })
+      await own.idle()
+      const before = (await call('info.extra', { id: ids[0]! })).sector!.n
+      const std = await call('instruments.addUser', { code })
+      expect(std?.market).toBe('G')
+      await own.idle()
+      expect((await call('info.extra', { id: ids[0]! })).sector!.n).toBe(before + 1)
+      // 外しても指標の写しと一覧の版は変わらない（取得は無い）が、スクリーナーの対象から外れるので母集団からも外れる
+      await call('instruments.removeUser', { code })
+      expect((await call('info.extra', { id: ids[0]! })).sector!.n).toBe(before)
+    } finally {
+      spy.mockRestore()
+      own.dispose()
+    }
+  })
 })
