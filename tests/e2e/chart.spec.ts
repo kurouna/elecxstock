@@ -130,4 +130,27 @@ test.describe('表示の範囲（FR-C1）', () => {
     await keys(page, 'l')
     expect(await still()).toBe(moved)
   })
+
+  test('D/W/M を続けて速く押しても、最後の時間軸の既定の表示期間になる（前の時間軸の論理番号を持ち越さない）', async ({ start }) => {
+    const { page } = await start()
+    const chart = page.locator('[data-widget="chart"]').first()
+    await keys(page, 'Alt+ArrowRight', 'Alt+ArrowUp')
+    await expect(chart).toHaveClass(/focused/)
+    const tfb = chart.locator('.legend .tfb')
+    const range = async () => (await chart.locator('.host').getAttribute('data-range')) ?? ''
+    // 1 本ずつ待って月足にしたときの表示期間（基準）
+    await keys(page, 'm')
+    await expect(tfb).toHaveText('M')
+    await expect.poll(range).toMatch(/from/)
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))))
+    const base = await range()
+    // 日足に戻して左へずらし、待たずに W → M → D → W → M と押す
+    await keys(page, 'd')
+    await expect(tfb).toHaveText('D')
+    await expect.poll(range).not.toBe(base)
+    await keys(page, 'ArrowLeft', 'ArrowLeft', 'ArrowLeft')
+    for (const k of ['w', 'm', 'd', 'w', 'm']) await page.keyboard.press(k)
+    await expect(tfb).toHaveText('M')
+    await expect.poll(range).toBe(base)
+  })
 })
