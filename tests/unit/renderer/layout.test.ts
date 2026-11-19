@@ -457,14 +457,19 @@ describe('保有のタブの初期の並び（§6.4 保有・FR-H11・FR-SIM11�
 })
 
 describe('リンクを送った回数（FR-L11。一覧が先頭に戻したあとの銘柄ジャンプ）', () => {
-  it('同じ銘柄をもう一度送っても回数が進む。ほかの窓から届いたリンクと、リンク色 0 では進まない', () => {
+  it('同じ銘柄をもう一度送っても回数が進む。ほかの窓から届いたリンクも（同じ銘柄でも）進む。リンク色 0 では進まない', () => {
     const n0 = L.linkSeq(3)
     L.setLinkSymbol(3, 'JP:7203')
     L.setLinkSymbol(3, 'JP:7203')
     expect(L.linkSeq(3)).toBe(n0 + 2)
     expect(L.linkSymbol(3)).toBe('JP:7203')
+    // ほかの窓で同じ銘柄へもう一度ジャンプした（main のバスは同じ銘柄でも配る）: 先頭に戻した一覧がその行へ移れるように進める
+    L.applyRemoteLink(3, 'JP:7203')
+    expect(L.linkSeq(3)).toBe(n0 + 3)
     L.applyRemoteLink(3, 'JP:6758')
-    expect(L.linkSeq(3)).toBe(n0 + 2)
+    expect(L.linkSeq(3)).toBe(n0 + 4)
+    expect(L.linkSymbol(3)).toBe('JP:6758')
+    L.applyRemoteLink(0, 'JP:6758')
     const z = L.linkSeq(0)
     L.setLinkSymbol(0, 'JP:7203')
     expect(L.linkSeq(0)).toBe(z)

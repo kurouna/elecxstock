@@ -75,6 +75,10 @@ export class LinkFollow<T> {
   hold(): void {
     this.held = this.last
   }
+  /** 先頭から選び直したあと、リンク先 link を追わずにいる間か（listCurrent に渡す） */
+  isHeld(link: T | null | undefined): boolean {
+    return link != null && this.held === link
+  }
 
   pick(link: T | null | undefined, rows: readonly T[], seq?: number): number {
     const id = link ?? null
@@ -88,10 +92,12 @@ export class LinkFollow<T> {
 
 /**
  * 一覧のペインの操作の対象（current()。★・アラートの作成など）。リンク先が一覧にあれば、光っている行（rows[sel]）。
- * 並べ替え・★のみ表示で先頭に戻したあと（LinkFollow.hold）は、リンク先が X のままでも先頭の行が光っているので、その行にする。
+ * 並べ替え・★のみ表示・別の一覧で先頭に戻したあと（held。LinkFollow.isHeld）は、リンク先が X のままでも先頭の行が光っているので、
+ * X が新しい一覧に無くてもその行にする（一覧が空ならリンク先）。
  * リンク先が一覧に無い（一覧に無い銘柄へ銘柄ジャンプした）ときはリンク先、リンクが無ければ光っている行
  */
-export function listCurrent<T>(link: T | null | undefined, rows: readonly T[], sel: number): T | undefined {
+export function listCurrent<T>(link: T | null | undefined, rows: readonly T[], sel: number, held = false): T | undefined {
   if (link == null || rows.includes(link)) return rows[sel]
+  if (held) return rows[sel] ?? link
   return link
 }

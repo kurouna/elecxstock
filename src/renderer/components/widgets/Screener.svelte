@@ -284,7 +284,10 @@ onMount(() => {
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
     // 「いまの銘柄」はリンク先のチャートが表示している銘柄（銘柄ジャンプのあとに Ctrl+D が前の行に効かないように）
-    current: () => listCurrent(pane.link ? linkSymbol(pane.link) : null, rows, sel),
+    current: () => {
+      const link = pane.link ? linkSymbol(pane.link) : null
+      return listCurrent(link, rows, sel, linkFollow.isHeld(link))
+    },
     selected: () => rows.slice(lo, hi + 1),
     columns: () => ({ ids: rows, cols: allCols, name: scr ? screenName(scr) : 'screener' }),
     run(action) {

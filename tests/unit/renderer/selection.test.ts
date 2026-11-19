@@ -123,4 +123,16 @@ describe('FR-KB2 FR-L11 一覧のペインの操作の対象（★・アラー�
     expect(listCurrent(undefined, ['a', 'b'], 0)).toBe('a')
     expect(listCurrent(null, [], 0)).toBeUndefined()
   })
+  it('先頭に戻した（hold）あとは、リンク先が新しい一覧に無くても（★のみ表示・別のリスト）光っている行', () => {
+    const f = new LinkFollow<string>()
+    expect(f.pick('x', ['a', 'x'])).toBe(1)
+    f.hold()
+    expect(f.isHeld('x')).toBe(true)
+    // ★のみ表示で x が一覧から外れ、先頭の y が光っている
+    expect(listCurrent('x', ['y', 'z'], 0, f.isHeld('x'))).toBe('y')
+    // リンク先が変われば hold は解ける
+    expect(f.pick('z', ['y', 'z'])).toBe(1)
+    expect(f.isHeld('z')).toBe(false)
+    expect(listCurrent('q', ['y', 'z'], 0, f.isHeld('q'))).toBe('q')
+  })
 })

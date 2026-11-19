@@ -99,7 +99,10 @@ onMount(() => {
   const ro = new ResizeObserver(() => (width = scroller?.clientWidth ?? 600))
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
-    current: () => listCurrent(pane.link ? linkSymbol(pane.link) : null, rows, sel),
+    current: () => {
+      const link = pane.link ? linkSymbol(pane.link) : null
+      return listCurrent(link, rows, sel, linkFollow.isHeld(link))
+    },
     selected: () => (rows[sel] ? [rows[sel]!] : []),
     key(e) {
       const k = e.key

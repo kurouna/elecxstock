@@ -229,6 +229,8 @@ function send() {
 }
 /** ページをめくる（FR-G2）。at はめくった先で選ぶタイル（ページの枚数に収める）。端では何もしない */
 function goPage(delta: number, at = 0): boolean {
+  // 拡大中は見えているのが 1 枚だけなので、見えない格子のページ・選択・リンクは動かさない（キー・‹ › のボタンとも）
+  if (zoom) return false
   const cur = Math.min(page, pages - 1)
   const next = Math.max(0, Math.min(pages - 1, cur + delta))
   if (next === cur) return false
@@ -558,9 +560,9 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   <span class="num">{dims[0]}×{dims[1]}</span>
   <button type="button" class="chip" title={`${t('grid.finer')} (+)`} aria-label={t('grid.finer')} onclick={() => set({ size: Math.min(GRIDS.length - 1, size + 1), page: 0 })}>＋</button>
   <span class="pager">
-    <button type="button" class="chip" title={`${t('grid.prevPage')} (PageUp)`} aria-label={t('grid.prevPage')} disabled={Math.min(page, pages - 1) <= 0} onclick={() => goPage(-1, 0)}>‹</button>
+    <button type="button" class="chip" title={`${t('grid.prevPage')} (PageUp)`} aria-label={t('grid.prevPage')} disabled={!!zoom || Math.min(page, pages - 1) <= 0} onclick={() => goPage(-1, 0)}>‹</button>
     <span class="num muted">{t('grid.page', { p: Math.min(page, pages - 1) + 1, n: pages })}</span>
-    <button type="button" class="chip" title={`${t('grid.nextPage')} (PageDown)`} aria-label={t('grid.nextPage')} disabled={Math.min(page, pages - 1) >= pages - 1} onclick={() => goPage(1, 0)}>›</button>
+    <button type="button" class="chip" title={`${t('grid.nextPage')} (PageDown)`} aria-label={t('grid.nextPage')} disabled={!!zoom || Math.min(page, pages - 1) >= pages - 1} onclick={() => goPage(1, 0)}>›</button>
   </span>
 </div>
 <div class="tiles" use:symbolDrop={addOwn} class:dense={cols >= 5} bind:this={tiles} style:grid-template-columns={`repeat(${cols}, 1fr)`} style:grid-template-rows={`repeat(${rows}, 1fr)`}>

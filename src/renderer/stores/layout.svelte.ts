@@ -474,7 +474,10 @@ function changeWidgetIn(p: PaneNode, widget: WidgetId): void {
 }
 /** ほかのウィンドウから届いたリンク（R3）。保存し直したり送り返したりしない（こだまを防ぐ） */
 export function applyRemoteLink(group: number, id: InstrumentId): void {
-  if (!group || layout.doc.links[String(group)] === id) return
+  if (!group) return
+  // 同じ銘柄でも送った回数は進める（ほかの窓で同じ銘柄へもう一度ジャンプしたら、先頭に戻した一覧もその行へ移る。setLinkSymbol と同じ）
+  layout.linkSeq[String(group)] = (layout.linkSeq[String(group)] ?? 0) + 1
+  if (layout.doc.links[String(group)] === id) return
   layout.doc.links[String(group)] = id
   // 1 枚目はリンクを保存しておく（次の起動で同じ銘柄から）。フリー N はリンクを保存しない
   if (!IS_FREE) saveLayout()

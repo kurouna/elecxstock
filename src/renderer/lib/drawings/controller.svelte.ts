@@ -190,7 +190,7 @@ export class DrawController {
       // ほかの窓で消された・描けない表示になった）、または動かす対象を選んだまま別の線を選んだ（G・クリック。見るだけで選び直す）:
       // 十字線・凡例を戻す。線を選んだだけ（target が none）なら十字線を出していないので触れない（リンクしたチャートの十字線を消さない）
       const reselected = prev.m === 'sel' && this.mode.m === 'sel' && prev.target !== 'none' && this.mode.target === 'none'
-      const fromTarget = was === 'sel' && prev.m === 'sel' && prev.target !== 'none'
+      const fromTarget = prev.m === 'sel' && prev.target !== 'none'
       if (was === 'start' || was === 'end' || (fromTarget && now === 'idle') || reselected) this.c.showBar(null)
     }
     // 通常に戻った（Esc・Delete・フォーカスが外れた・銘柄が変わった）か、ドラッグしている線の選択が外れた（Alt+T・G）:

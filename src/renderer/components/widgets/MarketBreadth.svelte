@@ -196,7 +196,11 @@ onMount(() => {
   const ro = new ResizeObserver(() => (width = scroller?.clientWidth ?? 600))
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
-    current: () => (drill ? listCurrent(pane.link ? linkSymbol(pane.link) : null, listRows, sel) : undefined),
+    current: () => {
+      if (!drill) return undefined
+      const link = pane.link ? linkSymbol(pane.link) : null
+      return listCurrent(link, listRows, sel, linkFollow.isHeld(link))
+    },
     selected: () => (drill ? (listRows[sel] ? [listRows[sel]!] : []) : (tableRows[sel]?.ids ?? [])),
     // 中の銘柄の一覧のときだけ、一覧の中身を出す（CSV の書き出し・一覧の取り直し）
     columns: () => (drill ? { ids: listRows, cols: listCols, name: `${t('widget.breadth')} ${name(drill)}` } : null),
