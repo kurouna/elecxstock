@@ -1,5 +1,6 @@
 id | group | type | source | unit | perShare | scale | missing | refs | alert | column
 price.close | price | money | metrics | 円 | o | 1 | o | price.ma25 price.ma75 price.ma200 price.hi52 price.lo52 | o | o
+price.chg | price | money | metrics | 円 | o | 1 | o |  | o | o
 price.chgPct | price | percent | metrics |  | - | 1 | o |  | o | o
 liq.turnover20 | price | money | metrics | 億円 | - | 100000000 | o |  | o | o
 value.marketCap | price | money | metrics | 億円 | - | 100000000 | o |  | o | o

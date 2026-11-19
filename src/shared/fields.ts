@@ -126,7 +126,8 @@ export const KIND_CHOICES = [
 
 export const FIELDS: FieldDef[] = [
   num('price.close', '終値', 'Last', 'price', 'money', 'close', { step: 100, default: 1000 }),
-  num('price.chgPct', '前日比', 'Change', 'price', 'percent', 'chgPct'),
+  num('price.chg', '前日比', 'Change', 'price', 'money', 'chg', { step: 10, default: 0 }),
+  num('price.chgPct', '前日比率', 'Change %', 'price', 'percent', 'chgPct'),
   num('liq.turnover20', '売買代金(20日平均)', 'Turnover (20D avg)', 'price', 'money', 'turnover20', {
     description: L(
       'Yahoo に売買代金は無いため、終値 × 出来高の近似（20 取引日の平均）',
@@ -579,6 +580,7 @@ const GROUP_OF: Record<string, FieldGroup> = {
   'value.eps': 'value',
   'value.bps': 'value',
   'price.close': 'price',
+  'price.chg': 'price',
   'price.chgPct': 'price',
   'value.marketCap': 'price',
   'liq.turnover20': 'price',
@@ -643,6 +645,7 @@ const REF_OF: Record<string, RefGroup> = {
 }
 const UNIT_OF: Record<string, LocalizedName> = {
   'price.close': L('円', 'JPY'),
+  'price.chg': L('円', 'JPY'),
   'price.ma25': L('円', 'JPY'),
   'price.ma75': L('円', 'JPY'),
   'price.ma200': L('円', 'JPY'),
@@ -667,6 +670,8 @@ const UNIT_OF: Record<string, LocalizedName> = {
   'event.rightsDays': L('日', 'days'),
 }
 const ALIAS_OF: Record<string, string> = {
+  'price.chg': '値幅 騰落',
+  'price.chgPct': '騰落率',
   'income.yield': '配当利回り yield',
   'income.yield2p': '配当利回り yield',
   'income.divYoy': '減配 増配',
@@ -688,11 +693,12 @@ const ALIAS_OF: Record<string, string> = {
   'liq.turnover20': '出来高',
   'value.marketCap': '時価',
 }
-const SIGNED = new Set(['price.chgPct', 'income.divYoy', 'income.divCagr5', 'risk.mdd3y', 'holding.pnlPct'])
+const SIGNED = new Set(['price.chg', 'price.chgPct', 'income.divYoy', 'income.divCagr5', 'risk.mdd3y', 'holding.pnlPct'])
 /** 説明の無い既存の指標に説明を足す（ダイアログの下の段と ⓘ に出す） */
 const DESC_OF: Record<string, LocalizedName> = {
   'price.close': L('最新の終値（分割調整済み）', 'Latest close (split-adjusted)'),
-  'price.chgPct': L('前日の終値からの騰落率', 'Change from the previous close'),
+  'price.chg': L('前日の終値からの値幅（分割調整済み）', 'Change from the previous close in JPY (split-adjusted)'),
+  'price.chgPct': L('前日の終値からの騰落率', 'Change from the previous close in %'),
   'value.marketCap': L('終値 × 発行済株式数（Yahoo）', 'Last × shares outstanding (Yahoo)'),
   'value.per': L('終値 ÷ EPS（Yahoo の実績 EPS）', 'Last ÷ EPS (Yahoo trailing)'),
   'tech.fromHi52': L('終値 ÷ 52 週高値 − 1', 'Last ÷ 52-week high − 1'),
@@ -722,7 +728,9 @@ for (const f of FIELDS) {
   if (UNIT_OF[f.id]) f.unit = UNIT_OF[f.id]
   if (ALIAS_OF[f.id]) f.alias = ALIAS_OF[f.id]
   if (REF_OF[f.id]) f.refGroup = REF_OF[f.id]
-  if (SIGNED.has(f.id) || f.category === 'return' || f.category === 'technical') f.signed = f.type === 'percent'
+  // 符号を付けるのは % と、前日比のような値幅（円）
+  if (SIGNED.has(f.id) || f.category === 'return' || f.category === 'technical')
+    f.signed = f.type === 'percent' || (f.type === 'money' && SIGNED.has(f.id))
   if (!f.description && DESC_OF[f.id]) f.description = DESC_OF[f.id]
 }
 

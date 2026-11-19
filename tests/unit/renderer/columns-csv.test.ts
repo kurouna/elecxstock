@@ -69,3 +69,36 @@ describe('符号つきの % の列の色は「±」と揃える（FR-SC6, FR-V2�
     expect(at(1)).toMatchObject({ c: 'up' })
   })
 })
+
+describe('前日比の円の列（FR-SC3, FR-V2）', () => {
+  const col = () => COLUMN_BY_ID.get('price.chg')!
+  const at = (close: number, chg: number) => {
+    app.metrics.set('JP:9001' as InstrumentId, row('9001', { close, chg }))
+    return col().cell('JP:9001' as InstrumentId)
+  }
+  it('符号と上げ下げの色を付け、桁は値段にそろえる', () => {
+    expect(at(3000, 12)).toEqual({ t: '+12', c: 'up' })
+    expect(at(800, -1.5)).toEqual({ t: '−1.5', c: 'down' })
+    expect(at(3000, 0.4)).toEqual({ t: '±0', c: 'flat' })
+  })
+  it('値が無ければ —。並べ替えは円の値で、率の列とは別', () => {
+    app.metrics.set('JP:9001' as InstrumentId, row('9001', { chg: null, chgPct: 1 }))
+    expect(col().cell('JP:9001' as InstrumentId).t).toBe('—')
+    app.metrics.set('JP:9001' as InstrumentId, row('9001', { chg: -30, chgPct: 1 }))
+    expect(col().sort!('JP:9001' as InstrumentId)).toBe(-30)
+    expect(COLUMN_BY_ID.get('price.chgPct')!.sort!('JP:9001' as InstrumentId)).toBe(1)
+  })
+  it('見出しは 前日比（円）と 前日比率（%）', () => {
+    expect(col().label()).toBe('前日比')
+    expect(COLUMN_BY_ID.get('price.chgPct')!.label()).toBe('前日比率')
+  })
+})
+
+describe('まとめた前日比の率（保有の合計・小計。FR-H7）', () => {
+  it('前日比の額 ÷ 前日の評価額。前日の評価額が 0 以下なら欠損', async () => {
+    const { dayChangePct } = await import('../../../src/renderer/lib/portfolio')
+    expect(dayChangePct({ value: 102_000, dayPnl: 2_000 })).toBeCloseTo(2, 9)
+    expect(dayChangePct({ value: 98_000, dayPnl: -2_000 })).toBeCloseTo(-2, 9)
+    expect(dayChangePct({ value: 0, dayPnl: 0 })).toBeNull()
+  })
+})

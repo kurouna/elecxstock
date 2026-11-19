@@ -2,9 +2,9 @@
 
 <!-- このファイルは npm run gen:fields-doc が指標の登録表（src/shared/fields.ts）から作る。手で直さない -->
 
-スクリーナーとアラートの条件に使える項目の一覧です（58 項目）。スクリーナーの「＋ 条件を追加」（Insert）で、分類ごとに並んだダイアログから選び、打って絞り込めます。値はすべて手元に取り込んだデータから計算します。
+スクリーナーとアラートの条件に使える項目の一覧です（59 項目）。スクリーナーの「＋ 条件を追加」（Insert）で、分類ごとに並んだダイアログから選び、打って絞り込めます。値はすべて手元に取り込んだデータから計算します。
 
-The fields you can use in screener and alert conditions (58 fields). Press Insert ("+ Add condition") in the screener to pick one from a dialog grouped by category, and type to filter. All values are computed from the data stored on your PC.
+The fields you can use in screener and alert conditions (59 fields). Press Insert ("+ Add condition") in the screener to pick one from a dialog grouped by category, and type to filter. All values are computed from the data stored on your PC.
 
 - 単位: 金額は表示の単位で打ちます（1 株あたりは円、最低投資金額は万円、時価総額・売買代金は億円）。「30万」「1.5億」のように単位を付けても読みます。/ Units: type money in the display unit (yen per share, 10k yen for minimum investment, 100M yen for market cap and turnover); suffixes such as 30万 or 1.5億 also work.
 - 相対条件: 同じ種類の項目どうしで比べられます（例: 終値 ≥ 75日移動平均 +5%）。/ Relative conditions compare fields of the same kind (e.g. Last ≥ MA75 + 5%).
@@ -48,7 +48,8 @@ The fields you can use in screener and alert conditions (58 fields). Press Inser
 | 項目 / Field | 単位 / Unit | 比べ方 / Ops | 相対条件の相手 / Compare with | 説明 / Description |
 | --- | --- | --- | --- | --- |
 | 終値<br>Last | 円 / JPY | ≥ ≤ | 25日移動平均、75日移動平均、200日移動平均、52週高値、52週安値 | 最新の終値（分割調整済み）<br>Latest close (split-adjusted) |
-| 前日比<br>Change | % | ≥ ≤ |  | 前日の終値からの騰落率<br>Change from the previous close |
+| 前日比<br>Change | 円 / JPY | ≥ ≤ |  | 前日の終値からの値幅（分割調整済み）<br>Change from the previous close in JPY (split-adjusted) |
+| 前日比率<br>Change % | % | ≥ ≤ |  | 前日の終値からの騰落率<br>Change from the previous close in % |
 | 売買代金(20日平均)<br>Turnover (20D avg) | 億円 / ¥100M | ≥ ≤ |  | Yahoo に売買代金は無いため、終値 × 出来高の近似（20 取引日の平均）<br>Approximated as close × volume (20 trading-day average) |
 | 時価総額<br>Market cap | 億円 / ¥100M | ≥ ≤ |  | 終値 × 発行済株式数（Yahoo）<br>Last × shares outstanding (Yahoo) |
 | 最低投資金額<br>Minimum investment | 万円 / ¥10k | ≤ ≥ |  | 終値 × 売買単位（株式は 100 株、REIT は 1 口）。ETF・ETN・その他は単位が分からないので欠損<br>Last × trading unit (100 shares for stocks, 1 unit for REITs). Missing for ETFs and others (unit unknown) |

@@ -467,14 +467,18 @@ test.describe('プライバシーモード（FR-H12）', () => {
     // 損益率（%）は隠さない
     await expect(f.locator('.c-hero')).toContainText('%')
 
-    // 保有のペイン: 数量・評価額・損益は ****、損益率は残る
+    // 保有のペイン: 数量・前日比の額・評価額・損益は ****、前日比率・損益率は残る
     await tab(page, 'holdings')
     const row = page.locator('[data-widget="portfolio"] tbody tr', { hasText: '7203' })
     const cells = row.locator('td')
     await expect(cells.nth(2)).toHaveText('****')
-    await expect(cells.nth(6)).toHaveText('****')
+    await expect(cells.nth(5)).toHaveText('****')
+    await expect(cells.nth(6)).toContainText('%')
     await expect(cells.nth(7)).toHaveText('****')
-    await expect(cells.nth(8)).toContainText('%')
+    await expect(cells.nth(8)).toHaveText('****')
+    await expect(cells.nth(9)).toContainText('%')
+    // 口座区分の小計の前日比の額も隠す
+    await expect(page.locator('[data-widget="portfolio"] tbody tr.sub').first().locator('td').nth(1)).toHaveText('****')
 
     await keys(page, 'Control+Shift+KeyH')
     await expect(btn).toHaveAttribute('aria-pressed', 'false')

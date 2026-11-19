@@ -10,6 +10,7 @@ import { cls, fmt, moneyCls, ownMoney, ownSignedMoney, px, sgn } from '../../lib
 import { registerPane } from '../../lib/panes'
 import {
   accountName,
+  dayChangePct,
   editHolding,
   exportHoldings,
   importBrokerCsv,
@@ -154,7 +155,7 @@ onMount(() =>
     <div class="stat">
       <div class="k">{t('hold.dayPnl')}</div>
       <div class={`v num ${moneyCls(total.dayPnl)}`}>{ownSignedMoney(total.dayPnl).n}<small>{ownSignedMoney(total.dayPnl).u}</small></div>
-      <div class={`s num ${cls(pct(total.dayPnl, total.value - total.dayPnl), 2)}`}>{sgn(pct(total.dayPnl, total.value - total.dayPnl), 2, '%')}</div>
+      <div class={`s num ${cls(dayChangePct(total), 2)}`}>{sgn(dayChangePct(total), 2, '%')}</div>
     </div>
     <div class="stat">
       <div class="k">{t('hold.divNet')}</div>
@@ -184,12 +185,12 @@ onMount(() =>
     <table class="grid">
       <colgroup>
         <col style:width="56px" /><col style:min-width="120px" /><col style:width="68px" /><col style:width="76px" /><col style:width="72px" />
-        <col style:width="66px" /><col style:width="96px" /><col style:width="92px" /><col style:width="70px" /><col style:width="62px" /><col style:width="72px" />
+        <col style:width="84px" /><col style:width="66px" /><col style:width="96px" /><col style:width="92px" /><col style:width="70px" /><col style:width="62px" /><col style:width="72px" />
       </colgroup>
       <thead>
         <tr>
           <th class="l">{t('col.code')}</th><th class="l">{t('col.name')}</th><th>{t('hold.qty')}</th><th>{t('hold.avgShort')}</th><th>{t('col.close')}</th>
-          <th>{t('hold.chg')}</th><th>{t('hold.value')}</th><th>{t('hold.pnl')}</th><th>{t('hold.pnlPct')}</th><th>{t('hold.weight')}</th><th>{t('hold.yoc')}</th>
+          <th title={t('hold.chgAmtTip')}>{t('hold.chgAmt')}</th><th>{t('hold.chg')}</th><th>{t('hold.value')}</th><th>{t('hold.pnl')}</th><th>{t('hold.pnlPct')}</th><th>{t('hold.weight')}</th><th>{t('hold.yoc')}</th>
         </tr>
       </thead>
       <tbody>
@@ -203,6 +204,7 @@ onMount(() =>
               <td>{secret(fmt(r.h.quantity, 0))}</td>
               <td>{px(r.h.avgCost)}</td>
               <td>{px(v.close)}</td>
+              <td class={cls(v.dayPnl, 0)}>{secret(sgn(v.dayPnl, 0))}</td>
               <td class={cls(v.chgPct, 2)}>{sgn(v.chgPct, 2, '%')}</td>
               <td>{secret(fmt(v.value, 0))}</td>
               <td class={cls(v.pnl, 0)}>{secret(sgn(v.pnl, 0))}</td>
@@ -212,7 +214,9 @@ onMount(() =>
             </tr>
           {:else}
             <tr class="sub">
-              <td class="l" colspan="6"><span class="dot" style:background={`var(--acct-${r.account})`}></span>{accountName(r.account)} <span class="n">{t('hold.count', { n: r.n })}</span></td>
+              <td class="l" colspan="5"><span class="dot" style:background={`var(--acct-${r.account})`}></span>{accountName(r.account)} <span class="n">{t('hold.count', { n: r.n })}</span></td>
+              <td class={cls(r.dayPnl, 0)}>{secret(sgn(r.dayPnl, 0))}</td>
+              <td class={cls(dayChangePct(r), 2)}>{sgn(dayChangePct(r), 2, '%')}</td>
               <td>{secret(fmt(r.value, 0))}</td>
               <td class={cls(r.pnl, 0)}>{secret(sgn(r.pnl, 0))}</td>
               <td class={cls(pct(r.pnl, r.cost), 1)}>{sgn(pct(r.pnl, r.cost), 1, '%')}</td>

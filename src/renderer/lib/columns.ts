@@ -7,7 +7,7 @@ import { FIELDS, type FieldDef, KIND_CHOICES, perShare, usable } from '@shared/f
 import { priceDigits } from '@shared/markets'
 import type { Instrument, InstrumentId, MetricsRow } from '@shared/types'
 import { app, checklistDialog, ensureMetrics, inst, metric, t } from '../stores/app.svelte'
-import { cls, date, fmt, money, px, sgn } from './format'
+import { chgDigits, cls, date, fmt, money, px, sgn } from './format'
 import type { Key } from './i18n'
 
 export interface Cell {
@@ -60,7 +60,7 @@ function fieldCell(f: FieldDef, v: number | null, digits?: number): Cell {
   switch (f.type) {
     case 'money': {
       // 1 株あたりの金額（価格・EPS・BPS・1株配当）は円、それ以外（時価総額・売買代金・最低投資金額）は万・億・兆
-      if (perShare(f)) return { t: px(v, digits) }
+      if (perShare(f)) return f.signed ? { t: sgn(v, digits ?? 0), c: cls(v, digits ?? 0) } : { t: px(v, digits) }
       const m = money(v)
       return { t: m.n, u: m.u }
     }
@@ -78,7 +78,8 @@ const widthOf = (f: FieldDef) => (f.type === 'money' ? 76 : f.type === 'percent'
 /** 見出しは短く（指標の登録表の名前を使い、長いものは列用の短い名前） */
 const SHORT: Record<string, Key> = {
   'price.close': 'col.close',
-  'price.chgPct': 'col.chg',
+  'price.chg': 'col.chg',
+  'price.chgPct': 'col.chgPct',
   'income.yield': 'col.yield',
   'liq.turnover20': 'col.turnover',
   'value.per': 'col.per',
@@ -121,7 +122,13 @@ export const COLUMNS: ListCol[] = [
       label: () => (SHORT[f.id] ? t(SHORT[f.id]!) : f.label[app.settings.lang]),
       w: widthOf(f),
       sort: (id) => mv(id, (f.source as { column: string }).column),
-      cell: (id) => fieldCell(f, mv(id, (f.source as { column: string }).column), priceDigits(id)),
+      cell: (id) =>
+        fieldCell(
+          f,
+          mv(id, (f.source as { column: string }).column),
+          // 値幅（前日比の円）は値段の桁にそろえる
+          priceDigits(id) ?? (f.signed && perShare(f) ? chgDigits(metric(id)?.close) : undefined),
+        ),
     }),
   ),
   // 実行時に計算する指標（予定までの日数・保有）。スクリーナーと同じ関数で数える（src/shared/compute.ts）

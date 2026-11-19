@@ -16,6 +16,8 @@ export function px(v: number | null | undefined, digits?: number): string {
   const d = digits ?? (Math.abs(v) < 1000 ? 1 : 0)
   return fmt(v, d)
 }
+/** 値幅（前日比の円）の桁: 値段と同じ桁（1,000 円未満は小数 1 桁）。値幅そのものの大きさでは決めない（+12 円が +12.0 にならないように） */
+export const chgDigits = (close: number | null | undefined): number => (close != null && Math.abs(close) < 1000 ? 1 : 0)
 export function sgn(v: number | null | undefined, digits = 2, suffix = ''): string {
   if (v == null || !Number.isFinite(v)) return '—'
   const s = roundsToZero(v, digits) ? '±' : v > 0 ? '+' : '−'

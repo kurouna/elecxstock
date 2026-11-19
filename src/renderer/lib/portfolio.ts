@@ -59,6 +59,12 @@ export function valuation(h: Holding): Valuation {
   }
 }
 
+/** まとめた前日比の率（合計・口座区分の小計）: 前日比の額 ÷ 前日の評価額（今の評価額 − 前日比の額） */
+export function dayChangePct(s: { value: number; dayPnl: number }): number | null {
+  const prev = s.value - s.dayPnl
+  return prev > 0 ? (s.dayPnl / prev) * 100 : null
+}
+
 /**
  * 取り込みのあと: Core が一覧に無い銘柄を利用者の銘柄として足すので、設定（追加した銘柄）・銘柄の一覧・CSV の情報を読み直す
  */

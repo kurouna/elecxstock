@@ -13,7 +13,7 @@ import { condsText, distanceText } from '../../lib/alertText'
 import { changeSymbol } from '../../lib/chartMenu'
 import { keyOf } from '../../lib/commands'
 import { annualDividends, eventYoy, nextRightsDates, recordDayOf, yearsThatFit } from '../../lib/dividends'
-import { cls, date, fmt, money, px, retCls, retText, sgn } from '../../lib/format'
+import { chgDigits, cls, date, fmt, money, px, retCls, retText, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { accountName, valuation } from '../../lib/portfolio'
@@ -305,7 +305,7 @@ onMount(() =>
     <section class="hero" aria-label={t('si.price')}>
       <div class="top">
         <span class="price num">{px(m?.close)}</span>
-        <span class={`chg num ${cls(m?.chg, (m?.close ?? 0) < 1000 ? 1 : 0)}`}>{sgn(m?.chg, (m?.close ?? 0) < 1000 ? 1 : 0)} ({sgn(m?.chgPct, 2, '%')})</span>
+        <span class={`chg num ${cls(m?.chg, chgDigits(m?.close))}`}>{sgn(m?.chg, chgDigits(m?.close))} ({sgn(m?.chgPct, 2, '%')})</span>
         {#if m?.fromHi52 != null}<span class="fh">{t('si.fromHi')} <span class="num">{sgn(m.fromHi52, 1, '%')}</span></span>{/if}
       </div>
       {#if m?.hi52 != null && m.lo52 != null}
