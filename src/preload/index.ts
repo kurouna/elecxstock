@@ -2,7 +2,7 @@
 
 import type { CoreError, EventName, Events, Method, Params, Results } from '@shared/api'
 import type { LoginState } from '@shared/background'
-import type { ElecxstockBridge } from '@shared/bridge'
+import type { ElecxstockBridge, OpenFileFailure, SaveFileResult } from '@shared/bridge'
 import { contextBridge, ipcRenderer } from 'electron'
 
 let port: MessagePort | null = null
@@ -69,11 +69,12 @@ const api: ElecxstockBridge = {
   },
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url) as Promise<boolean>,
   copyText: (text: string) => ipcRenderer.invoke('app:copyText', text) as Promise<boolean>,
-  saveText: (name: string, text: string) => ipcRenderer.invoke('app:saveText', name, text) as Promise<boolean>,
-  savePng: (name: string, bytes: Uint8Array) => ipcRenderer.invoke('app:savePng', name, bytes) as Promise<boolean>,
+  saveText: (name: string, text: string) => ipcRenderer.invoke('app:saveText', name, text) as Promise<SaveFileResult>,
+  savePng: (name: string, bytes: Uint8Array) => ipcRenderer.invoke('app:savePng', name, bytes) as Promise<SaveFileResult>,
   notices: () => ipcRenderer.invoke('app:notices') as Promise<string>,
-  openFile: (kind: 'json' | 'xlsx' | 'text' | 'csv') => ipcRenderer.invoke('app:openFile', kind) as Promise<string | Uint8Array | null>,
-  exportBackup: (file: string) => ipcRenderer.invoke('app:exportBackup', file) as Promise<boolean>,
+  openFile: (kind: 'json' | 'xlsx' | 'text' | 'csv') =>
+    ipcRenderer.invoke('app:openFile', kind) as Promise<string | Uint8Array | null | OpenFileFailure>,
+  exportBackup: (file: string) => ipcRenderer.invoke('app:exportBackup', file) as Promise<SaveFileResult>,
   openLogs: () => ipcRenderer.invoke('app:openLogs') as Promise<boolean>,
   setChrome: (theme: string, scale: number) => ipcRenderer.invoke('app:setChrome', theme, scale) as Promise<boolean>,
   quit: () => ipcRenderer.invoke('app:quit') as Promise<boolean>,

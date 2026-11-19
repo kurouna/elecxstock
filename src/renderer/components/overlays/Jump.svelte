@@ -6,6 +6,8 @@ import type { Instrument } from '@shared/types'
 import { onMount } from 'svelte'
 import { focusedWatchlist, holdingsTabLocked, sendSymbol } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
+import { composing } from '../../lib/keys'
+import { clampSel } from '../../lib/selection'
 import { addToList, app, bridge, closeOverlay, isFav, listName, t, toggleFav } from '../../stores/app.svelte'
 
 let { first }: { first: string } = $props()
@@ -52,7 +54,7 @@ $effect(() => {
     .catch(() => {})
 })
 function onKey(e: KeyboardEvent) {
-  if (e.isComposing) return
+  if (composing(e)) return
   e.preventDefault()
   e.stopPropagation()
   const c = e.code
@@ -61,7 +63,7 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === 'Backspace') {
     buf = buf.slice(0, -1)
     if (!buf) closeOverlay()
-  } else if (e.key === 'ArrowDown') sel = Math.min(cand.length - 1, sel + 1)
+  } else if (e.key === 'ArrowDown') sel = clampSel(sel + 1, cand.length)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
   else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) add()
   else if (e.key === 'Enter') show()

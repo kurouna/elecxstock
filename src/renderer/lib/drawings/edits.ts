@@ -212,6 +212,11 @@ export class DrawingEdits {
           this.conflict(p.id, k, r.current)
         }
       } catch {
+        // 手元を Core の値に戻すので、書いている間の編集も捨てる（断られたときと同じ。残すと、戻した値を書く前の値との差として
+        // あとで書き、中身の無い取り消しの段ができる）
+        const again = this.pending.get(k)
+        if (again?.timer) clearTimeout(again.timer)
+        this.pending.delete(k)
         this.set(p.id, k, before)
         this.notify('failed')
       } finally {

@@ -7,6 +7,7 @@ import { onMount } from 'svelte'
 import PaneHeader from '../components/PaneHeader.svelte'
 import { setFocus } from '../lib/commands'
 import type { Key } from '../lib/i18n'
+import { composing } from '../lib/keys'
 import { registerPane } from '../lib/panes'
 import { SelectionFollow } from '../lib/selection'
 import { app, bridge, t, toast } from '../stores/app.svelte'
@@ -216,6 +217,8 @@ function onKey(e: KeyboardEvent): boolean {
   return false
 }
 function filterKey(e: KeyboardEvent) {
+  // 変換中の Enter・↓・Esc は IME のもの（FR-KB5）
+  if (composing(e)) return
   if (e.key === 'Escape') {
     e.preventDefault()
     e.stopPropagation()

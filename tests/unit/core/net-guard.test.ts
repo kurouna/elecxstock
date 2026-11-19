@@ -44,6 +44,13 @@ describe('NFR-S1 通信の制限（許可リストとリダイレクト）', () 
     expect(isAllowedUrl(new URL(EVIL), ALLOWED_HOSTS)).toBe(false)
   })
 
+  it('認証情報の付いた URL・既定でないポートは通さない（ニュースの許可〔NewsService.allowed〕と同じ。:443 は既定と同じ）', () => {
+    expect(isAllowedUrl(new URL('https://query1.finance.yahoo.com:443/x'), ALLOWED_HOSTS)).toBe(true)
+    expect(isAllowedUrl(new URL('https://query1.finance.yahoo.com:8443/x'), ALLOWED_HOSTS)).toBe(false)
+    expect(isAllowedUrl(new URL('https://u:p@query1.finance.yahoo.com/x'), ALLOWED_HOSTS)).toBe(false)
+    expect(isAllowedUrl(new URL('https://u@www.jpx.co.jp/x'), ALLOWED_HOSTS)).toBe(false)
+  })
+
   it('許可リストにないホストへは 1 本も出さない', async () => {
     const { f, hits } = fakeFetch({})
     await expect(guardFetch(f, ALLOWED_HOSTS)(EVIL)).rejects.toThrow(/blocked host: evil\.example/)
@@ -167,6 +174,38 @@ describe('NFR-S1 Request で渡した要求のリダイレクト', () => {
       const body = hits[1]?.body
       expect(body == null ? null : new TextDecoder().decode(body as ArrayBuffer)).toBe('q=1')
     }
+  })
+
+  it('リダイレクトしない要求では、Request の本文を送る前に読み切らない（終わらない本文でも送り出す）', async () => {
+    const p = 'https://query1.finance.yahoo.com/post'
+    for (const redirect of ['follow', 'error'] as const) {
+      const { f, hits } = fakeFetch({ [p]: { status: 200, body: 'ok' } })
+      const open = new ReadableStream<Uint8Array>({ start: (c) => c.enqueue(new TextEncoder().encode('q=1')) }) // 閉じない
+      const req = new Request(p, { method: 'POST', body: open, duplex: 'half', redirect } as RequestInit)
+      const res = await Promise.race([guardFetch(f, ALLOWED_HOSTS)(req), new Promise<null>((r) => setTimeout(() => r(null), 200))])
+      expect(res?.status, redirect).toBe(200)
+      expect(hits).toHaveLength(1)
+    }
+  })
+
+  it('Request の本文は、303 で GET にしたあとの 307 では付けない', async () => {
+    const p = 'https://query1.finance.yahoo.com/post'
+    const g = 'https://query1.finance.yahoo.com/get'
+    const k = 'https://query1.finance.yahoo.com/keep'
+    const { f, hits } = fakeFetch({ [p]: { status: 303, location: g }, [g]: { status: 307, location: k }, [k]: { status: 200 } })
+    await guardFetch(f, ALLOWED_HOSTS)(new Request(p, { method: 'POST', body: 'q=1' }))
+    expect(hits.slice(1)).toEqual([
+      { url: g, method: 'GET', body: null },
+      { url: k, method: 'GET', body: null },
+    ])
+  })
+
+  it('GET・HEAD の要求では本文を写さない（init で POST の Request を GET に変えても、307 で本文を付けない）', async () => {
+    const p = 'https://query1.finance.yahoo.com/a'
+    const k = 'https://query1.finance.yahoo.com/b'
+    const { f, hits } = fakeFetch({ [p]: { status: 307, location: k }, [k]: { status: 200 } })
+    await guardFetch(f, ALLOWED_HOSTS)(new Request(p, { method: 'POST', body: 'q=1' }), { method: 'GET' })
+    expect(hits[1]).toEqual({ url: k, method: 'GET', body: null })
   })
 })
 

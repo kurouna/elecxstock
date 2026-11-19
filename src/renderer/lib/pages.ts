@@ -22,6 +22,8 @@ import {
   undoRemovePage,
 } from '../stores/layout.svelte'
 import type { Key } from './i18n'
+import { composing } from './keys'
+import { clampSel } from './selection'
 import { freeNo, IS_FREE, SLOT } from './windowSlot'
 
 /** メニューの行: ページ（番号は 1〜9 だけ）と、操作 */
@@ -55,16 +57,16 @@ export type MenuCommand =
   | { kind: 'row' }
   | { kind: 'open'; index: number }
   | { kind: 'new' | 'duplicate' | 'rename' | 'delete' | 'undo' }
-type KeyLike = Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey' | 'isComposing'>
+type KeyLike = Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey' | 'isComposing' | 'keyCode'>
 export function menuKey(e: KeyLike, sel: number, count: number): MenuCommand | null {
-  if (e.isComposing) return null
+  if (composing(e)) return null
   const ctrl = e.ctrlKey || e.metaKey
   const digit = /^Digit([1-9])$/.exec(e.code)
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey) return { kind: 'reorder', delta: e.key === 'ArrowUp' ? -1 : 1 }
-  if (e.key === 'ArrowDown') return { kind: 'select', sel: Math.min(count - 1, sel + 1) }
+  if (e.key === 'ArrowDown') return { kind: 'select', sel: clampSel(sel + 1, count) }
   if (e.key === 'ArrowUp') return { kind: 'select', sel: Math.max(0, sel - 1) }
   if (e.key === 'Home') return { kind: 'select', sel: 0 }
-  if (e.key === 'End') return { kind: 'select', sel: count - 1 }
+  if (e.key === 'End') return { kind: 'select', sel: clampSel(count - 1, count) }
   if (e.key === 'Enter') return { kind: 'row' }
   if (digit && !ctrl && !e.altKey && !e.shiftKey) return { kind: 'open', index: Number(digit[1]) - 1 }
   if (e.key === 'Insert') return { kind: e.shiftKey ? 'duplicate' : 'new' }

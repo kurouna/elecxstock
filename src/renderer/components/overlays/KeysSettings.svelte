@@ -3,7 +3,7 @@
 // 同じキーを使うアクションがあれば知らせ、入れ替えるかを尋ねる。Delete で外し、Backspace で既定に戻す。
 import { onMount } from 'svelte'
 import { ACTIONS, conflicts, keyCapture, keyOf } from '../../lib/commands'
-import { assignable, eventKey, normalizeKey, reservedKey } from '../../lib/keys'
+import { assignable, composing, eventKey, normalizeKey, reservedKey } from '../../lib/keys'
 import { clampSel } from '../../lib/selection'
 import { app, confirmDialog, saveSettings, t, toast } from '../../stores/app.svelte'
 
@@ -62,6 +62,8 @@ async function record(e: KeyboardEvent) {
 }
 function key(e: KeyboardEvent) {
   if (recording) return record(e)
+  // 検索欄で変換の候補を ↓ で選んでいる間に、一覧へ移らない（FR-KB5）
+  if (composing(e)) return
   if ((e.target as HTMLElement).matches('input')) {
     if (e.key === 'ArrowDown') {
       box?.focus()

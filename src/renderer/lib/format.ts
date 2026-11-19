@@ -47,9 +47,11 @@ export function money(v: number | null | undefined): { n: string; u: string } {
     if (a >= 1e8) return { n: fmt(v / 1e8, a >= 1e10 ? 0 : 1), u: '億' }
     return { n: fmt(v / 1e4, 0), u: '万' }
   }
-  if (a >= 1e12) return { n: `¥${fmt(v / 1e12, 2)}`, u: 'T' }
-  if (a >= 1e9) return { n: `¥${fmt(v / 1e9, 1)}`, u: 'B' }
-  return { n: `¥${fmt(v / 1e6, 1)}`, u: 'M' }
+  // 負の値は符号を ¥ の前に置く（-¥5.0B。¥-5.0B にしない）。丸めて 0 になる値には付けない
+  const yen = (n: string) => (v < 0 && /[1-9]/.test(n) ? `-¥${n}` : `¥${n}`)
+  if (a >= 1e12) return { n: yen(fmt(a / 1e12, 2)), u: 'T' }
+  if (a >= 1e9) return { n: yen(fmt(a / 1e9, 1)), u: 'B' }
+  return { n: yen(fmt(a / 1e6, 1)), u: 'M' }
 }
 export function date(d: string | null | undefined): string {
   if (!d) return '—'

@@ -9,7 +9,7 @@ import { onMount } from 'svelte'
 import { addToListDialog, keyOf, setFocus } from '../../lib/commands'
 import { drawingsState, ensureDrawings } from '../../lib/drawings/store.svelte'
 import { cls, fmt, px, sgn } from '../../lib/format'
-import { gridTarget, pageOf, swapInOwn } from '../../lib/gridNav'
+import { afterRemove, gridTarget, pageOf, selOnClick, swapInOwn } from '../../lib/gridNav'
 import type { Key } from '../../lib/i18n'
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
@@ -279,7 +279,7 @@ function startReplace(i?: number) {
   }
   // ★・◆で絞り込んでいるときは見えている並びと own がずれるので、銘柄で own の位置を探す
   replacing = ownIndex(cur)
-  if (i != null && !zoom) sel = i
+  if (i != null) sel = selOnClick(zoom, sel, i)
   app.overlay = { kind: 'palette', q: '', title: t('grid.replaceTitle', { name: nameOf(cur) }) }
 }
 /** このグリッドの銘柄（own）の中での位置。絞り込み中も見えているタイルの銘柄から探す */
@@ -312,6 +312,17 @@ function replaceAt(at: number, id: InstrumentId) {
 $effect(() => {
   if (!app.overlay) replacing = null
 })
+/** 選んだタイル（i を渡せばそのタイル）を「このグリッドの銘柄」から外す（Delete・タイルの ✕）。拡大していた銘柄なら格子に戻る */
+function removeTile(i?: number) {
+  const id = i == null ? target() : shown[i]
+  if (!id) return
+  if (i != null) sel = selOnClick(zoom, sel, i)
+  set({ own: own.filter((x) => x !== id) })
+  const r = afterRemove(zoom, id, sel)
+  zoom = r.zoom
+  sel = r.sel
+  toast(t('grid.removed', { name: nameOf(id) }))
+}
 function pinCurrent() {
   set({ own: [...codes], src: 'own', sort: 'none', page: 0 })
   sel = 0
@@ -475,14 +486,7 @@ onMount(() => {
         return true
       }
       if (k === 'Delete' && src === 'own') {
-        const id = target()
-        if (id) {
-          set({ own: own.filter((x) => x !== id) })
-          // 拡大していた銘柄を外したら格子に戻る
-          if (zoom === id) zoom = null
-          else sel = Math.max(0, sel - 1)
-          toast(t('grid.removed', { name: nameOf(id) }))
-        }
+        removeTile()
         return true
       }
       return false
@@ -549,7 +553,7 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
       use:symbolDrop={(x) => dropAt(i, x)}
       class:sel={i === sel && !zoom}
       class:cand={isCand(id)}
-      onclick={() => { sel = i; send() }}
+      onclick={() => { sel = selOnClick(zoom, sel, i); send() }}
       ondblclick={() => (zoom = zoom ? null : id)}
       onmousemove={(e) => {
         const b = bars[id]
@@ -567,11 +571,11 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
         {#if zoom}<button type="button" class="back" title={`${t('grid.unzoom')} (Esc)`} onclick={(e) => { e.stopPropagation(); zoom = null }}>⤡ {t('grid.unzoom')}</button>{/if}
       </div>
       <div class="s">
-        <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (F)`} onclick={(e) => { e.stopPropagation(); sel = i; toggleFav(id) }}>★</button>
-        <button type="button" class="dia" class:on={isCand(id)} title={`${t('grid.candToggle')} (Space)`} onclick={(e) => { e.stopPropagation(); sel = i; toggleCand(id) }}>◆</button>
+        <button type="button" class="star" class:on={isFav(id)} title={`${t('act.fav')} (F)`} onclick={(e) => { e.stopPropagation(); sel = selOnClick(zoom, sel, i); toggleFav(id) }}>★</button>
+        <button type="button" class="dia" class:on={isCand(id)} title={`${t('grid.candToggle')} (Space)`} onclick={(e) => { e.stopPropagation(); sel = selOnClick(zoom, sel, i); toggleCand(id) }}>◆</button>
         <span class="y num">{m?.yieldTrailing != null ? `${fmt(m.yieldTrailing)}%` : ''}</span>
         <button type="button" class="edit" title={`${t('grid.replace')} (C)`} onclick={(e) => { e.stopPropagation(); startReplace(i) }}>✎</button>
-        {#if src === 'own'}<button type="button" class="edit" title={`${t('grid.remove')} (Delete)`} onclick={(e) => { e.stopPropagation(); sel = i; set({ own: own.filter((x) => x !== id) }) }}>✕</button>{/if}
+        {#if src === 'own'}<button type="button" class="edit" title={`${t('grid.remove')} (Delete)`} onclick={(e) => { e.stopPropagation(); removeTile(i) }}>✕</button>{/if}
       </div>
       <canvas data-id={id}></canvas>
     </div>

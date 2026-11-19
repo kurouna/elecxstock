@@ -55,4 +55,9 @@ export const MAIN_ONLY: ReadonlySet<string> = new Set([
   'alerts.markRead', // ベルは 1 枚目だけ
   'jobs.reset', // 全データの削除（設定の画面）
   'data.importJpx', // 銘柄一覧の取り込み（設定の画面・初回）
+  // ジョブの操作と DB のバックアップ（フリー N はジョブのペイン・バックアップの操作を持たない。renderer の blockedInFree に頼らない）
+  'data.backup',
+  'jobs.pause',
+  'jobs.resume',
+  'jobs.cancel',
 ])

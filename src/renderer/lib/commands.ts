@@ -67,6 +67,7 @@ import {
 } from '../stores/layout.svelte'
 import { canUndoRemoveAlert, createAlert, toggleAlerts, undoRemoveAlert } from './alerts'
 import { toCsv } from './columns'
+import { noticeOpen, noticeSave } from './fileNotice'
 import { dateTime } from './format'
 import type { Key } from './i18n'
 import { composing, matches, normalizeKey, reservedKey } from './keys'
@@ -358,10 +359,10 @@ const today = () => jstNow().date // 日本時間の日付（FR-T1）
 export async function exportUser(): Promise<void> {
   await flushLayoutSave() // 400ms 以内のページの変更も書き出しに入れる
   const json = await rpc('user.exportAll', {})
-  if (await window.elecxstock.saveText(`elecxstock-userdata-${today()}.json`, json)) toast(t('set.exported'))
+  noticeSave(await window.elecxstock.saveText(`elecxstock-userdata-${today()}.json`, json), t('set.exported'))
 }
 export async function importUser(): Promise<void> {
-  const text = await window.elecxstock.openFile('json')
+  const text = noticeOpen(await window.elecxstock.openFile('json'))
   if (typeof text !== 'string') return
   // 置き換える前に、何が置き換わるかを示して確かめる（取り込む前の状態は残り、元に戻せる）
   let o: { watchlists?: unknown[]; screens?: unknown[]; layouts?: unknown[]; settings?: unknown; alerts?: unknown[] }
@@ -424,7 +425,7 @@ async function exportListCsv(): Promise<void> {
     return
   }
   const csv = toCsv(c.ids, c.cols, nameOf)
-  if (await window.elecxstock.saveText(`elecxstock-${c.name}-${today()}.csv`, csv)) toast(t('csv.saved', { n: c.ids.length }))
+  noticeSave(await window.elecxstock.saveText(`elecxstock-${c.name}-${today()}.csv`, csv), t('csv.saved', { n: c.ids.length }))
 }
 /** 選んだ銘柄の日足を CSV に書き出す（FR-S3） */
 async function exportBarsCsv(): Promise<void> {
@@ -437,11 +438,11 @@ async function exportBarsCsv(): Promise<void> {
   const from = n ? addDays(today(), -Math.round(n * 365.25)) : undefined
   const csv = await rpc('bars.csv', { ids, ...(from ? { from } : {}) })
   const name = ids.length === 1 ? ids[0]!.replace(/^\w+:/, '') : `${ids.length}`
-  if (await window.elecxstock.saveText(`elecxstock-bars-${name}-${today()}.csv`, csv)) toast(t('csv.saved', { n: ids.length }))
+  noticeSave(await window.elecxstock.saveText(`elecxstock-bars-${name}-${today()}.csv`, csv), t('csv.saved', { n: ids.length }))
 }
 /** コードを並べた CSV・テキストから取り込む（FR-W8）。先頭の列の 4〜5 桁のコードを拾う */
 async function importCodes(): Promise<void> {
-  const text = await window.elecxstock.openFile('text')
+  const text = noticeOpen(await window.elecxstock.openFile('text'))
   if (typeof text !== 'string') return
   const codes = [
     ...new Set(
@@ -471,7 +472,7 @@ async function importCodes(): Promise<void> {
 async function backupDb(): Promise<void> {
   toast(t('backup.running'))
   const name = await rpc('data.backup', {})
-  if (await window.elecxstock.exportBackup(name)) toast(t('backup.saved'))
+  noticeSave(await window.elecxstock.exportBackup(name), t('backup.saved'))
 }
 export async function checkUpdate(manual = false): Promise<void> {
   try {

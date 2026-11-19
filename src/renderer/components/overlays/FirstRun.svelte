@@ -3,6 +3,7 @@
 import { LWC_NOTICE, LWC_NOTICE_PARTS, TRADINGVIEW_URL } from '@shared/attribution'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { onMount } from 'svelte'
+import { noticeOpen } from '../../lib/fileNotice'
 import FirstRunNews from '../../news/FirstRunNews.svelte'
 import { setNews } from '../../news/store.svelte'
 import { app, bridge, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
@@ -43,7 +44,7 @@ function later() {
   app.overlay = null
 }
 async function importJpx() {
-  const bytes = await window.elecxstock.openFile('xlsx')
+  const bytes = noticeOpen(await window.elecxstock.openFile('xlsx'))
   if (!(bytes instanceof Uint8Array)) return
   commitNews()
   saveSettings({ retentionYears: years, firstRunDone: true })

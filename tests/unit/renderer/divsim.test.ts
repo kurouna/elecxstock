@@ -728,3 +728,18 @@ describe('FR-SIM2 FR-SIM8 FR-H12 図の目盛り・基準日の上限・過去�
     expect(goalArgs({ ...g, need: null }, 50_000, fmt, false, '****').need).toBe('—')
   })
 })
+
+describe('FR-SIM2 FR-KB4 カード・表が出ていないときの PgUp・PgDn（再レビューの反映）', () => {
+  it('表を選んでいても、カード・表が出ていなければ（過去が 0 件の案内だけ・読み込み中）PgUp・PgDn でタブを替える', async () => {
+    const { pageSwitchesTab } = await import('../../../src/renderer/lib/divsim')
+    // 出ているとき: 表では行を動かし、ほかのカードではタブを替える
+    expect(pageSwitchesTab('PageDown', 'table', true)).toBe(false)
+    expect(pageSwitchesTab('PageUp', 'table', true)).toBe(false)
+    expect(pageSwitchesTab('PageDown', 'hist', true)).toBe(true)
+    expect(pageSwitchesTab('PageDown', null, true)).toBe(true)
+    // 出ていないとき: 見えない表の行を動かさず、タブを替える（替えられないと案内の画面から出られない）
+    expect(pageSwitchesTab('PageDown', 'table', false)).toBe(true)
+    expect(pageSwitchesTab('PageUp', 'table', false)).toBe(true)
+    expect(pageSwitchesTab('ArrowDown', 'table', false)).toBe(false)
+  })
+})

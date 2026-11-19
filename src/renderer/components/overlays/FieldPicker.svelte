@@ -3,10 +3,12 @@
 // 説明は下の段（キーで選んだ項目・マウスを載せた項目）と ⓘ のツールチップ。キーだけで選べる（FR-KB4）:
 // 文字を打つと絞り込む · ↑↓ 項目 · ←→ 隣の段（検索欄が空のとき）· Tab 次の分類 · Home End · Enter 足して閉じる ·
 // Shift+Enter 続けて足す · Esc 検索を消す／閉じる。IME の変換中は矢印・Enter を渡さない（FR-KB5）
+
 import { DEFAULT_RECENT_FIELDS, FIELD_BY_ID, FIELD_GROUPS, type FieldDef, MISSING_FIELDS, NEW_FIELD_IDS } from '@shared/fields'
 import { onMount, tick } from 'svelte'
 import { SvelteSet } from 'svelte/reactivity'
-import { highlightHtml } from '../../lib/highlight'
+import { highlightHtml, normText as norm } from '../../lib/highlight'
+import { composing } from '../../lib/keys'
 import { rootZoom, tipBeside } from '../../lib/pointer'
 import { app, closeOverlay, t } from '../../stores/app.svelte'
 import Icon from '../Icon.svelte'
@@ -35,7 +37,6 @@ let tip = $state<{ id: string; x: number; y: number } | null>(null)
 let added = $state<string[]>([])
 
 const defs = $derived(fields.map((id) => FIELD_BY_ID.get(id)).filter((f): f is FieldDef => !!f))
-const norm = (s: string) => s.normalize('NFKC').toLowerCase()
 /** 2: 名前・別名で当たった / 1: 説明だけで当たった / 0: 当たらない */
 function match(f: FieldDef): number {
   if (!q) return 2
@@ -111,7 +112,7 @@ async function scrollSel() {
   grid?.querySelector('.it.sel')?.scrollIntoView({ block: 'nearest' })
 }
 function key(e: KeyboardEvent) {
-  if (e.isComposing) return
+  if (composing(e)) return
   const items = [...(grid?.querySelectorAll<HTMLElement>('.it') ?? [])]
   const i = items.findIndex((x) => x.dataset.id === sel)
   let next: HTMLElement | undefined

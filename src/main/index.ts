@@ -19,6 +19,7 @@ import { readFile } from 'node:fs/promises'
 import { dirname, extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { launchAction, savedBackground, secondInstance, startHiddenNow } from '@shared/background'
+import type { SaveFileResult } from '@shared/bridge'
 import { jstNow } from '@shared/calendar'
 import { isNewsLink } from '@shared/news/links'
 import { savedTheme, THEME_COLORS } from '@shared/settings'
@@ -42,6 +43,7 @@ import {
 import { appUserModelId } from './appId'
 import { createBackground } from './background'
 import { clockOffset } from './clock-init'
+import { readPicked, saveVia } from './fileIo'
 import { appFilePath, cycleSlot, isExternalAllowed } from './guards'
 import { cleanCopyText } from './news/clipboard'
 import { readNewsPolicy } from './news/policy'
@@ -447,15 +449,12 @@ function registerProtocol(): void {
 }
 
 // ---------------------------------------------------------------- small IPC（ファイルの保存・読み込み・外部リンク）
-/** 選んだ場所へ書く。書けない（読み取り専用・ほかのアプリが開いている・空きが無い）ときは false（invoke を例外にしない） */
-function writeSafely(file: string, data: string | Uint8Array): boolean {
-  try {
-    writeFileSync(file, data)
-    return true
-  } catch (err) {
-    log(`write ${file}: ${String(err)}`)
-    return false
-  }
+/**
+ * 保存ダイアログで選んだ場所へ書く。取りやめは cancelled、書けない（読み取り専用・ほかのアプリが開いている・空きが無い）ときは
+ * failed（invoke を例外にしない。renderer が失敗を知らせる）
+ */
+function saveWithDialog(win: BrowserWindow, opts: Electron.SaveDialogOptions, write: (file: string) => void): Promise<SaveFileResult> {
+  return saveVia(() => dialog.showSaveDialog(win, opts), write, log)
 }
 function fromApp(e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
   const u = e.senderFrame?.url ?? ''
@@ -476,28 +475,20 @@ ipcMain.handle('app:copyText', (e, text: unknown) => {
 })
 ipcMain.handle('app:saveText', async (e, name: unknown, text: unknown) => {
   const win = winOf(e)
-  if (!fromApp(e) || typeof name !== 'string' || typeof text !== 'string' || !win) return false
+  if (!fromApp(e) || typeof name !== 'string' || typeof text !== 'string' || !win) return 'failed'
   const ext = extname(name).slice(1).toLowerCase() || 'json'
   const label = { json: 'JSON', csv: 'CSV', txt: 'Text' }[ext] ?? ext.toUpperCase()
-  const r = await dialog.showSaveDialog(win, {
-    defaultPath: name.replace(/[\\/:*?"<>|]/g, '_'),
-    filters: [{ name: label, extensions: [ext] }],
-  })
-  if (r.canceled || !r.filePath) return false
-  return writeSafely(r.filePath, text)
+  const opts = { defaultPath: name.replace(/[\\/:*?"<>|]/g, '_'), filters: [{ name: label, extensions: [ext] }] }
+  return saveWithDialog(win, opts, (f) => writeFileSync(f, text))
 })
 // チャートの画像（FR-C11）。renderer が描いた PNG のバイト列を、選んだ場所へ書く。PNG の印で始まらないものは書かない
 const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 ipcMain.handle('app:savePng', async (e, name: unknown, bytes: unknown) => {
   const win = winOf(e)
-  if (!fromApp(e) || typeof name !== 'string' || !(bytes instanceof Uint8Array) || !win) return false
-  if (bytes.length > 64 * 1024 * 1024 || PNG_SIG.some((b, i) => bytes[i] !== b)) return false
-  const r = await dialog.showSaveDialog(win, {
-    defaultPath: name.replace(/[\\/:*?"<>|]/g, '_'),
-    filters: [{ name: 'PNG', extensions: ['png'] }],
-  })
-  if (r.canceled || !r.filePath) return false
-  return writeSafely(r.filePath, bytes)
+  if (!fromApp(e) || typeof name !== 'string' || !(bytes instanceof Uint8Array) || !win) return 'failed'
+  if (bytes.length > 64 * 1024 * 1024 || PNG_SIG.some((b, i) => bytes[i] !== b)) return 'failed'
+  const opts = { defaultPath: name.replace(/[\\/:*?"<>|]/g, '_'), filters: [{ name: 'PNG', extensions: ['png'] }] }
+  return saveWithDialog(win, opts, (f) => writeFileSync(f, bytes))
 })
 // ウィンドウの枠（最小化・最大化・閉じるのボタン）の色と高さを、テーマと表示倍率に合わせる（FR-V8）。送り元の窓に効かせる
 ipcMain.handle('app:setChrome', (e, theme: unknown, scale: unknown) => {
@@ -538,15 +529,9 @@ ipcMain.handle('app:openFile', async (e, kind: unknown) => {
         : [{ name: 'JSON', extensions: ['json'] }]
   const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters })
   if (r.canceled || !r.filePaths[0]) return null
-  let buf: Buffer
-  try {
-    if (statSync(r.filePaths[0]).size > 20_000_000) return null
-    buf = readFileSync(r.filePaths[0])
-  } catch (err) {
-    // 消えた・ほかのアプリが開いている・権限が無いファイル（読めなかったのは選ばなかったのと同じに扱う）
-    log(`openFile: ${String(err)}`)
-    return null
-  }
+  // 消えた・ほかのアプリが開いている・権限が無い・大きすぎるファイルは、取りやめ（null）と分けて返す（renderer が知らせる）
+  const buf = readPicked(r.filePaths[0], { size: (f) => statSync(f).size, read: (f) => readFileSync(f) }, log)
+  if (!Buffer.isBuffer(buf)) return buf
   // 証券会社の CSV は Shift_JIS のことが多いので、バイト列のまま渡して renderer で文字コードを判定する
   return kind === 'xlsx' || kind === 'csv' ? new Uint8Array(buf) : buf.toString('utf8')
 })
@@ -554,18 +539,10 @@ ipcMain.handle('app:openFile', async (e, kind: unknown) => {
 // Core が data/backups に書いた DB のバックアップを、利用者が選んだ場所へ写す（FR-S3）。元は data/backups の中だけ
 ipcMain.handle('app:exportBackup', async (e, file: unknown) => {
   const win = winOf(e)
-  if (!fromApp(e) || typeof file !== 'string' || !/^market-[\w-]+\.db$/.test(file) || !win) return false
+  if (!fromApp(e) || typeof file !== 'string' || !/^market-[\w-]+\.db$/.test(file) || !win) return 'failed'
   const src = join(app.getPath('userData'), 'data', 'backups', file)
-  if (!existsSync(src)) return false
-  const r = await dialog.showSaveDialog(win, { defaultPath: file, filters: [{ name: 'SQLite', extensions: ['db'] }] })
-  if (r.canceled || !r.filePath) return false
-  try {
-    copyFileSync(src, r.filePath)
-    return true
-  } catch (err) {
-    log(`exportBackup: ${String(err)}`)
-    return false
-  }
+  if (!existsSync(src)) return 'failed'
+  return saveWithDialog(win, { defaultPath: file, filters: [{ name: 'SQLite', extensions: ['db'] }] }, (f) => copyFileSync(src, f))
 })
 // ログのフォルダを開く（ジョブ・設定から。NFR-O1）
 ipcMain.handle('app:openLogs', (e) => {

@@ -16,6 +16,12 @@ describe('外部のリンクを開く先の制限（NFR-S3）', () => {
     expect(isExternalAllowed('https://github.com.evil.example/kurouna/elecxstock')).toBe(false)
     expect(isExternalAllowed('http://github.com/kurouna/elecxstock')).toBe(false)
   })
+  it('.. のセグメントで別のリポジトリへ抜ける URL は開かない（ブラウザと同じく正規化してから確かめる）', () => {
+    expect(isExternalAllowed('https://github.com/kurouna/elecxstock/../../evil/repo')).toBe(false)
+    expect(isExternalAllowed('https://github.com/kurouna/elecxstock/%2e%2e/%2E%2E/evil/repo')).toBe(false)
+    expect(isExternalAllowed('https://github.com/kurouna/elecxstock/releases/../issues')).toBe(true)
+    expect(isExternalAllowed('not a url')).toBe(false)
+  })
   it('チャート・取引所・Yahoo のページ', () => {
     expect(isExternalAllowed('https://www.tradingview.com/chart/')).toBe(true)
     expect(isExternalAllowed('https://www.jpx.co.jp/listing/')).toBe(true)
@@ -38,6 +44,10 @@ describe('app:// のファイルの解決（NFR-S3）', () => {
     expect(appFilePath(root, '/..%2F..%2Fsecret')).toBeNull()
     expect(appFilePath(root, '/')).toBeNull()
     expect(appFilePath(root, '/a%00b')).toBeNull()
+  })
+  it('.. で始まる名前のファイル（..foo.js）は root の中なので通す', () => {
+    expect(appFilePath(root, '/..foo.js')).toBe(join(root, '..foo.js'))
+    expect(appFilePath(root, '/assets/..x/a.js')).toBe(join(root, 'assets', '..x', 'a.js'))
   })
 })
 

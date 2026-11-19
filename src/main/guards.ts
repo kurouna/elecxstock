@@ -1,5 +1,5 @@
 // main の IPC・プロトコルの判断（Electron に依存しない純関数。単体テストで確かめる。placement.ts と同じ流儀）
-import { isAbsolute, join, normalize, relative } from 'node:path'
+import { isAbsolute, join, normalize, relative, sep } from 'node:path'
 
 /** 外部のブラウザで開いてよい URL（ニュースの記事のホストは別に index.ts が足す） */
 export const EXTERNAL_ALLOW: readonly RegExp[] = [
@@ -10,7 +10,16 @@ export const EXTERNAL_ALLOW: readonly RegExp[] = [
   /^https:\/\/finance\.yahoo\.co(m|\.jp)\//,
 ]
 
-export const isExternalAllowed = (url: string): boolean => EXTERNAL_ALLOW.some((r) => r.test(url))
+/** 外部のブラウザで開いてよいか。ブラウザと同じく正規化（.. のセグメント・%2e の解決）してから確かめる */
+export function isExternalAllowed(url: string): boolean {
+  let href: string
+  try {
+    href = new URL(url).href
+  } catch {
+    return false
+  }
+  return EXTERNAL_ALLOW.some((r) => r.test(href))
+}
 
 /**
  * app:// の要求のパスを、root の中のファイルのパスにする。デコードできない（不正な % の並び）・root の外・root そのものは null。
@@ -27,7 +36,8 @@ export function appFilePath(root: string, pathname: string): string | null {
   const base = normalize(root)
   const p = normalize(join(base, decoded))
   const rel = relative(base, p)
-  if (!rel || rel.startsWith('..') || isAbsolute(rel)) return null
+  // root の外は .. のセグメント（..foo.js のような名前は root の中）
+  if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return null
   return p
 }
 

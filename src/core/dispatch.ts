@@ -37,7 +37,7 @@ export async function dispatch(
     // アラートは新しく作ることだけ（AL2。直す・消す・止める・既読は 1 枚目）。資産推移の記録を消す（FR-PF2）・レイアウトのページ（FR-L14）も 1 枚目
     if (slot !== 'main') {
       const newAlert = method === 'alerts.save' && !(msg.params as { alert?: { id?: unknown } } | null)?.alert?.id
-      const writes = method in CHANGES || MAIN_ONLY.has(method)
+      const writes = Object.hasOwn(CHANGES, method) || MAIN_ONLY.has(method)
       if (writes && (!FREE_WRITES.has(method) || (method === 'alerts.save' && !newAlert)))
         throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
     }
@@ -47,7 +47,8 @@ export async function dispatch(
     // ニュースのペインはフリー N に置かない。念のため、フリー N からは読むことだけ（docs/design-news.md §5）
     if (slot !== 'main' && method.startsWith('news.') && method !== 'news.list')
       throw { code: 'invalid-params', message: 'main window only' } satisfies CoreError
-    const schema = PARAMS[method as Method]
+    // 自分の項目だけを見る（toString・constructor などの組み込みの名前を、メソッドと取り違えない）
+    const schema = Object.hasOwn(PARAMS, method) ? PARAMS[method as Method] : undefined
     if (!schema) throw { code: 'unknown-method', args: { method } } satisfies CoreError
     const parsed = schema.safeParse(msg.params ?? {})
     if (!parsed.success) throw { code: 'invalid-params', message: parsed.error.issues[0]?.message } satisfies CoreError
@@ -60,7 +61,7 @@ export async function dispatch(
     const result = await service.call(method as Method, parsed.data as never)
     // 全データの削除はニュースの見出しのキャッシュも消す
     if (method === 'jobs.reset') ctx.news?.removeAll()
-    const kind = CHANGES[method]
+    const kind = Object.hasOwn(CHANGES, method) ? CHANGES[method] : undefined
     if (!kind) return { reply: { id, result } }
     const p = parsed.data as { list?: string; id?: string }
     const data: Events['user.changed'] = {

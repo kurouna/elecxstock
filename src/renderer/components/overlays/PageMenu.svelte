@@ -2,8 +2,10 @@
 // マイレイアウトのページのメニュー（FR-L14。docs/design-mylayouts.md §3.2）。タブの ▾・Ctrl+Shift+L・このタブで Ctrl+Shift+8 で開き、
 // タブの下に出す。↑↓ Enter・1〜9 で開く・Alt+↑↓ 並べ替え・Insert 新しいページ・Shift+Insert 複製・F2 名前・Delete 2 回で削除・
 // Ctrl+Z 削除を元に戻す・Esc で閉じる。ページを選ぶまで表示中のタブは変えない。キーの判定は lib/pages.ts（menuKey・deletePress）
+
 import type { SavedLayout } from '@shared/types'
 import { onMount } from 'svelte'
+import { composing } from '../../lib/keys'
 import {
   copyTab,
   deletePress,
@@ -21,6 +23,7 @@ import {
   undoRemove,
 } from '../../lib/pages'
 import { rootZoom } from '../../lib/pointer'
+import { clampSel } from '../../lib/selection'
 import { app, t } from '../../stores/app.svelte'
 import { layout, movePage, openablePages, setPage } from '../../stores/layout.svelte'
 
@@ -35,7 +38,7 @@ let pendingDel = $state<string | null>(null)
 let box = $state<HTMLDivElement>()
 let pos = $state<{ left: number; top: number } | null>(null)
 $effect(() => {
-  if (sel >= rows.length) sel = rows.length - 1
+  if (sel >= rows.length) sel = clampSel(sel, rows.length)
 })
 const target = $derived(menuTarget(rows, sel, layout.doc.page))
 
@@ -78,7 +81,7 @@ function run(cmd: MenuCommand) {
 function key(e: KeyboardEvent) {
   const cmd = menuKey(e, sel, rows.length)
   if (!cmd) {
-    if (!e.isComposing && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) pendingDel = null
+    if (!composing(e) && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) pendingDel = null
     return
   }
   run(cmd)

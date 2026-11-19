@@ -18,6 +18,11 @@ describe('要求の検証（NFR-A3, FR-N5）', () => {
     expect((await call('main', 'metrics.get', { ids: 'JP:7203' })).reply).toMatchObject({ error: { code: 'invalid-params' } })
     expect((await call('main', 'metrics.get', { ids: ['JP:7203'] })).reply).toMatchObject({ result: [{ id: 'JP:7203' }] })
   })
+  it('Object の組み込みの名前（toString・constructor・__proto__）も知らないメソッドとして返す（内部のエラーにしない）', async () => {
+    for (const m of ['toString', 'constructor', '__proto__', 'hasOwnProperty'])
+      for (const slot of ['main', 'free2'])
+        expect((await call(slot, m, {})).reply, `${slot} ${m}`).toMatchObject({ error: { code: 'unknown-method' } })
+  })
   it('表示中の銘柄は窓ごとに受け、長すぎる ID と 200 件を超える分は捨てる（FR-F8）', async () => {
     await call('free2', 'jobs.prioritize', ['JP:7203', 'x'.repeat(30), ...Array.from({ length: 300 }, (_, i) => `JP:${i}`)])
     expect(shown.free2?.[0]).toBe('JP:7203')
@@ -49,7 +54,18 @@ describe('フリー N は読むだけ（FR-W）', () => {
     // 引数は検証で落ちる形（{}）で送る: 窓の制限が先に効くなら「main window only」、効かなければ zod のエラーになる（Core は呼ばれない）
     for (const m of Object.keys(CHANGES).filter((x) => !FREE_WRITES.has(x)))
       expect((await call('free2', m, { __: 1 })).reply, m).toMatchObject({ error: { code: 'invalid-params', message: 'main window only' } })
-    for (const m of ['user.saveLayout', 'user.saveLayouts', 'alerts.markRead', 'jobs.reset', 'data.importJpx'])
+    for (const m of [
+      'user.saveLayout',
+      'user.saveLayouts',
+      'alerts.markRead',
+      'jobs.reset',
+      'data.importJpx',
+      // ジョブの操作・DB のバックアップも 1 枚目だけ（フリー N はジョブのペイン・バックアップの操作を持たない。blockedInFree）
+      'data.backup',
+      'jobs.pause',
+      'jobs.resume',
+      'jobs.cancel',
+    ])
       expect((await call('free3', m, { __: 1 })).reply, m).toMatchObject({ error: { code: 'invalid-params', message: 'main window only' } })
     // 1 枚目は同じ要求を検証まで通す
     expect((await call('main', 'user.saveWatchlists', { __: 1 })).reply).toMatchObject({ error: { code: 'invalid-params' } })

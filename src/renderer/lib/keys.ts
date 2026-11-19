@@ -76,6 +76,6 @@ export function assignable(key: string): boolean {
 /**
  * IME の変換中か（FR-KB5）。isComposing に加え、変換を始めるキー（Chromium では isComposing が false のまま keyCode 229・key 'Process' で届く）も変換中とみなす
  */
-export function composing(e: KeyboardEvent): boolean {
+export function composing(e: Pick<KeyboardEvent, 'isComposing' | 'keyCode'>): boolean {
   return e.isComposing || e.keyCode === 229
 }

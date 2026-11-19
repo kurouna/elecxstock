@@ -5,6 +5,7 @@ import type { NewsFeed, NewsLang } from '@shared/news/schema'
 import { feedOn, intervalFromInput, listedFor } from '@shared/news/settings'
 import { onMount } from 'svelte'
 import type { Key } from '../lib/i18n'
+import { clampSel } from '../lib/selection'
 import { app, bridge, confirmDialog, t, toast } from '../stores/app.svelte'
 import { initNews, langChanged, loadNews, news, setNews } from './store.svelte'
 import { errText, hm, type Tr } from './view'
@@ -66,7 +67,7 @@ function toggleFeed(f: NewsFeed) {
 }
 function feedKey(e: KeyboardEvent) {
   const f = flat[fsel]
-  if (e.key === 'ArrowDown') fsel = Math.min(flat.length - 1, fsel + 1)
+  if (e.key === 'ArrowDown') fsel = clampSel(fsel + 1, flat.length)
   else if (e.key === 'ArrowUp') fsel = Math.max(0, fsel - 1)
   else if (e.key === ' ' && f) toggleFeed(f)
   else if (e.code === 'KeyD' && f && !e.ctrlKey && !e.altKey) void setNews({ feeds: { [f.id]: null } })

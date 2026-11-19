@@ -474,6 +474,13 @@ describe('メニューのキーと削除の 2 回押し（FR-L14 §3.2, FR-KB5�
     expect(menuKey(ev('z', 'KeyZ', { ctrlKey: true }), 0, 4)).toEqual({ kind: 'undo' })
     expect(menuKey(ev('Enter', 'Enter', { isComposing: true }), 0, 4)).toBeNull()
   })
+  it('menuKey: 変換を始めるキー（isComposing が false のまま keyCode 229）も変換中とみなす。空のメニューで選択を -1 にしない', async () => {
+    const { menuKey } = await import('../../../src/renderer/lib/pages')
+    expect(menuKey(ev('Process', 'KeyA', { keyCode: 229 }), 0, 4)).toBeNull()
+    expect(menuKey(ev('Enter', 'Enter', { keyCode: 229 }), 0, 4)).toBeNull()
+    expect(menuKey(ev('ArrowDown'), 0, 0)).toEqual({ kind: 'select', sel: 0 })
+    expect(menuKey(ev('End'), 0, 0)).toEqual({ kind: 'select', sel: 0 })
+  })
   it('deletePress: 同じ相手に 2 回で消す（Delete か削除の行で Enter）。ほかのキー・相手が替わると数え直す', async () => {
     const { deletePress } = await import('../../../src/renderer/lib/pages')
     const del = { kind: 'delete' } as const

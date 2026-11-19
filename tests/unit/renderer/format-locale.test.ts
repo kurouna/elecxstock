@@ -58,6 +58,15 @@ describe('書式の境界（FR-N3, FR-V2）', () => {
     expect(joined(money(-5.6e10))).toBe('-560億')
     expect(joined(money(-3.45e9))).toBe('-34.5億')
   })
+  it('英語の負の金額は符号を ¥ の前に置く（¥-5.0B にしない）', () => {
+    app.settings.lang = 'en'
+    expect(joined(money(-5e9))).toBe('-¥5.0B')
+    expect(joined(money(-1.2e12))).toBe('-¥1.20T')
+    expect(joined(money(-7.8e7))).toBe('-¥78.0M')
+    // 丸めて 0 になる負の値は符号を付けない
+    expect(joined(money(-1))).toBe('¥0.0M')
+    expect(joined(money(5e9))).toBe('¥5.0B')
+  })
   it('丸めて 0 になる負の値は −0 にしない', () => {
     expect(fmt(-0.001, 2)).toBe('0.00')
     expect(fmt(-0, 0)).toBe('0')

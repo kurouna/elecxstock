@@ -178,16 +178,19 @@ export class DrawController {
   }
 
   private send(e: Parameters<typeof step>[1]): void {
-    const was = this.mode.m
+    const prev = this.mode
+    const was = prev.m
     this.mode = step(this.mode, e)
     this.note = null
     const now = this.mode.m
     const drawing = now === 'start' || now === 'end'
     if (!drawing) {
       this.cur = null
-      // 引く途中から抜けた、または選択（動かす対象で十字線を出していることがある）から通常に戻った（Delete・フォーカスが外れた・
-      // ほかの窓で消された・描けない表示になった）: 十字線・凡例を戻す
-      if (was === 'start' || was === 'end' || (was === 'sel' && now === 'idle')) this.c.showBar(null)
+      // 引く途中から抜けた、選択（動かす対象で十字線を出していることがある）から通常に戻った（Delete・フォーカスが外れた・
+      // ほかの窓で消された・描けない表示になった）、または動かす対象を選んだまま別の線を選んだ（G・クリック。見るだけで選び直す）:
+      // 十字線・凡例を戻す
+      const reselected = prev.m === 'sel' && this.mode.m === 'sel' && prev.target !== 'none' && this.mode.target === 'none'
+      if (was === 'start' || was === 'end' || (was === 'sel' && now === 'idle') || reselected) this.c.showBar(null)
     }
     // 通常に戻った（Esc・Delete・フォーカスが外れた・銘柄が変わった）か、ドラッグしている線の選択が外れた（Alt+T・G）:
     // 押したまま・ドラッグの途中なら、止めたスクロールとポインタを解く
@@ -360,7 +363,8 @@ export class DrawController {
     }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       const up = e.key === 'ArrowUp' ? 1 : -1
-      if (e.shiftKey) return { i: from.i, k: null, p: Math.max(Number.EPSILON, from.p + up * this.priceStep(ctrl)) }
+      // 画面の上の 1 段（対数目盛りでも同じ高さ。全体を動かす ↑ ↓ と同じ）
+      if (e.shiftKey) return { i: from.i, k: null, p: Math.max(Number.EPSILON, this.shiftPrice(from.p, up, ctrl)) }
       const l = nextSnap(snapLevels(bar(b, from.i), this.c.ctype()), from.p, up)
       return { i: from.i, k: l.k, p: l.v }
     }
@@ -536,7 +540,8 @@ export class DrawController {
         const up = e.key === 'ArrowUp' ? 1 : -1
         const ra = this.raw(this.shiftPrice(ap, up, e.shiftKey), d.a.date)
         const rb = this.raw(this.shiftPrice(bp, up, e.shiftKey), d.b.date)
-        if (ra && rb && ra > 0 && rb > 0) next = { ...d, a: { ...d.a, raw: ra }, b: { ...d.b, raw: rb } }
+        if (ra && rb && Number.isFinite(ra) && Number.isFinite(rb) && ra > 0 && rb > 0)
+          next = { ...d, a: { ...d.a, raw: ra }, b: { ...d.b, raw: rb } }
       }
     } else if (s.target === 'a' || s.target === 'b') {
       const me = d[s.target]
@@ -815,7 +820,7 @@ export class DrawController {
     if (g) {
       this.drag = null
       this.freeze(false)
-      host.releasePointerCapture?.(g.pointer)
+      this.release(g.pointer)
       const d = this.drawing(g.id)
       if (g.moved && d) {
         const n = normalizeDrawing(d)
@@ -859,10 +864,18 @@ export class DrawController {
     this.away = null
     if (!g && pressed == null) return
     this.freeze(false)
-    if (g) this.host?.releasePointerCapture?.(g.pointer)
-    if (pressed != null) this.host?.releasePointerCapture?.(pressed)
+    if (g) this.release(g.pointer)
+    if (pressed != null) this.release(pressed)
     if (g) void drawingEdits.flush(g.id)
     this.prim?.update()
+  }
+  /**
+   * ポインタを放す。取っていない（ブラウザがもう放した・ポインタがもう有効でない）ポインタを放すと NotFoundError を投げ、
+   * そのあとの後始末（書きかけを書く）が止まるので、取っているときだけ
+   */
+  private release(pointer: number): void {
+    const host = this.host
+    if (host?.hasPointerCapture?.(pointer)) host.releasePointerCapture(pointer)
   }
   private onContext(e: MouseEvent, host: HTMLElement): void {
     const p = this.local(e, host)

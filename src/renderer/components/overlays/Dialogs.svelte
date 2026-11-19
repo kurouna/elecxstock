@@ -1,6 +1,8 @@
 <script lang="ts">
 // 確認・名前の入力・選択・保存の確認（FR-SC13）。すべてキーボードで操作できる（FR-KB2）。
+
 import { onMount } from 'svelte'
+import { composing } from '../../lib/keys'
 import { clampSel } from '../../lib/selection'
 import { app, type Overlay, t } from '../../stores/app.svelte'
 
@@ -53,7 +55,7 @@ function choiceKey(e: KeyboardEvent) {
 }
 /** 確認: ← → ↑ ↓ で取り消し / 実行を選び、Enter で決める（Esc は取り消し） */
 function confirmKey(e: KeyboardEvent) {
-  if (overlay.kind !== 'confirm' || e.isComposing) return
+  if (overlay.kind !== 'confirm' || composing(e)) return
   if ((e.target as HTMLElement).tagName === 'INPUT') return // チェックボックスの上では Space / 矢印をそのまま
   if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') csel = 0
   else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') csel = 1
@@ -67,7 +69,7 @@ function confirmKey(e: KeyboardEvent) {
 }
 /** 3 択（取り消し / 破棄 / 保存）: ← → ↑ ↓ でボタンを移る（確認と同じ。Enter は選んだボタン、Esc は取り消し） */
 function ask3Key(e: KeyboardEvent) {
-  if (overlay.kind !== 'ask3' || e.isComposing) return
+  if (overlay.kind !== 'ask3' || composing(e)) return
   const d = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : 0
   if (!d) return
   const bs = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('.actions button')]
@@ -125,7 +127,7 @@ function checkKey(e: KeyboardEvent) {
       bind:value
       maxlength="60"
       onkeydown={(e) => {
-        if (e.key === 'Enter' && !e.isComposing) {
+        if (e.key === 'Enter' && !composing(e)) {
           e.preventDefault()
           done(overlay.resolve, value.trim() || null)
         }

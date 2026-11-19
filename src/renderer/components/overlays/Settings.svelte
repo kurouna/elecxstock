@@ -6,6 +6,7 @@ import { CODE_RE } from '@shared/code'
 import { targetsFromInputs, targetTexts, YIELD_TARGETS_UI } from '@shared/yieldLines'
 import { onMount } from 'svelte'
 import { ACTIONS, checkUpdate, doResetAllLayouts, exportUser, importUser } from '../../lib/commands'
+import { noticeOpen } from '../../lib/fileNotice'
 import { dateTime } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import NewsSettings from '../../news/NewsSettings.svelte'
@@ -111,7 +112,7 @@ async function removeUser(code: string) {
   await loadInstruments()
 }
 async function importJpx() {
-  const bytes = await window.elecxstock.openFile('xlsx')
+  const bytes = noticeOpen(await window.elecxstock.openFile('xlsx'))
   if (!(bytes instanceof Uint8Array)) return
   const n = await rpc('data.importJpx', { bytes: new Uint8Array(bytes) })
   toast(t('jpx.imported', { n: n.toLocaleString() }))

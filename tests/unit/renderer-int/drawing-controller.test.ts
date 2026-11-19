@@ -71,7 +71,11 @@ function makeWorld(id: string, o: { log?: boolean } = {}) {
     addEventListener: (n: string, f: Listener) => listeners.set(n, f),
     removeEventListener: (n: string) => listeners.delete(n),
     setPointerCapture: (p: number) => captured.add(p),
-    releasePointerCapture: (p: number) => captured.delete(p),
+    hasPointerCapture: (p: number) => captured.has(p),
+    // 取っていない（もう有効でない）ポインタを放すと、ブラウザは NotFoundError を投げる
+    releasePointerCapture: (p: number) => {
+      if (!captured.delete(p)) throw new DOMException('not captured', 'NotFoundError')
+    },
   }
   const ctl = new DrawController({
     id: () => id,
@@ -101,6 +105,8 @@ function makeWorld(id: string, o: { log?: boolean } = {}) {
       Space: ' ',
       ArrowLeft: 'ArrowLeft',
       ArrowRight: 'ArrowRight',
+      ArrowUp: 'ArrowUp',
+      ArrowDown: 'ArrowDown',
     }
     return ctl.key({
       code,
@@ -142,6 +148,9 @@ function makeWorld(id: string, o: { log?: boolean } = {}) {
     captured,
     key,
     ptr,
+    fire: (type: string) => listeners.get(type)?.({ pointerId: 1 }),
+    host,
+    series,
     mid,
     drawOne,
   }
@@ -316,5 +325,60 @@ describe('対数目盛りでのキーの移動（レビューの指摘。FR-C14�
     const d1 = drawingsOf(lw.id)[0]!
     expect(d1.a.raw).toBeGreaterThan(d0.a.raw)
     expect(y(d1.b.raw) - y(d1.a.raw)).toBeCloseTo(gap0, 6)
+  })
+})
+
+describe('レビュー 3 回目（FR-C14・C15）', () => {
+  const two = async () => {
+    await w.drawOne()
+    const first = drawingsOf(w.id)[0]!
+    await drawingEdits.create(`p1|${w.id}`, w.id, { ...first, id: 'other', a: { ...first.a, raw: 900 }, b: { ...first.b, raw: 920 } })
+    w.ctl.refresh()
+    return first
+  }
+  it('動かす対象を選んで十字線を出したまま G で別の線を選ぶと、十字線・凡例を戻す', async () => {
+    const first = await two()
+    w.key('Space') // 全体（始点に十字線）
+    expect(w.shown.at(-1)).not.toBeNull()
+    w.key('KeyG')
+    expect(w.ctl.mode).toMatchObject({ m: 'sel', target: 'none' })
+    expect((w.ctl.mode as { id: string }).id).not.toBe(first.id)
+    expect(w.shown.at(-1)).toBeNull()
+  })
+  it('動かす対象を選んで十字線を出したまま別の線をクリックすると、十字線・凡例を戻す', async () => {
+    const first = await two()
+    w.key('Space')
+    expect(w.shown.at(-1)).not.toBeNull()
+    // other の線の真ん中（a: 900, b: 920）
+    const ai = time.indexOf(first.a.date)
+    const bi = time.indexOf(first.b.date)
+    const x = ((ai + bi) / 2) * 10
+    const y = (w.series.priceToCoordinate(900) + w.series.priceToCoordinate(920)) / 2
+    w.prim()?.updateAllViews()
+    w.ptr('pointerdown', x, y)
+    w.ptr('pointerup', x, y)
+    expect((w.ctl.mode as { id: string }).id).toBe('other')
+    expect(w.shown.at(-1)).toBeNull()
+  })
+  it('ポインタを取り損なった（lostpointercapture）ときは放さずに終え、ドラッグで動かした分は書く', async () => {
+    await w.drawOne()
+    const m = w.mid()
+    w.ptr('pointerdown', m.x, m.y)
+    w.ptr('pointermove', m.x + 50, m.y)
+    w.captured.clear() // ブラウザがもう放している
+    expect(() => w.fire('lostpointercapture')).not.toThrow()
+    expect(w.opts.handleScroll).toBe(true)
+    expect(drawingEdits.editing(drawingsOf(w.id)[0]!.id)).toBe(false)
+  })
+  it('対数目盛りで吸着を外した Shift+↑ は、表示の高さの 1/100（価格の幅の 1/100 ではない）', () => {
+    const lw = makeWorld(`JP:${1301 + n++}`, { log: true })
+    lw.key('KeyT', { alt: true })
+    const st = () => JSON.parse(lw.host.dataset.drawState!) as { price: number }
+    lw.key('ArrowUp', { shift: true }) // 吸着を外す（1 段）
+    const p0 = st().price
+    lw.key('ArrowUp', { shift: true })
+    const p1 = st().price
+    // 段の高さ 400 px の 1/100 = 4 px
+    expect(lw.series.priceToCoordinate(p0) - lw.series.priceToCoordinate(p1)).toBeCloseTo(4, 6)
   })
 })

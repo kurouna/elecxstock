@@ -1,6 +1,6 @@
 // チャートグリッドの操作の対象と並べ替え（FR-G7・G10。レビューの指摘）。銘柄のコードだけで、値は使わない
 import { describe, expect, it } from 'vitest'
-import { appendLimited, gridTarget, pageOf, swapInOwn } from '../../../src/renderer/lib/gridNav'
+import { afterRemove, appendLimited, gridTarget, pageOf, selOnClick, swapInOwn } from '../../../src/renderer/lib/gridNav'
 
 describe('操作の対象のタイル（FR-G7）', () => {
   it('拡大していなければ選んでいるタイル', () => {
@@ -48,5 +48,19 @@ describe('マーケットの小さなチャートに足す（FR-U6。レビュ�
     expect(appendLimited(['A', 'B'], 'A', 12)).toEqual({ ids: ['A', 'B'], result: 'exists' })
     // 上限ちょうどで、もうある銘柄は exists（full より先）
     expect(appendLimited(['A', 'B'], 'B', 2).result).toBe('exists')
+  })
+})
+
+describe('拡大中のタイルの操作（FR-G7・G10。レビュー 3 回目）', () => {
+  it('拡大している銘柄を外す（Delete・✕）と格子に戻り、選んでいた位置は保つ', () => {
+    expect(afterRemove('F', 'F', 5)).toEqual({ zoom: null, sel: 5 })
+  })
+  it('拡大していなければ、外したあとは 1 つ前のタイルを選ぶ（先頭では先頭）', () => {
+    expect(afterRemove(null, 'C', 2)).toEqual({ zoom: null, sel: 1 })
+    expect(afterRemove(null, 'A', 0)).toEqual({ zoom: null, sel: 0 })
+  })
+  it('拡大中のタイル・★・◆のクリックは、拡大する前の位置（sel）を変えない（見えている 1 枚の位置は 0）', () => {
+    expect(selOnClick('F', 5, 0)).toBe(5)
+    expect(selOnClick(null, 5, 2)).toBe(2)
   })
 })

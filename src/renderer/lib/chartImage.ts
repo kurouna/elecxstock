@@ -160,7 +160,8 @@ export async function saveChartImage(
     })
     const png = await canvasPng(img)
     if (!png) return 'failed'
-    return (await window.elecxstock.savePng(chartImageName(o.code, snap.tf, o.date), png)) ? 'saved' : 'cancelled'
+    // main は取りやめ（cancelled）と書けなかった（failed）を分けて返す
+    return await window.elecxstock.savePng(chartImageName(o.code, snap.tf, o.date), png)
   } catch {
     return 'failed'
   } finally {

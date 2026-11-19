@@ -27,7 +27,7 @@ import {
 import { onMount, untrack } from 'svelte'
 import { getBars } from '../../lib/barsCache'
 import { type ChartSnapshot, visibleSpan } from '../../lib/chartImage'
-import { legendBar, legendIndex, rangeAfterBuild } from '../../lib/chartView'
+import { FrameSlot, legendBar, legendIndex, rangeAfterBuild } from '../../lib/chartView'
 import { DrawController } from '../../lib/drawings/controller.svelte'
 import { drawingsState } from '../../lib/drawings/store.svelte'
 import { cls, px, sgn } from '../../lib/format'
@@ -104,6 +104,11 @@ let paneTitles = $state<Record<number, string>>({})
 let tops = $state<number[]>([])
 let paneObs: ResizeObserver | null = null
 let token = 0
+/** 作り直したあとの表示期間・段の位置を置く次のフレーム（作り直しが続いたら最後の 1 つ。0 キー・期間の変更と閉じたときに取りやめる） */
+const rangeFrame = new FrameSlot()
+const paneFrame = new FrameSlot()
+/** 閉じた（遅れて走る queueMicrotask(build) でチャートを作らない） */
+let destroyed = false
 const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
 
 /** チャートの描画（トレンドライン。docs/design-drawings.md）。ChartView との接点はこの文脈だけ */
@@ -293,7 +298,7 @@ function extendTime(time: string[], n: number): string[] {
 let builtTf: Timeframe | null = null
 
 function build() {
-  if (!host) return
+  if (!host || destroyed) return
   const keep = chart?.timeScale().getVisibleLogicalRange()
   chart?.remove()
   alertLines = []
@@ -496,7 +501,7 @@ function build() {
     // D/W/M を替えたときは足の本数が違うので、前の時間軸の表示期間を持ち越さない
     const range = rangeAfterBuild(keep, builtTf, shownTf, b.time.length, showCount(b.time.length))
     builtTf = shownTf
-    requestAnimationFrame(() => chart?.timeScale().setVisibleLogicalRange(range))
+    rangeFrame.run(() => chart?.timeScale().setVisibleLogicalRange(range))
   }
   lines = ls
   paneTitles = titles
@@ -519,7 +524,7 @@ function watchPanes() {
     const el = p.getHTMLElement()
     if (el) paneObs.observe(el)
   }
-  requestAnimationFrame(placePanes)
+  paneFrame.run(placePanes)
 }
 
 const legend = $derived.by(() => {
@@ -569,6 +574,7 @@ function showCount(n: number): number {
 }
 function resetView() {
   if (!bars || !chart) return
+  rangeFrame.cancel() // 同じフレームの作り直しが置く前の表示期間で、ここで置く表示を上書きしない
   const n = bars.time.length
   chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - showCount(n)), to: n + 3 })
 }
@@ -701,6 +707,9 @@ onMount(() => {
   })
   return () => {
     token++ // 読み込み中の足は捨てる（閉じたあとにチャートを作らない）
+    destroyed = true
+    rangeFrame.cancel()
+    paneFrame.cancel()
     unbind()
     draw.blur()
     draw.register(pane.id, false)

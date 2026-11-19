@@ -464,3 +464,38 @@ describe('断られた書き込みの間の編集のタイマー（レビュー�
     expect(core.calls.filter((c) => c.startsWith('update')).length).toBe(n + 1)
   })
 })
+
+describe('書き込みの失敗と、その間の編集（FR-C17。レビュー 3 回目）', () => {
+  it('書く途中に通信が失敗したら、その間の編集も捨てる（タイマーで書き直さない・取り消しの段にしない）', async () => {
+    await edits.create('p1', ID, line('a'))
+    const orig = core.io.update
+    let fail: () => void = () => {}
+    const gate = new Promise<void>((res) => {
+      fail = res
+    })
+    let entered = false
+    core.io.update = async () => {
+      entered = true
+      await gate
+      throw new Error('offline')
+    }
+    edits.edit('p1', ID, { ...store.list(ID)[0]!, extend: 'right' })
+    const f = edits.flush()
+    for (let i = 0; i < 20 && !entered; i++) await Promise.resolve()
+    expect(entered).toBe(true)
+    // 書いている間にさらに動かす
+    edits.edit('p1', ID, { ...store.list(ID)[0]!, priceLabel: false })
+    fail()
+    await f
+    core.io.update = orig
+    core.calls.length = 0
+    expect(notices).toEqual(['failed'])
+    expect(store.list(ID)[0]).toMatchObject({ extend: 'none', priceLabel: true }) // Core の値に戻る
+    expect(edits.editing('a')).toBe(false)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(core.calls).toEqual([])
+    expect(edits.canUndo('p1')).toBe(true) // 引いた段だけ
+    await edits.undo('p1')
+    expect(ids()).toEqual([])
+  })
+})

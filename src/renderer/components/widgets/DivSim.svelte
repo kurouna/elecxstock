@@ -49,6 +49,7 @@ import {
   fwdReadout,
   altApplies,
   showsCards,
+  pageSwitchesTab,
   showsLoading,
   growthCell,
   keyApplies,
@@ -596,7 +597,7 @@ function key(e: KeyboardEvent): boolean {
   if (!cardsShown && blockedWhileLoading(c)) return true
   const n = rows.length
   const page = Math.max(1, Math.floor((body?.clientHeight ?? 400) / 48))
-  if ((k === 'PageUp' || k === 'PageDown') && card !== 'table') {
+  if (pageSwitchesTab(k, card, cardsShown)) {
     setTab(k === 'PageUp' ? 'past' : 'fwd')
     return true
   }
@@ -748,7 +749,7 @@ onMount(() =>
         {#if isScreen && !isOne}{#each splitTemplate(t('sim.s.rs')) as p, i (i)}{@render word(p)}{/each}{/if}
       </span>
     {/if}
-    <button type="button" class="tok sc" title={`${t('sim.sc.title')} (K)`} onclick={() => void pickScenario()}>{t('sim.sc.title')}…</button>
+    <button type="button" class="tok" title={`${t('sim.sc.title')} (K)`} onclick={() => void pickScenario()}>{t('sim.sc.title')}…</button>
   </div>
 </div>
 <div class="body" bind:this={body} class:calc={loading} data-runs={runs}>

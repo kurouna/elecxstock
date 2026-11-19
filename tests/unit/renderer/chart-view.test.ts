@@ -1,6 +1,6 @@
 // チャートの凡例の足と、作り直したときの表示期間（§7, FR-C1・C3。レビューの指摘）。値はすべて架空
 import { describe, expect, it } from 'vitest'
-import { legendBar, legendIndex, rangeAfterBuild } from '../../../src/renderer/lib/chartView'
+import { FrameSlot, legendBar, legendIndex, rangeAfterBuild } from '../../../src/renderer/lib/chartView'
 
 const times = ['2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13']
 
@@ -45,5 +45,65 @@ describe('作り直したときの表示期間（§7, FR-C1）', () => {
     expect(rangeAfterBuild(null, null, 'W', 160, 110)).toEqual({ from: 50, to: 163 })
     expect(rangeAfterBuild(null, 'W', 'W', 160, 110)).toEqual({ from: 50, to: 163 })
     expect(rangeAfterBuild({ from: 1, to: 2 }, null, 'W', 160, 110)).toEqual({ from: 50, to: 163 })
+  })
+})
+
+describe('作り直したときの表示期間: 足の本数が減った（§7, FR-C1・FR-D6。レビュー 3 回目）', () => {
+  it('同じ時間軸でも、前の表示が足の範囲にまったく掛からなければ末尾から表示する（保存期間を短くして足が減った）', () => {
+    // 10 年分（2500 本）の末尾を見ていたのが、3 年分（750 本）に減った
+    expect(rangeAfterBuild({ from: 2360, to: 2503 }, 'D', 'D', 750, 140)).toEqual({ from: 610, to: 753 })
+  })
+  it('範囲に一部でも掛かっていれば前の表示を保つ（右の余白を含む）', () => {
+    expect(rangeAfterBuild({ from: 700, to: 800 }, 'D', 'D', 750, 140)).toEqual({ from: 700, to: 800 })
+  })
+})
+
+describe('表示期間を置く次のフレーム（§7, FR-C1。レビュー 3 回目）', () => {
+  function fakeFrames() {
+    const q = new Map<number, () => void>()
+    let n = 0
+    return {
+      raf: (f: () => void) => {
+        q.set(++n, f)
+        return n
+      },
+      caf: (h: number) => void q.delete(h),
+      flush: () => {
+        const fs = [...q.values()]
+        q.clear()
+        for (const f of fs) f()
+      },
+      size: () => q.size,
+    }
+  }
+  it('続けて頼むと、前に頼んだものは走らない（作り直しが続いても最後の表示期間だけ）', () => {
+    const fr = fakeFrames()
+    const slot = new FrameSlot(fr.raf, fr.caf)
+    const ran: string[] = []
+    slot.run(() => ran.push('a'))
+    slot.run(() => ran.push('b'))
+    fr.flush()
+    expect(ran).toEqual(['b'])
+  })
+  it('取りやめると走らない（同じフレームの 0 キー・期間の変更で置いた表示を、作り直しの古い表示期間で上書きしない・閉じたあと）', () => {
+    const fr = fakeFrames()
+    const slot = new FrameSlot(fr.raf, fr.caf)
+    const ran: string[] = []
+    slot.run(() => ran.push('a'))
+    slot.cancel()
+    fr.flush()
+    expect(ran).toEqual([])
+    expect(fr.size()).toBe(0)
+  })
+  it('走ったあとに取りやめても何もしない', () => {
+    const fr = fakeFrames()
+    const slot = new FrameSlot(fr.raf, fr.caf)
+    const ran: string[] = []
+    slot.run(() => ran.push('a'))
+    fr.flush()
+    slot.cancel()
+    slot.run(() => ran.push('b'))
+    fr.flush()
+    expect(ran).toEqual(['a', 'b'])
   })
 })

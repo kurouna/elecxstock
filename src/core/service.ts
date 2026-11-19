@@ -332,11 +332,19 @@ export class CoreService {
     }
     return this.metricsCache
   }
-  /** 業種ごとの中央値（FR-I7）。指標の写し（metricsMap）が同じ間は覚えておく（銘柄を切り替えるたびに全銘柄をなめない） */
-  private sectorMemo: { src: Map<InstrumentId, MetricsRow>; by: Map<string, ReturnType<typeof sectorStats>> } | null = null
+  /**
+   * 業種ごとの中央値（FR-I7）。指標の写し（metricsMap）と銘柄の一覧の版（universeUpdated。一覧だけの取り直し・JPX の取り込みで
+   * 業種・市場が変わる）が同じ間は覚えておく（銘柄を切り替えるたびに全銘柄をなめない）
+   */
+  private sectorMemo: {
+    src: Map<InstrumentId, MetricsRow>
+    uni: string | null
+    by: Map<string, ReturnType<typeof sectorStats>>
+  } | null = null
   private sectorMedian(sector: string): ReturnType<typeof sectorStats> {
     const metrics = this.metricsMap()
-    if (this.sectorMemo?.src !== metrics) this.sectorMemo = { src: metrics, by: new Map() }
+    const uni = this.db.meta('universeUpdated')
+    if (this.sectorMemo?.src !== metrics || this.sectorMemo.uni !== uni) this.sectorMemo = { src: metrics, uni, by: new Map() }
     const by = this.sectorMemo.by
     if (!by.has(sector)) {
       const rows = this.repo

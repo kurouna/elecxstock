@@ -118,6 +118,12 @@ export const blockedWhileLoading = (code: string): boolean => MOVE_KEYS.has(code
 /** カード・表が出ているか（読み込み中・結果が無い・過去のタブで過去が 0 件（案内だけの画面）のときは出ていない。出ていなければ MOVE_KEYS を受けない） */
 export const showsCards = (x: { loading: boolean; hasResult: boolean; tab: SimTab; hasPast: boolean }): boolean =>
   !x.loading && x.hasResult && (x.tab !== 'past' || x.hasPast)
+/**
+ * PgUp・PgDn でタブを替えるか（替えないときは表の行を動かす）。表を選んでいても、カード・表が出ていなければ替える
+ * （過去が 0 件の案内だけの画面で、見えない表の行を動かしてタブを替えられなくならないように）
+ */
+export const pageSwitchesTab = (key: string, card: string | null, shown: boolean): boolean =>
+  (key === 'PageUp' || key === 'PageDown') && (!shown || card !== 'table')
 /** 縦線に添える札（「元本を回収」）: 文字の幅に合わせ、右端に近ければ縦線の左に出す */
 export function pillGeom(x: number, right: number, label: string): { x: number; w: number } {
   const w = [...label].reduce((s, ch) => s + (ch.charCodeAt(0) > 0x7f ? 10 : 5.6), 0) + 8

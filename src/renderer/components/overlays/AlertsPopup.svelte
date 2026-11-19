@@ -2,6 +2,7 @@
 // アラートのポップアップ（FR-AL8。design-alerts.md §6.1）: アラートの一覧と鳴った履歴。画面の上寄りに重ねて開き、
 // レイアウトは変えない。Insert 作る・E 直す・Space 有効と停止・Delete 消す・Enter 銘柄（スクリーンはスクリーナー）を開く・
 // H 切り替え・R 既読・Ctrl+Shift+F 成立中だけ・Esc 閉じる。一覧は app.alerts（チャートの点線と同じもの）
+
 import { jstDateTimeText } from '@shared/calendar'
 import type { AlertFire, AlertView } from '@shared/types'
 import { onMount, tick } from 'svelte'
@@ -18,6 +19,7 @@ import {
 import { condsText, distanceText, fieldValueText } from '../../lib/alertText'
 import { newAlertForFocus, sendSymbol } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
+import { composing } from '../../lib/keys'
 import { app, closeOverlay, rpc, t, toast } from '../../stores/app.svelte'
 
 let { tab: initial }: { tab?: 'alerts' | 'history' } = $props()
@@ -77,7 +79,7 @@ async function scrollSel() {
 }
 
 function key(e: KeyboardEvent) {
-  if (e.isComposing) return
+  if (composing(e)) return
   const k = e.key
   const ctrl = e.ctrlKey || e.metaKey
   const a = tab === 'alerts' ? shown[sel] : undefined

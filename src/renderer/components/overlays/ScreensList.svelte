@@ -1,8 +1,10 @@
 <script lang="ts">
 // 保存したスクリーンの一覧（Ctrl+O。FR-SC12）: 開く・名前の変更（F2）・複製（Ctrl+Shift+D）・削除（Delete を 2 回）・
 // 並べ替え（Alt+↑↓）・既定のスクリーンを戻す（Ctrl+Shift+R、FR-SC15。戻せるものがあるときだけ案内を出す）。
+
 import type { SavedScreen } from '@shared/types'
 import { onMount } from 'svelte'
+import { composing } from '../../lib/keys'
 import { missingDefaults, newScreenId, openScreenAnywhere, removeScreen } from '../../lib/screens'
 import { clampSel } from '../../lib/selection'
 import { app, promptDialog, rpc, saveScreens, screenName, t, toast } from '../../stores/app.svelte'
@@ -18,7 +20,7 @@ const openId = $derived(allPanes().find((p) => p.widget === 'screener')?.state.s
 const items = $derived(app.screens.filter((s) => !query || screenName(s).toLowerCase().includes(query.toLowerCase())))
 
 async function key(e: KeyboardEvent) {
-  if (e.isComposing) return
+  if (composing(e)) return
   if (e.key !== 'Delete') pendingDel = null
   const x = items[sel]
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey) {

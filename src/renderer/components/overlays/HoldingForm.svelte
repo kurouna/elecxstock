@@ -7,6 +7,7 @@ import { CODE_RE } from '@shared/code'
 import type { AccountType, Holding, Instrument } from '@shared/types'
 import { onMount } from 'svelte'
 import type { Key } from '../../lib/i18n'
+import { composing } from '../../lib/keys'
 import { accountName } from '../../lib/portfolio'
 import { app, closeOverlay, nameOf, rpc, t } from '../../stores/app.svelte'
 
@@ -60,7 +61,7 @@ function pick(x: Instrument | undefined) {
   cands = []
 }
 function codeKey(e: KeyboardEvent) {
-  if (!showCands || e.isComposing) return
+  if (!showCands || composing(e)) return
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault()
     ci = Math.max(0, Math.min(cands.length - 1, ci + (e.key === 'ArrowDown' ? 1 : -1)))
@@ -99,7 +100,7 @@ function cancel() {
   closeOverlay()
 }
 function key(e: KeyboardEvent) {
-  if (e.isComposing) return
+  if (composing(e)) return
   if (e.key === 'Escape') {
     e.preventDefault()
     e.stopPropagation()

@@ -99,8 +99,17 @@ function cut(s: string, n: number): string {
 }
 /** 文書がルートの要素（rss・rdf:RDF・feed）の閉じタグで終わっているか（後ろの空白・コメントは除く）。途中で切れた文書を見分ける */
 function closed(xml: string): boolean {
-  const tail = xml.slice(-4096).replace(/<!--[\s\S]*?-->/g, '')
-  return /<\/(?:[\w.-]+:)?(?:rss|RDF|feed)\s*>\s*$/.test(tail)
+  // ルートの後ろに置ける空白・コメント・処理命令（XML の Misc）を後ろから外す（長いコメントが末尾の数 KB をまたいでもよい）
+  let end = xml.length
+  for (;;) {
+    while (end > 0 && /\s/.test(xml[end - 1]!)) end--
+    const open = xml.endsWith('-->', end) ? '<!--' : xml.endsWith('?>', end) ? '<?' : null
+    if (!open) break
+    const at = xml.lastIndexOf(open, end - open.length - 1)
+    if (at < 0) return false
+    end = at
+  }
+  return /<\/(?:[\w.-]+:)?(?:rss|RDF|feed)\s*>$/.test(xml.slice(Math.max(0, end - 256), end))
 }
 
 /** <link> が指す URL（RSS は文字、Atom は href。Atom の self・enclosure は記事ではない） */

@@ -41,4 +41,30 @@ describe('業種の中央値（FR-I7）', () => {
       spy.mockRestore()
     }
   })
+
+  it('銘柄の一覧だけを取り直して業種が変わったら、指標が同じでも数え直す', async () => {
+    const all = await call('instruments.all', {})
+    const by = new Map<string, string[]>()
+    for (const i of all) if (i.kind === 'stock' && i.sectorJa) by.set(i.sectorJa, [...(by.get(i.sectorJa) ?? []), i.id])
+    const [sector, ids] = [...by].sort((a, b) => b[1].length - a[1].length)[0]!
+    const before = (await call('info.extra', { id: ids[0]! })).sector!.n
+    const provider = (svc as unknown as { provider: { fetchUniverse: (o: unknown) => Promise<{ code: string; sectorJa: string }[]> } })
+      .provider
+    const real = provider.fetchUniverse.bind(provider)
+    // 別の業種の銘柄を 1 つ、この業種へ移す
+    const other = all.find(
+      (i) => i.kind === 'stock' && i.sectorJa && i.sectorJa !== sector && i.market === all.find((x) => x.id === ids[0])?.market,
+    )!
+    const moved = other.id.replace(/^JP:/, '')
+    const spy = vi
+      .spyOn(provider, 'fetchUniverse')
+      .mockImplementation(async (o) => (await real(o)).map((r) => (r.code === moved ? { ...r, sectorJa: sector } : r)))
+    try {
+      await call('jobs.start', { kind: 'universe' })
+      await core.idle()
+      expect((await call('info.extra', { id: ids[0]! })).sector!.n).toBe(before + 1)
+    } finally {
+      spy.mockRestore()
+    }
+  })
 })

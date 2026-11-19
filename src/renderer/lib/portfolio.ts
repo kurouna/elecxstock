@@ -5,6 +5,7 @@ import { jstNow } from '@shared/calendar'
 import { DIVIDEND_TAX } from '@shared/folio'
 import type { AccountType, Holding } from '@shared/types'
 import { app, choiceDialog, confirmDialog, holdingDialog, loadInstruments, metric, nameOf, rpc, t, toast } from '../stores/app.svelte'
+import { noticeOpen, noticeSave } from './fileNotice'
 import { importedNote } from './folio'
 import type { Key } from './i18n'
 import { secret } from './privacy.svelte'
@@ -80,7 +81,7 @@ export function decodeCsv(bytes: Uint8Array): string {
  * 取り込む前に差分（追加・更新・変わらない・無くなる・対象外）を見せて確認し、前の記録は元に戻せるように残す
  */
 export async function importBrokerCsv(): Promise<void> {
-  const bytes = await window.elecxstock.openFile('csv')
+  const bytes = noticeOpen(await window.elecxstock.openFile('csv'))
   if (!(bytes instanceof Uint8Array)) return
   const p = await rpc('portfolio.previewCsv', { text: decodeCsv(bytes) })
   const line = (h: Holding) =>
@@ -150,12 +151,12 @@ export async function exportHoldings(): Promise<void> {
   const r = await confirmDialog({ title: t('hold.exportTitle'), body: t('hold.exportWarn'), ok: t('hold.exportDo') })
   if (!r.ok) return
   const json = await rpc('portfolio.export', {})
-  if (await window.elecxstock.saveText(`elecxstock-holdings-${jstNow().date}.json`, json)) toast(t('hold.exported'))
+  noticeSave(await window.elecxstock.saveText(`elecxstock-holdings-${jstNow().date}.json`, json), t('hold.exported'))
 }
 
 /** 保有の JSON 取り込み（FR-H9）: 差分を見せて確認し、合わせ方を選ぶ。取り込む前の記録は残して元に戻せる */
 export async function importHoldings(): Promise<void> {
-  const text = await window.elecxstock.openFile('json')
+  const text = noticeOpen(await window.elecxstock.openFile('json'))
   if (typeof text !== 'string') return
   const p = await rpc('portfolio.previewImport', { json: text })
   const line = (h: Holding) =>

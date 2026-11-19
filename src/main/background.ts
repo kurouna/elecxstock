@@ -67,9 +67,15 @@ interface LoginBackend {
   write(on: boolean, hidden: boolean): void
 }
 
-/** 本物のトレイ: しまっている間だけ作る。作るときの言語でメニューを作る */
-function realTray(icon: string, actions: Record<'open' | 'settings' | 'quit', () => void>): TrayLike {
+/** 本物のトレイ: しまっている間だけ作る。作るときの言語でメニューを作る（export は単体テストのため） */
+export function realTray(icon: string, actions: Record<'open' | 'settings' | 'quit', () => void>): TrayLike {
   let tray: Tray | null = null
+  /** hide() で、次のイベントで壊すのを待っているもの（その前に終了したら destroy() が壊す） */
+  const doomed = new Set<Tray>()
+  const kill = (t: Tray) => {
+    doomed.delete(t)
+    if (!t.isDestroyed()) t.destroy()
+  }
   return {
     show(lang) {
       if (tray) return
@@ -87,12 +93,15 @@ function realTray(icon: string, actions: Record<'open' | 'settings' | 'quit', ()
       // トレイのクリック・メニューの中から呼ばれるので、そのイベントが終わってから壊す（途中で destroy すると落ちることがある）
       const t = tray
       tray = null
-      if (t) setImmediate(() => t.destroy())
+      if (!t) return
+      doomed.add(t)
+      setImmediate(() => kill(t))
     },
     destroy() {
       const t = tray
       tray = null
-      if (t && !t.isDestroyed()) t.destroy()
+      if (t) kill(t)
+      for (const d of [...doomed]) kill(d)
     },
   }
 }

@@ -22,11 +22,15 @@ $effect(() => {
   void app.dataVersion
   void app.jobs
   const ok = fresh()
-  bridge.call('data.failures', {}).then((f) => {
-    if (!ok()) return // 取得の進捗で続けて頼んだとき、古い応答で上書きしない
-    fails = f
-    sel = clampSel(sel, f.length) // 失敗が減ったら、選んでいる行を最後に寄せる
-  })
+  bridge
+    .call('data.failures', {})
+    .then((f) => {
+      if (!ok()) return // 取得の進捗で続けて頼んだとき、古い応答で上書きしない
+      fails = f
+      sel = clampSel(sel, f.length) // 失敗が減ったら、選んでいる行を最後に寄せる
+    })
+    // Core が止まっている・終了中などで読めなかったら、前の一覧のまま（未処理の拒否にしない）
+    .catch(() => {})
 })
 onMount(() =>
   registerPane(pane.id, {

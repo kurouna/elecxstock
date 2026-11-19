@@ -5,10 +5,10 @@
 import { flushSync } from 'svelte'
 import { app } from '../stores/app.svelte'
 import { type Box, enterFrames, flipFrom, flipTransform, motionMs } from './paneMotion'
+import { paneSelector } from './panes'
 import { rootZoom } from './pointer'
 
-const paneEl = (id: string | null): HTMLElement | null =>
-  id ? document.querySelector<HTMLElement>(`[data-pane-id="${CSS.escape(id)}"]`) : null
+const paneEl = (id: string | null): HTMLElement | null => (id ? document.querySelector<HTMLElement>(paneSelector(id)) : null)
 const box = (el: HTMLElement): Box => {
   const r = el.getBoundingClientRect()
   return { left: r.left, top: r.top, width: r.width, height: r.height }

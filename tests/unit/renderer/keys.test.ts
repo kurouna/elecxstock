@@ -39,3 +39,27 @@ describe('ヒートマップの業種のタイルで選ぶ銘柄（FR-W4）', ()
     expect(sectorMembers(pool, '電気機器', (x) => sec[x])).toEqual([])
   })
 })
+
+describe('IME の変換中の判定をそろえる（FR-KB5）', () => {
+  it('composing: isComposing に加え、変換を始めるキー（keyCode 229）も変換中とみなす', async () => {
+    const { composing } = await import('../../../src/renderer/lib/keys')
+    expect(composing({ isComposing: true, keyCode: 13 })).toBe(true)
+    expect(composing({ isComposing: false, keyCode: 229 })).toBe(true)
+    expect(composing({ isComposing: false, keyCode: 13 })).toBe(false)
+  })
+  it('renderer のキー処理は e.isComposing を直に読まず、composing(e) を通す（keyCode 229 の取りこぼしをなくす）', async () => {
+    const { readdirSync, readFileSync, statSync } = await import('node:fs')
+    const { join, relative, sep } = await import('node:path')
+    const root = join(__dirname, '../../../src/renderer')
+    const walk = (d: string): string[] =>
+      readdirSync(d).flatMap((n) => {
+        const p = join(d, n)
+        return statSync(p).isDirectory() ? walk(p) : /\.(ts|svelte)$/.test(n) ? [p] : []
+      })
+    const bad = walk(root)
+      .filter((p) => !p.endsWith(join('lib', 'keys.ts')))
+      .filter((p) => /\.isComposing\b/.test(readFileSync(p, 'utf8')))
+      .map((p) => relative(root, p).split(sep).join('/'))
+    expect(bad).toEqual([])
+  })
+})

@@ -1,4 +1,5 @@
 // チャートの画像の保存（FR-C11）: ファイル名・上の 1 行の文言と幅への収め方・見えている期間・S キーの判定（設定が OFF なら効かない）・保存の流れ
+import type { SaveFileResult } from '@shared/bridge'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   type ChartSnapshot,
@@ -80,7 +81,7 @@ describe('チャートの画像の保存の流れ（FR-C11）', () => {
   const g = globalThis as Record<string, unknown>
   /** document と window を最小限に差し替える（キャンバスは描いたことにして PNG の印のバイト列を返す） */
   function stub(
-    savePng: (name: string, b: Uint8Array) => Promise<boolean>,
+    savePng: (name: string, b: Uint8Array) => Promise<SaveFileResult>,
     buf: () => Promise<ArrayBuffer> = async () => new Uint8Array([0x89, 0x50]).buffer,
   ) {
     const ctx = new Proxy(
@@ -111,7 +112,7 @@ describe('チャートの画像の保存の流れ（FR-C11）', () => {
   })
 
   it('名前は描いている足の時間軸（D/W/M を押した直後で前の足を出していれば、前の時間軸）', async () => {
-    const save = vi.fn(async () => true)
+    const save = vi.fn(async (): Promise<SaveFileResult> => 'saved')
     const shot = stub(save)
     const snap: ChartSnapshot = { canvas: shot, tf: 'D', scale: 1, from: '2026-01-05', to: '2026-11-13' }
     expect(await saveChartImage(snap, opts)).toBe('saved')
@@ -119,10 +120,13 @@ describe('チャートの画像の保存の流れ（FR-C11）', () => {
   })
 
   it('描けていなければ notReady、取り消しは cancelled、保存に失敗（reject）したら failed', async () => {
-    stub(async () => true)
+    stub(async () => 'saved')
     expect(await saveChartImage(null, opts)).toBe('notReady')
-    const shot = stub(async () => false)
+    const shot = stub(async () => 'cancelled')
     expect(await saveChartImage({ canvas: shot, tf: 'W', scale: 1 }, opts)).toBe('cancelled')
+    // main が書けなかった（権限・使用中）と返したら、取りやめではなく failed（利用者に知らせる）
+    const shot3 = stub(async () => 'failed')
+    expect(await saveChartImage({ canvas: shot3, tf: 'W', scale: 1 }, opts)).toBe('failed')
     const shot2 = stub(async () => {
       throw new Error('EACCES')
     })
@@ -130,23 +134,23 @@ describe('チャートの画像の保存の流れ（FR-C11）', () => {
   })
 
   it('保存中の 2 回目は保存ダイアログを重ねて出さず、終わればまた保存できる', async () => {
-    let done: (v: boolean) => void = () => {}
-    const save = vi.fn(() => new Promise<boolean>((r) => (done = r)))
+    let done: (v: SaveFileResult) => void = () => {}
+    const save = vi.fn(() => new Promise<SaveFileResult>((r) => (done = r)))
     const shot = stub(save)
     const snap: ChartSnapshot = { canvas: shot, tf: 'D', scale: 2 }
     const first = saveChartImage(snap, opts)
     expect(await saveChartImage(snap, opts)).toBe('cancelled')
     await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1))
-    done(true)
+    done('saved')
     expect(await first).toBe('saved')
     const again = saveChartImage(snap, opts)
     await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2))
-    done(true)
+    done('saved')
     expect(await again).toBe('saved')
   })
 
   it('PNG のバイト列を読めなかった（arrayBuffer が reject）ら failed で、保存中のままにしない（次の保存ができる）', async () => {
-    const save = vi.fn(async () => true)
+    const save = vi.fn(async (): Promise<SaveFileResult> => 'saved')
     const shot = stub(save, async () => {
       throw new Error('NotReadableError')
     })

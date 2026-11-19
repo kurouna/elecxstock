@@ -6,8 +6,10 @@ import type { Instrument } from '@shared/types'
 import { onMount } from 'svelte'
 import { type Action, focusedWatchlist, holdingsTabLocked, keyOf, paletteActions, sendSymbol } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
+import { composing } from '../../lib/keys'
 import { pageCommands } from '../../lib/pages'
 import { openScreenAnywhere, paletteScreens } from '../../lib/screens'
+import { clampSel } from '../../lib/selection'
 import { addToList, app, bridge, isFav, listName, rpc, screenName, t, toast, toggleFav } from '../../stores/app.svelte'
 
 /** title があるときは銘柄だけを選ぶ（chart-grid のタイルの差し替えなど） */
@@ -71,7 +73,9 @@ const items = $derived.by((): Item[] => {
 /** フォーカス中のペインがウォッチリストなら、そのリストに直接足せる（Ctrl+Enter） */
 const target = $derived(title ? null : focusedWatchlist())
 $effect(() => {
-  if (sel >= items.length) sel = Math.max(0, items.length - 1)
+  // 空の一覧で ↓ を押しても -1 にしない（遅れて届いた候補で Enter が効かなくなるため）
+  const c = clampSel(sel, items.length)
+  if (c !== sel) sel = c
 })
 /** 候補の銘柄 ID。まだ一覧に無いコードは、追加して取得を始めてから返す */
 async function idOf(x: Item | undefined): Promise<string | null> {
@@ -124,8 +128,8 @@ async function go(i = sel) {
   else if (x.kind === 'act') await x.a.run()
 }
 function key(e: KeyboardEvent) {
-  if (e.isComposing) return
-  if (e.key === 'ArrowDown') sel = Math.min(items.length - 1, sel + 1)
+  if (composing(e)) return
+  if (e.key === 'ArrowDown') sel = clampSel(sel + 1, items.length)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
   else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
     if (!target) return void holdingsTabLocked()

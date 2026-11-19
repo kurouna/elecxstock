@@ -486,6 +486,23 @@ describe('FR-NW5 巡回の頑健さ（レビューの指摘）', () => {
     const l = await h.svc.call('news.list', {}, 'main')
     expect(l.feeds.find((s) => s.id === D.id)?.error).toBeUndefined()
   })
+  it('取っている最中（リダイレクトの途中）に切ったフィードは、すぐにオンに戻せば取り直す（試した時刻を残さない）', async () => {
+    const D = feed('ja.d')
+    const moved = D.url.replace('rss.xml', 'moved.xml')
+    h = harness([A, B, D], { guard: true })
+    h.set(D.url, { status: 302, headers: { location: moved } })
+    h.set(moved, ok('架空の見出し D'))
+    await answer()
+    await h.svc.call('news.settings.set', { feeds: { [A.id]: false, [B.id]: false } }, 'main')
+    const watching = h.svc.call('news.watch', { on: true, lang: 'ja' }, 'main') // D の 1 本目が出たところ
+    await h.svc.call('news.settings.set', { feeds: { [D.id]: false } }, 'main') // 移った先は許可から外れる
+    await watching
+    await h.svc.idle()
+    expect(h.calls.map((c) => c.url)).toEqual([D.url])
+    await h.svc.call('news.settings.set', { feeds: { [D.id]: true } }, 'main')
+    await h.svc.idle()
+    expect(h.calls.map((c) => c.url)).toEqual([D.url, D.url, moved])
+  })
   it('ペインを隠している間にオンにしたフィードは、次に見えたときに取る（巡回の時刻の前でも）', async () => {
     h.set(C.url, ok('架空の見出し C'))
     await answer()

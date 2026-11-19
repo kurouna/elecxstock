@@ -13,10 +13,11 @@ export const ALLOWED_HOST_NAMES: readonly string[] = ['*.yahoo.com', 'www.jpx.co
  */
 export type Allow = readonly RegExp[] | ((url: URL) => boolean)
 
-/** https で、ホストが許可リストに入るか */
+/** https・既定のポート・認証情報なしで、ホストが許可リストに入るか（ニュースの NewsService.allowed と同じ条件） */
 export function isAllowedUrl(url: URL, allow: Allow): boolean {
   if (typeof allow === 'function') return allow(url)
-  return url.protocol === 'https:' && allow.some((r) => r.test(url.hostname))
+  if (url.protocol !== 'https:' || url.port !== '' || url.username || url.password) return false
+  return allow.some((r) => r.test(url.hostname))
 }
 
 const urlOf = (input: RequestInfo | URL): URL => new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
@@ -42,35 +43,55 @@ export function guardFetch(realFetch: typeof fetch, allow: Allow): typeof fetch 
     const mode = init?.redirect ?? (input instanceof Request ? input.redirect : 'follow')
     if (mode === 'manual') return realFetch(input, init)
 
-    // Request の本文は 1 回読むと送り直せないので、先に写しを取っておく（307・308 で同じ本文を送る）
-    const reqBody = init?.body === undefined && input instanceof Request && input.body !== null ? await input.clone().arrayBuffer() : null
-    let res = await realFetch(input, { ...init, redirect: 'manual' })
-    // 2 回目からは Request ではなく URL と init で送る（本文はリダイレクトで送り直せる形のときだけ。下）
     let method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
-    let body: BodyInit | null = init?.body ?? reqBody
-    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
-    const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
-    for (let hops = 0; REDIRECT.has(res.status); hops++) {
-      const location = res.headers.get('location')
-      if (location === null) return res
-      if (mode === 'error') throw new TypeError(`redirect not allowed: ${url.hostname}`)
-      if (hops >= MAX_REDIRECTS) throw new TypeError('too many redirects')
-      const next = new URL(location, url)
-      if (!isAllowedUrl(next, allow)) throw new Error(`blocked redirect: ${next.hostname}`)
-      if (res.status === 303 || ((res.status === 301 || res.status === 302) && method === 'POST')) {
-        if (method !== 'HEAD') method = 'GET'
-        body = null
-        for (const h of ['content-type', 'content-length', 'content-encoding', 'content-language', 'content-location']) headers.delete(h)
-      } else if (body instanceof ReadableStream) {
-        // 読み終えたストリームは送り直せない（本物の fetch も同じく失敗にする）
-        throw new TypeError('cannot follow redirect with a streamed body')
+    // Request の本文は 1 回送ると送り直せないので、写し（tee）を取っておき、本文ごと送り直すリダイレクトのときだけ読む。
+    // 送る前に読み切らない（終わらない本文でも送り出す）。GET・HEAD と、リダイレクトを追わない 'error' では写さない
+    const spare =
+      mode === 'follow' &&
+      init?.body === undefined &&
+      input instanceof Request &&
+      input.body !== null &&
+      method !== 'GET' &&
+      method !== 'HEAD'
+        ? input.clone()
+        : null
+    /** 本文を落とした（GET にした）あとは、写しを読まない */
+    let useSpare = spare !== null
+    try {
+      let res = await realFetch(input, { ...init, redirect: 'manual' })
+      // 2 回目からは Request ではなく URL と init で送る（本文はリダイレクトで送り直せる形のときだけ。下）
+      let body: BodyInit | null = init?.body ?? null
+      const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+      const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
+      for (let hops = 0; REDIRECT.has(res.status); hops++) {
+        const location = res.headers.get('location')
+        if (location === null) return res
+        if (mode === 'error') throw new TypeError(`redirect not allowed: ${url.hostname}`)
+        if (hops >= MAX_REDIRECTS) throw new TypeError('too many redirects')
+        const next = new URL(location, url)
+        if (!isAllowedUrl(next, allow)) throw new Error(`blocked redirect: ${next.hostname}`)
+        if (res.status === 303 || ((res.status === 301 || res.status === 302) && method === 'POST')) {
+          if (method !== 'HEAD') method = 'GET'
+          body = null
+          useSpare = false
+          for (const h of ['content-type', 'content-length', 'content-encoding', 'content-language', 'content-location']) headers.delete(h)
+        } else if (useSpare && spare) {
+          body = await spare.arrayBuffer()
+          useSpare = false
+        } else if (body instanceof ReadableStream) {
+          // 読み終えたストリームは送り直せない（本物の fetch も同じく失敗にする）
+          throw new TypeError('cannot follow redirect with a streamed body')
+        }
+        // 別のオリジンへは資格情報を送らない（本物の fetch〔undici〕と同じ見出し）
+        if (next.origin !== url.origin) for (const h of CROSS_ORIGIN_DROP) headers.delete(h)
+        await res.body?.cancel().catch(() => {})
+        url = next
+        res = await realFetch(url.href, { ...init, method, body, headers, signal, redirect: 'manual' })
       }
-      // 別のオリジンへは資格情報を送らない（本物の fetch〔undici〕と同じ見出し）
-      if (next.origin !== url.origin) for (const h of CROSS_ORIGIN_DROP) headers.delete(h)
-      await res.body?.cancel().catch(() => {})
-      url = next
-      res = await realFetch(url.href, { ...init, method, body, headers, signal, redirect: 'manual' })
+      return res
+    } finally {
+      // 読まなかった写しは捨てる（tee の片方に溜まり続けないように）
+      if (spare && !spare.bodyUsed) void spare.body?.cancel().catch(() => {})
     }
-    return res
   }
 }

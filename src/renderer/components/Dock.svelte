@@ -5,6 +5,7 @@ import { untrack } from 'svelte'
 import { keyOf, openDock, setFocus, togglePin } from '../lib/commands'
 import type { Key } from '../lib/i18n'
 import { ink } from '../lib/ink'
+import { composing } from '../lib/keys'
 import { playIn, takeTabHint } from '../lib/paneMax'
 import { drawerSlide, identity } from '../lib/paneMotion'
 import { paneApi } from '../lib/panes'
@@ -83,6 +84,8 @@ function leaveRail(e: MouseEvent) {
   if (!wrap?.contains(e.relatedTarget as Node | null)) leavePanel()
 }
 function railKey(e: KeyboardEvent) {
+  // ペインのキーはアプリ全体のキー処理と同じく、変換中は渡さない（FR-KB5）
+  if (composing(e)) return
   const api = paneApi(dock.panes[dock.active]!.id)
   if (api?.key?.(e)) {
     e.preventDefault()

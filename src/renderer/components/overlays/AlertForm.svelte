@@ -2,12 +2,14 @@
 // アラートを作る・直す（FR-AL7。design-alerts.md §6.2）。対象は銘柄かスクリーン（FR-AL2。← → で切り替え）。キーだけで入れられる:
 // 条件の行で F 指標・O ≥ と ≤・R 相対条件・← → 値・Enter 値を入力・Delete 条件を外す・Insert 条件を足す。
 // Tab で項目を移り、Ctrl+Enter で保存、Esc で取り消し（メモ欄の文字と単キーがぶつからないよう、単キーは条件の行だけ）
+
 import { alertConditionOk, conditionMet, defaultAlertCondition, distanceOf, fieldValue, heldFrom, SCREEN_ALERT_LIMIT } from '@shared/alerts'
 import { editText, parseConditionValue, refOffsetText, valueUnit } from '@shared/conditionInput'
 import { FIELD_BY_ID, FIELDS, type FieldDef, perShare, refFields, usable } from '@shared/fields'
 import type { AlertView, Condition, InstrumentId } from '@shared/types'
 import { onMount, tick, untrack } from 'svelte'
 import { condText, distanceText, fieldValueText } from '../../lib/alertText'
+import { composing } from '../../lib/keys'
 import { type AlertDraft, app, closeOverlay, codeOf, ensureMetrics, metric, nameOf, screenName, t } from '../../stores/app.svelte'
 
 let {
@@ -157,7 +159,7 @@ function commitTyping() {
 }
 
 function rowKey(e: KeyboardEvent, i: number) {
-  if (e.isComposing || e.target !== e.currentTarget || e.ctrlKey || e.altKey || e.metaKey) return
+  if (composing(e) || e.target !== e.currentTarget || e.ctrlKey || e.altKey || e.metaKey) return
   const k = e.key
   if (e.code === 'KeyF' && !e.shiftKey) fieldEls[i]?.focus()
   else if (e.code === 'KeyO' && !e.shiftKey) flip(i)
@@ -173,7 +175,7 @@ function rowKey(e: KeyboardEvent, i: number) {
 }
 /** 行の中の欄で Enter・Esc を押したら行に戻る（Esc でダイアログを閉じない） */
 function backToRow(e: KeyboardEvent, i: number) {
-  if (e.isComposing || (e.key !== 'Enter' && e.key !== 'Escape') || e.ctrlKey) return
+  if (composing(e) || (e.key !== 'Enter' && e.key !== 'Escape') || e.ctrlKey) return
   e.preventDefault()
   e.stopPropagation()
   if (e.currentTarget instanceof HTMLInputElement) {
@@ -203,7 +205,7 @@ function cancel() {
   closeOverlay()
 }
 function key(e: KeyboardEvent) {
-  if (e.isComposing) return
+  if (composing(e)) return
   if (e.key === 'Escape') {
     e.preventDefault()
     e.stopPropagation()

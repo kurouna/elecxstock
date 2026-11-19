@@ -364,6 +364,7 @@ export class NewsService {
     const now = this.d.now()
     const run = this.runs.get(f.id) ?? { fails: 0 }
     this.runs.set(f.id, run)
+    const prevTry = run.lastTry
     run.lastTry = now
     const c = this.cache.feeds[f.id]
     const headers: Record<string, string> = {
@@ -385,7 +386,12 @@ export class NewsService {
     } catch (e) {
       const err = e as Error
       if (err.name === 'TimeoutError' || err.name === 'AbortError') return fail('timeout')
-      if (/^blocked/.test(err.message)) return this.stillOn(f) ? fail('blocked') : 'skip'
+      if (/^blocked/.test(err.message)) {
+        if (this.stillOn(f)) return fail('blocked')
+        // 途中で切った: 試さなかったことにする（すぐオンに戻したら取り直す。手動の 60 秒の間隔にも数えない）
+        run.lastTry = prevTry
+        return 'skip'
+      }
       // 通信の段の失敗は、巡回の全部がそうならオフライン（失敗に数えない）。ほかが取れていれば失敗に数える（runRound）
       if (err instanceof TypeError) return 'offline'
       return fail('network')

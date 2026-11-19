@@ -1,6 +1,11 @@
 import type { EventName, Events, Method, Params, Results } from './api'
 import type { LoginState } from './background'
 
+/** ファイルを書いた結果。取りやめ（保存ダイアログを閉じた）と失敗（書けなかった）を分ける（失敗は利用者に知らせる） */
+export type SaveFileResult = 'saved' | 'cancelled' | 'failed'
+/** 選んだファイルを読めなかった（消えた・権限が無い・ほかのアプリが開いている = read、20 MB を超える = too-large） */
+export type OpenFileFailure = { error: 'read' | 'too-large' }
+
 /** preload が renderer に出す唯一の口（window.elecxstock。NFR-A2） */
 export interface ElecxstockBridge {
   call<M extends Method>(method: M, params: Params<M>): Promise<Results[M]>
@@ -13,12 +18,13 @@ export interface ElecxstockBridge {
   openExternal(url: string): Promise<boolean>
   /** 文字をクリップボードへ（ニュースの見出しのコピー。docs/design-news.md §7.4） */
   copyText(text: string): Promise<boolean>
-  saveText(name: string, text: string): Promise<boolean>
+  saveText(name: string, text: string): Promise<SaveFileResult>
   /** チャートの画像（PNG のバイト列）を保存ダイアログで選んだ場所へ書く（FR-C11） */
-  savePng(name: string, bytes: Uint8Array): Promise<boolean>
-  openFile(kind: 'json' | 'xlsx' | 'text' | 'csv'): Promise<string | Uint8Array | null>
+  savePng(name: string, bytes: Uint8Array): Promise<SaveFileResult>
+  /** 選んだファイルの中身。取りやめは null、読めなかったら OpenFileFailure */
+  openFile(kind: 'json' | 'xlsx' | 'text' | 'csv'): Promise<string | Uint8Array | null | OpenFileFailure>
   /** data/backups の DB のバックアップを、選んだ場所へ写す */
-  exportBackup(file: string): Promise<boolean>
+  exportBackup(file: string): Promise<SaveFileResult>
   openLogs(): Promise<boolean>
   /** ウィンドウの枠の色・高さをテーマと表示倍率に合わせる */
   setChrome(theme: string, scale: number): Promise<boolean>

@@ -60,7 +60,7 @@ $effect(() => {
   sel = r.sel
   scrollSel()
 })
-// 並べ替えのあとは、リンク先が変わるまでリンク先の行へ戻さない（先頭から。lib/selection.ts の LinkFollow）
+// 並べ替え・別の一覧のあとは、リンク先が変わるまでリンク先の行へ戻さない（先頭から。lib/selection.ts の LinkFollow）
 const linkFollow = new LinkFollow<InstrumentId>()
 
 function send(i = sel) {
@@ -75,6 +75,8 @@ function setGroup(g: BoardGroup | null) {
   patchState(pane, { group: g ?? undefined })
   sel = 0
   follow.reset()
+  // 別の一覧は先頭から（Screener・Watchlist の restart と同じく、リンク先が変わるまでリンク先の行へ戻さない）
+  linkFollow.hold()
   queueMicrotask(() => send(0))
 }
 function stepGroup(d: number) {

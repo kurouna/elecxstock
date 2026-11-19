@@ -43,3 +43,20 @@ export function appendLimited<T>(ids: readonly T[], id: T, max: number): { ids: 
   if (ids.length >= max) return { ids: [...ids], result: 'full' }
   return { ids: [...ids, id], result: 'added' }
 }
+
+/**
+ * タイルを外したあと（Delete・タイルの ✕。FR-G10）の拡大と選択: 拡大していた銘柄を外したら格子に戻る（選んでいた位置は保つ）。
+ * 拡大していなければ 1 つ前のタイルを選ぶ
+ */
+export function afterRemove<T>(zoom: T | null, removed: T, sel: number): { zoom: T | null; sel: number } {
+  if (zoom != null && zoom === removed) return { zoom: null, sel }
+  return { zoom, sel: Math.max(0, sel - 1) }
+}
+
+/**
+ * タイル・★・◆をクリックしたときの選択（FR-G7）。拡大中は見えているのが 1 枚だけ（位置は 0）なので、拡大する前の位置を保つ
+ * （Esc で格子に戻ったとき、選択が先頭へ飛ばない）
+ */
+export function selOnClick(zoom: unknown, sel: number, i: number): number {
+  return zoom != null ? sel : i
+}
