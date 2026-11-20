@@ -1,0 +1,121 @@
+/* コマンドバー・ショートカット一覧・ペインの種類・設定のモックが共有する見た目（docs/design-dialogs.md §2）。
+   色・文字は src/renderer/app.css のトークンと同じ値。--radius-dlg・--radius-ctl と、ライトの --select-strong は案（§2.1） */
+:root {
+  --bg: #0b0d10; --panel: #101318; --panel-2: #151920; --panel-3: #1b2029;
+  --line: #20262f; --line-soft: #161a20; --line-strong: #2d3540; --text: #dfe4ea; --text-2: #a3adb9; --text-3: #8b95a2;
+  --focus: #7aa7ff; --select: #1a2638; --select-strong: #22334b; --hover: #141921;
+  --up: #ff6b70; --down: #5aa2ee; --warn: #d9a400; --ok: #2fae74; --gold: #e3b341; --star-on: #f2c04a;
+  --danger: #ff8a8d; --danger-bg: #2a1517; --danger-line: #5a2a2d; --yield-line: #5c9ead;
+  --l1: #e66767; --l2: #199e70; --l3: #3987e5;
+  --scrim: rgba(5, 6, 8, .55); --shadow: 0 12px 32px rgba(0, 0, 0, .45);
+  --fs-0: 10px; --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 16px; --fs-5: 20px;
+  --radius: 2px; --radius-ctl: 4px; --radius-dlg: 8px;
+  --sel-bar: 3px;
+  --font: "Noto Sans JP", "Yu Gothic UI", sans-serif; --mono: "Noto Sans Mono", ui-monospace, monospace;
+}
+:root[data-theme="light"] {
+  --bg: #e9ecf0; --panel: #ffffff; --panel-2: #f5f7fa; --panel-3: #eceff3;
+  --line: #d6dbe1; --line-soft: #e6e9ee; --line-strong: #c3cad3; --text: #1a1f26; --text-2: #4a5562; --text-3: #5d6875;
+  /* --select-strong は app.css の #e6eefb では地（#f5f7fa）とほぼ同じなので一段濃くする案 */
+  --focus: #2f6fe0; --select: #e3ecfb; --select-strong: #d6e4fa; --hover: #f0f3f7;
+  --up: #c62f37; --down: #1a62b0; --warn: #9a6b00; --ok: #18804f; --gold: #8f6700; --star-on: #b98a00;
+  --danger: #c4282f; --danger-bg: #fdecec; --danger-line: #e9b5b8; --yield-line: #2f6f8f;
+  --scrim: rgba(30, 36, 44, .35); --shadow: 0 12px 32px rgba(20, 30, 45, .18);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: var(--fs-2)/1.5 var(--font); }
+button { font: inherit; color: inherit; }
+kbd { display: inline-block; min-width: 18px; text-align: center; font-family: var(--mono); font-size: var(--fs-0); line-height: 15px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: var(--radius-ctl); padding: 0 4px; color: var(--text-2); background: var(--panel-3); white-space: nowrap; }
+kbd.hit { border-color: var(--focus); color: var(--focus); }
+.keys { display: inline-flex; align-items: center; gap: 3px; flex-wrap: nowrap; white-space: nowrap; }
+.keys .or { color: var(--text-3); font-size: var(--fs-0); margin: 0 2px; }
+.keys .pl { color: var(--text-3); font-size: var(--fs-0); }
+mark { background: none; color: var(--focus); font-weight: 700; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.svgi { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; display: block; }
+
+/* ページの頭（モックの説明と切り替え） */
+.page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.page-head h1 { font-size: var(--fs-4); margin: 0 6px 0 0; }
+.page-head a { color: var(--focus); }
+.note { color: var(--text-3); font-size: var(--fs-1); }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); overflow: hidden; }
+.seg button { background: var(--panel-2); border: 0; padding: 2px 10px; cursor: pointer; color: var(--text-2); font-size: var(--fs-1); }
+.seg button.on { background: var(--select-strong); color: var(--text); }
+
+/* 後ろのアプリ（架空のレイアウト） */
+.stage { position: relative; margin: 16px; height: 760px; border: 1px solid var(--line-strong); background: var(--bg); overflow: hidden; }
+.app { position: absolute; inset: 0; display: grid; grid-template-rows: 30px 1fr; }
+.app .top { display: flex; align-items: center; gap: 14px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line); color: var(--text-3); font-size: var(--fs-1); }
+.app .top .tab.on { color: var(--text); border-bottom: 2px solid var(--focus); }
+.app .body { display: grid; grid-template-columns: 1fr 2fr; grid-template-rows: 1fr 1fr; gap: 4px; padding: 4px; }
+.app .pane { border: 1px solid var(--line); background: var(--panel); padding: 4px 8px; color: var(--text-3); font-size: var(--fs-1); }
+.app .pane.focus { border-color: var(--focus); }
+.app .pane .ph { display: flex; gap: 6px; align-items: center; color: var(--text-2); }
+.app .pane .dot { width: 8px; height: 8px; border-radius: 50%; }
+.scrim { position: absolute; inset: 0; background: var(--scrim); display: flex; justify-content: center; align-items: flex-start; padding-top: 56px; }
+
+/* ダイアログの骨格 */
+.dh, .scope, .desc, .foot { flex: none; }
+.dlg { container: dlg / inline-size; display: flex; flex-direction: column; max-height: calc(100% - 80px); max-width: calc(100% - 32px); background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: var(--radius-dlg); box-shadow: var(--shadow); overflow: hidden; }
+.dlg:focus { outline: none; }
+.dh { display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+.dh h3 { margin: 0; font-size: var(--fs-3); white-space: nowrap; }
+.dh .sub { color: var(--text-3); font-size: var(--fs-1); white-space: nowrap; }
+/* 検索欄は 2 つの高さだけ: 主役 34px・補助 28px */
+.search { flex: 1; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--focus); border-radius: var(--radius-ctl); background: var(--bg); min-width: 0; }
+.search.aux { height: 28px; border-color: var(--line-strong); }
+.search.aux:focus-within { border-color: var(--focus); }
+.search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: var(--fs-3); outline: none; }
+.search .ic { color: var(--text-3); flex: none; }
+.search .ic svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; display: block; }
+/* 範囲・モードのチップは検索欄の下の行（狭い幅・英語でも検索欄を潰さない） */
+.scope { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 0 12px 8px; border-bottom: 1px solid var(--line); font-size: var(--fs-1); color: var(--text-3); }
+.scope .r { margin-left: auto; }
+.chip { height: 22px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--panel-3); color: var(--text-2); font-size: var(--fs-1); cursor: pointer; white-space: nowrap; }
+.chip.on { border-color: var(--focus); background: var(--select-strong); color: var(--text); }
+.chip .n { font-family: var(--mono); font-size: var(--fs-0); color: var(--text-3); margin-left: 4px; }
+.chip.sym b { font-family: var(--mono); font-weight: 500; margin-right: 4px; }
+.chip.sym.sel { border-color: var(--focus); background: var(--select-strong); color: var(--text); }
+
+.res { overflow: auto; padding: 4px 0 6px; flex: 1; min-height: 0; }
+.grp { display: flex; align-items: center; gap: 8px; padding: 8px 12px 3px; font-size: var(--fs-1); color: var(--text-3); letter-spacing: .06em; }
+.grp .n { margin-left: auto; font-family: var(--mono); font-size: var(--fs-0); letter-spacing: 0; }
+.grp .more { letter-spacing: 0; color: var(--text-3); }
+.it { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px; cursor: pointer; white-space: nowrap; }
+.it:hover { background: var(--hover); }
+.it.sel, .row.sel { background: var(--select-strong); box-shadow: inset var(--sel-bar) 0 0 var(--focus); }
+/* 行の先頭は種類によらず同じ幅（名前の始まりをそろえる） */
+.it .lead { flex: none; width: 76px; display: flex; align-items: center; gap: 6px; overflow: hidden; color: var(--text-3); font-size: var(--fs-1); }
+.it .lead .code { font-family: var(--mono); font-size: var(--fs-2); color: var(--text-2); }
+.it .lead .tg { overflow: hidden; text-overflow: ellipsis; }
+.it .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.it.off .nm, .it.off .lead { color: var(--text-3); }
+.it.off kbd { opacity: .55; }
+.it .s { color: var(--text-3); font-size: var(--fs-1); }
+
+/* 下の段: 選んだ項目の説明（高さは固定。出し入れしない）。右の案内は 1 行に横並び */
+.desc { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 2px 12px; height: 54px; padding: 7px 12px; border-top: 1px solid var(--line); background: var(--panel); font-size: var(--fs-1); color: var(--text-2); overflow: hidden; }
+.desc b { color: var(--text); font-size: var(--fs-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desc .d { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desc .r { grid-row: 1; grid-column: 2; display: flex; flex-direction: row; align-items: center; gap: 12px; white-space: nowrap; }
+.desc .warn { color: var(--warn); }
+.foot { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 12px; border-top: 1px solid var(--line); font-size: var(--fs-1); color: var(--text-3); }
+.foot .r { margin-left: auto; }
+.foot kbd { margin-right: 3px; }
+@container dlg (max-width: 600px) { .foot .r { display: none; } }
+.empty { padding: 30px; text-align: center; color: var(--text-3); }
+.empty b { color: var(--text-2); }
+
+.toast { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--panel-3); border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); padding: 6px 14px; box-shadow: var(--shadow); font-size: var(--fs-2); opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.on { opacity: 1; }
+
+/* 案の説明（モックの下） */
+.spec { margin: 0 16px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; }
+.spec section { border: 1px solid var(--line); border-radius: var(--radius-dlg); padding: 10px 12px; background: var(--panel); }
+.spec h4 { margin: 0 0 6px; font-size: var(--fs-3); }
+.spec ul { margin: 0; padding-left: 18px; color: var(--text-2); font-size: var(--fs-1); }
+.spec li { margin: 2px 0; }
+.spec table { width: 100%; border-collapse: collapse; font-size: var(--fs-1); }
+.spec td { padding: 3px 4px; border-top: 1px solid var(--line-soft); vertical-align: top; color: var(--text-2); }
+.spec td:first-child { color: var(--text); white-space: nowrap; }

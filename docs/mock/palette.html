@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>elecxstock — コマンドバー（見直し案・モック）</title>
+<!-- docs/design-dialogs.md §3。値はすべて架空 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="launcher.css">
+<style>
+.pal { width: 720px; }
+.it .px { flex: none; width: 78px; text-align: right; font-family: var(--mono); color: var(--text-2); }
+.it .chg { flex: none; width: 58px; text-align: right; font-family: var(--mono); }
+.it .chg.up { color: var(--up); } .it .chg.down { color: var(--down); } .it .chg.flat { color: var(--text-3); }
+.it .mk { flex: none; width: 50px; font-size: var(--fs-1); color: var(--text-3); }
+.it .held { flex: none; width: 30px; font-size: var(--fs-0); color: var(--text-2); }
+.it .star { flex: none; width: 22px; background: none; border: 0; cursor: pointer; color: var(--text-3); font-size: 14px; padding: 0; }
+.it .star.on { color: var(--star-on); }
+.it .cnt { flex: none; font-family: var(--mono); color: var(--text-3); font-size: var(--fs-1); }
+.it.add .nm { color: var(--focus); }
+.it .lead .svgi { color: var(--text-3); }
+.it.off .lead .svgi { color: var(--text-3); }
+.recentsym { display: flex; flex-wrap: wrap; gap: 4px 6px; padding: 2px 12px 6px; }
+.hintline { padding: 0 12px 6px; color: var(--text-3); font-size: var(--fs-1); }
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>コマンドバー（Ctrl+K）見直し案</h1>
+  <span class="note">フォーカス中のペイン:</span>
+  <span class="seg" id="focusSeg"><button data-w="chart" class="on">チャート</button><button data-w="watchlist">ウォッチリスト</button></span>
+  <span class="seg" id="themeSeg"><button data-t="dark" class="on">ダーク</button><button data-t="light">ライト</button></span>
+  <span class="note">試す語: 「保有 書き出」「ひーと」「とよた」「対数」「1234」「>」「#」「@」 · <a href="shortcuts.html">ショートカット一覧</a> · <a href="panetype.html">ペインの種類</a> · <a href="settings.html">設定</a></span>
+</div>
+<div class="stage" id="stage"></div>
+<div class="spec">
+  <section><h4>今との違い</h4><ul>
+    <li>空のときは「最近の銘柄」（チップ 1 行）・「最近使ったアクション」・「このペインで」を先に。アクションは分類ごと（今は登録順に約 90 件）</li>
+    <li>空白で分けた語の AND・ひらがな ⇔ カタカナ・語の頭を上に。当たった文字を強調</li>
+    <li>範囲のチップ（Tab）は検索欄の下の行に。接頭辞 <kbd>&gt;</kbd> アクション・<kbd>#</kbd> 条件・<kbd>@</kbd> ペインの種類</li>
+    <li>行の先頭の列は種類によらず 76px（名前の始まりがそろう）。分類の名前は、分類の見出しの下では出さない</li>
+    <li>銘柄の行に終値・前日比・保有の印。今使えないアクションは錠のアイコンとキーを薄く、理由を下の段に</li>
+    <li>ペインの種類と、ペインの中のキーも候補に（キーは Enter で F1 をその語で開く）</li>
+  </ul></section>
+  <section><h4>キー</h4><table>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd></td><td>候補を選ぶ（最近の銘柄のチップの上では <kbd>←</kbd> <kbd>→</kbd>）</td></tr>
+    <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>範囲（すべて・銘柄・アクション・条件・ペイン）</td></tr>
+    <tr><td><kbd>Enter</kbd></td><td>実行・銘柄を出す（意味は下の段に出す）</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>フォーカス中のウォッチリストに足して出す</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>★の切り替え（閉じない）</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>打った語を消す → もう一度で閉じる</td></tr>
+  </table></section>
+  <section><h4>読み上げ（アプリで付ける属性）</h4><ul>
+    <li>検索欄: <code>role="combobox"</code>・<code>aria-expanded</code>・<code>aria-controls</code>・<code>aria-activedescendant</code>（選んだ候補の ID）</li>
+    <li>一覧: <code>role="listbox"</code>、候補は <code>role="option"</code>・<code>aria-selected</code>、分類は <code>role="group"</code> と <code>aria-labelledby</code></li>
+    <li>下の段: <code>aria-live="polite"</code>（選んだ候補の説明と、使えない理由を読む）。件数の変化も「12 件」と読む</li>
+  </ul></section>
+</div>
+<script src="launcher.js"></script>
+<script src="launcher-data.js"></script>
+<script>
+const { match, hl, esc, keysHtml, toast } = L
+const SCOPES = [['all', 'すべて'], ['sym', '銘柄'], ['act', 'アクション'], ['scr', '条件'], ['pane', 'ペイン']]
+const PREFIX = { '>': 'act', '#': 'scr', '@': 'pane' }
+const S = { q: '', scope: 'all', sel: 0, focus: 'chart', recentSyms: ['7203', '8306', '9433', '8951', '3283'], recentActs: ['alertNew', 'columns', 'update'] }
+const ACT = Object.fromEntries(D.ACTS.map((a) => [a.id, a]))
+const SYM = Object.fromEntries(D.SYMS.map((s) => [s.code, s]))
+const WID = Object.fromEntries(D.WIDGETS.map((w) => [w.id, w]))
+const SECNAME = Object.fromEntries(D.SECTIONS)
+const LISTNAME = '高配当'
+const FILTER_SVG = '<svg class="svgi" viewBox="0 0 24 24"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg>'
+
+L.theme()
+L.stage(document.getElementById('stage'), 'チャート')
+const scrim = document.createElement('div')
+scrim.className = 'scrim'
+scrim.innerHTML = `<div class="dlg pal" role="dialog" aria-label="コマンドバー">
+  <div class="dh"><label class="search"><span class="ic">${L.SEARCH_SVG}</span><input id="q" role="combobox" aria-expanded="true" aria-controls="res" aria-autocomplete="list" placeholder="銘柄・アクション・条件・ペインを探す" autocomplete="off"></label></div>
+  <div class="scope" id="chips"></div>
+  <div class="res" id="res" role="listbox" aria-label="候補"></div>
+  <div class="desc" id="desc" aria-live="polite"></div>
+  <div class="foot" id="foot"></div></div>`
+document.getElementById('stage').appendChild(scrim)
+const $q = document.getElementById('q')
+
+function reason(a) {
+  if (a.need === 'list' && S.focus !== 'watchlist') return '一覧のペイン（ウォッチリスト・スクリーナーなど）にフォーカスしてから'
+  return null
+}
+function parse() {
+  const raw = S.q.normalize('NFKC')
+  const p = PREFIX[raw.trim()[0]]
+  return p ? { scope: p, q: raw.trim().slice(1).trim() } : { scope: S.scope, q: raw.trim() }
+}
+function build() {
+  const { scope, q } = parse()
+  const out = []
+  const on = (s) => scope === 'all' || scope === s
+  if (!q) {
+    if (scope === 'all') {
+      out.push({ grp: '最近の銘柄', chips: true, items: S.recentSyms.map((c) => ({ kind: 'sym', s: SYM[c] })) })
+      out.push({ grp: '最近使ったアクション', tags: true, items: S.recentActs.map((id) => ({ kind: 'act', a: ACT[id] })) })
+      out.push({ grp: `このペインで（${WID[S.focus].name}）`, tags: true, items: (D.CONTEXT[S.focus] || []).map((id) => ({ kind: 'act', a: ACT[id] })) })
+    }
+    if (scope === 'sym') out.push({ grp: '銘柄', items: [], empty: 'コード・銘柄名（日本語・英語）を打つ' })
+    if (scope === 'scr') out.push({ grp: 'スクリーニング条件', items: D.SCREENS.map((s) => ({ kind: 'scr', s })) })
+    if (scope === 'pane') out.push({ grp: 'このペインの種類を変える', items: D.WIDGETS.map((w) => ({ kind: 'pane', w })) })
+    if (scope === 'all' || scope === 'act')
+      for (const [g, name] of Object.entries(D.AG)) out.push({ grp: name, items: D.ACTS.filter((a) => a.group === g).map((a) => ({ kind: 'act', a })) })
+    return out
+  }
+  if (on('sym')) {
+    const code = q.toUpperCase()
+    const hits = D.SYMS.map((s) => {
+      if (s.code.startsWith(code)) return { kind: 'sym', s, m: { score: 9, ranges: [] }, cr: code.length }
+      const m = match(q, s.name)
+      return m && { kind: 'sym', s, m }
+    }).filter(Boolean).sort((a, b) => b.m.score - a.m.score).slice(0, 6)
+    if (/^\d{3}[0-9A-Z]$/.test(code) && !SYM[code]) hits.unshift({ kind: 'add', code })
+    out.push({ grp: '銘柄', items: hits })
+  }
+  if (on('scr')) out.push({ grp: 'スクリーニング条件', items: D.SCREENS.map((s) => { const m = match(q, s.name); return m && { kind: 'scr', s, m } }).filter(Boolean) })
+  if (on('act'))
+    out.push({ grp: 'アクション', tags: true, items: D.ACTS.map((a) => { const m = match(q, a.label, [a.id, a.desc, D.AG[a.group]]); return m && { kind: 'act', a, m } }).filter(Boolean).sort((x, y) => y.m.score - x.m.score) })
+  if (on('pane'))
+    out.push({ grp: 'このペインの種類を変える', items: D.WIDGETS.map((w) => { const m = match(q, w.name, [...w.alias, w.desc]); return m && { kind: 'pane', w, m } }).filter(Boolean).sort((x, y) => y.m.score - x.m.score) })
+  if (scope === 'all') {
+    const keys = D.SHORTCUTS.filter((r) => !r.act && r.key).map((r) => { const m = match(q, r.label, [...r.alias, r.grp]); return m && { kind: 'key', r, m } }).filter(Boolean).sort((x, y) => y.m.score - x.m.score)
+    out.push({ grp: 'ペインの中のキー（F1）', items: keys.slice(0, 5), more: keys.length > 5 ? keys.length - 5 : 0 })
+  }
+  return out
+}
+let flat = []
+let groups = []
+function render() {
+  const { scope } = parse()
+  document.getElementById('chips').innerHTML = `<span>範囲</span>${SCOPES.map(([k, n]) => `<button class="chip${scope === k ? ' on' : ''}" data-s="${k}" aria-pressed="${scope === k}">${n}</button>`).join('')}<span class="r">${keysHtml('Tab')} 範囲を送る</span>`
+  groups = build().filter((g) => g.items.length || g.empty)
+  flat = groups.flatMap((g) => g.items.map((x) => ((x.chip = !!g.chips), (x.tags = !!g.tags), x)))
+  S.sel = Math.max(0, Math.min(S.sel, flat.length - 1))
+  let i = 0
+  let h = ''
+  for (const [gi, g] of groups.entries()) {
+    h += `<div role="group" aria-labelledby="g${gi}"><div class="grp" id="g${gi}">${esc(g.grp)}${g.more ? `<span class="more">ほか ${g.more} 件は F1 で</span>` : ''}<span class="n">${g.chips ? '' : g.items.length || ''}</span></div>`
+    if (g.empty) h += `<div class="hintline">${esc(g.empty)}</div>`
+    if (g.chips) h += `<div class="recentsym">${g.items.map((x) => chip(x, i++)).join('')}</div>`
+    else for (const x of g.items) h += row(x, i++)
+    h += '</div>'
+  }
+  if (!flat.length && !groups.some((g) => g.empty)) h = `<div class="empty">「<b>${esc(S.q)}</b>」に当たるものはありません<br>語を減らすか、範囲を「すべて」に（Tab）</div>`
+  const res = document.getElementById('res')
+  res.innerHTML = h
+  res.querySelector('.sel')?.scrollIntoView({ block: 'nearest' })
+  $q.setAttribute('aria-activedescendant', `o${S.sel}`)
+  desc()
+  foot()
+}
+function chip(x, i) {
+  return `<button class="chip sym${i === S.sel ? ' sel' : ''}" id="o${i}" role="option" aria-selected="${i === S.sel}" data-i="${i}" tabindex="-1"><b>${x.s.code}</b>${esc(x.s.name.length > 10 ? x.s.name.slice(0, 9) + '…' : x.s.name)}</button>`
+}
+function row(x, i) {
+  const sel = i === S.sel
+  const a11y = `id="o${i}" role="option" aria-selected="${sel}" data-i="${i}"`
+  const r = x.m?.ranges
+  if (x.kind === 'sym') {
+    const s = x.s
+    const cls = s.chg > 0 ? 'up' : s.chg < 0 ? 'down' : 'flat'
+    const code = x.cr ? `<mark>${esc(s.code.slice(0, x.cr))}</mark>${esc(s.code.slice(x.cr))}` : esc(s.code)
+    return `<div class="it${sel ? ' sel' : ''}" ${a11y}><span class="lead"><span class="code">${code}</span></span><span class="nm">${hl(s.name, r)}</span><span class="mk">${s.mkt}</span><span class="held">${s.held ? '保有' : ''}</span><span class="px">${s.close.toLocaleString()}</span><span class="chg ${cls}">${s.chg > 0 ? '+' : ''}${s.chg.toFixed(2)}%</span><button class="star${s.fav ? ' on' : ''}" data-fav="${s.code}" tabindex="-1" aria-label="${s.fav ? 'お気に入りから外す' : 'お気に入りに入れる'}（Ctrl+D）">${s.fav ? '★' : '☆'}</button></div>`
+  }
+  if (x.kind === 'add') return `<div class="it add${sel ? ' sel' : ''}" ${a11y}><span class="lead"><span class="code">${esc(x.code)}</span></span><span class="nm">＋ 銘柄 ${esc(x.code)} を追加して取得する</span></div>`
+  if (x.kind === 'scr') return `<div class="it${sel ? ' sel' : ''}" ${a11y}><span class="lead">${FILTER_SVG}</span><span class="nm">${hl(x.s.name, r)}</span><span class="cnt">${x.s.n} 件</span></div>`
+  if (x.kind === 'act') {
+    const off = reason(x.a)
+    // 分類の名前は、分類の見出しの下では出さない（見出しの繰り返しになる）
+    const lead = off ? `${L.LOCK_SVG}<span class="tg">${x.tags ? D.AGS[x.a.group] : ''}</span>` : `<span class="tg">${x.tags ? D.AGS[x.a.group] : ''}</span>`
+    return `<div class="it${sel ? ' sel' : ''}${off ? ' off' : ''}" ${a11y}${off ? ' aria-disabled="true"' : ''}><span class="lead">${lead}</span><span class="nm">${hl(x.a.label, r)}</span>${keysHtml(x.a.key)}</div>`
+  }
+  if (x.kind === 'pane') {
+    const cur = x.w.id === S.focus
+    return `<div class="it${sel ? ' sel' : ''}${cur ? ' off' : ''}" ${a11y}><span class="lead"><svg class="svgi" viewBox="0 0 24 24">${x.w.icon}</svg><span class="tg">${cur ? 'いま' : ''}</span></span><span class="nm">このペインを <b>${hl(x.w.name, r)}</b> にする <span class="s">${esc(x.w.desc)}</span></span></div>`
+  }
+  if (x.kind === 'key') return `<div class="it${sel ? ' sel' : ''}" ${a11y}><span class="lead"><span class="tg">${esc(SECNAME[x.r.sec])}</span></span><span class="nm">${hl(x.r.label, r)}</span>${keysHtml(x.r.key)}</div>`
+}
+function desc() {
+  const x = flat[S.sel]
+  const el = document.getElementById('desc')
+  if (!x) return void (el.innerHTML = '<span class="d"></span>')
+  let b = ''
+  let d = ''
+  let r = ''
+  if (x.kind === 'sym') {
+    const s = x.s
+    b = `${s.code} ${s.name}`
+    d = `${s.mkt} · ${s.sector} · 実績利回り ${s.yld ? s.yld.toFixed(2) + '%' : '無配'}${s.held ? ' · 保有あり' : ''} · 値は 11/13(金) の終値（架空）`
+    r = `<span>${keysHtml('Enter')} チャートに出す</span>${S.focus === 'watchlist' ? `<span>${keysHtml('Ctrl+Enter')} ${LISTNAME} に足す</span>` : ''}<span>${keysHtml('Ctrl+D')} ★</span>`
+  } else if (x.kind === 'add') {
+    b = `銘柄 ${x.code} を足す`
+    d = '一覧に無いコードです。追加した銘柄として登録し、日足を取りはじめます'
+    r = `<span>${keysHtml('Enter')} 追加して出す</span>`
+  } else if (x.kind === 'scr') {
+    b = x.s.name
+    d = `保存したスクリーニング条件 · 前回の結果 ${x.s.n} 件 · スクリーナーのペインで開く`
+    r = `<span>${keysHtml('Enter')} 開く</span>`
+  } else if (x.kind === 'act') {
+    const off = reason(x.a)
+    b = x.a.label
+    d = off ? `<span class="warn">今は使えません: ${esc(off)}</span>` : esc(x.a.desc || `${D.AG[x.a.group]}のアクション`)
+    r = off ? '' : `<span>${keysHtml('Enter')} 実行</span>`
+    return void (el.innerHTML = `<b>${esc(b)}</b><span class="d">${d}</span><span class="r">${r}</span>`)
+  } else if (x.kind === 'pane') {
+    b = `このペインを「${x.w.name}」にする`
+    d = x.w.id === S.focus ? 'いまの種類です' : `リンク 1 の銘柄に従います。${WID[S.focus].name}の設定（時間軸・指標など）は初期に戻ります`
+    r = x.w.id === S.focus ? '' : `<span>${keysHtml('Enter')} 変える</span>`
+  } else if (x.kind === 'key') {
+    b = `${SECNAME[x.r.sec]}: ${x.r.label}`
+    d = `ペインの中のキー（割り当ては変えられません）· ${esc(x.r.grp)}`
+    r = `<span>${keysHtml('Enter')} F1 をこの語で開く</span>`
+  }
+  el.innerHTML = `<b>${esc(b)}</b><span class="d">${d}</span><span class="r">${r}</span>`
+}
+function foot() {
+  // Enter の意味は下の段に出すので、フッターには書かない
+  document.getElementById('foot').innerHTML = `<span><kbd>↑</kbd><kbd>↓</kbd>選ぶ</span><span><kbd>Esc</kbd>${S.q ? '語を消す' : '閉じる'}</span><span class="r"><kbd>&gt;</kbd>アクション <kbd>#</kbd>条件 <kbd>@</kbd>ペイン</span>`
+}
+function use(x) {
+  if (!x) return
+  if (x.kind === 'act' && reason(x.a)) return toast(reason(x.a))
+  if (x.kind === 'pane' && x.w.id === S.focus) return toast('いまの種類です')
+  if (x.kind === 'sym') S.recentSyms = [x.s.code, ...S.recentSyms.filter((c) => c !== x.s.code)].slice(0, 6)
+  if (x.kind === 'act') S.recentActs = [x.a.id, ...S.recentActs.filter((k) => k !== x.a.id)].slice(0, 3)
+  const msg = { sym: () => `${x.s.code} ${x.s.name} をチャートに出す`, add: () => `銘柄 ${x.code} を追加して取得する`, scr: () => `「${x.s.name}」を開く`, act: () => `実行: ${x.a.label}`, pane: () => `このペインを「${x.w.name}」にする`, key: () => `F1 を「${x.r.label}」で絞り込んで開く` }[x.kind]()
+  toast(`${msg}（モックでは閉じない）`)
+  S.q = ''
+  $q.value = ''
+  S.sel = 0
+  render()
+}
+function fav(x) {
+  if (x?.kind !== 'sym') return
+  x.s.fav = !x.s.fav
+  toast(x.s.fav ? `${x.s.name} を★に入れました` : `${x.s.name} を★から外しました`)
+  render()
+}
+/** ↑ ↓: 最近の銘柄のチップの行は 1 段として飛ぶ。← →: チップの上だけ */
+function moveV(d) {
+  const x = flat[S.sel]
+  if (x?.chip) {
+    if (d > 0) { const j = flat.findIndex((y) => !y.chip); if (j >= 0) S.sel = j }
+    return
+  }
+  const j = S.sel + d
+  if (j < 0) return
+  if (flat[j]?.chip) S.sel = flat.findIndex((y) => y.chip)
+  else S.sel = Math.min(flat.length - 1, j)
+}
+$q.addEventListener('input', () => { S.q = $q.value; S.sel = 0; render() })
+$q.addEventListener('keydown', (e) => {
+  if (L.composing(e)) return
+  const x = flat[S.sel]
+  if (e.key === 'ArrowDown') moveV(1)
+  else if (e.key === 'ArrowUp') moveV(-1)
+  else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && x?.chip) { const j = S.sel + (e.key === 'ArrowRight' ? 1 : -1); if (flat[j]?.chip) S.sel = j }
+  else if (e.key === 'PageDown') S.sel = Math.min(flat.length - 1, S.sel + 8)
+  else if (e.key === 'PageUp') S.sel = Math.max(0, S.sel - 8)
+  else if (e.key === 'Tab') {
+    const i = SCOPES.findIndex(([k]) => k === parse().scope)
+    S.scope = SCOPES[(i + (e.shiftKey ? -1 : 1) + SCOPES.length) % SCOPES.length][0]
+    if (PREFIX[S.q.trim()[0]]) { S.q = S.q.trim().slice(1).trimStart(); $q.value = S.q }
+    S.sel = 0
+  } else if (e.key === 'Enter' && e.ctrlKey) { if (S.focus !== 'watchlist') toast('ウォッチリストのペインにフォーカスしてから'); else if (x?.kind === 'sym') toast(`${x.s.name} を ${LISTNAME} に足して出す`) }
+  else if (e.key === 'Enter') use(x)
+  else if (e.code === 'KeyD' && e.ctrlKey) fav(x)
+  else if (e.key === 'Escape') { if (S.q) { S.q = ''; $q.value = '' } else toast('閉じる（モックでは閉じない）') }
+  else return
+  e.preventDefault()
+  render()
+})
+document.getElementById('res').addEventListener('mousemove', (e) => { const it = e.target.closest('[data-i]'); if (it && +it.dataset.i !== S.sel) { S.sel = +it.dataset.i; document.querySelectorAll('#res [data-i]').forEach((y) => y.classList.toggle('sel', +y.dataset.i === S.sel)); desc() } })
+document.getElementById('res').addEventListener('click', (e) => {
+  const f = e.target.closest('[data-fav]')
+  if (f) return fav(flat.find((x) => x.kind === 'sym' && x.s.code === f.dataset.fav))
+  const it = e.target.closest('[data-i]')
+  if (it) use(flat[+it.dataset.i])
+  $q.focus()
+})
+document.getElementById('chips').addEventListener('click', (e) => { const c = e.target.closest('[data-s]'); if (!c) return; S.scope = c.dataset.s; if (PREFIX[S.q.trim()[0]]) { S.q = S.q.trim().slice(1).trimStart(); $q.value = S.q } S.sel = 0; render(); $q.focus() })
+document.getElementById('focusSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-w]'); if (!b) return; S.focus = b.dataset.w; document.querySelectorAll('#focusSeg button').forEach((y) => y.classList.toggle('on', y === b)); L.stage(document.getElementById('stage'), WID[S.focus].name); document.getElementById('stage').appendChild(scrim); render(); $q.focus() })
+document.getElementById('themeSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (!b) return; location.hash = b.dataset.t === 'light' ? 'light' : ''; L.theme(); document.querySelectorAll('#themeSeg button').forEach((y) => y.classList.toggle('on', y === b)); $q.focus() })
+if (L.theme()) document.querySelectorAll('#themeSeg button').forEach((y) => y.classList.toggle('on', y.dataset.t === 'light'))
+const hq = /[#&]q=([^&]*)/.exec(location.hash)
+if (hq) { S.q = decodeURIComponent(hq[1]); $q.value = S.q }
+render()
+$q.focus()
+</script>
+</body>
+</html>

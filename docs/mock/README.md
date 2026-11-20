@@ -88,3 +88,7 @@
 レイアウト（区切り線・グリッドの銘柄と設定）とスクリーンは localStorage に保存され、開き直しても残る。`#fresh=1` で初期状態に戻る。
 
 URL のハッシュで状態を指定できる（スクリーンショット用）: `index.html#layout=1&lang=en&colors=us&density=compact&down=2&overlay=palette`（グリッドは `tf=W&period=3&scale=2&size=4&src=fav&dock=open` も指定できる）
+
+## ダイアログの見直しのモック
+
+`palette.html`（コマンドバー Ctrl+K）・`shortcuts.html`（ショートカット一覧 F1）・`panetype.html`（ペインの種類を変える Ctrl+Shift+N）・`settings.html`（設定 Ctrl+,）は、[../design-dialogs.md](../design-dialogs.md) の見直し案のモック。一つのファイルで動く（`file://` で開ける）。見た目は `launcher.css`、照合（空白で分けた語の AND・ひらがな ⇔ カタカナ）とキーの表記は `launcher.js`、アクション・ペインの種類・ショートカット・架空の銘柄は `launcher-data.js` を共有する。各ページの上の帯でフォーカス中のペイン・テーマなどを切り替え、下に今との違いとキーの表を出す。`palette.html#q=保有`・`shortcuts.html#key=Ctrl+Shift+N`・`settings.html#tab=data` のようにハッシュで状態を決められる。

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>elecxstock — ショートカット一覧（見直し案・モック）</title>
+<!-- docs/design-dialogs.md §4 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="launcher.css">
+<style>
+.help { width: 980px; height: 640px; }
+.hb { flex: 1; min-height: 0; display: grid; grid-template-columns: 200px minmax(0, 1fr); }
+@container dlg (max-width: 720px) { .hb { grid-template-columns: minmax(0, 1fr); } .toc { display: none; } }
+.toc { border-right: 1px solid var(--line); overflow: auto; padding: 6px 0; background: var(--panel); }
+.toc button { display: flex; align-items: center; gap: 6px; width: 100%; height: 28px; padding: 0 12px; background: none; border: 0; text-align: left; cursor: pointer; color: var(--text-2); white-space: nowrap; }
+.toc button .t { overflow: hidden; text-overflow: ellipsis; }
+.toc button:hover { background: var(--hover); }
+.toc button.on { background: var(--select-strong); color: var(--text); box-shadow: inset var(--sel-bar) 0 0 var(--focus); }
+.toc button.zero { color: var(--text-3); opacity: .6; }
+.toc button .n { margin-left: auto; font-family: var(--mono); font-size: var(--fs-0); color: var(--text-3); }
+.toc .ctx { display: block; padding: 0 12px 2px; font-size: var(--fs-0); color: var(--focus); letter-spacing: .06em; }
+.toc hr { border: 0; border-top: 1px solid var(--line); margin: 6px 12px; }
+.list { overflow: auto; padding: 0 0 10px; }
+.sec { padding: 10px 16px 4px; display: flex; align-items: baseline; gap: 8px; position: sticky; top: 0; background: var(--panel-2); z-index: 1; border-bottom: 1px solid var(--line); }
+.sec h4 { margin: 0; font-size: var(--fs-3); }
+.sec .badge { font-size: var(--fs-0); color: var(--focus); }
+.sec .n { margin-left: auto; font: var(--fs-0) var(--mono); color: var(--text-3); }
+/* 段の中は幅があれば 2 段組み（172 行を 1 列で縦に流さない） */
+.cols { columns: 2 360px; column-gap: 24px; padding: 0 8px 0 0; }
+.blk { break-inside: avoid; }
+.sub { padding: 8px 16px 2px; font-size: var(--fs-1); color: var(--text-3); letter-spacing: .06em; }
+/* 行: キー（左の固定列・右寄せ）| 操作 | 割り当てを変えられる印。名前とキーが離れない */
+.row { display: grid; grid-template-columns: 130px minmax(0, 1fr) 20px; align-items: center; gap: 12px; min-height: 28px; padding: 2px 8px 2px 12px; cursor: pointer; }
+.row:hover { background: var(--hover); }
+.row .k { justify-self: end; }
+.row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .b { color: var(--text-3); display: grid; place-items: center; }
+.row .b .svgi { width: 13px; height: 13px; }
+.combo { display: inline-flex; }
+.ph { color: var(--text-3); font-size: var(--fs-3); }
+.search.keymode { border-style: dashed; }
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>ショートカット一覧（F1）見直し案</h1>
+  <span class="note">フォーカス中のペイン:</span>
+  <span class="seg" id="focusSeg"><button data-w="chart" class="on">チャート</button><button data-w="watchlist">ウォッチリスト</button><button data-w="heatmap">ヒートマップ</button><button data-w="divsim">配当シミュレータ</button></span>
+  <span class="seg" id="themeSeg"><button data-t="dark" class="on">ダーク</button><button data-t="light">ライト</button></span>
+  <span class="note">試す: 「対数」「とれんど」「保存」・Tab のあと Alt+3 や Ctrl+Z を押す · <a href="palette.html">コマンドバー</a> · <a href="panetype.html">ペインの種類</a> · <a href="settings.html">設定</a></span>
+</div>
+<div class="stage" id="stage"></div>
+<div class="spec">
+  <section><h4>今との違い</h4><ul>
+    <li>打って絞り込む（操作の名前・別名・キーの表記）。当たった文字を強調し、目次の件数も変わる</li>
+    <li><b>キーを押して探す</b>（Tab。検索欄の下のチップでも）: 押した組み合わせを使う操作だけを残し、当たったキーだけ青く。<kbd>1–9</kbd>・<kbd>Alt+1–6</kbd>・矢印の範囲にも当たる</li>
+    <li>フォーカス中のペインの段を<b>先頭</b>に（FR-KB7 の「先に出す」）</li>
+    <li>1 行に 1 操作。キーを左の固定列（右寄せ）に置き、名前と離れない。幅があれば段の中を 2 段組み</li>
+    <li>ペインの種類ごとの段。段の中は小見出し</li>
+    <li>探して見るだけの画面（実行はコマンドバーの役目）。割り当てを変えられるキーに鉛筆の印</li>
+  </ul></section>
+  <section><h4>キー</h4><table>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>行を選ぶ</td></tr>
+    <tr><td><kbd>PgUp</kbd> <kbd>PgDn</kbd></td><td>前・次の段へ</td></tr>
+    <tr><td><kbd>Tab</kbd></td><td>文字で探す ⇔ キーを押して探す</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>押したキー・打った語を消す → 文字で探すへ → 閉じる</td></tr>
+    <tr><td colspan="2" class="note">キーを押して探すときも、修飾キーなしの ↑ ↓ PgUp PgDn は一覧の操作に使う（矢印を探すときは Alt+← のように修飾キーと）</td></tr>
+  </table></section>
+  <section><h4>読み上げ</h4><ul>
+    <li>検索欄は <code>combobox</code>、一覧は <code>listbox</code>、段は <code>group</code>。鉛筆の印は読み上げ用に「割り当てを変えられます」</li>
+    <li>キーを押して探すに入ったら「キーを押して探しています。Tab で文字に戻ります」と読む（キーを奪うため、入ったことと抜け方を知らせる）</li>
+  </ul></section>
+</div>
+<script src="launcher.js"></script>
+<script src="launcher-data.js"></script>
+<script>
+const { match, hl, esc, keysHtml, toast } = L
+const S = { q: '', mode: 'text', combo: null, sel: 0, focus: 'chart' }
+const ACT = Object.fromEntries(D.ACTS.map((a) => [a.id, a]))
+const WID = Object.fromEntries(D.WIDGETS.map((w) => [w.id, w]))
+L.theme()
+const stageEl = document.getElementById('stage')
+const scrim = document.createElement('div')
+scrim.className = 'scrim'
+scrim.style.paddingTop = '40px'
+scrim.innerHTML = `<div class="dlg help" role="dialog" aria-label="ショートカット" tabindex="-1">
+  <div class="dh"><h3>ショートカット</h3><label class="search" id="sbox"><span class="ic">${L.SEARCH_SVG}</span><input id="q" role="combobox" aria-expanded="true" aria-controls="list" autocomplete="off"><span class="combo" id="combo"></span></label><span class="sub" id="cnt"></span></div>
+  <div class="scope" id="modes"></div>
+  <div class="hb"><nav class="toc" id="toc" aria-label="段"></nav><div class="list" id="list" role="listbox"></div></div>
+  <div class="desc" id="desc" aria-live="polite"></div>
+  <div class="foot" id="foot"></div>
+  <span class="sr" id="live" aria-live="assertive"></span></div>`
+function mountStage() { L.stage(stageEl, WID[S.focus].name); stageEl.appendChild(scrim) }
+mountStage()
+const $q = document.getElementById('q')
+const $dlg = document.querySelector('.help')
+
+function order() {
+  const ctx = D.HELP_SECTION[S.focus]
+  return [...D.SECTIONS.filter(([id]) => id === ctx), ...D.SECTIONS.filter(([id]) => id !== ctx)]
+}
+function hits() {
+  return D.SHORTCUTS.map((r) => {
+    if (S.mode === 'key') return !S.combo || L.hasCombo(r.key, S.combo) ? { r, m: { ranges: [] } } : null
+    if (!S.q.trim()) return { r, m: { ranges: [] } }
+    const m = match(S.q, r.label, [...r.alias, r.grp, r.key.replace(/\+/g, ' ')])
+    const km = !m && match(S.q, r.key)
+    return m ? { r, m } : km ? { r, m: { ranges: [] } } : null
+  }).filter(Boolean)
+}
+let flat = []
+function render() {
+  document.getElementById('sbox').classList.toggle('keymode', S.mode === 'key')
+  $q.style.display = S.mode === 'key' ? 'none' : ''
+  $q.placeholder = '操作の名前・キーで絞り込む（例: 対数、Ctrl+Shift）'
+  document.getElementById('combo').innerHTML = S.mode === 'key' ? (S.combo ? keysHtml(S.combo, S.combo) : '<span class="ph">探したいキーを押す…</span>') : ''
+  document.getElementById('modes').innerHTML = `<span>探し方</span><button class="chip${S.mode === 'text' ? ' on' : ''}" data-m="text" aria-pressed="${S.mode === 'text'}">文字で</button><button class="chip${S.mode === 'key' ? ' on' : ''}" data-m="key" aria-pressed="${S.mode === 'key'}">キーを押して</button><span class="r">${keysHtml('Tab')} 切り替え</span>`
+  const H = hits()
+  const ctx = D.HELP_SECTION[S.focus]
+  const secs = order()
+  const by = Object.fromEntries(secs.map(([id]) => [id, H.filter((h) => h.r.sec === id)]))
+  flat = secs.flatMap(([id]) => by[id])
+  S.sel = Math.max(0, Math.min(S.sel, flat.length - 1))
+  const curSec = flat[S.sel]?.r.sec
+  document.getElementById('cnt').textContent = `${H.length} / ${D.SHORTCUTS.length}`
+  document.getElementById('toc').innerHTML = secs
+    .map(([id, name], i) => `${i === 0 && id === ctx ? '<span class="ctx">● いまのペイン</span>' : ''}${i === 1 && secs[0][0] === ctx ? '<hr>' : ''}<button data-sec="${id}" class="${id === curSec ? 'on' : ''}${by[id].length ? '' : ' zero'}" title="${esc(name)}"><span class="t">${esc(name)}</span><span class="n">${by[id].length}</span></button>`)
+    .join('')
+  let h = ''
+  let i = 0
+  for (const [id, name] of secs) {
+    const rows = by[id]
+    if (!rows.length) continue
+    h += `<div role="group" aria-label="${esc(name)}"><div class="sec" data-sec="${id}"><h4>${esc(name)}</h4>${id === ctx ? `<span class="badge">● いまのペイン（${esc(WID[S.focus].name)}）</span>` : ''}<span class="n">${rows.length}</span></div><div class="${rows.length >= 8 ? 'cols' : 'one'}">`
+    let g = null
+    let open = false
+    for (const x of rows) {
+      if (x.r.grp !== g) {
+        if (open) h += '</div>'
+        g = x.r.grp
+        h += `<div class="blk">${g !== name ? `<div class="sub">${esc(g)}</div>` : ''}`
+        open = true
+      }
+      const keys = keysHtml(x.r.key, S.combo) || '<span class="note">キーなし</span>'
+      const pen = x.r.act ? `<span class="b" title="割り当ては 設定 > キー で変えられます">${L.PEN_SVG}<span class="sr">割り当てを変えられます</span></span>` : '<span class="b"></span>'
+      h += `<div class="row${i === S.sel ? ' sel' : ''}" id="o${i}" role="option" aria-selected="${i === S.sel}" data-i="${i}"><span class="k">${keys}</span><span class="nm">${hl(x.r.label, x.m.ranges)}</span>${pen}</div>`
+      i++
+    }
+    if (open) h += '</div>'
+    h += '</div></div>'
+  }
+  if (!flat.length) h = S.mode === 'key' ? `<div class="empty"><b>${esc(S.combo)}</b> を使う操作はありません<br>（割り当てていないキー。設定 > キー で割り当てられます）</div>` : `<div class="empty">「<b>${esc(S.q)}</b>」に当たる操作はありません<br>キーで探すなら Tab</div>`
+  const list = document.getElementById('list')
+  list.innerHTML = h
+  const sel = list.querySelector('.row.sel')
+  if (sel) {
+    // 見出し（sticky）の下に隠れないように
+    const lr = list.getBoundingClientRect()
+    const r = sel.getBoundingClientRect()
+    if (r.top < lr.top + 36) list.scrollTop -= lr.top + 36 - r.top
+    else if (r.bottom > lr.bottom) list.scrollTop += r.bottom - lr.bottom
+  }
+  $q.setAttribute('aria-activedescendant', `o${S.sel}`)
+  desc()
+  document.getElementById('foot').innerHTML = `<span><kbd>↑</kbd><kbd>↓</kbd>選ぶ</span><span><kbd>PgUp</kbd><kbd>PgDn</kbd>段</span><span><kbd>Esc</kbd>${S.combo || S.q ? '消す' : S.mode === 'key' ? '文字で探すへ' : '閉じる'}</span><span class="r">割り当ては 設定 &gt; キー で変えられる</span>`
+}
+function desc() {
+  const x = flat[S.sel]
+  const el = document.getElementById('desc')
+  if (!x) return void (el.innerHTML = '<span class="d"></span>')
+  const r = x.r
+  const a = r.act && ACT[r.act]
+  const secName = D.SECTIONS.find(([id]) => id === r.sec)[1]
+  const d = a ? `割り当ては 設定 > キー で変えられます${a.key && a.key !== r.key.split(' / ')[0] ? ` · 既定: ${esc(a.key)}` : ''} · ${esc(a.desc || D.AG[a.group])}` : `${esc(secName)}のペインの中のキー（割り当ては変えられません）`
+  el.innerHTML = `<b>${esc(r.label)}</b><span class="d">${d}</span><span class="r"><span class="note">${esc(secName)} › ${esc(r.grp)}</span></span>`
+}
+function jumpSec(d) {
+  const secs = order().map(([id]) => id).filter((id) => flat.some((x) => x.r.sec === id))
+  const cur = secs.indexOf(flat[S.sel]?.r.sec)
+  const next = secs[Math.max(0, Math.min(secs.length - 1, cur + d))]
+  S.sel = flat.findIndex((x) => x.r.sec === next)
+}
+function setMode(m) {
+  S.mode = m
+  S.combo = null
+  S.sel = 0
+  document.getElementById('live').textContent = m === 'key' ? 'キーを押して探しています。Tab で文字に戻ります' : '文字で探しています'
+}
+function key(e) {
+  if (L.composing(e)) return
+  const plain = !e.ctrlKey && !e.altKey && !e.shiftKey
+  const n = flat.length
+  if (e.key === 'Tab') setMode(S.mode === 'key' ? 'text' : 'key')
+  else if (e.key === 'Escape') {
+    if (S.combo) S.combo = null
+    else if (S.mode === 'key') setMode('text')
+    else if (S.q) { S.q = ''; $q.value = '' }
+    else toast('閉じる（モックでは閉じない）')
+    S.sel = 0
+  } else if (plain && e.key === 'ArrowDown') S.sel = Math.min(n - 1, S.sel + 1)
+  else if (plain && e.key === 'ArrowUp') S.sel = Math.max(0, S.sel - 1)
+  else if (plain && e.key === 'PageDown') jumpSec(1)
+  else if (plain && e.key === 'PageUp') jumpSec(-1)
+  else if (S.mode === 'key') { const c = L.comboOf(e); if (!c) return; S.combo = c; S.sel = 0 }
+  else return
+  e.preventDefault()
+  render()
+}
+// 文字で探すときは入力欄、キーを押して探すときはダイアログが受ける
+$q.addEventListener('input', () => { S.q = $q.value; S.sel = 0; render() })
+$dlg.addEventListener('keydown', key)
+document.getElementById('list').addEventListener('click', (e) => { const r = e.target.closest('.row'); if (r) { S.sel = +r.dataset.i; render() } refocus() })
+document.getElementById('toc').addEventListener('click', (e) => { const b = e.target.closest('[data-sec]'); if (!b) return; const i = flat.findIndex((x) => x.r.sec === b.dataset.sec); if (i >= 0) S.sel = i; render(); refocus() })
+document.getElementById('modes').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; setMode(b.dataset.m); render() })
+function refocus() { (S.mode === 'key' ? $dlg : $q).focus() }
+const _render = render
+render = function () { _render(); queueMicrotask(refocus) }
+document.getElementById('focusSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-w]'); if (!b) return; S.focus = b.dataset.w; S.sel = 0; document.querySelectorAll('#focusSeg button').forEach((x) => x.classList.toggle('on', x === b)); mountStage(); render() })
+document.getElementById('themeSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (!b) return; location.hash = b.dataset.t === 'light' ? 'light' : ''; L.theme(); document.querySelectorAll('#themeSeg button').forEach((x) => x.classList.toggle('on', x === b)); refocus() })
+if (L.theme()) document.querySelectorAll('#themeSeg button').forEach((x) => x.classList.toggle('on', x.dataset.t === 'light'))
+const hq = /[#&]q=([^&]*)/.exec(location.hash)
+if (hq) { S.q = decodeURIComponent(hq[1]); $q.value = S.q }
+const hk = /[#&]key=([^&]*)/.exec(location.hash)
+if (hk) { S.mode = 'key'; S.combo = decodeURIComponent(hk[1]) }
+render()
+</script>
+</body>
+</html>

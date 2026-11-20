@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>elecxstock — 設定（見直し案・モック）</title>
+<!-- docs/design-dialogs.md §6。値はすべて架空 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="launcher.css">
+<style>
+.set { width: 980px; height: 660px; flex-direction: row; }
+/* 左: 検索とタブ */
+.snav { position: relative; width: 220px; flex: none; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--panel); }
+.snav h3 { margin: 0; padding: 12px 14px 8px; font-size: var(--fs-4); }
+.snav .search { flex: none; margin: 0 10px 8px; }
+.snav .search input { font-size: var(--fs-2); }
+.snav .search kbd { flex: none; }
+.tabs { flex: 1; overflow: auto; padding: 2px 0; outline: none; }
+.tab { display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 14px; background: none; border: 0; cursor: pointer; color: var(--text-2); text-align: left; white-space: nowrap; }
+.tab .t { overflow: hidden; text-overflow: ellipsis; }
+.tab:hover { background: var(--hover); }
+.tab.on { background: var(--select-strong); color: var(--text); box-shadow: inset var(--sel-bar) 0 0 var(--focus); }
+.tabs:focus-visible .tab.on { outline: 1px solid var(--focus); outline-offset: -1px; }
+/* 既定から変えた数は数字だけ（未読の通知に見えないように） */
+.tab .n { margin-left: auto; font: var(--fs-0) var(--mono); color: var(--text-3); }
+.snav .ver { padding: 10px 14px; border-top: 1px solid var(--line); color: var(--text-3); font-size: var(--fs-1); }
+/* 右: 本文 */
+.smain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.shead { display: flex; align-items: baseline; gap: 10px; padding: 14px 22px 8px; }
+.shead h2 { margin: 0; font-size: var(--fs-4); }
+.shead .sub { color: var(--text-3); font-size: var(--fs-1); }
+.sbody { flex: 1; overflow: auto; padding: 4px 22px 22px; outline: none; }
+.card2 { border: 1px solid var(--line-strong); border-radius: var(--radius-dlg); background: var(--panel); margin-top: 14px; overflow: hidden; }
+.card2 > h4 { margin: 0; padding: 9px 14px 8px; font-size: var(--fs-3); display: flex; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.card2 > h4 .s { font-weight: 400; color: var(--text-3); font-size: var(--fs-1); }
+/* 危険な操作は --danger 系（--up は欧米式で緑になるので使わない） */
+.card2.danger { border-color: var(--danger-line); }
+.card2.danger > h4 { color: var(--danger); background: var(--danger-bg); border-bottom-color: var(--danger-line); }
+.srow { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto 26px; align-items: center; gap: 4px 16px; min-height: 52px; padding: 9px 8px 9px 16px; }
+.srow + .srow { border-top: 1px solid var(--line-soft); }
+.srow.sel { background: var(--select); box-shadow: inset var(--sel-bar) 0 0 var(--focus); }
+.srow.wide { grid-template-columns: minmax(0, 1fr) 26px; }
+.srow.wide .ctl { grid-column: 1; grid-row: 2; justify-self: start; }
+.srow.wide .rst { grid-column: 2; grid-row: 1; }
+.lab { min-width: 0; }
+.lab b { font-weight: 500; display: block; }
+.lab .d { display: block; color: var(--text-3); font-size: var(--fs-1); margin-top: 1px; }
+/* 依存する行の注意は場所を取ったまま出し入れする（行の高さを変えない） */
+.lab .d.warn { color: var(--warn); }
+.lab .d.warn.hid { visibility: hidden; }
+.lab .crumb { display: inline-block; margin-right: 6px; font-size: var(--fs-0); color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); padding: 0 4px; font-weight: 400; vertical-align: 1px; }
+/* 既定から変えた印: 名前の前の点（選択行の左の線と離す）と「既定: …」 */
+.mod { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--focus); margin-right: 6px; vertical-align: 2px; }
+.lab .def { font-weight: 400; color: var(--text-3); font-size: var(--fs-1); margin-left: 6px; }
+.rst { width: 24px; height: 24px; border-radius: var(--radius-ctl); background: none; border: 0; color: var(--text-3); cursor: pointer; font-size: var(--fs-3); visibility: hidden; }
+.rst.on { visibility: visible; }
+.rst:hover { background: var(--panel-3); color: var(--text); }
+.ctl { display: flex; align-items: center; gap: 8px; justify-self: end; flex-wrap: wrap; }
+/* スイッチ（今の 10px の四角の代わり）。オンのつまみは --bg（地の --focus との差をはっきり） */
+.sw { position: relative; width: 36px; height: 20px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--panel-3); cursor: pointer; padding: 0; flex: none; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--text-3); transition: transform .12s; }
+.sw.on { background: var(--focus); border-color: var(--focus); }
+.sw.on::after { transform: translateX(16px); background: var(--bg); }
+.sw:disabled { opacity: .4; cursor: default; }
+.swl { width: 28px; color: var(--text-3); font-size: var(--fs-1); text-align: right; }
+/* セグメント（高さ 26・通常の字体） */
+.sg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); overflow: hidden; background: var(--panel-2); }
+.sg button { height: 26px; padding: 0 12px; background: none; border: 0; cursor: pointer; color: var(--text-2); font-size: var(--fs-2); white-space: nowrap; }
+.sg button + button { border-left: 1px solid var(--line-strong); }
+.sg button.on { background: var(--select-strong); color: var(--text); box-shadow: inset 0 -2px 0 var(--focus); }
+/* ステッパー（値が多いもの: 倍率・保存期間）。← → は仮の値、Enter で決める */
+.stp { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); background: var(--panel-2); }
+.stp.pend { border-color: var(--focus); border-style: dashed; }
+.stp button { width: 26px; height: 26px; background: none; border: 0; cursor: pointer; color: var(--text-2); }
+.stp button:disabled { opacity: .3; }
+.stp .v { min-width: 64px; text-align: center; font-family: var(--mono); }
+.stp-note { color: var(--text-3); font-size: var(--fs-1); min-width: 92px; text-align: right; }
+.stp-note.pend { color: var(--text); }
+.btn { height: 28px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); background: var(--panel-3); cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--text-3); }
+.btn.sel { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.btn.dng { color: var(--danger); border-color: var(--danger-line); background: var(--danger-bg); }
+.btn.go { color: var(--text); border-color: var(--focus); }
+/* 見本 */
+.thm { display: flex; gap: 10px; }
+.thm button { padding: 4px; border: 1px solid var(--line-strong); border-radius: var(--radius-dlg); background: var(--panel-2); cursor: pointer; display: flex; flex-direction: column; gap: 3px; align-items: center; font-size: var(--fs-1); color: var(--text-2); }
+.thm button.on { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); color: var(--text); }
+.thm svg { width: 112px; height: 64px; display: block; border-radius: var(--radius-ctl); }
+.cdl { display: flex; gap: 10px; flex-wrap: wrap; }
+.cdl button { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-dlg); background: var(--panel-2); cursor: pointer; color: var(--text-2); font-size: var(--fs-1); }
+.cdl button.on { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); color: var(--text); }
+.sample { color: var(--text-2); font-size: var(--fs-1); border: 1px dashed var(--line-strong); border-radius: var(--radius-ctl); padding: 2px 8px; white-space: nowrap; }
+/* 行の高さの見本: 架空の文字の線を入れた 3 行 */
+.dens { display: grid; width: 120px; border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); overflow: hidden; background: var(--panel); }
+.dens i { display: flex; align-items: center; gap: 6px; padding: 0 6px; border-top: 1px solid var(--line); }
+.dens i:first-child { border-top: 0; }
+.dens i::before { content: ""; width: 22px; height: 2px; background: var(--text-3); }
+.dens i::after { content: ""; flex: 1; height: 2px; background: var(--line-strong); }
+/* データの状態（入れ子の .meter に余白を当てない） */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.stats > div { padding: 10px 14px; min-width: 0; }
+.stats > div + div { border-left: 1px solid var(--line-soft); }
+.stats b { display: block; font: 500 var(--fs-4) var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats b.sm { font-size: var(--fs-3); }
+.stats b.bad { color: var(--warn); }
+.stats span { color: var(--text-3); font-size: var(--fs-1); }
+.meter { height: 4px; border-radius: 2px; background: var(--panel-3); margin-top: 6px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--focus); }
+.chips2 { display: flex; flex-wrap: wrap; gap: 4px; }
+.uchip { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 4px 0 9px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--panel-2); font-size: var(--fs-1); }
+.uchip b { font-family: var(--mono); font-weight: 500; }
+.uchip button { background: none; border: 0; color: var(--text-3); cursor: pointer; }
+.yts { display: flex; gap: 6px; align-items: center; }
+.yts input { width: 62px; height: 26px; border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); background: var(--bg); color: var(--text); text-align: right; padding: 0 8px; font: var(--fs-2) var(--mono); }
+.yts input:disabled { opacity: .4; }
+.yts .u { color: var(--text-3); }
+.ypv { width: 150px; height: 40px; }
+/* キー: F1 と同じ行の作り（キーを左の固定列に） */
+.ktop { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
+.krow { display: grid; grid-template-columns: 150px minmax(0, 1fr) 26px; gap: 12px; align-items: center; min-height: 30px; padding: 2px 8px 2px 12px; position: relative; }
+.krow + .krow { border-top: 1px solid var(--line-soft); }
+.krow .k { justify-self: end; }
+.krow.sel { background: var(--select); box-shadow: inset var(--sel-bar) 0 0 var(--focus); }
+.krow .rec { color: var(--warn); font-size: var(--fs-1); }
+.krow .cf { grid-column: 1 / -1; color: var(--warn); font-size: var(--fs-1); padding: 0 0 3px 162px; }
+.feeds .fr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 8px 8px 16px; }
+.feeds .fr + .fr { border-top: 1px solid var(--line-soft); }
+.feeds .bdg { font-size: var(--fs-0); color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); padding: 0 4px; }
+.appcard { display: flex; gap: 14px; align-items: center; padding: 16px; flex-wrap: wrap; }
+.appcard .logo { width: 48px; height: 48px; border-radius: var(--radius-dlg); background: linear-gradient(135deg, #10a5e8, #1d4f9e); display: grid; place-items: center; color: #fff; font: 700 var(--fs-5) var(--mono); }
+.appcard b { font-size: var(--fs-4); display: block; }
+.appcard .s { color: var(--text-3); font-size: var(--fs-1); }
+.appcard .btn { margin-left: auto; }
+.disc { margin: 14px 2px 0; color: var(--text-3); font-size: var(--fs-1); }
+.sfoot { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 22px; border-top: 1px solid var(--line); color: var(--text-3); font-size: var(--fs-1); }
+.sfoot .r { margin-left: auto; }
+.sfoot kbd { margin-right: 3px; }
+/* 狭い窓・表示倍率 150%（1366×768 で実質 910×512）: 左の列をアイコンだけに、行は操作を下に、状態は 2×2 */
+@container dlg (max-width: 760px) {
+  .snav { width: 52px; }
+  .snav h3, .snav .ver, .tab .t, .tab .n, .snav .search kbd { display: none; }
+  .snav .search { margin: 10px 8px; padding: 0 7px; }
+  .snav .search input { width: 0; flex: 0; }
+  .snav .search:focus-within { position: absolute; top: 0; left: 0; z-index: 3; width: 260px; }
+  .snav .search:focus-within input { width: auto; flex: 1; }
+  .tab { justify-content: center; padding: 0; }
+  .sbody { padding: 4px 12px 16px; }
+  .shead { padding: 12px 12px 6px; }
+  .srow, .srow.wide { grid-template-columns: minmax(0, 1fr) 26px; }
+  .srow .ctl { grid-column: 1; grid-row: 2; justify-self: start; }
+  .srow .rst { grid-column: 2; grid-row: 1; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stats > div:nth-child(3) { border-left: 0; }
+  .stats > div:nth-child(n+3) { border-top: 1px solid var(--line-soft); }
+  .krow { grid-template-columns: 110px minmax(0, 1fr) 26px; }
+  .krow .cf { padding-left: 122px; }
+}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>設定（Ctrl+,）見直し案</h1>
+  <span class="seg" id="themeSeg"><button data-t="dark" class="on">ダーク</button><button data-t="light">ライト</button></span>
+  <span class="note">試す: 「通知」「ろぐ」「利回り」で探す · ↑ ↓ でタブ → で本文 · 本文で ↑ ↓ 行・Space 切り替え・← → 値・Backspace 既定に戻す · <a href="palette.html">コマンドバー</a> · <a href="shortcuts.html">ショートカット一覧</a> · <a href="panetype.html">ペインの種類</a></span>
+</div>
+<div class="stage" id="stage" style="height: 760px"></div>
+<div class="spec">
+  <section><h4>今との違い</h4><ul>
+    <li>項目を<b>枠のあるまとまり</b>（起動と常駐・更新と通知など）に。今は区切り線だけの平たい行</li>
+    <li>説明を<b>いつも名前の下</b>に。今は横に小さく・下の段落・ツールチップだけ・無し、が混ざる</li>
+    <li>10px の四角のトグル → <b>スイッチ</b>。20px・等幅のセグメント → 26px・通常の字体。倍率と保存期間（6・10 個のボタン）→ ステッパー</li>
+    <li>テーマ・ローソク足の色・行の高さ・倍率に<b>見本</b></li>
+    <li>一般にあった行の高さ・倍率を「表示」へ、追加した銘柄を「データ」へ</li>
+    <li>データの「全データを削除して取り直す」を<b>危険な操作</b>の枠に分ける（今は JPX の取り込みと並ぶ）</li>
+    <li><b>設定を探す</b>（全タブから。当たった項目をその場で変えられる）</li>
+    <li>既定から変えた項目は名前の前に<b>青い点</b>と「既定: …」、右に ↺（Backspace で 1 つずつ既定に戻す）。タブには変えた数を数字だけで</li>
+    <li>表示倍率・保存期間は ← → で仮の値（見本と見込みだけ変わる）、<b>Enter で 1 回だけ決める</b>（縮めるときの確認も 1 回）</li>
+    <li>大きさを 820×460 → 980×660 に固定（タブを替えても揺れない）。幅 760px 以下（150% の 1366×768 など）は左の列をアイコンだけに</li>
+    <li>キー: F1 と同じ行の作り（キーを左の列）・分類ごと・「変えたものだけ」・衝突を行の中で知らせる</li>
+  </ul></section>
+  <section><h4>読み上げ</h4><ul>
+    <li>タブは <code>tablist</code>・<code>tab</code>（<code>aria-selected</code>）、本文は <code>tabpanel</code>。スイッチは <code>role="switch"</code>・<code>aria-checked</code>・名前は項目の名前</li>
+    <li>行の ↑ ↓ のほかに、Tab で行の中の部品を順に巡る道も残す（読み上げソフトの利用者の逃げ道）</li>
+    <li>依存して使えない行は <code>aria-disabled</code> と理由（注意の文）を <code>aria-describedby</code> で</li>
+  </ul></section>
+  <section><h4>キー</h4><table>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd> / <kbd>/</kbd></td><td>設定を探す（↓ で結果へ）</td></tr>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd>（タブ）</td><td>タブを選ぶ（今と同じ）</td></tr>
+    <tr><td><kbd>→</kbd> / <kbd>Tab</kbd> / <kbd>Enter</kbd></td><td>本文へ</td></tr>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd>（本文）</td><td>行を選ぶ（行の中のボタンを Tab で巡らなくてよい）</td></tr>
+    <tr><td><kbd>Space</kbd> / <kbd>Enter</kbd></td><td>スイッチの切り替え・ボタンを押す</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>セグメント・ステッパーの値、行の中のボタン</td></tr>
+    <tr><td><kbd>Backspace</kbd></td><td>その項目を既定に戻す</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>本文 → タブ → 閉じる（探しているときは語を消す）</td></tr>
+  </table></section>
+</div>
+<script src="launcher.js"></script>
+<script src="launcher-data.js"></script>
+<script>
+const { match, hl, esc, keysHtml, toast } = L
+const IC = {
+  general: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  display: '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>',
+  chart: '<path d="M4 19h16"/><path d="M7 15V9"/><rect x="5.5" y="9" width="3" height="5"/><path d="M12 17V6"/><rect x="10.5" y="8" width="3" height="6"/><path d="M17 13V5"/><rect x="15.5" y="7" width="3" height="4"/>',
+  data: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/>',
+  keys: '<rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 11h.01M11 11h.01M15 11h.01M8 14h8"/>',
+  news: '<rect x="4" y="5" width="13" height="14" rx="1"/><path d="M17 9h3v8a2 2 0 0 1-2 2"/><path d="M7 9h7M7 12.5h7M7 16h4"/>',
+  about: '<circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8v.01"/>',
+}
+const TABS = [['general', '一般'], ['display', '表示'], ['chart', 'チャート'], ['data', 'データ'], ['keys', 'キー'], ['news', 'ニュース'], ['about', 'このアプリについて']]
+const DEF = { lang: 'ja', closeToTray: false, loginStart: false, startHidden: false, autoUpdate: true, alertNotify: true, checkUpdates: true, theme: 'dark', uiScale: 1, density: 'normal', candleStyle: 'jp', reduceMotion: false, focusAlways: false, yieldLine: false, yieldTargets: ['3.5', '', ''], chartSave: false, retentionYears: 3 }
+const V = { ...DEF, autoUpdate: true, closeToTray: true, uiScale: 1.1, yieldLine: true, yieldTargets: ['3.5', '4.0', ''] }
+const SCALES = [0.8, 0.9, 1, 1.1, 1.25, 1.5]
+const MB = (y) => Math.round(180 + y * 310)
+// 項目の登録表（アプリでは lib/settingsSpec.ts。探す・既定に戻す・テストがこれを使う）
+const SPEC = [
+  { tab: 'general', sec: '言語', id: 'lang', label: '言語', desc: '画面の文言。銘柄名は英語名があれば英語で出します', kind: 'seg', opts: [['ja', '日本語'], ['en', 'English']] },
+  { tab: 'general', sec: '起動と常駐', id: 'closeToTray', label: '閉じても通知領域で動かし続ける', desc: '× で閉じても自動の更新とアラートを続けます。終了は Ctrl+Shift+Q か、通知領域のアイコンのメニューから', kind: 'switch' },
+  { tab: 'general', sec: '起動と常駐', id: 'loginStart', label: 'Windows にサインインしたら起動する', desc: 'Windows の登録が正です（タスクマネージャーのスタートアップでも切り替えられます）', kind: 'switch', alias: ['自動起動', 'スタートアップ'] },
+  { tab: 'general', sec: '起動と常駐', id: 'startHidden', label: '起動したら通知領域に入れておく', desc: 'ウィンドウを出さずに始めます。通知領域のアイコンから開けます', kind: 'switch', dep: 'loginStart' },
+  { tab: 'general', sec: '更新と通知', id: 'autoUpdate', label: '自動で更新する', desc: '大引けの 30 分後（16:00）から、起動時と起動中に差分を取ります', kind: 'switch' },
+  { tab: 'general', sec: '更新と通知', id: 'alertNotify', label: 'アラートを Windows の通知でも知らせる', desc: 'オフでも、アプリの中のベルと履歴には残ります', kind: 'switch' },
+  { tab: 'general', sec: '更新と通知', id: 'checkUpdates', label: '新しいバージョンを知らせる', desc: 'GitHub Releases を 1 日 1 回確かめます', kind: 'switch', btn: '今すぐ確かめる' },
+  { tab: 'display', sec: 'テーマ', id: 'theme', label: 'テーマ', desc: 'すべてのウィンドウに効きます', kind: 'theme', alias: ['ダーク', 'ライト', '色'] },
+  { tab: 'display', sec: '文字と密度', id: 'uiScale', label: '表示倍率', desc: 'このアプリ全体の文字と余白。ウィンドウごとの大きさは Ctrl+Alt+= / −', kind: 'scale', alias: ['ズーム', '文字の大きさ'] },
+  { tab: 'display', sec: '文字と密度', id: 'density', label: '行の高さ', desc: '一覧の表の 1 行の高さ', kind: 'density' },
+  { tab: 'display', sec: '色', id: 'candleStyle', label: 'ローソク足の色', desc: '上昇・下落の色。増配・減配や損益の色もこれに従います', kind: 'candle', alias: ['陽線', '陰線', '赤', '青', '緑'] },
+  { tab: 'display', sec: '動きとフォーカス', id: 'reduceMotion', label: '動きを減らす', desc: '最大化・タブの切り替えの動きを止めます', kind: 'switch', alias: ['アニメーション'] },
+  { tab: 'display', sec: '動きとフォーカス', id: 'focusAlways', label: 'フォーカスの枠を常に出す', desc: 'オフのときは、キーで操作しているときだけペインとタイルに枠を出します', kind: 'switch' },
+  { tab: 'display', sec: 'レイアウト', id: 'resetAll', label: 'すべてのタブのレイアウトを初期状態に戻す', desc: 'ペインの並びと種類をプリセットの形に。マイレイアウトのページは消しません', kind: 'buttons', btns: [['戻す…', '']] },
+  { tab: 'chart', sec: '目標利回りの線', id: 'yieldLine', label: '目標利回りの線を引く', desc: '配当利回りが目標の % になる株価（過去 12 か月の配当 ÷ 目標）に、チャートとグリッドのタイルで点線を引きます', kind: 'switch', alias: ['利回り'] },
+  { tab: 'chart', sec: '目標利回りの線', id: 'yieldTargets', label: '目標利回り（%）', desc: '3 つまで。0.1〜30 の小数で打ち、Enter か Tab で決めます。空にするとその線を消します', kind: 'yield', dep: 'yieldLine', alias: ['利回り'] },
+  { tab: 'chart', sec: '画像', id: 'chartSave', label: 'チャートの画像の保存', desc: '見出しに保存のボタンが出て、S キーでも保存できます。データは Yahoo Finance のもの。個人で使う範囲にとどめ、公開・再配布しないでください', kind: 'switch', alias: ['PNG', 'スクリーンショット'] },
+  { tab: 'data', sec: '状態', id: 'stats', kind: 'stats', label: 'データの状態', desc: '' },
+  { tab: 'data', sec: '保存', id: 'retentionYears', label: '日足の保存期間', desc: '縮めると古い日足を消します（確認を出します）。月足は上場以来を残します', kind: 'retention', alias: ['容量', '期間'] },
+  { tab: 'data', sec: '銘柄', id: 'universe', label: '銘柄一覧', desc: 'JPX の上場銘柄一覧 · 最終更新 2026-11-13 18:04', kind: 'buttons', btns: [['今すぐ更新', ''], ['data_j.xlsx を取り込む…', '']], alias: ['JPX'] },
+  { tab: 'data', sec: '銘柄', id: 'userInstruments', label: '追加した銘柄', desc: 'プライム・J-REIT 以外で取得を続ける銘柄。ウォッチリストに入れた銘柄も自動で取得します', kind: 'chips', alias: ['スタンダード', 'グロース', 'ETF'] },
+  { tab: 'data', sec: 'バックアップと持ち出し', id: 'userData', label: '利用者のデータ', desc: '★・ウォッチリスト・スクリーニング条件・レイアウト・保有・アラート・設定を 1 つの JSON に', kind: 'buttons', btns: [['書き出す…', ''], ['取り込む…', '']], alias: ['エクスポート', 'インポート'] },
+  { tab: 'data', sec: 'バックアップと持ち出し', id: 'backupDb', label: '市場データの DB', desc: '日足・指標の SQLite をそのまま写します（取り直すより速く戻せます）', kind: 'buttons', btns: [['バックアップ…', '']] },
+  { tab: 'data', sec: 'バックアップと持ち出し', id: 'logs', label: 'ログ', desc: '取得の失敗などを日付ごとに残しています', kind: 'buttons', btns: [['フォルダを開く', ''], ['ジョブとログ', '']], alias: ['ろぐ'] },
+  { tab: 'data', sec: '危険な操作', id: 'reset', label: '全データを削除して取り直す', desc: '市場データ（約 1.1 GB）を消して最初から取ります。★・ウォッチリスト・スクリーニング条件・レイアウト・設定は消しません', kind: 'buttons', btns: [['削除して取り直す…', 'dng']], danger: true },
+  { tab: 'about', sec: 'アプリ', id: 'app', kind: 'app', label: 'elecxstock', desc: '' },
+  { tab: 'about', sec: 'データとライセンス', id: 'license', label: 'ライセンス', desc: 'MIT ライセンス', kind: 'info' },
+  { tab: 'about', sec: 'データとライセンス', id: 'source', label: 'データ', desc: 'Yahoo Finance（非公式・遅延あり）と JPX の上場銘柄一覧', kind: 'buttons', btns: [['Yahoo Finance を開く', '']] },
+  { tab: 'about', sec: 'データとライセンス', id: 'lwc', label: 'チャート', desc: 'TradingView Lightweight Charts™（Apache-2.0）', kind: 'buttons', btns: [['TradingView を開く', '']] },
+  { tab: 'about', sec: 'データとライセンス', id: 'notices', label: '第三者のライセンス', desc: 'バンドルに入っている OSS のライセンス全文', kind: 'buttons', btns: [['表示する', '']] },
+]
+// 「既定: …」に出す既定の値の書き方
+const DEFTXT = { lang: '日本語', theme: 'ダーク', uiScale: '100%', density: '標準', candleStyle: '日本式', retentionYears: '3 年', yieldTargets: '3.5%' }
+const defText = (s) => DEFTXT[s.id] ?? (typeof DEF[s.id] === 'boolean' ? (DEF[s.id] ? 'オン' : 'オフ') : '')
+const S = { tab: 'general', zone: 'nav', row: 0, btn: 0, q: '', pend: {}, users: ['3778 さくらインターネット', '4385 メルカリ', '1489 NF 日経高配当50'], keysQ: '', keysOnly: false, keySel: 0, rec: null, conflict: null, keymap: { privacy: 'Ctrl+Alt+H' } }
+L.theme()
+const stageEl = document.getElementById('stage')
+L.stage(stageEl, 'チャート')
+const scrim = document.createElement('div')
+scrim.className = 'scrim'
+scrim.style.paddingTop = '36px'
+scrim.innerHTML = `<div class="dlg set" role="dialog" aria-label="設定">
+  <nav class="snav"><h3>設定</h3><label class="search aux" title="設定を探す（Ctrl+F）"><span class="ic">${L.SEARCH_SVG}</span><input id="q" placeholder="設定を探す" aria-label="設定を探す" autocomplete="off"><kbd>Ctrl+F</kbd></label><div class="tabs" id="tabs" tabindex="0" role="tablist" aria-orientation="vertical" aria-label="設定のタブ"></div><div class="ver">0.1.16 · 変更はすぐ保存されます</div></nav>
+  <div class="smain"><div class="shead" id="shead"></div><div class="sbody" id="sbody" tabindex="-1" role="tabpanel"></div><div class="sfoot" id="sfoot"></div></div></div>`
+stageEl.appendChild(scrim)
+const $q = document.getElementById('q')
+const $tabs = document.getElementById('tabs')
+const $body = document.getElementById('sbody')
+
+const isMod = (s) => s.id in DEF && JSON.stringify(V[s.id]) !== JSON.stringify(DEF[s.id])
+const modCount = (tab) => SPEC.filter((s) => s.tab === tab && isMod(s)).length + (tab === 'keys' ? Object.keys(S.keymap).length : 0)
+const disabled = (s) => s.dep && !V[s.dep]
+function rowsNow() {
+  if (S.q.trim()) return SPEC.map((s) => ({ s, m: match(S.q, s.label, [s.desc, s.sec, ...(s.alias || []), TABS.find((t) => t[0] === s.tab)[1]]) })).filter((x) => x.m && x.s.kind !== 'stats' && x.s.kind !== 'app')
+  return SPEC.filter((s) => s.tab === S.tab).map((s) => ({ s, m: null }))
+}
+// テーマの見本: 見出し・ローソク 3 本・選択行を描く（何が変わるかが分かるように。色は各テーマのトークンの値）
+const THEMES = [
+  { k: 'dark', n: 'ダーク', bg: '#0b0d10', panel: '#101318', line: '#2d3540', text: '#a3adb9', sel: '#22334b', focus: '#7aa7ff', up: '#ff6b70', down: '#5aa2ee' },
+  { k: 'light', n: 'ライト', bg: '#e9ecf0', panel: '#ffffff', line: '#c3cad3', text: '#4a5562', sel: '#d6e4fa', focus: '#2f6fe0', up: '#c62f37', down: '#1a62b0' },
+]
+function themeSvg(t) {
+  return `<svg viewBox="0 0 112 64" aria-hidden="true"><rect width="112" height="64" fill="${t.bg}"/><rect x="0" y="0" width="112" height="9" fill="${t.panel}"/><rect x="6" y="3.5" width="18" height="2" fill="${t.text}"/>
+    <rect x="4" y="13" width="44" height="47" fill="${t.panel}" stroke="${t.line}"/><rect x="5" y="21" width="42" height="7" fill="${t.sel}"/><rect x="5" y="21" width="2" height="7" fill="${t.focus}"/>
+    <rect x="9" y="16" width="20" height="1.6" fill="${t.text}"/><rect x="9" y="23.7" width="24" height="1.6" fill="${t.text}"/><rect x="9" y="31" width="18" height="1.6" fill="${t.text}"/><rect x="9" y="38" width="22" height="1.6" fill="${t.text}"/>
+    <rect x="52" y="13" width="56" height="47" fill="${t.panel}" stroke="${t.line}"/>
+    <path d="M66 22v26M80 18v24M94 26v26" stroke="${t.text}" stroke-width="0.8"/><rect x="63" y="27" width="6" height="14" fill="${t.up}"/><rect x="77" y="22" width="6" height="12" fill="${t.down}"/><rect x="91" y="30" width="6" height="16" fill="${t.up}"/></svg>`
+}
+function ctl(s) {
+  const v = V[s.id]
+  const dis = disabled(s) ? ' disabled' : ''
+  switch (s.kind) {
+    case 'switch': return `<span class="swl" aria-hidden="true">${v ? 'オン' : 'オフ'}</span><button class="sw${v ? ' on' : ''}" data-act="toggle" role="switch" aria-checked="${!!v}" aria-label="${esc(s.label)}"${dis}></button>${s.btn ? `<button class="btn${S.zone === 'body' && cur()?.s === s && S.btn === 1 ? ' sel' : ''}" data-act="btn" data-b="1">${s.btn}</button>` : ''}`
+    case 'seg': return `<span class="sg">${s.opts.map(([k, n]) => `<button class="${v === k ? 'on' : ''}" data-act="set" data-v="${k}">${n}</button>`).join('')}</span>`
+    case 'theme': return `<span class="thm">${THEMES.map((t) => `<button class="${v === t.k ? 'on' : ''}" data-act="set" data-v="${t.k}" aria-pressed="${v === t.k}">${themeSvg(t)}${t.n}</button>`).join('')}</span>`
+    case 'scale': {
+      // ← → は仮の値（見本だけ変わる）。Enter で決める（決めるまでダイアログ自体は動かない）
+      const p = S.pend.uiScale ?? v
+      const i = SCALES.indexOf(p)
+      const pend = S.pend.uiScale != null && S.pend.uiScale !== v
+      return `<span class="sample" style="font-size:${Math.round(11 * p)}px">7203 トヨタ自動車 2,841</span>${pend ? `<button class="btn go" data-act="commit">${Math.round(p * 100)}% にする ${keysHtml('Enter')}</button>` : ''}<span class="stp${pend ? ' pend' : ''}"><button data-act="step" data-d="-1"${i <= 0 ? ' disabled' : ''} aria-label="小さく">−</button><span class="v">${Math.round(p * 100)}%</span><button data-act="step" data-d="1"${i >= SCALES.length - 1 ? ' disabled' : ''} aria-label="大きく">＋</button></span>`
+    }
+    case 'density': return `<span class="dens" aria-hidden="true">${[0, 1, 2].map(() => `<i style="height:${v === 'compact' ? 9 : 13}px"></i>`).join('')}</span><span class="sg">${[['normal', '標準'], ['compact', '詰める']].map(([k, n]) => `<button class="${v === k ? 'on' : ''}" data-act="set" data-v="${k}">${n}</button>`).join('')}</span>`
+    case 'candle': return `<span class="cdl">${[['jp', '日本式', 'var(--up)', 'var(--down)'], ['us', '欧米式', '#2fae74', '#e5484d']].map(([k, n, u, d]) => `<button class="${v === k ? 'on' : ''}" data-act="set" data-v="${k}"><svg width="34" height="22" viewBox="0 0 34 22"><path d="M6 2v18M17 4v16M28 1v16" stroke="var(--text-3)"/><rect x="3" y="6" width="6" height="9" fill="${u}"/><rect x="14" y="8" width="6" height="8" fill="${d}"/><rect x="25" y="3" width="6" height="9" fill="${u}"/></svg>${n}<span class="s">（上昇 ${k === 'jp' ? '赤' : '緑'}・下落 ${k === 'jp' ? '青' : '赤'}）</span></button>`).join('')}</span>`
+    case 'yield': return `<svg class="ypv" viewBox="0 0 150 40"><path d="M2 30 L20 24 L38 27 L56 15 L74 19 L92 9 L110 14 L128 6 L148 11" fill="none" stroke="var(--text-2)" stroke-width="1.4"/>${v.filter(Boolean).map((x, i) => `<line x1="0" x2="150" y1="${18 + i * 10}" y2="${18 + i * 10}" stroke="var(--yield-line)" stroke-dasharray="3 3"/><text x="148" y="${16 + i * 10}" text-anchor="end" font-size="8" fill="var(--yield-line)">${x}%</text>`).join('')}</svg><span class="yts">${v.map((x, i) => `<input value="${x}" placeholder="—" data-yi="${i}"${dis}>`).join('')}<span class="u">%</span></span>`
+    case 'retention': {
+      // ← → は仮の値と見込みだけ。Enter で 1 回だけ決める（縮めるときは確認も 1 回）
+      const p = S.pend.retentionYears ?? v
+      const pend = p !== v
+      const diff = MB(p) - MB(v)
+      const note = pend ? `約 ${MB(p).toLocaleString()} MB（${diff > 0 ? '+' : '−'}${Math.abs(diff).toLocaleString()} MB）` : `約 ${MB(v).toLocaleString()} MB`
+      return `<span class="stp-note${pend ? ' pend' : ''}">${note}</span>${pend ? `<button class="btn ${p < v ? 'dng' : 'go'}" data-act="commit">${p} 年にする${p < v ? '…' : ''} ${keysHtml('Enter')}</button>` : ''}<span class="stp${pend ? ' pend' : ''}"><button data-act="step" data-d="-1"${p <= 1 ? ' disabled' : ''} aria-label="短く">−</button><span class="v">${p} 年</span><button data-act="step" data-d="1"${p >= 10 ? ' disabled' : ''} aria-label="長く">＋</button></span>`
+    }
+    case 'buttons': return s.btns.map(([n, c], i) => `<button class="btn ${c}${S.zone === 'body' && cur()?.s === s && S.btn === i ? ' sel' : ''}" data-act="btn" data-b="${i}">${n}</button>`).join('')
+    case 'chips': return `<span class="chips2">${S.users.map((u, i) => { const [c, ...n] = u.split(' '); return `<span class="uchip"><b>${c}</b>${n.join(' ')}<button data-act="rmu" data-u="${i}" title="外す">×</button></span>` }).join('')}<button class="btn" data-act="btn" data-b="0">＋ 銘柄を足す</button></span>`
+    case 'info': return ''
+  }
+  return ''
+}
+function srow(x, i) {
+  const s = x.s
+  const sel = S.zone === 'body' && i === S.row ? ' sel' : ''
+  if (s.kind === 'stats') return `<div class="stats"><div><b>1,086 MB</b><span>DB の容量（10 年なら約 ${MB(10).toLocaleString()} MB）</span><div class="meter" aria-hidden="true"><i style="width:${Math.round((1086 / MB(10)) * 100)}%"></i></div></div><div><b>1,642 / 1,703</b><span>銘柄数（取得済み / 対象）</span></div><div><b class="bad">3</b><span>取得失敗（ジョブで見る）</span></div><div><b class="sm">2023-10-11 – 2026-11-13</b><span>日足の期間 · 最終更新 11/13 18:02</span></div></div>`
+  if (s.kind === 'app') return `<div class="appcard"><span class="logo">ex</span><div><b>elecxstock</b><span class="s">バージョン 0.1.16 · 日本株と J-REIT のデータを手元で見比べる</span></div><button class="btn" data-act="btn" data-b="0">新しいバージョンを確かめる</button></div>`
+  const wide = s.kind === 'chips' || s.kind === 'theme' || s.kind === 'candle' || s.kind === 'yield' || s.kind === 'scale'
+  const crumb = S.q.trim() ? `<span class="crumb">${TABS.find((t) => t[0] === s.tab)[1]} › ${esc(s.sec)}</span>` : ''
+  // 依存する行の注意は、常に場所を取って出し入れは visibility だけ（行の高さを変えない）
+  const dep = s.dep ? `<span class="d warn${disabled(s) ? '' : ' hid'}" id="w-${s.id}">「${esc(SPEC.find((y) => y.id === s.dep).label)}」がオンのときだけ使えます</span>` : ''
+  const mod = isMod(s)
+  const name = `${mod ? '<span class="mod" aria-hidden="true"></span>' : ''}${crumb}${x.m ? hl(s.label, x.m.ranges) : esc(s.label)}${mod && defText(s) ? `<span class="def">既定: ${esc(defText(s))}</span>` : ''}`
+  return `<div class="srow${sel}${wide ? ' wide' : ''}" data-r="${i}"${disabled(s) ? ` aria-disabled="true" aria-describedby="w-${s.id}"` : ''}><div class="lab"><b>${name}</b><span class="d">${esc(s.desc)}</span>${dep}</div><div class="ctl">${ctl(s)}</div><button class="rst${mod ? ' on' : ''}" data-act="reset" title="既定（${esc(defText(s))}）に戻す（Backspace）" aria-label="既定に戻す">↺</button></div>`
+}
+let flat = []
+const cur = () => flat[S.row]
+function render() {
+  $tabs.innerHTML = TABS.map(([k, n]) => `<button class="tab${k === S.tab && !S.q.trim() ? ' on' : ''}" role="tab" aria-selected="${k === S.tab}" aria-controls="sbody" data-tab="${k}" tabindex="-1" title="${n}"><svg class="svgi" viewBox="0 0 24 24">${IC[k]}</svg><span class="t">${n}</span>${modCount(k) ? `<span class="n" title="既定から変えた項目の数">${modCount(k)}</span>` : ''}</button>`).join('')
+  const searching = !!S.q.trim()
+  const tname = TABS.find((t) => t[0] === S.tab)[1]
+  document.getElementById('shead').innerHTML = searching ? `<h2>「${esc(S.q)}」の設定</h2><span class="sub">全タブから</span>` : `<h2>${tname}</h2><span class="sub">${{ general: '言語・起動・更新と通知', display: 'テーマ・文字・色・動き', chart: 'チャートとグリッドのタイル', data: '市場データ・銘柄・バックアップ', keys: 'アプリ全体のキーの割り当て', news: 'ニュースのペインのフィード', about: 'バージョン・ライセンス・データの出どころ' }[S.tab]}</span>`
+  if (!searching && S.tab === 'keys') return renderKeys()
+  if (!searching && S.tab === 'news') return renderNews()
+  const xs = rowsNow()
+  flat = xs.filter((x) => x.s.kind !== 'stats')
+  S.row = Math.max(0, Math.min(S.row, flat.length - 1))
+  let h = ''
+  let sec = null
+  let i = 0
+  for (const x of xs) {
+    const key = searching ? x.s.tab : x.s.sec
+    if (key !== sec) {
+      if (sec !== null) h += '</div>'
+      sec = key
+      h += `<div class="card2${x.s.danger && !searching ? ' danger' : ''}"><h4>${searching ? TABS.find((t) => t[0] === key)[1] : esc(key)}${x.s.danger && !searching ? '<span class="s">元に戻せません</span>' : ''}</h4>`
+    }
+    h += x.s.kind === 'stats' ? srow(x, -1) : srow(x, i++)
+  }
+  if (sec !== null) h += '</div>'
+  if (searching && !xs.length) h = `<div class="empty">「<b>${esc(S.q)}</b>」に当たる設定はありません<br>キーの割り当ては「キー」のタブで探せます</div>`
+  if (!searching && S.tab === 'about') h += '<p class="disc">本アプリは投資助言を目的としたものではありません。データは非公式で、遅延や誤りがあり得ます。</p>'
+  $body.innerHTML = h
+  $body.querySelector('.srow.sel')?.scrollIntoView({ block: 'nearest' })
+  foot()
+}
+function foot(extra) {
+  document.getElementById('sfoot').innerHTML = S.zone === 'nav'
+    ? '<span><kbd>↑</kbd><kbd>↓</kbd>タブ</span><span><kbd>→</kbd>本文へ</span><span><kbd>Ctrl+F</kbd>探す</span><span><kbd>Esc</kbd>閉じる</span><span class="r">タブの数字は既定から変えた項目の数</span>'
+    : extra || `<span><kbd>↑</kbd><kbd>↓</kbd>行</span><span><kbd>Space</kbd>切り替え</span><span><kbd>←</kbd><kbd>→</kbd>値</span>${Object.keys(S.pend).length ? '<span><kbd>Enter</kbd>決める</span><span><kbd>Esc</kbd>やめる</span>' : '<span><kbd>Backspace</kbd>既定に戻す</span><span><kbd>Esc</kbd>タブへ</span>'}`
+}
+// ---------------- キー
+function keyOfA(a) { return S.keymap[a.id] ?? a.key }
+function renderKeys() {
+  const q = S.keysQ.trim()
+  const rows = D.ACTS.map((a) => ({ a, m: q ? match(q, a.label, [keyOfA(a) || '', D.AG[a.group]]) : { ranges: [] } })).filter((x) => x.m && (!S.keysOnly || S.keymap[x.a.id]))
+  flat = rows
+  S.keySel = Math.max(0, Math.min(S.keySel, rows.length - 1))
+  let h = `<div class="ktop"><label class="search aux"><span class="ic">${L.SEARCH_SVG}</span><input id="kq" placeholder="操作・キーで探す" value="${esc(S.keysQ)}" autocomplete="off"></label><button class="chip${S.keysOnly ? ' on' : ''}" id="konly">変えたものだけ<span class="n">${Object.keys(S.keymap).length}</span></button><button class="btn" id="kreset">すべて既定に戻す…</button></div>`
+  let g = null
+  rows.forEach((x, i) => {
+    if (x.a.group !== g) { if (g) h += '</div>'; g = x.a.group; h += `<div class="card2"><h4>${D.AG[g]}</h4>` }
+    const k = keyOfA(x.a)
+    const sel = S.zone === 'body' && i === S.keySel
+    const rec = S.rec === x.a.id
+    // 変えたキーは青（.hit）。行の作りは F1 と同じ: キー | 操作 | ↺
+    const kk = rec ? `<span class="rec">${S.conflict ? keysHtml(S.conflict.combo) : 'キーを押す…'}</span>` : k ? keysHtml(k, S.keymap[x.a.id] ? k : null) : '<span class="note">—</span>'
+    const mod = x.a.id in S.keymap
+    h += `<div class="krow${sel ? ' sel' : ''}" data-k="${i}"><span class="k">${kk}</span><span>${mod ? '<span class="mod" aria-hidden="true"></span>' : ''}${hl(x.a.label, x.m.ranges)}${mod ? `<span class="lab"><span class="def">既定: ${esc(x.a.key || 'なし')}</span></span>` : ''}</span><button class="rst${mod ? ' on' : ''}" data-kreset="${x.a.id}" title="既定（${x.a.key || 'なし'}）に戻す">↺</button>${rec && S.conflict ? `<span class="cf">${esc(S.conflict.combo)} は「${esc(S.conflict.other.label)}」に割り当てられています。Enter で入れ替える（相手の割り当ては外れる）· Esc でやめる</span>` : ''}</div>`
+  })
+  if (g) h += '</div>'
+  if (!rows.length) h += '<div class="empty">当たる操作はありません</div>'
+  h += '<p class="disc">ペインの中の単キー（一覧の S、チャートの D/W/M など）とリンク色（Ctrl+0〜5）は変えられません。F1 のショートカット一覧で見られます。</p>'
+  $body.innerHTML = h
+  $body.querySelector('.krow.sel')?.scrollIntoView({ block: 'nearest' })
+  const kq = document.getElementById('kq')
+  kq.addEventListener('input', () => { S.keysQ = kq.value; S.keySel = 0; renderKeys(); const n = document.getElementById('kq'); n.focus(); n.setSelectionRange(n.value.length, n.value.length) })
+  kq.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (e.key === 'Escape' && S.keysQ) { S.keysQ = ''; renderKeys() } S.zone = 'body'; renderKeys(); $body.focus() } })
+  document.getElementById('konly').onclick = () => { S.keysOnly = !S.keysOnly; S.keySel = 0; render() }
+  document.getElementById('kreset').onclick = () => toast('確かめてから、すべて既定に戻す')
+  foot(S.rec ? '<span>押したキーを割り当てる</span><span><kbd>Esc</kbd>やめる</span>' : '<span><kbd>↑</kbd><kbd>↓</kbd>行</span><span><kbd>Enter</kbd>割り当てを変える</span><span><kbd>Delete</kbd>外す</span><span><kbd>Backspace</kbd>既定に戻す</span><span><kbd>/</kbd>探す</span><span><kbd>Esc</kbd>タブへ</span>')
+}
+function recKey(e) {
+  if (e.key === 'Escape') { S.rec = null; S.conflict = null; return renderKeys() }
+  const a = D.ACTS.find((x) => x.id === S.rec)
+  if (S.conflict && e.key === 'Enter') {
+    S.keymap[S.conflict.other.id] = ''
+    S.keymap[a.id] = S.conflict.combo
+    toast(`${S.conflict.combo} を「${a.label}」に。「${S.conflict.other.label}」の割り当ては外しました`)
+    S.rec = null; S.conflict = null
+    return render()
+  }
+  const c = L.comboOf(e)
+  if (!c) return
+  if (!/^(Ctrl|Alt)\+|^F\d+$|^Shift\+F\d+$/.test(c)) return toast('アプリ全体のキーには Ctrl か Alt を付けてください（F1〜F12 は単独でも使えます）')
+  const other = D.ACTS.find((x) => x.id !== a.id && keyOfA(x) === c)
+  if (other) { S.conflict = { combo: c, other }; return renderKeys() }
+  S.keymap[a.id] = c
+  if (c === a.key) delete S.keymap[a.id]
+  S.rec = null
+  toast(`「${a.label}」を ${c} に`)
+  render()
+}
+// ---------------- ニュース（中身は今の NewsSettings のまま。枠の形だけ合わせる）
+function renderNews() {
+  flat = []
+  const F = [['日本経済新聞 マーケット', 'オン', '規約を確認済み'], ['Reuters ビジネス', 'オン', '規約を確認済み'], ['Bloomberg マーケット', 'オフ', '要約なし'], ['株探 決算速報', 'オフ', '規約が未確認']]
+  $body.innerHTML = `<div class="card2"><h4>取得</h4><div class="srow"><div class="lab"><b>ニュースを取る</b><span class="d">オンのフィードだけを、ニュースのペインが見えている間に取ります</span></div><div class="ctl"><span class="swl">オン</span><button class="sw on"></button></div><span></span></div><div class="srow"><div class="lab"><b>取る間隔</b><span class="d">5〜60 分</span></div><div class="ctl"><span class="stp"><button>−</button><span class="v">15 分</span><button>＋</button></span></div><span></span></div></div>
+  <div class="card2 feeds"><h4>フィード<span class="s">規約を確かめたものだけ既定でオン</span></h4>${F.map(([n, o, b]) => `<div class="fr"><span>${n}</span><span class="bdg">${b}</span><button class="sw${o === 'オン' ? ' on' : ''}"></button></div>`).join('')}</div>
+  <p class="disc">フィードの名前は例。中身（項目・文言・振る舞い）は今のニュースの設定のまま、枠と部品だけを合わせる。</p>`
+  foot()
+}
+// ---------------- 操作
+function act(s, a, el) {
+  if (disabled(s)) return toast(`「${SPEC.find((y) => y.id === s.dep).label}」がオンのときだけ`)
+  if (a === 'toggle') V[s.id] = !V[s.id]
+  else if (a === 'set') V[s.id] = el.dataset.v
+  else if (a === 'step') {
+    // 仮の値だけ動かす（決めるのは commit）
+    const d = +el.dataset.d
+    if (s.id === 'uiScale') { const i = SCALES.indexOf(S.pend.uiScale ?? V.uiScale) + d; if (i >= 0 && i < SCALES.length) S.pend.uiScale = SCALES[i] }
+    else { const y = (S.pend.retentionYears ?? V.retentionYears) + d; if (y >= 1 && y <= 10) S.pend.retentionYears = y }
+    if (S.pend[s.id] === V[s.id]) delete S.pend[s.id]
+  } else if (a === 'commit') {
+    const p = S.pend[s.id]
+    if (p == null) return
+    if (s.id === 'retentionYears' && p < V.retentionYears) toast(`確認（1 回だけ）: ${p} 年に縮めると、${2026 - p}-11 より前の日足（約 ${(MB(V.retentionYears) - MB(p)).toLocaleString()} MB）を消します`)
+    else toast(`${s.label}を ${s.id === 'uiScale' ? Math.round(p * 100) + '%' : p + ' 年'} にしました`)
+    V[s.id] = p
+    delete S.pend[s.id]
+  } else if (a === 'reset') { V[s.id] = structuredClone(DEF[s.id]); delete S.pend[s.id]; toast(`「${s.label}」を既定に戻しました`) }
+  else if (a === 'btn') toast(`${s.btns ? s.btns[+el.dataset.b][0] : s.btn ?? el.textContent}（モック）`)
+  else if (a === 'rmu') { S.users.splice(+el.dataset.u, 1); toast('外しました（Ctrl+Z で戻す）') }
+  if (s.id === 'theme') { location.hash = V.theme === 'light' ? 'light' : ''; L.theme() }
+  render()
+}
+function rowEl() { return $body.querySelector(`.srow[data-r="${S.row}"]`) }
+function bodyKey(e) {
+  if (S.tab === 'keys' && !S.q.trim()) {
+    if (S.rec) { e.preventDefault(); return recKey(e) }
+    const n = flat.length
+    if (e.key === 'ArrowDown') S.keySel = Math.min(n - 1, S.keySel + 1)
+    else if (e.key === 'ArrowUp') S.keySel = Math.max(0, S.keySel - 1)
+    else if (e.key === 'Enter') { S.rec = flat[S.keySel]?.a.id; S.conflict = null }
+    else if (e.key === 'Delete') { const a = flat[S.keySel]?.a; if (a) { S.keymap[a.id] = ''; toast(`「${a.label}」のキーを外しました（コマンドバーからは実行できます）`) } }
+    else if (e.key === 'Backspace') { const a = flat[S.keySel]?.a; if (a) delete S.keymap[a.id] }
+    else if (e.key === '/') { e.preventDefault(); return document.getElementById('kq').focus() }
+    else if (e.key === 'Escape' || e.key === 'ArrowLeft') { S.zone = 'nav'; $tabs.focus() }
+    else return
+    e.preventDefault()
+    return render()
+  }
+  const x = cur()
+  const n = flat.length
+  if (e.target.tagName === 'INPUT' && !['ArrowDown', 'ArrowUp', 'Escape', 'Enter'].includes(e.key)) return
+  if (e.key === 'ArrowDown') { S.row = Math.min(n - 1, S.row + 1); S.btn = 0 }
+  else if (e.key === 'ArrowUp') { if (S.row === 0 && S.q.trim()) { S.zone = 'nav'; e.preventDefault(); render(); return $q.focus() } S.row = Math.max(0, S.row - 1); S.btn = 0 }
+  else if (e.key === 'Escape' && Object.keys(S.pend).length) { S.pend = {}; toast('仮の値をやめました') }
+  else if (e.key === 'Escape') { if (S.q.trim()) { S.q = ''; $q.value = '' } S.zone = 'nav'; S.row = 0; e.preventDefault(); render(); return $tabs.focus() }
+  else if (!x) return
+  else if (e.key === ' ' || e.key === 'Enter') {
+    const s = x.s
+    if ((s.kind === 'scale' || s.kind === 'retention') && e.key === 'Enter') { act(s, 'commit'); e.preventDefault(); return }
+    if (s.kind === 'switch' && !(s.btn && S.btn === 1)) act(s, 'toggle')
+    else if (s.kind === 'switch' || s.kind === 'buttons' || s.kind === 'chips' || s.kind === 'app') act(s, 'btn', { dataset: { b: S.btn }, textContent: s.btn ?? '' })
+    else if (s.kind === 'yield') { e.preventDefault(); return rowEl()?.querySelector('input:not(:disabled)')?.focus() }
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    const d = e.key === 'ArrowRight' ? 1 : -1
+    const s = x.s
+    if (s.kind === 'seg' || s.kind === 'theme' || s.kind === 'density' || s.kind === 'candle') {
+      const opts = s.kind === 'seg' ? s.opts.map((o) => o[0]) : s.kind === 'theme' ? ['dark', 'light'] : s.kind === 'density' ? ['normal', 'compact'] : ['jp', 'us']
+      const i = opts.indexOf(V[s.id]) + d
+      if (i >= 0 && i < opts.length) act(s, 'set', { dataset: { v: opts[i] } })
+    } else if (s.kind === 'scale' || s.kind === 'retention') act(s, 'step', { dataset: { d } })
+    else if (s.kind === 'buttons') { S.btn = Math.max(0, Math.min(s.btns.length - 1, S.btn + d)); render() }
+    else if (s.kind === 'switch' && s.btn) { S.btn = d > 0 ? 1 : 0; render() }
+    else if (d < 0) { S.zone = 'nav'; render(); $tabs.focus() }
+  } else if (e.key === 'Backspace') { if (isMod(x.s)) act(x.s, 'reset') }
+  else return
+  e.preventDefault()
+  render()
+}
+$tabs.addEventListener('keydown', (e) => {
+  const i = TABS.findIndex((t) => t[0] === S.tab)
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { S.tab = TABS[(i + (e.key === 'ArrowDown' ? 1 : -1) + TABS.length) % TABS.length][0]; S.row = 0; S.keySel = 0 }
+  else if (e.key === 'ArrowRight' || e.key === 'Tab' || e.key === 'Enter') { S.zone = 'body'; S.row = 0; e.preventDefault(); render(); return $body.focus() }
+  else if (e.key === 'Escape') toast('閉じる（モックでは閉じない）')
+  else return
+  e.preventDefault()
+  render()
+})
+$body.addEventListener('keydown', bodyKey)
+$body.addEventListener('click', (e) => {
+  const kr = e.target.closest('[data-kreset]')
+  if (kr) { delete S.keymap[kr.dataset.kreset]; return render() }
+  const k = e.target.closest('.krow')
+  if (k) { S.zone = 'body'; S.keySel = +k.dataset.k; S.rec = flat[S.keySel].a.id; S.conflict = null; render(); return $body.focus() }
+  const r = e.target.closest('.srow[data-r]')
+  if (!r) return
+  S.zone = 'body'
+  S.row = +r.dataset.r
+  const b = e.target.closest('[data-act]')
+  if (b && !b.disabled) { if (b.dataset.b) S.btn = +b.dataset.b; act(flat[S.row].s, b.dataset.act, b) } else render()
+  if (e.target.tagName !== 'INPUT') $body.focus()
+})
+$body.addEventListener('change', (e) => {
+  const i = e.target.dataset.yi
+  if (i == null) return
+  const v = e.target.value.trim()
+  if (v && !(+v >= 0.1 && +v <= 30)) { toast('目標利回りは 0.1〜30 の数で打ちます'); e.target.value = V.yieldTargets[i] }
+  else { V.yieldTargets = V.yieldTargets.map((x, j) => (j === +i ? v : x)); render() }
+})
+$tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (!b) return; S.tab = b.dataset.tab; S.q = ''; $q.value = ''; S.zone = 'nav'; S.row = 0; render(); $tabs.focus() })
+$q.addEventListener('input', () => { S.q = $q.value; S.row = 0; render() })
+$q.addEventListener('keydown', (e) => {
+  if (L.composing(e)) return
+  if (e.key === 'ArrowDown' || e.key === 'Enter') { if (S.q.trim() && flat.length) { S.zone = 'body'; S.row = 0; render(); $body.focus() } else $tabs.focus(); e.preventDefault() }
+  else if (e.key === 'Escape') { e.preventDefault(); if (S.q) { S.q = ''; $q.value = ''; render() } else $tabs.focus() }
+})
+document.querySelector('.set').addEventListener('keydown', (e) => {
+  if ((e.ctrlKey && e.code === 'KeyF') || (e.key === '/' && e.target.tagName !== 'INPUT' && !(S.tab === 'keys' && $body.contains(e.target)))) { e.preventDefault(); e.stopPropagation(); $q.focus(); $q.select() }
+}, true)
+document.getElementById('themeSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (!b) return; V.theme = b.dataset.t; location.hash = b.dataset.t === 'light' ? 'light' : ''; L.theme(); document.querySelectorAll('#themeSeg button').forEach((x) => x.classList.toggle('on', x === b)); render() })
+if (L.theme()) { V.theme = 'light'; document.querySelectorAll('#themeSeg button').forEach((x) => x.classList.toggle('on', x.dataset.t === 'light')) }
+const ht = /[#&]tab=(\w+)/.exec(location.hash)
+if (ht) S.tab = ht[1]
+render()
+$tabs.focus()
+</script>
+</body>
+</html>
