@@ -36,6 +36,13 @@ describe('表示倍率とポインタ（FR-V10）', () => {
     expect(tipBeside({ right: 1400, top: 0 }, 320, 1500, 1.5).x).toBe(1000 - 320)
     expect(tipBeside({ right: 300, top: 150 }, 320, 1500, 0).x).toBe(308)
   })
+  it('高さを渡すと、窓の下からはみ出さないよう上に寄せる（渡さなければ今までどおり）', () => {
+    expect(tipBeside({ right: 300, top: 900 }, 320, 1500, 1, { height: 180, viewportHeight: 1000 }).y).toBe(1000 - 180)
+    expect(tipBeside({ right: 300, top: 900 }, 320, 1500, 2, { height: 180, viewportHeight: 1000 }).y).toBe(500 - 180)
+    expect(tipBeside({ right: 300, top: 100 }, 320, 1500, 1, { height: 180, viewportHeight: 1000 }).y).toBe(96)
+    expect(tipBeside({ right: 300, top: 10 }, 320, 1500, 1, { height: 2000, viewportHeight: 1000 }).y).toBe(0)
+    expect(tipBeside({ right: 300, top: 900 }, 320, 1500, 1).y).toBe(896)
+  })
 })
 
 describe('区切り線のドラッグ（FR-L1）', () => {

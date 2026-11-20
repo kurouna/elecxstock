@@ -7,8 +7,10 @@ import {
   boardBreadth,
   boardMove,
   boardRows,
+  chgView,
   dayLabel,
   heldIds,
+  keepIdsWhileLoading,
   type QbItem,
   type QbRect,
   readQbState,
@@ -114,6 +116,10 @@ describe('並べ替え・★のみ・分類（FR-QB4）', () => {
   it('★のみは★の銘柄だけ', () => {
     expect(codes(boardRows(items, 'reg', 'none', true, (x) => x === id('3') || x === id('4')))).toEqual(['34'])
   })
+  it('業種が空の銘柄（ETF など）は「—」の見出しにまとめる（ヒートマップの sectorTileKey と同じ）', () => {
+    const g = boardRows([item('1', {}), item('2', {}, { sector: '' })], 'reg', 'sector', false, () => true)
+    expect(g.map((x) => x.key)).toEqual(['電気機器', '—'])
+  })
   it('業種・株と REIT で分類し、分類の順は最初に出た順。並べ替えは分類の中にも効く', () => {
     const g = boardRows(items, 'pctA', 'sector', false, () => true)
     expect(g.map((x) => x.key)).toEqual(['銀行業', '電気機器', 'REIT'])
@@ -138,6 +144,37 @@ describe('騰落の帯（FR-QB6）', () => {
   it('値の無い銘柄（指標が無い・close が無い）は未更新にも数えない。数える銘柄が無ければ平均は null', () => {
     const b = boardBreadth([item('1', null), item('2', { close: null, stale: true })])
     expect(b).toEqual({ up: 0, down: 0, flat: 0, stale: 0, avgPct: null })
+  })
+})
+
+describe('騰落の数の欠損（FR-QB6）', () => {
+  it('前日比が NaN・Infinity の銘柄は数えない', () => {
+    const b = boardBreadth([
+      item('1', { chg: Number.NaN, chgPct: Number.NaN }),
+      item('2', { chg: 1, chgPct: Number.POSITIVE_INFINITY }),
+      item('3', { chg: 2, chgPct: 1 }),
+    ])
+    expect(b).toEqual({ up: 1, down: 0, flat: 0, stale: 0, avgPct: 1 })
+  })
+})
+
+describe('前日比の色と矢印（FR-QB2）', () => {
+  it('表示の桁で丸めて 0 になる値は変わらず（色・矢印なし）。符号の書き方（sgn）とそろう', () => {
+    expect(chgView(0.2, 0)).toEqual({ cls: 'flat', arrow: '' })
+    expect(chgView(-0.04, 1)).toEqual({ cls: 'flat', arrow: '' })
+    expect(chgView(0.06, 1)).toEqual({ cls: 'up', arrow: '▲' })
+    expect(chgView(-12, 0)).toEqual({ cls: 'down', arrow: '▼' })
+    expect(chgView(0, 0)).toEqual({ cls: 'flat', arrow: '' })
+    expect(chgView(null, 0)).toEqual({ cls: '', arrow: '' })
+  })
+})
+
+describe('取り直しの間の一覧（FR-QB8。新しい値が届いてから置き換える）', () => {
+  it('同じ出どころの取り直しの間は前の一覧のまま。別の出どころへ替えたときだけ読み込み中（null）', () => {
+    const prev = [id('1'), id('2')]
+    expect(keepIdsWhileLoading('scr:a', 'scr:a', prev)).toBe(prev)
+    expect(keepIdsWhileLoading('scr:a', 'scr:b', prev)).toBeNull()
+    expect(keepIdsWhileLoading(null, 'scr:a', null)).toBeNull()
   })
 })
 

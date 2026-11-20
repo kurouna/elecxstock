@@ -46,7 +46,7 @@
 - ペインの名前は「ヒートマップ」のまま（`PaneHeader` とドロワーのタブは `widget.heatmap` を出す。直さない）。
 - **切り替えのボタン**（`ViewSwitch`。ヒートマップと株価ボードのアイコンの 2 つ。押している方が今の表示。ツールチップに名前と「V」）は、
   見出しの中身の欄の**先頭**（ペインの名前のすぐ右）に置く（`.body` は `overflow: hidden` で末尾から切れるため。狭いペインでも残る）。
-  「⋯」のメニュー（`PaneHeader` の `more`）にも「株価ボードに切り替える（V）」／「ヒートマップに切り替える（V）」を足す。
+  「⋯」のメニュー（`PaneHeader` の `more`）にも「株価ボードに切り替える（V）」／「ヒートマップに切り替える（V）」を足す。株価ボードでは「指数のカードを出す／隠す（I）」「カードを大きく（+）」「カードを小さく（−）」も足す（ペインが 600px 未満で「⋯」が出るとき）。
 - 株価ボードでは、ボタンの右に基準日（`qb.asOf`: 「{date}終値」。広いときは「 / 前日比 {prev}終値」を足す）。
   基準日は表示中の銘柄の `asOf` のうち最も新しい日。前の営業日は `src/shared/calendar.ts` から出す。
   その日の値に `provisional`（FR-D8 の仮の足）が混じるときは「（仮）」を付け、ツールチップで `chart.provisional` と同じ文言を出す。
@@ -55,7 +55,7 @@
 ### 2.2 2 段目
 
 - **ヒートマップ**: 今のまま（業種・騰落率の期間・★のみ）。
-- **株価ボード**: 一覧の出どころのタブ（§3.1）と、右に並べ替え・分類・★のみのチップ。狭いときは分類のチップを省き、タブの名前を省略（…）する。
+- **株価ボード**: 一覧の出どころのタブ（§3.1。多いときは横に送れ、選んでいるタブが見える位置まで送る）と、右に並べ替え・分類・★のみ・指数（I）・大きさ（− +）のチップ。狭いときは分類・指数・大きさのチップを省き（「⋯」のメニューに入る）、タブの名前を省略（…）する。
   選んでいるタブは省略しない。タブの印は今の一覧と同じ（★お気に入り・◆売買候補・保有は印なし）。
 
 ### 2.3 指数のカード（1 行目）
@@ -80,7 +80,7 @@
 ### 2.5 カード
 
 - 中身は銘柄名・終値・前日比（円）・前日比（%）。**コードは出さない**（銘柄名に幅を回す）。コードはツールチップと下の 2 行に出す。
-- 終値と前日比の色は `--up` / `--down`（変わらずは `--text-3`）。地は塗らない。
+- 終値と前日比の色は `--up` / `--down`（変わらずは `--text-3`）。地は塗らない。色と矢印は表示の桁で丸めた値で決める（`chgView`。丸めて 0 なら変わらず。▲±0 を上昇の色で出さない）。
 - 大きさは 3 段（`qbSize`。既定 2）。最小の段では前日比（%）を省き、円だけを残す。
 - `stale` のカードは薄くし、終値の左に日付（`11/12`）を `--warn` で出す。値が無い（`close == null`）は「—」。
 - 分類があるときは、分類ごとに見出しの行（名前・上昇と下落の数・単純平均）を挟む。
@@ -104,7 +104,7 @@
 始値・高値・安値・出来高は指標の表に無いので出さない（銘柄ごとに日足を読むと、100 銘柄で重くなる）。
 
 - 下の 2 行は場所を取ったまま、選んでいないときは見えなくする（`visibility: hidden`。CLAUDE.md の約束）。
-- ツールチップは `lib/pointer.ts` の `tipBeside` でカードの横に置く（表示倍率をそろえる）。ヒートマップの長方形のツールチップ（今の `title`）は変えない。
+- ツールチップは `lib/pointer.ts` の `tipBeside` でカードの横に置く（表示倍率をそろえる）。描いてから高さを測り、窓の下からはみ出さないよう上に寄せる（`tipBeside` の `fit`）。値は右寄せ。上昇・下落・未更新の色は消さない。ヒートマップの長方形のツールチップ（今の `title`）は変えない。
 
 ### 2.7 状態の表示
 
@@ -128,6 +128,8 @@
   結果の指標を `app.metrics` に入れ、`topByCap` で時価総額の上位を取る。J-REIT は時価総額がプライムの上位にほぼ入らないため、別に取る。
 - `wl:` と `held` は `ensureMetrics(ids)` で指標を読み、`bridge.prioritize(ids)` で取得を先に回してもらう（MarketBoard.svelte と同じ）。
 - `scr:` は `screener.run`（チャートグリッドの `scr:` と同じ入力）。
+- **取り直しの間は前の一覧のまま**（CLAUDE.md「新しい値が届いてから置き換える」）。読み込み中（スケルトン）に戻すのは、別の出どころへ替えたときだけ（`keepIdsWhileLoading`）。
+  取り直しに失敗したら前の一覧のまま（初めてなら空）にし、読み込み中のまま固まらない。
 - **走り直す条件**は出どころごとに分ける（★の付け外しで重い取り直しを起こさない）:
   - すべて: `app.dataVersion`（取得の終わり）。
   - `scr:` だけ: `screenInputs()`（ウォッチリスト・★・保有の変化。条件にそれらを含みうるため）。
@@ -169,7 +171,7 @@ export function resolveSource(src: string, deps: { watchlists: Watchlist[]; scre
 export function heldIds(holdings: Holding[]): InstrumentId[]
 /** 時価総額の上位（値の無い銘柄は外す） */
 export function topByCap(ids: InstrumentId[], cap: (id: InstrumentId) => number | null, n: number): InstrumentId[]
-/** 並べ替え（値の無い銘柄は最後。同じ値は元の並び）・★のみ・分類 */
+/** 並べ替え（値の無い銘柄は最後。同じ値は元の並び）・★のみ・分類（業種の無い銘柄は「—」） */
 export function boardRows(
   items: QbItem[],
   sort: QbSort,
@@ -177,10 +179,14 @@ export function boardRows(
   starOnly: boolean,
   isFav: (id: InstrumentId) => boolean,
 ): QbGroupRows[]
-/** 騰落（stale と close == null は数えない。stale の数は別に返す） */
+/** 騰落（stale・close == null・前日比が数でない銘柄は数えない。stale の数は別に返す） */
 export function boardBreadth(items: QbItem[]): { up: number; down: number; flat: number; stale: number; avgPct: number | null }
 /** 基準日と前の営業日・仮が混じるか */
 export function boardAsOf(items: QbItem[]): { date: JstDate | null; prev: JstDate | null; provisional: boolean }
+/** 前日比の色と矢印（表示の桁で丸めて 0 なら変わらず） */
+export function chgView(chg: number | null | undefined, digits: number): { cls: '' | 'up' | 'down' | 'flat'; arrow: '' | '▲' | '▼' }
+/** 取り直しを始めるときの一覧（同じ出どころなら前の一覧、別なら null） */
+export function keepIdsWhileLoading(prevSrc: string | null, src: string, prevIds: InstrumentId[] | null): InstrumentId[] | null
 /** カードの格子での移動。矩形は offsetLeft・offsetTop・offsetWidth・offsetHeight（CSS の px）で渡す */
 export function boardMove(
   rects: Rect[],
@@ -212,7 +218,7 @@ export function boardMove(
 
 - どれもペインの `key()` に置く単キー（割り当ては変えられない。全体のアクションに単キーは無い: `assignable`）。
 - **選択**は銘柄の ID で持つ（`SelectionFollow`）。取得で並びが変わっても選んだ銘柄から動かない。
-  並べ替え・出どころ・分類・★のみを変えたときは先頭へ戻す（`reset()` と `LinkFollow.hold()`。マーケット一覧と同じ）。
+  並べ替え・出どころ・分類・★のみを変えたときは先頭へ戻す（`reset()` と `LinkFollow.hold()`。マーケット一覧と同じ）。先頭の銘柄をリンクへ送るのは、新しい一覧が届いてから（結果があとで届くスクリーニング条件で、前の一覧の先頭を送らない）。
 - **リンク**: カードを選ぶとリンクの銘柄を送る（`setLinkSymbol`）。ほかのペインでリンクの銘柄が変わったら、一覧にあればそのカードを選ぶ（`LinkFollow.pick`）。
 - **表示を切り替えたとき**: 切り替えのたびに表示は作り直される（§6.1）。ヒートマップに戻ると、業種と期間（`sector`・`period`。`pane.state` に残る）は
   そのまま、長方形の選択は先頭から（今のヒートマップがマウントのときにする動きのまま）。株価ボードに入ると、リンクの銘柄が一覧にあればそれを、無ければ先頭を選ぶ。

@@ -16,9 +16,15 @@ export function tipBeside(
   tipWidth: number,
   viewportWidth: number,
   zoom: number,
+  /** 説明の高さ（offsetHeight。CSS の px）と窓の高さ（innerHeight）。渡すと窓の下からはみ出さないよう上に寄せる（上の端は 0） */
+  fit?: { height: number; viewportHeight: number },
 ): { x: number; y: number } {
   const z = zoom > 0 ? zoom : 1
-  return { x: Math.max(0, Math.min(anchor.right / z + 8, viewportWidth / z - tipWidth)), y: anchor.top / z - 4 }
+  const y = anchor.top / z - 4
+  return {
+    x: Math.max(0, Math.min(anchor.right / z + 8, viewportWidth / z - tipWidth)),
+    y: fit ? Math.max(0, Math.min(y, fit.viewportHeight / z - fit.height)) : y,
+  }
 }
 /**
  * 区切り線のドラッグ（FR-L1）: 両隣を合わせた幅（span）に対する、ポインタの位置の比（8%〜92%）。pos・start・span はどれも

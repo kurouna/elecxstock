@@ -119,7 +119,8 @@ export function boardRows(
   }
   const sorted = list.map((e) => e.x)
   if (group === 'none') return [{ key: null, items: sorted }]
-  const keyOf = (x: QbItem) => (group === 'sector' ? x.sector : x.reit ? 'reit' : 'stock')
+  // 業種の無い銘柄（ETF など）は「—」（ヒートマップの sectorTileKey と同じ）
+  const keyOf = (x: QbItem) => (group === 'sector' ? x.sector || '—' : x.reit ? 'reit' : 'stock')
   const by = new Map<string, QbItem[]>()
   for (const x of sorted) {
     const k = keyOf(x)
@@ -140,7 +141,7 @@ export interface QbBreadth {
   avgPct: number | null
 }
 
-/** 騰落の数。未更新（stale）と値の無い銘柄（close == null）は数えない。値の無い銘柄は未更新にも数えない */
+/** 騰落の数。未更新（stale）と値の無い銘柄（close == null・前日比が数でない）は数えない。値の無い銘柄は未更新にも数えない */
 export function boardBreadth(items: readonly QbItem[]): QbBreadth {
   let up = 0
   let down = 0
@@ -154,7 +155,7 @@ export function boardBreadth(items: readonly QbItem[]): QbBreadth {
       stale++
       continue
     }
-    if (m.chg == null || m.chgPct == null) continue
+    if (m.chg == null || m.chgPct == null || !Number.isFinite(m.chg) || !Number.isFinite(m.chgPct)) continue
     if (m.chg > 0) up++
     else if (m.chg < 0) down++
     else flat++
@@ -244,3 +245,21 @@ export function dayLabel(d: JstDate, lang: 'ja' | 'en'): string {
 }
 /** カードの短い日付（11/12） */
 export const shortDate = (d: JstDate): string => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`
+
+/**
+ * 前日比の色（cls）と矢印。表示の桁（digits）で丸めて 0 になる値は変わらず（flat・矢印なし）にし、
+ * 符号の書き方（format.ts の sgn が「±」と書く）とそろえる（▲±0 を上昇の色で出さない）。値が無ければ色も矢印も無し
+ */
+export function chgView(chg: number | null | undefined, digits: number): { cls: '' | 'up' | 'down' | 'flat'; arrow: '' | '▲' | '▼' } {
+  if (chg == null || !Number.isFinite(chg)) return { cls: '', arrow: '' }
+  if (Math.round(Math.abs(chg) * 10 ** digits) === 0) return { cls: 'flat', arrow: '' }
+  return chg > 0 ? { cls: 'up', arrow: '▲' } : { cls: 'down', arrow: '▼' }
+}
+
+/**
+ * 出どころの取り直しを始めるときの一覧。同じ出どころの取り直し（取得の終わり・★の付け外し）の間は前の一覧のまま
+ * （CLAUDE.md「新しい値が届いてから置き換える」。読み込み中に戻すと選択が先頭へ飛ぶ）。別の出どころへ替えたときだけ null（読み込み中）
+ */
+export function keepIdsWhileLoading(prevSrc: string | null, src: string, prevIds: InstrumentId[] | null): InstrumentId[] | null {
+  return prevSrc === src ? prevIds : null
+}

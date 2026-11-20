@@ -1,5 +1,5 @@
 // 株価ボード（ヒートマップのペインのカードの表示。docs/design-quote-board.md・FR-QB1〜QB8）。キーボードだけで操作する。値はスタブ（架空）
-import { expect, focusPane, keys, readUser, test, watchlists } from './support'
+import { expect, focusPane, jobsDone, keys, readUser, test, watchlists } from './support'
 import { col, freeTab, pane, row } from './support/layout'
 
 const layout = freeTab(row(pane('heatmap', {}, 1), col(pane('chart', {}, 1))))
@@ -114,5 +114,94 @@ test.describe('株価ボードの操作（FR-QB4, FR-QB7, FR-QB8）', () => {
     await expect(heat.locator('.idx')).toHaveCount(0)
     await keys(page, 'i')
     await expect(heat.locator('.idx .icard')).toHaveCount(3)
+  })
+})
+
+test.describe('株価ボードの取り直しとリンク（FR-QB4, FR-QB7, FR-QB8。レビューの指摘）', () => {
+  const favScreen = {
+    id: 'fav',
+    name: { ja: '★の銘柄', en: 'Favorites' },
+    conditions: [{ field: 'user.favorite', op: '=', value: true }],
+    created: 0,
+    updated: 0,
+  }
+  const boardLayout = (state: Record<string, unknown>) =>
+    freeTab(row(pane('heatmap', { qbView: 'board', ...state }, 1), col(pane('chart', {}, 1))))
+
+  test('スクリーニング条件の一覧で★を付け外ししても（条件の取り直し）、読み込み中に戻らず、選んだカードから動かない', async ({ start }) => {
+    const wlScreen = {
+      id: 'wl',
+      name: { ja: '監視の銘柄', en: 'Watch' },
+      conditions: [{ field: 'user.watchlist', op: 'in', value: ['watch'] }],
+      created: 0,
+      updated: 0,
+    }
+    const { page } = await start({
+      layout: boardLayout({ qbSrc: 'scr:wl' }),
+      user: { screens: [wlScreen], watchlists: watchlists({ watch: FAVS }) },
+    })
+    const heat = page.locator('[data-widget="heatmap"]')
+    await expect(heat.locator('.grid .card')).toHaveCount(FAVS.length)
+    await focusPane(page, heat)
+    await keys(page, 'ArrowRight', 'ArrowRight')
+    const id = (await heat.locator('.grid .card.sel').getAttribute('data-id'))!
+    const seen: number[] = []
+    await page.exposeFunction('__qbSkel', (n: number) => seen.push(n))
+    await heat.evaluate((el) => {
+      new MutationObserver(() =>
+        (window as unknown as { __qbSkel: (n: number) => void }).__qbSkel(el.querySelectorAll('.grid .skel').length),
+      ).observe(el, { childList: true, subtree: true })
+    })
+    await keys(page, 'Control+d') // ★を付ける（ウォッチリストが変わり、条件を取り直す）
+    await expect(page.locator('.toasts')).toContainText('お気に入り')
+    await keys(page, 'Control+d') // 外す
+    await expect.poll(() => heat.locator('.grid .card.sel').getAttribute('data-id')).toBe(id)
+    await jobsDone(page)
+    expect(seen.filter((n) => n > 0)).toEqual([])
+    await expect(heat.locator('.grid .card.sel')).toHaveAttribute('data-id', id)
+  })
+
+  test('結果があとで届く一覧（スクリーニング条件）へ替えると、届いた一覧の先頭の銘柄をリンクのチャートに送る', async ({ start }) => {
+    const { page } = await start({ layout: boardLayout({}), user: { screens: [favScreen], watchlists: watchlists({ favorites: FAVS }) } })
+    const heat = page.locator('[data-widget="heatmap"]')
+    const chart = page.locator('[data-widget="chart"]').first()
+    await expect(heat.locator('.grid .card').first()).toBeVisible()
+    await focusPane(page, heat)
+    await keys(page, 'Shift+G') // 時価総額の上位 → 最後の出どころ（スクリーニング条件）
+    await expect(heat.locator('.tabs button[aria-selected="true"]')).toContainText('★の銘柄')
+    await expect(heat.locator('.grid .card')).toHaveCount(FAVS.length)
+    const first = (await heat.locator('.grid .card').first().getAttribute('data-id'))!.slice(3)
+    await expect(chart.locator('.sym .code')).toHaveText(first)
+  })
+
+  test('ツールチップの値は右寄せ（上昇・下落の値も）。「⋯」のメニューに指数のカードと大きさがある', async ({ start }) => {
+    const { page } = await start({ layout: boardLayout({}) })
+    const heat = page.locator('[data-widget="heatmap"]')
+    await expect(heat.locator('.grid .card').first()).toBeVisible()
+    const moved = heat.locator('.grid .card.up, .grid .card.down').first()
+    await moved.hover()
+    const val = page.locator('.tip .tdl .num.up, .tip .tdl .num.down').first()
+    await expect(val).toBeVisible()
+    expect(await val.evaluate((el) => getComputedStyle(el).textAlign)).toBe('right')
+    await page.mouse.move(0, 0)
+    // 広いペインでは、指数のカードと大きさを見出しの下のボタンでも操作できる
+    await heat.getByRole('button', { name: '指数のカード' }).click()
+    await expect(heat.locator('.idx')).toHaveCount(0)
+    await heat.getByRole('button', { name: 'カードを大きく' }).click()
+    await expect(heat.locator('.grid')).toHaveClass(/s3/)
+  })
+
+  test('狭いペインでは「⋯」のメニューに、表示の切り替え・指数のカード・大きさが入る', async ({ start }) => {
+    const { page } = await start({
+      layout: freeTab(row(pane('heatmap', { qbView: 'board' }, 1), pane('chart', {}, 1), pane('chart', {}, 0))),
+    })
+    const heat = page.locator('[data-widget="heatmap"]')
+    await expect(heat.locator('.grid .card').first()).toBeVisible()
+    await heat.locator('.ph .more').click()
+    const menu = page.getByRole('dialog')
+    await expect(menu).toContainText('ヒートマップに切り替える')
+    await expect(menu).toContainText('指数のカードを隠す')
+    await expect(menu).toContainText('カードを大きく')
+    await keys(page, 'Escape')
   })
 })
