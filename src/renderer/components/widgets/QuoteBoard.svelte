@@ -478,7 +478,7 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
     {/each}
   {/if}
 </div>
-<div class="foot" class:hide={!cur}>
+<div class="qbfoot" class:hide={!cur}>
   {#if cur}
     <div class="dl"><b>{nameOf(cur.id)}</b> <span class="cd dim">{codeOf(cur.id)}</span> <span class="dim">{marketText(cur.id)}・{sectorText(cur.id)}</span> {@render detailMain(cur.id)}</div>
     <div class="dl">{@render detailRest(cur.id)}</div>
@@ -803,7 +803,7 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
     line-height: 1.8;
   }
   /* 選んだ銘柄の詳しい値（2 行。選んでいないときも場所を取る） */
-  .foot {
+  .qbfoot {
     flex: none;
     padding: 2px var(--s-3);
     border-top: 1px solid var(--line);
@@ -811,15 +811,15 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
     color: var(--text-3);
     line-height: 17px;
   }
-  .foot > div {
+  .qbfoot > div {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .foot b {
+  .qbfoot b {
     color: var(--text);
   }
-  .foot.hide > div {
+  .qbfoot.hide > div {
     visibility: hidden;
   }
   .dl :global(.dt) {

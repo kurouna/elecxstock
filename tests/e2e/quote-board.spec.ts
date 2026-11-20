@@ -83,15 +83,19 @@ test.describe('株価ボードの操作（FR-QB4, FR-QB7, FR-QB8）', () => {
     const id = (await sel.getAttribute('data-id'))!
     const code = id.slice(3)
     await expect(chart.locator('.sym .code')).toHaveText(code)
-    await expect(heat.locator('.foot')).toContainText(code)
-    await expect(heat.locator('.foot')).toContainText('前日終値')
+    await expect(heat.locator('.qbfoot')).toContainText(code)
+    await expect(heat.locator('.qbfoot')).toContainText('前日終値')
     // 1 行目に銘柄・コード・市場と業種・終値・前日比、2 行目にそのほか（設計 §2。狭くても大事な値が 1 行目に残る）
-    const line1 = heat.locator('.foot > div').first()
+    const line1 = heat.locator('.qbfoot > div').first()
     await expect(line1).toContainText(code)
     await expect(line1).toContainText('終値')
     await expect(line1).toContainText('前日比')
     await expect(line1).not.toContainText('前日終値')
-    await expect(heat.locator('.foot > div').nth(1)).toContainText('前日終値')
+    await expect(heat.locator('.qbfoot > div').nth(1)).toContainText('前日終値')
+    // 2 行は縦に並ぶ（ダイアログの .qbfoot など、ほかの全体の CSS に崩されない）
+    const y1 = (await line1.boundingBox())!.y
+    const y2 = (await heat.locator('.qbfoot > div').nth(1).boundingBox())!.y
+    expect(y2).toBeGreaterThan(y1 + 10)
     await keys(page, 'ArrowDown')
     await expect(heat.locator('.grid .card.sel')).not.toHaveAttribute('data-id', id)
     await expect(chart.locator('.sym .code')).not.toHaveText(code)
