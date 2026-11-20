@@ -22,8 +22,8 @@
 ## 2. 画面
 
 ```
-┌ 1 [▦|▦] ヒートマップ 11/13(金)終値 / 前日比 11/12(木)終値                                  ⋯ ┐
-│ 時価総額 上位 100 │ ★ お気に入り 12 │ 保有 11 │ スクリーニング条件: 高配当 14   [S 登録順] [B 分類なし] [★] │
+┌ 1 株価ボード [▦|▦] 11/13(金)終値 / 前日比 11/12(木)終値          （600px 未満で ⋯） ◫ ⊟ ▾ ⇤ ⤢ ✕ ┐
+│ 時価総額 上位 100 │ ★ お気に入り 12 │ 保有 11 │ スクリーニング条件: 高配当 14 …  [登録順] [分類なし] [★] [指数] [− +] │
 ├───────────────────┬───────────────────┬───────────────────┤
 │ 日経平均          │ TOPIX 連動ETF 1306 │ 東証REIT 連動ETF 1343│   ← 指数のカード（I で出し入れ）
 │ 41,859.34         │ 3,017              │ 2,074              │
@@ -187,11 +187,22 @@ export function boardAsOf(items: QbItem[]): { date: JstDate | null; prev: JstDat
 export function chgView(chg: number | null | undefined, digits: number): { cls: '' | 'up' | 'down' | 'flat'; arrow: '' | '▲' | '▼' }
 /** 取り直しを始めるときの一覧（同じ出どころなら前の一覧、別なら null） */
 export function keepIdsWhileLoading(prevSrc: string | null, src: string, prevIds: InstrumentId[] | null): InstrumentId[] | null
+/** 前日終値（終値 − 前日比）・騰落の帯の割合（%）・大きさの送り（1〜3）・並べ替えと分類の次 */
+export function prevCloseOf(m: Pick<MetricsRow, 'close' | 'chg'> | undefined): number | null
+export function breadthShares(b: { up: number; flat: number; down: number }): { up: number; flat: number; down: number }
+export function stepSize(size: QbSize, d: 1 | -1): QbSize
+export function nextOf<T>(list: readonly T[], cur: T): T
+/** 出どころのタブの並び・G での送り・見出しの日付（11/13(金)）・カードの日付（11/12）・PgUp/PgDn の行の数 */
+export function sourceList(watchlists: Watchlist[], screens: SavedScreen[]): string[]
+export function stepSource(src: string, list: readonly string[], d: 1 | -1): string
+export function dayLabel(d: JstDate, lang: 'ja' | 'en'): string
+export function shortDate(d: JstDate): string
+export function rowsInView(viewHeight: number, cardHeight: number): number
 /** カードの格子での移動。矩形は offsetLeft・offsetTop・offsetWidth・offsetHeight（CSS の px）で渡す */
 export function boardMove(
   rects: Rect[],
   cur: number,
-  dir: 'left' | 'right' | 'up' | 'down' | 'pageUp' | 'pageDown',
+  dir: 'left' | 'right' | 'up' | 'down' | 'pageUp' | 'pageDown' | 'home' | 'end',
   rowsPerPage?: number,
 ): number
 ```
@@ -293,17 +304,21 @@ Pane.svelte ── heatmap ──▶ HeatmapPane.svelte（新。表示の切り�
 
 ### 6.5 ファイル
 
-| ファイル                                                   | 変更                                                                  |
-| ---------------------------------------------------------- | --------------------------------------------------------------------- |
-| `src/renderer/components/widgets/HeatmapPane.svelte`（新） | 表示の切り替え・受け止め                                              |
-| `src/renderer/components/widgets/QuoteBoard.svelte`（新）  | 株価ボードの本体（2 段目・指数のカード・騰落の帯・カード・下の 2 行） |
-| `src/renderer/components/ViewSwitch.svelte`（新）          | 見出しの切り替えのボタン                                              |
-| `src/renderer/lib/quoteBoard.ts`（新）                     | §3.2 の純粋な関数                                                     |
-| `src/renderer/lib/paneView.ts`（新）                       | `withViewSwitch`・`isViewKey`・`otherView`                            |
-| `src/renderer/components/widgets/Heatmap.svelte`           | 省略できる props 3 つ（`wrapApi`・`lead`・`more`）と、それを使う数行  |
-| `src/renderer/components/Pane.svelte`                      | 1 行（`<HeatmapPane>`）                                               |
-| `src/renderer/lib/i18n.ts`                                 | `qb.*`（`ja` と `en`）                                                |
-| `src/renderer/components/overlays/Help.svelte`             | F1 の一覧に株価ボードのキー                                           |
+| ファイル                                                   | 変更                                                                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `src/renderer/components/widgets/HeatmapPane.svelte`（新） | 表示の切り替え・受け止め                                                        |
+| `src/renderer/components/widgets/QuoteBoard.svelte`（新）  | 株価ボードの本体（2 段目・指数のカード・騰落の帯・カード・下の 2 行）           |
+| `src/renderer/components/ViewSwitch.svelte`（新）          | 見出しの切り替えのボタン                                                        |
+| `src/renderer/lib/quoteBoard.ts`（新）                     | §3.2 の純粋な関数                                                               |
+| `src/renderer/lib/paneView.ts`（新）                       | `withViewSwitch`・`isViewKey`・`otherView`                                      |
+| `src/renderer/lib/hscroll.ts`（新）                        | タブの帯をホイールで横に送る（`wheelToX`・`hscroll`。Ctrl・Cmd つきは送らない） |
+| `src/renderer/components/PaneHeader.svelte`                | 省略できる `title`                                                              |
+| `src/renderer/components/overlays/FieldPicker.svelte`      | 説明を窓の下に収める（`tipBeside` の `fit`）                                    |
+| `Watchlist`・`MarketBoard`・`MarketBreadth`                | タブの帯に `use:hscroll`                                                        |
+| `src/renderer/components/widgets/Heatmap.svelte`           | 省略できる props 3 つ（`wrapApi`・`lead`・`more`）と、それを使う数行            |
+| `src/renderer/components/Pane.svelte`                      | 1 行（`<HeatmapPane>`）                                                         |
+| `src/renderer/lib/i18n.ts`                                 | `qb.*`（`ja` と `en`）                                                          |
+| `src/renderer/components/overlays/Help.svelte`             | F1 の一覧に株価ボードのキー                                                     |
 
 - Core・shared の API・DB・`Settings`・レイアウトの正規化（`normalizeDoc`）・プリセット・`Dock`・チャートグリッドは変えない（`PaneHeader` は省略できる `title` を足すだけ）。
 - **フリー 2〜4 の窓では使えない**（`heatmap` はもともと `FREE_WIDGETS`（`lib/windowSlot.ts`）に入っていない。この設計では変えない）。
@@ -318,9 +333,10 @@ Pane.svelte ── heatmap ──▶ HeatmapPane.svelte（新。表示の切り�
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | L1             | `quoteBoard.ts`: `readQbState`（壊れた値・知らない値は既定）・`resolveSource`（消えたウォッチリスト・スクリーンは `cap`）・`heldIds`（数量 0 を外す・重複）・`topByCap`（値の無い銘柄・同じ値）・`boardRows`（並べ替えの欠損と同じ値の順・分類・★のみ）・`boardBreadth`（stale と `close == null` を数えない・未更新の数・平均の欠損）・`boardAsOf`（仮が混じる・休日をまたぐ前の営業日）・`boardMove`（端・最後の短い行・分類の見出しをまたぐ・ページ）。`paneView.ts` の `withViewSwitch`（V だけを取る・修飾つきの V と IME の変換中は元の `key` に渡す・ほかの項目はそのまま）。選択の追従は `SelectionFollow`・`LinkFollow` の既存の L1 の観点で足す。評価日は固定のフィクスチャ |
 | L5（先に足す） | ヒートマップ: P で期間が変わる・Ctrl+Shift+F で★のみ・矢印で業種のタイルを移り、業種の中で同じリンク色のチャートの銘柄が変わる・Enter / Esc で業種の中と外                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| L5             | キーボードだけで: 既定がヒートマップ・V で株価ボードとヒートマップを行き来し、戻ると業種と期間が残る・G と Ctrl+PgDn でタブが変わる・S / B で並びと見出しが変わる・★のみ・← → でリンクのチャートの銘柄が変わる・下の 2 行にコードが出る・I で指数のカードが消える・保存して開き直すと表示が残る。スタブの未更新の銘柄が薄く日付つきで出て、帯に「未更新 N」が出る（無いときは出ない）。株価ボードで例外が起きてもヒートマップに戻せる                                                                                                                                                                                                                                                 |
+| L5             | キーボードだけで: 既定がヒートマップ・V で株価ボードとヒートマップを行き来し、戻ると業種と期間が残る・G と Ctrl+PgDn でタブが変わる・S / B で並びと見出しが変わる・★のみ・← → でリンクのチャートの銘柄が変わる・下の 2 行にコードが出る・I で指数のカードが消える・保存して開き直すと表示が残る。帯に「未更新」が出ない（スタブの種に未更新の銘柄が無いので、出るほうは L1 の `boardBreadth` で確かめる）。そのほか、レビューで見つかった振る舞い（取り直しで読み込み中に戻らない・あとで届く一覧の先頭を送る・「+」キー・タブのホイール・ツールチップの位置・下の 2 行の並び・狭いペインの「⋯」）                                                                                    |
 
 - L4（画面のロジックの結合）では `$effect` が動かない（testing.md）ので、「取得で並びが変わっても選択が動かない」は L1 と L5 で確かめる。
+- E2E で確かめていないもの: 株価ボードで例外が起きたときにヒートマップへ戻す経路（例外を起こす手段が無い。V で戻す包みは L1 の `withViewSwitch`）と、未更新のカードが薄く日付つきで出る表示（スタブに未更新の銘柄が無い）。
 - 見た目の回帰（`visual.spec.ts`）はダイアログの要素を比べる約束なので、ペインの基準画像は足さない（L5 の構造の確かめで足りる）。
 - 要求の ID（FR-QB1〜QB8）を `describe` に入れる。
 

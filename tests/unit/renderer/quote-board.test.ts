@@ -301,4 +301,8 @@ describe('タブの帯のホイール（FR-KB4。マウスでも溢れたタブ�
     expect(wheelToX(80, 10)).toBeNull()
     expect(wheelToX(0, 0)).toBeNull()
   })
+  it('Ctrl・Cmd つきのホイール（表示倍率の操作）は横に送らない（ブラウザ・アプリに任せる）', () => {
+    expect(wheelToX(0, 120, true)).toBeNull()
+    expect(wheelToX(0, 120, false)).toBe(120)
+  })
 })

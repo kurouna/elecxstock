@@ -363,11 +363,14 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
 }
 </script>
 
-{#snippet detail(id: InstrumentId)}
+{#snippet detailMain(id: InstrumentId)}
   {@const m = app.metrics.get(id)}
   {@const v = view(m?.chg, m?.close)}
   <span class="dt">{t('qb.close')}</span><span class={`num ${v.cls}`}>{px(m?.close)}</span>
   <span class="dt">{t('qb.chg')}</span><span class={`num ${v.cls}`}>{v.arrow}{chgText(m?.chg, m?.close)}（{pctText(m?.chgPct)}）</span>
+{/snippet}
+{#snippet detailRest(id: InstrumentId)}
+  {@const m = app.metrics.get(id)}
   <span class="dt">{t('qb.prev')}</span><span class="num">{px(prevCloseOf(m))}</span>
   <span class="dt">{t('qb.turnover')}</span><span class="num">{oku(m?.turnover).n}{oku(m?.turnover).u}</span>
   <span class="dt">{t('qb.range52')}</span><span class="num">{px(m?.lo52)} – {px(m?.hi52)}</span>
@@ -477,8 +480,8 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
 </div>
 <div class="foot" class:hide={!cur}>
   {#if cur}
-    <div><b>{nameOf(cur.id)}</b> <span class="num dim">{codeOf(cur.id)}</span> <span class="dim">{marketText(cur.id)}・{sectorText(cur.id)}</span></div>
-    <div class="dl">{@render detail(cur.id)}</div>
+    <div class="dl"><b>{nameOf(cur.id)}</b> <span class="cd dim">{codeOf(cur.id)}</span> <span class="dim">{marketText(cur.id)}・{sectorText(cur.id)}</span> {@render detailMain(cur.id)}</div>
+    <div class="dl">{@render detailRest(cur.id)}</div>
   {:else}
     <div>&nbsp;</div>
     <div>&nbsp;</div>
@@ -488,7 +491,7 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
   <div class="tip" bind:this={tipEl} style:left={`${tip.x}px`} style:top={`${tip.y}px`} role="tooltip">
     <div class="th"><b>{nameOf(tip.id)}</b> <span class="num dim">{codeOf(tip.id)}</span></div>
     <div class="dim">{marketText(tip.id)}・{sectorText(tip.id)}</div>
-    <div class="tdl">{@render detail(tip.id)}</div>
+    <div class="tdl">{@render detailMain(tip.id)}{@render detailRest(tip.id)}</div>
   </div>
 {/if}
 
@@ -824,6 +827,9 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
   }
   .dl :global(.dt:first-child) {
     margin-left: 0;
+  }
+  .cd {
+    font-family: var(--mono);
   }
   .dl :global(.num) {
     margin-left: 3px;

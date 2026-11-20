@@ -1,8 +1,12 @@
 // 横に溢れるタブの帯（スクロールバーを隠している）を、マウスのホイールでも横に送る（FR-KB4 の逆: キーでできることをマウスでも）。
 // ウォッチリスト・マーケット一覧・騰落・株価ボードのタブで使う（use:hscroll）
 
-/** ホイールの量のうち、横に送る量。縦の回転が主なら縦の量を横に使う。横の回転（チルト・トラックパッド）が主なら送らない（ブラウザに任せる） */
-export function wheelToX(deltaX: number, deltaY: number): number | null {
+/**
+ * ホイールの量のうち、横に送る量。縦の回転が主なら縦の量を横に使う。横の回転（チルト・トラックパッド）が主なら送らない（ブラウザに任せる）。
+ * Ctrl・Cmd つき（表示倍率の操作）は送らない
+ */
+export function wheelToX(deltaX: number, deltaY: number, zoomKey = false): number | null {
+  if (zoomKey) return null
   return Math.abs(deltaY) > Math.abs(deltaX) ? deltaY : null
 }
 
@@ -10,7 +14,7 @@ export function wheelToX(deltaX: number, deltaY: number): number | null {
 export function hscroll(node: HTMLElement): { destroy: () => void } {
   const on = (e: WheelEvent) => {
     if (node.scrollWidth <= node.clientWidth) return
-    const d = wheelToX(e.deltaX, e.deltaY)
+    const d = wheelToX(e.deltaX, e.deltaY, e.ctrlKey || e.metaKey)
     if (d == null) return
     node.scrollLeft += d
     e.preventDefault()
