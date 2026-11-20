@@ -230,6 +230,27 @@ function vertical(rects: readonly QbRect[], cur: number, step: 1 | -1): number {
   return best
 }
 
+/** 前日終値（終値 − 前日比。どちらかが無ければ null） */
+export function prevCloseOf(m: Pick<MetricsRow, 'close' | 'chg'> | undefined): number | null {
+  return m?.close != null && m.chg != null && Number.isFinite(m.close) && Number.isFinite(m.chg) ? m.close - m.chg : null
+}
+
+/** 騰落の帯の棒の割合（%。上昇・変わらず・下落の合計が 100。数える銘柄が無ければすべて 0） */
+export function breadthShares(b: Pick<QbBreadth, 'up' | 'flat' | 'down'>): { up: number; flat: number; down: number } {
+  const n = b.up + b.flat + b.down
+  if (!n) return { up: 0, flat: 0, down: 0 }
+  return { up: (b.up / n) * 100, flat: (b.flat / n) * 100, down: (b.down / n) * 100 }
+}
+
+/** カードの大きさを d だけ変える（1〜3 で止まる） */
+export const stepSize = (size: QbSize, d: 1 | -1): QbSize => Math.max(1, Math.min(3, size + d)) as QbSize
+
+/** 一覧の次の値（並べ替え・分類の S・B。一巡する。知らない値からは先頭の次） */
+export function nextOf<T>(list: readonly T[], cur: T): T {
+  const i = list.indexOf(cur)
+  return list[((i < 0 ? 0 : i) + 1) % list.length]!
+}
+
 /** 見えている行の数（PgUp / PgDn の 1 回分。少なくとも 1） */
 export function rowsInView(viewHeight: number, cardHeight: number): number {
   if (!(cardHeight > 0)) return 1

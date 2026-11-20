@@ -1,16 +1,20 @@
 // 株価ボード（docs/design-quote-board.md。FR-QB1〜QB8）の純粋な関数。値は架空
 import type { InstrumentId, MetricsRow, SavedScreen, Watchlist } from '@shared/types'
 import { describe, expect, it, vi } from 'vitest'
+import { wheelToX } from '../../../src/renderer/lib/hscroll'
 import { isViewKey, otherView, withViewSwitch } from '../../../src/renderer/lib/paneView'
 import {
   boardAsOf,
   boardBreadth,
   boardMove,
   boardRows,
+  breadthShares,
   chgView,
   dayLabel,
   heldIds,
   keepIdsWhileLoading,
+  nextOf,
+  prevCloseOf,
   type QbItem,
   type QbRect,
   readQbState,
@@ -18,6 +22,7 @@ import {
   rowsInView,
   shortDate,
   sourceList,
+  stepSize,
   stepSource,
   topByCap,
 } from '../../../src/renderer/lib/quoteBoard'
@@ -262,5 +267,38 @@ describe('表示の切り替え（FR-QB1）', () => {
     expect(isViewKey(ev({}))).toBe(true)
     expect(otherView('map')).toBe('board')
     expect(otherView('board')).toBe('map')
+  })
+})
+
+describe('画面の計算（コンポーネントから移したもの。FR-QB4, FR-QB6, FR-QB7）', () => {
+  it('前日終値は 終値 − 前日比。どちらかが無い・数でなければ null', () => {
+    expect(prevCloseOf({ close: 573, chg: -1 })).toBe(574)
+    expect(prevCloseOf({ close: 573, chg: null })).toBeNull()
+    expect(prevCloseOf({ close: null, chg: 1 })).toBeNull()
+    expect(prevCloseOf({ close: Number.NaN, chg: 1 })).toBeNull()
+    expect(prevCloseOf(undefined)).toBeNull()
+  })
+  it('騰落の帯の割合は合計 100。数える銘柄が無ければすべて 0', () => {
+    expect(breadthShares({ up: 1, flat: 2, down: 1 })).toEqual({ up: 25, flat: 50, down: 25 })
+    expect(breadthShares({ up: 0, flat: 0, down: 0 })).toEqual({ up: 0, flat: 0, down: 0 })
+  })
+  it('大きさは 1〜3 で止まる', () => {
+    expect(stepSize(2, 1)).toBe(3)
+    expect(stepSize(3, 1)).toBe(3)
+    expect(stepSize(1, -1)).toBe(1)
+  })
+  it('並べ替え・分類の次は一巡する。知らない値からは先頭の次', () => {
+    expect(nextOf(['a', 'b', 'c'], 'c')).toBe('a')
+    expect(nextOf(['a', 'b', 'c'], 'a')).toBe('b')
+    expect(nextOf(['a', 'b', 'c'], 'x')).toBe('b')
+  })
+})
+
+describe('タブの帯のホイール（FR-KB4。マウスでも溢れたタブに届く）', () => {
+  it('縦の回転が主なら縦の量で横に送る。横の回転が主ならブラウザに任せる（null）', () => {
+    expect(wheelToX(0, 120)).toBe(120)
+    expect(wheelToX(5, -100)).toBe(-100)
+    expect(wheelToX(80, 10)).toBeNull()
+    expect(wheelToX(0, 0)).toBeNull()
   })
 })

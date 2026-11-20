@@ -34,6 +34,7 @@ let input = $state<HTMLInputElement>()
 let grid = $state<HTMLElement>()
 let hover = $state<string | null>(null)
 let tip = $state<{ id: string; x: number; y: number } | null>(null)
+let tipEl = $state<HTMLDivElement>()
 let added = $state<string[]>([])
 
 const defs = $derived(fields.map((id) => FIELD_BY_ID.get(id)).filter((f): f is FieldDef => !!f))
@@ -157,9 +158,13 @@ function key(e: KeyboardEvent) {
   if (next?.dataset.id) sel = next.dataset.id
   void scrollSel()
 }
-function showTip(id: string, ev: MouseEvent) {
+async function showTip(id: string, ev: MouseEvent) {
   const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
   tip = { id, ...tipBeside(r, 320, window.innerWidth, rootZoom()) }
+  // 描いてから高さを測り、窓の下からはみ出さないよう上に寄せる（株価ボードのツールチップと同じ）
+  await tick()
+  if (tip?.id === id && tipEl)
+    tip = { id, ...tipBeside(r, 320, window.innerWidth, rootZoom(), { height: tipEl.offsetHeight, viewportHeight: window.innerHeight }) }
 }
 onMount(() => input?.focus())
 </script>
@@ -250,7 +255,7 @@ onMount(() => input?.focus())
   </div>
   {#if tip}
     {@const f = FIELD_BY_ID.get(tip.id)}
-    {#if f}<div class="tip" style:left={`${tip.x}px`} style:top={`${tip.y}px`}><b>{f.label[lang]}</b>{f.description?.[lang] ?? ''}</div>{/if}
+    {#if f}<div class="tip" bind:this={tipEl} style:left={`${tip.x}px`} style:top={`${tip.y}px`}><b>{f.label[lang]}</b>{f.description?.[lang] ?? ''}</div>{/if}
   {/if}
 </div>
 

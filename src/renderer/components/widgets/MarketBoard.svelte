@@ -9,6 +9,7 @@ import type { InstrumentId } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
+import { hscroll } from '../../lib/hscroll'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
 import { LinkFollow, listCurrent, SelectionFollow } from '../../lib/selection'
@@ -174,7 +175,7 @@ $effect(() => {
 <PaneHeader {pane}>
   <span class="dim">{tabLabel(group)}</span>
 </PaneHeader>
-<div class="tabs" role="tablist">
+<div class="tabs" role="tablist" use:hscroll>
   {#each TABS as g (g ?? 'all')}
     <button type="button" role="tab" aria-selected={g === group} title={`${tabLabel(g)} (G / Ctrl+PageDown)`} onclick={() => setGroup(g)}>
       {tabLabel(g)}<span class="count num">{refsIn(g).length}</span>

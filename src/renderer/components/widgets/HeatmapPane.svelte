@@ -9,6 +9,7 @@ import { otherView, type ViewId, withViewSwitch } from '../../lib/paneView'
 import { readQbState } from '../../lib/quoteBoard'
 import { t, toast } from '../../stores/app.svelte'
 import { type PaneNode, patchState } from '../../stores/layout.svelte'
+import PaneHeader from '../PaneHeader.svelte'
 import ViewSwitch from '../ViewSwitch.svelte'
 import Heatmap from './Heatmap.svelte'
 import QuoteBoard from './QuoteBoard.svelte'
@@ -52,6 +53,7 @@ onDestroy(() => offBroken?.())
   <svelte:boundary {onerror}>
     <QuoteBoard {pane} {wrapApi} {lead} {more} />
     {#snippet failed()}
+      <PaneHeader {pane} collapse={600} {more} title={t('qb.view.board')}>{@render lead()}</PaneHeader>
       <div class="failed" role="alert">
         <p>{t('qb.failed')}</p>
         <button type="button" class="chip" onclick={() => setView('map')}>{t('qb.backToMap')}</button>

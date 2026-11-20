@@ -7,6 +7,7 @@ import type { Condition, InstrumentId } from '@shared/types'
 import { onMount, type Snippet, tick, untrack } from 'svelte'
 import { DEFAULT_COLUMNS, resolveColumns } from '../../lib/columns'
 import { chgDigits, cls, money, px, sgn } from '../../lib/format'
+import { hscroll } from '../../lib/hscroll'
 import { composing } from '../../lib/keys'
 import { latest } from '../../lib/latest'
 import { type PaneApi, registerPane } from '../../lib/panes'
@@ -16,10 +17,13 @@ import {
   boardBreadth,
   boardMove,
   boardRows,
+  breadthShares,
   chgView,
   dayLabel,
   heldIds,
   keepIdsWhileLoading,
+  nextOf,
+  prevCloseOf,
   QB_GROUPS,
   QB_INDEX_IDS,
   QB_SORTS,
@@ -31,6 +35,7 @@ import {
   rowsInView,
   shortDate,
   sourceList,
+  stepSize,
   stepSource,
   topByCap,
 } from '../../lib/quoteBoard'
@@ -85,7 +90,10 @@ $effect(() => {
 $effect(() => {
   void app.dataVersion
   void screenInputs()
-  if (!src.startsWith('scr:')) return
+  if (!src.startsWith('scr:')) {
+    scrSrc = null
+    return
+  }
   const screen = app.screens.find((s) => `scr:${s.id}` === src)
   if (!screen) return
   const ok = scrFresh()
@@ -180,6 +188,7 @@ function restart(patch: Record<string, unknown>) {
   follow.reset()
   linkFollow.hold()
   sendFirst = true
+  if (gridEl) gridEl.scrollTop = 0
 }
 // 結果があとで届く出どころ（スクリーニング条件・初めての時価総額の上位）では、読み込み中の間は送らず、届いた一覧の先頭を送る。
 // 出どころの取り直しの effect（上）より後に置く（替えた直後に前の一覧の先頭を送らないため）
@@ -199,17 +208,21 @@ $effect(() => {
 })
 const setSrc = (s: string) => restart({ qbSrc: s })
 const stepSrc = (d: 1 | -1) => setSrc(stepSource(src, sources, d))
-const stepSort = () => restart({ qbSort: QB_SORTS[(QB_SORTS.indexOf(st.sort) + 1) % QB_SORTS.length] })
-const stepGroup = () => restart({ qbGroup: QB_GROUPS[(QB_GROUPS.indexOf(st.group) + 1) % QB_GROUPS.length] })
+const stepSort = () => restart({ qbSort: nextOf(QB_SORTS, st.sort) })
+const stepGroup = () => restart({ qbGroup: nextOf(QB_GROUPS, st.group) })
 const toggleStar = () => restart({ qbStar: !st.star })
 const toggleIdx = () => patchState(pane, { qbIdx: !st.idx })
-const resize = (d: 1 | -1) => patchState(pane, { qbSize: Math.max(1, Math.min(3, st.size + d)) })
-/** 「⋯」のメニュー: 表示の切り替え（親から）と、キーでしかできなかった指数のカード・大きさ */
+const resize = (d: 1 | -1) => patchState(pane, { qbSize: stepSize(st.size, d) })
+/**
+ * 「⋯」のメニュー（ペインが 600px 未満で出る）: 表示の切り替え（親から）と、同じ幅で見出しの下から隠れる操作（分類・指数のカード・大きさ。.tw）。
+ * 大きさは上限・下限で出し分ける（見出しの下のボタンの disabled と同じ）
+ */
 const moreItems = (): MoreItem[] => [
   ...(more?.() ?? []),
+  { id: 'qbGroup', label: `${t('qb.groupTip')}: ${t(`qb.group.${st.group}`)}`, hint: 'B', run: stepGroup },
   { id: 'qbIdx', label: t(st.idx ? 'qb.idxHide' : 'qb.idxShow'), hint: 'I', run: toggleIdx },
-  { id: 'qbBigger', label: t('qb.bigger'), hint: '+', run: () => resize(1) },
-  { id: 'qbSmaller', label: t('qb.smaller'), hint: '−', run: () => resize(-1) },
+  ...(st.size < 3 ? [{ id: 'qbBigger', label: t('qb.bigger'), hint: '+', run: () => resize(1) }] : []),
+  ...(st.size > 1 ? [{ id: 'qbSmaller', label: t('qb.smaller'), hint: '−', run: () => resize(-1) }] : []),
 ]
 function moveBy(dir: QbMove) {
   const cards = [...(gridEl?.querySelectorAll<HTMLElement>('.card') ?? [])]
@@ -263,6 +276,15 @@ onMount(() => {
         stepSrc(e.shiftKey ? -1 : 1)
         return true
       }
+      // + − はチャートグリッドと同じ判定。「+」は Shift が要る配列（US の Shift+=・JIS の Shift+;）が多いので、Shift の関門より前で受ける
+      if (k === '+' || k === ';' || e.code === 'NumpadAdd') {
+        resize(1)
+        return true
+      }
+      if (k === '-' || e.code === 'NumpadSubtract') {
+        resize(-1)
+        return true
+      }
       if (e.shiftKey) return false
       if (e.code === 'KeyS') {
         stepSort()
@@ -274,15 +296,6 @@ onMount(() => {
       }
       if (e.code === 'KeyI') {
         toggleIdx()
-        return true
-      }
-      // + − はチャートグリッドと同じ判定（JIS 配列では ; のキーで大きくなる）
-      if (k === '+' || k === ';' || e.code === 'NumpadAdd') {
-        resize(1)
-        return true
-      }
-      if (k === '-' || e.code === 'NumpadSubtract') {
-        resize(-1)
         return true
       }
       return false
@@ -355,7 +368,7 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
   {@const v = view(m?.chg, m?.close)}
   <span class="dt">{t('qb.close')}</span><span class={`num ${v.cls}`}>{px(m?.close)}</span>
   <span class="dt">{t('qb.chg')}</span><span class={`num ${v.cls}`}>{v.arrow}{chgText(m?.chg, m?.close)}（{pctText(m?.chgPct)}）</span>
-  <span class="dt">{t('qb.prev')}</span><span class="num">{px(m?.close != null && m?.chg != null ? m.close - m.chg : null)}</span>
+  <span class="dt">{t('qb.prev')}</span><span class="num">{px(prevCloseOf(m))}</span>
   <span class="dt">{t('qb.turnover')}</span><span class="num">{oku(m?.turnover).n}{oku(m?.turnover).u}</span>
   <span class="dt">{t('qb.range52')}</span><span class="num">{px(m?.lo52)} – {px(m?.hi52)}</span>
   <span class="dt">{t('qb.cap')}</span><span class="num">{oku(m?.marketCap).n}{oku(m?.marketCap).u}</span>
@@ -371,7 +384,7 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
   {/if}
 </PaneHeader>
 <div class="bar2">
-  <div class="tabs" role="tablist" bind:this={tabsEl}>
+  <div class="tabs" role="tablist" bind:this={tabsEl} use:hscroll>
     {#each sources as s (s)}
       {@const n = srcCount(s)}
       <button type="button" role="tab" aria-selected={s === src} title={`${srcLabel(s)} (G / Ctrl+PageDown)`} onclick={() => setSrc(s)}>
@@ -381,11 +394,11 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
   </div>
   <span class="tools">
     <button type="button" class="chip" title={`${t('qb.sortTip')} (S)`} onclick={stepSort}>{t(`qb.sort.${st.sort}`)}</button>
-    <button type="button" class="chip wide" title={`${t('qb.groupTip')} (B)`} onclick={stepGroup}>{t(`qb.group.${st.group}`)}</button>
+    <button type="button" class="chip tw" title={`${t('qb.groupTip')} (B)`} onclick={stepGroup}>{t(`qb.group.${st.group}`)}</button>
     <button type="button" class="chip" aria-pressed={st.star} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={toggleStar}>★</button>
-    <!-- 指数のカードと大きさ（キーは I・+ −）。狭いペインでは「⋯」のメニューに入る -->
-    <button type="button" class="chip wide" aria-pressed={st.idx} aria-label={t('qb.idxLabel')} title={`${t(st.idx ? 'qb.idxHide' : 'qb.idxShow')} (I)`} onclick={toggleIdx}>{t('qb.idxChip')}</button>
-    <span class="wide sizes" role="group" aria-label={t('qb.sizeLabel')}>
+    <!-- 指数のカードと大きさ（キーは I・+ −）。分類と同じく、ペインが 600px 未満では隠れて「⋯」のメニューに入る（.tw） -->
+    <button type="button" class="chip tw" aria-pressed={st.idx} aria-label={t('qb.idxLabel')} title={`${t(st.idx ? 'qb.idxHide' : 'qb.idxShow')} (I)`} onclick={toggleIdx}>{t('qb.idxChip')}</button>
+    <span class="tw sizes" role="group" aria-label={t('qb.sizeLabel')}>
       <button type="button" class="chip" aria-label={t('qb.smaller')} title={`${t('qb.smaller')} (−)`} disabled={st.size <= 1} onclick={() => resize(-1)}>−</button>
       <button type="button" class="chip" aria-label={t('qb.bigger')} title={`${t('qb.bigger')} (+)`} disabled={st.size >= 3} onclick={() => resize(1)}>+</button>
     </span>
@@ -406,12 +419,12 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
   </div>
 {/if}
 {#if !loading && flat.length}
-  {@const total = Math.max(1, breadth.up + breadth.down + breadth.flat)}
+  {@const share = breadthShares(breadth)}
   <div class="breadth">
     <span class="side up"><span class="lb">▲ {t('qb.up')}</span><b class="num">{breadth.up}</b></span>
     <span class="mid">
       <span class="ratio" role="img" aria-label={t('qb.breadthAria', { up: breadth.up, flat: breadth.flat, down: breadth.down })}>
-        <i class="ru" style:width={`${(breadth.up / total) * 100}%`}></i><i class="re" style:width={`${(breadth.flat / total) * 100}%`}></i><i class="rd" style:width={`${(breadth.down / total) * 100}%`}></i>
+        <i class="ru" style:width={`${share.up}%`}></i><i class="re" style:width={`${share.flat}%`}></i><i class="rd" style:width={`${share.down}%`}></i>
       </span>
       <span class="sub">
         {t('qb.flat', { n: breadth.flat })}
@@ -503,8 +516,8 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
     scrollbar-width: none;
   }
   .tabs button {
-    flex: 0 1 auto;
-    min-width: 24px;
+    flex: 0 0 auto;
+    max-width: 180px;
     background: none;
     border: 0;
     border-bottom: 2px solid transparent;
@@ -519,7 +532,7 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
   .tabs button[aria-selected='true'] {
     color: var(--text);
     border-bottom-color: var(--text-2);
-    flex-shrink: 0;
+    max-width: none;
   }
   .count {
     color: var(--text-3);
@@ -849,6 +862,11 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
   }
   .tdl :global(.dt) {
     color: var(--text-3);
+  }
+  @container (max-width: 599px) {
+    .tw {
+      display: none;
+    }
   }
   @container (max-width: 519px) {
     .wide {

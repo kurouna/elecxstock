@@ -18,6 +18,7 @@ import {
 } from '../../lib/breadthColumns'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, type ListCol, resolveColumns, sortIds } from '../../lib/columns'
 import { date } from '../../lib/format'
+import { hscroll } from '../../lib/hscroll'
 import type { Key } from '../../lib/i18n'
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
@@ -279,7 +280,7 @@ const sortMark = (id: string) => (sort?.k === id ? (sort.dir > 0 ? ' ▲' : ' �
 <PaneHeader {pane}>
   <span class="dim">{t(`br.tab.${tab}` as Key)}{drill ? ` › ${name(drill)}` : ''}</span>
 </PaneHeader>
-<div class="tabs" role="tablist">
+<div class="tabs" role="tablist" use:hscroll>
   {#each TABS as x (x)}
     <button type="button" role="tab" aria-selected={x === tab} title={`${t(`br.tab.${x}` as Key)} (G / Ctrl+PageDown)`} onclick={() => setTab(x)}>
       {t(`br.tab.${x}` as Key)}<span class="count num">{tabCount(x)}</span>

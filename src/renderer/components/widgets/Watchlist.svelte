@@ -6,6 +6,7 @@ import type { InstrumentId, Watchlist } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
+import { hscroll } from '../../lib/hscroll'
 import { registerPane } from '../../lib/panes'
 import { LinkFollow, listCurrent, SelectionFollow } from '../../lib/selection'
 import { endSymbolDrag, startSymbolDrag } from '../../lib/symbolDrag'
@@ -327,7 +328,7 @@ $effect(() => {
 <PaneHeader {pane}>
   <span class="dim">{list ? listName(list) : ''}</span>
 </PaneHeader>
-<div class="tabs" role="tablist">
+<div class="tabs" role="tablist" use:hscroll>
   {#each tabs as w (w.id)}
     <button type="button" role="tab" class:hold={w.id === HOLDINGS} aria-selected={w.id === listId} onclick={() => setList(w.id)}>
       {listName(w)}<span class="count num">{w.items.length}</span>

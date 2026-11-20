@@ -1,5 +1,5 @@
 // 株価ボード（ヒートマップのペインのカードの表示。docs/design-quote-board.md・FR-QB1〜QB8）。キーボードだけで操作する。値はスタブ（架空）
-import { expect, focusPane, jobsDone, keys, readUser, test, watchlists } from './support'
+import { expect, focusPane, jobsDone, jump, keys, readUser, test, watchlists } from './support'
 import { col, freeTab, pane, row } from './support/layout'
 
 const layout = freeTab(row(pane('heatmap', {}, 1), col(pane('chart', {}, 1))))
@@ -202,17 +202,110 @@ test.describe('株価ボードの取り直しとリンク（FR-QB4, FR-QB7, FR-Q
     await expect(heat.locator('.grid')).toHaveClass(/s3/)
   })
 
-  test('狭いペインでは「⋯」のメニューに、表示の切り替え・指数のカード・大きさが入る', async ({ start }) => {
+  test('狭いペインでは、見出しの下で隠れた操作（分類・指数のカード・大きさ）が「⋯」のメニューに入る。大きさは上限・下限で出し分ける', async ({
+    start,
+  }) => {
     const { page } = await start({
-      layout: freeTab(row(pane('heatmap', { qbView: 'board' }, 1), pane('chart', {}, 1), pane('chart', {}, 0))),
+      layout: freeTab(row(pane('heatmap', { qbView: 'board', qbSize: 3 }, 1), pane('chart', {}, 1), pane('chart', {}, 0))),
     })
     const heat = page.locator('[data-widget="heatmap"]')
     await expect(heat.locator('.grid .card').first()).toBeVisible()
+    // 見出しの下の分類・指数・大きさのボタンは狭いと隠れる
+    await expect(heat.getByRole('button', { name: '分類なし' })).toBeHidden()
     await heat.locator('.ph .more').click()
     const menu = page.getByRole('dialog')
     await expect(menu).toContainText('ヒートマップに切り替える')
     await expect(menu).toContainText('指数のカードを隠す')
-    await expect(menu).toContainText('カードを大きく')
-    await keys(page, 'Escape')
+    await expect(menu).toContainText('分類: 分類なし')
+    // いちばん大きいので「大きく」は出さない
+    await expect(menu).not.toContainText('カードを大きく')
+    await expect(menu).toContainText('カードを小さく')
+    // メニューから分類を変えられる
+    await menu.getByText('分類: 分類なし').click()
+    await expect(heat.locator('.grid .ghead').first()).toBeVisible()
+  })
+
+  test('一覧のタブが多いときは、タブを潰さずに横へ送る', async ({ start }) => {
+    const { page } = await start({ layout: boardLayout({}) })
+    const heat = page.locator('[data-widget="heatmap"]')
+    await expect(heat.locator('.grid .card').first()).toBeVisible()
+    const tabs = heat.locator('.tabs')
+    const n = await tabs.locator('button').count()
+    expect(n).toBeGreaterThan(5)
+    // 横に溢れて送れる
+    expect(await tabs.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+    // どのタブも名前が読める幅を保つ（24px まで縮まない）
+    const widths = await tabs.locator('button').evaluateAll((bs) => bs.map((b) => (b as HTMLElement).offsetWidth))
+    expect(Math.min(...widths)).toBeGreaterThan(40)
+  })
+})
+
+test.describe('株価ボードの操作の細部（FR-QB4, FR-QB7, FR-QB8。Fable のレビュー）', () => {
+  const boardLayout = (state: Record<string, unknown> = {}) =>
+    freeTab(row(pane('heatmap', { qbView: 'board', ...state }, 1), col(pane('chart', {}, 1))))
+
+  test('「+」キー（Shift が要る配列）でもカードが大きくなる', async ({ start }) => {
+    const { page } = await start({ layout: boardLayout() })
+    const heat = page.locator('[data-widget="heatmap"]')
+    await expect(heat.locator('.grid .card').first()).toBeVisible()
+    await focusPane(page, heat)
+    await keys(page, 'Shift+Equal')
+    await expect(heat.locator('.grid')).toHaveClass(/s3/)
+    await keys(page, 'Minus')
+    await expect(heat.locator('.grid')).toHaveClass(/s2/)
+  })
+
+  test('ツールチップは、右側に置いたペインでもカードの横に出る', async ({ start }) => {
+    const { page } = await start({ layout: freeTab(row(col(pane('chart', {}, 1)), pane('heatmap', { qbView: 'board' }, 1))) })
+    const heat = page.locator('[data-widget="heatmap"]')
+    const card = heat.locator('.grid .card').first()
+    await expect(card).toBeVisible()
+    await card.hover()
+    const tip = page.locator('.tip')
+    await expect(tip).toBeVisible()
+    const c = (await card.boundingBox())!
+    const b = (await tip.boundingBox())!
+    expect(b.x).toBeGreaterThanOrEqual(c.x + c.width - 2)
+    expect(b.x).toBeLessThan(c.x + c.width + 40)
+    await page.mouse.move(0, 0)
+  })
+
+  test('溢れたタブはホイールで横に送れる。選んでいるタブは省略しない', async ({ start }) => {
+    const { page } = await start({ layout: boardLayout() })
+    const heat = page.locator('[data-widget="heatmap"]')
+    await expect(heat.locator('.grid .card').first()).toBeVisible()
+    const tabs = heat.locator('.tabs')
+    await tabs.hover()
+    await page.mouse.wheel(0, 300)
+    await expect.poll(() => tabs.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0)
+    await page.mouse.move(0, 0)
+    await focusPane(page, heat)
+    // 最後の出どころ（名前の長いスクリーニング条件）を選んでも、その名前は省略しない
+    await keys(page, 'Shift+G')
+    const sel = heat.locator('.tabs button[aria-selected="true"]')
+    expect(await sel.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  })
+
+  test('下へ送ってから並べ替えると、先頭のカードが見える位置まで戻る', async ({ start }) => {
+    const { page } = await start({
+      layout: freeTab(row(pane('heatmap', { qbView: 'board', qbSize: 3 }, 0), pane('chart', {}, 1), pane('chart', {}, 2))),
+    })
+    const heat = page.locator('[data-widget="heatmap"]')
+    await expect(heat.locator('.grid .card').first()).toBeVisible()
+    await focusPane(page, heat)
+    await keys(page, 'End')
+    await expect.poll(() => heat.locator('.grid').evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+    await keys(page, 's')
+    await expect.poll(() => heat.locator('.grid').evaluate((el) => el.scrollTop)).toBe(0)
+  })
+
+  test('ほかのペイン（銘柄ジャンプ）でリンク先の銘柄が変わると、一覧にあればそのカードを選ぶ', async ({ start }) => {
+    const { page } = await start({ layout: boardLayout() })
+    const heat = page.locator('[data-widget="heatmap"]')
+    await expect(heat.locator('.grid .card').first()).toBeVisible()
+    const id = (await heat.locator('.grid .card').nth(4).getAttribute('data-id'))!
+    await focusPane(page, page.locator('[data-widget="chart"]').first())
+    await jump(page, id.slice(3))
+    await expect(heat.locator('.grid .card.sel')).toHaveAttribute('data-id', id)
   })
 })
