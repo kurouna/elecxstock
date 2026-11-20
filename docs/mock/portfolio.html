@@ -75,26 +75,56 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 400 var
 /* bento: 並びは grid-template-areas で幅ごとに決める（穴を作らない） */
 .folio { flex: 1; overflow: auto; container-type: inline-size; background: var(--bg); }
 .grid { display: grid; gap: 6px; padding: 6px; grid-template-columns: 1fr;
-  grid-template-areas: "hero" "hist" "alloc" "contrib" "div" "events"; }
+  grid-template-areas: "hero" "hist" "alloc" "ptab" "contrib" "div" "events"; }
 @container (min-width: 760px) {
   .grid { grid-template-columns: repeat(6, 1fr);
-    grid-template-areas: "hero hero hist hist hist hist" "alloc alloc alloc alloc contrib contrib" "div div div events events events"; }
+    grid-template-areas: "hero hero hist hist hist hist" "alloc alloc alloc alloc contrib contrib" "ptab ptab ptab ptab ptab ptab" "div div div events events events"; }
 }
+/* L: 上の 2 段（予定を含む）はペインの高さに収め、3 段目の「分類ごとの資産」と「配当見込み」はスクロールで見る */
 @container (min-width: 1180px) {
-  .grid { height: 100%; grid-template-columns: repeat(12, 1fr); grid-template-rows: minmax(300px, 1.2fr) minmax(220px, 1fr) auto;
-    grid-template-areas: "hero hero hero hist hist hist hist hist hist hist hist hist" "alloc alloc alloc alloc alloc contrib contrib contrib div div div div" "events events events events events events events events events events events events"; }
+  .grid { grid-template-columns: repeat(12, 1fr); grid-template-rows: 370px 320px auto;
+    grid-template-areas: "hero hero hero hist hist hist hist hist hist hist hist hist" "alloc alloc alloc alloc alloc contrib contrib contrib events events events events" "ptab ptab ptab ptab ptab ptab ptab ptab div div div div"; }
+  .c-events .events { flex-direction: column; overflow-y: auto; flex: 1 1 0; min-height: 0; scrollbar-width: thin; } .c-events .ev { flex: none; padding: 3px 10px; }
+  .c-ptab .pt { flex: none; max-height: 330px; } /* 12 行ほど。合計の行は下に固定 */
 }
-.c-hero { grid-area: hero; gap: 6px; } .c-hero .stat { padding: 4px 0; } .c-hist { grid-area: hist; } .c-alloc { grid-area: alloc; } .c-contrib { grid-area: contrib; } .c-div { grid-area: div; } .c-events { grid-area: events; }
+.c-hero { grid-area: hero; gap: 6px; } .c-hero .stat { padding: 4px 0; } .c-hist { grid-area: hist; } .c-alloc { grid-area: alloc; } .c-contrib { grid-area: contrib; } .c-div { grid-area: div; } .c-events { grid-area: events; } .c-ptab { grid-area: ptab; }
+/* 分類ごとの資産（保有のペインの列を分類でまとめた表）。棒は欄の左端、数字は欄の右端 */
+@container (max-width: 1179px) { .c-ptab .pt { flex: none; max-height: 400px; } }
+.pt .bvc { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pt .bvc .ib { margin-right: 0; flex: none; }
+.pt .ib { width: 56px; }
+.pt th.srt { cursor: pointer; } .pt th.srt:not(.on)::after { content: " ⇅"; font-size: 9px; opacity: .35; } .pt th.on.asc::after { content: " ▲"; }
+.pt .comp { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 8px; align-items: center; font-weight: 400; }
+.pt .comp .sb { display: flex; height: 8px; border-radius: 1px; overflow: hidden; background: var(--panel-3); }
+.pt .comp .sb i { display: block; height: 100%; background: var(--f-bar); border-right: 1px solid var(--panel-2); }
+.pt .comp .cn { font-size: var(--fs-0); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.pt td.c-comp { text-align: left; } .pt .comp .cn { max-width: 250px; }
+.adots { margin-left: 6px; display: inline-flex; gap: 3px; vertical-align: 1px; } .adots i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.tile .adot { position: absolute; right: 4px; top: 4px; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
+.keys .na { opacity: .4; }
+.segmini { display: none; font-size: var(--fs-1); color: var(--text); background: var(--panel-3); border-radius: 2px; padding: 0 6px; line-height: 18px; cursor: pointer; white-space: nowrap; }
+@container (max-width: 759px) { .c-alloc .gseg, .c-ptab .gseg { display: none; } .segmini { display: inline-block; } }
+.card.pulse h3 { animation: pulse 900ms ease; border-radius: 2px; }
+@keyframes pulse { from { background: color-mix(in srgb, var(--focus) 35%, transparent); } to { background: transparent; } }
+:root[data-reduce-motion="true"] .card.pulse h3 { animation: none; }
+.pt tfoot td { position: sticky; bottom: 0; background: var(--panel-2); font-weight: 600; border-top: 1px solid var(--line); border-bottom: 0; }
+.pt tfoot td:first-child::before { content: none; }
+.pt td.blank { color: var(--text-3); }
+.pt .acct-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: 1px; }
+@container (max-width: 1179px) { .pt .c-dayp, .pt .c-yoc, .pt .c-in { display: none; } .pt .comp { grid-template-columns: 1fr; } .pt .comp .cn { display: none; } }
+@container (max-width: 759px) { .pt .c-qty, .pt .c-avg, .pt .c-close, .pt .c-day, .pt .c-comp { display: none; } .pt .ib { width: 28px; } .pt th, .pt td { padding-left: 5px; padding-right: 5px; } .pt .nm { max-width: 120px; } }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--f-radius); padding: 10px 12px; position: relative; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
 .card.focus { border-color: var(--focus); }
 .card h3 { margin: 0; font-size: var(--fs-2); font-weight: 500; color: var(--text-2); display: flex; align-items: center; gap: 8px; min-height: 20px; }
 .card h3 .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .seg { display: inline-flex; gap: 1px; }
-.seg span { padding: 0 6px; font-size: var(--fs-1); color: var(--text-3); line-height: 18px; border-radius: 2px; }
+.seg span { white-space: nowrap; padding: 0 6px; font-size: var(--fs-1); color: var(--text-3); line-height: 18px; border-radius: 2px; }
 .seg span.on { background: var(--panel-3); color: var(--text); }
+.seg span[data-seg] { cursor: pointer; } .seg span[data-seg]:not(.on):hover { color: var(--text-2); }
+.chk { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-1); color: var(--text-2); cursor: pointer; white-space: nowrap; } .chk input { margin: 0; accent-color: var(--focus); } .chk.off { visibility: hidden; }
 kbd { font: 500 var(--fs-0) var(--mono); color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 0 4px; line-height: 14px; }
-.keys { display: none; gap: 8px; font-size: var(--fs-1); color: var(--text-3); flex-wrap: wrap; }
-.card.focus .keys { display: flex; }
+.keys { display: flex; visibility: hidden; gap: 8px; font-size: var(--fs-1); color: var(--text-3); flex-wrap: wrap; }
+.card.focus .keys { visibility: visible; }
 
 /* ヒーロー: 箱の中に箱を作らず、細い区切りで並べる */
 .c-hero::before { content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -309,10 +339,14 @@ const HOLD = [
   ['3462', '野村不動産マスターF', 'REIT', 'reit', 'nisa_growth', 10, 172000, { 2: 3150, 8: 3170 }],
   ['1306', 'TOPIX 連動型 ETF', 'ETF', 'etf', 'nisa_tsumitate', 400, 2480, { 7: 48 }],
   ['1343', '東証 REIT 指数 ETF', 'ETF', 'etf', 'nisa_tsumitate', 300, 1890, { 2: 18, 5: 17, 8: 19, 11: 18 }],
+  ['7203', 'トヨタ自動車', '輸送用機器', 'stock', 'nisa_growth', 100, 2780, { 3: 50, 9: 45 }], // 同じ銘柄を別の口座でも持つ
 ].map(([code, name, sector, kind, acct, qty, cost, divs]) => {
   const close = Math.round(cost * (0.84 + rnd() * 0.56))
   return { code, name, sector, kind, acct, qty, cost, close, chgPct: (rnd() - 0.47) * 3.6, divs, per: kind === 'stock' ? 8 + rnd() * 18 : null, beta: kind === 'reit' ? 0.4 + rnd() * 0.3 : 0.6 + rnd() * 0.8 }
 })
+// 同じ銘柄の 2 つ目の口座（今年買った）。終値は銘柄で一つ
+HOLD.at(-1).lot2 = true
+for (const h of HOLD) { const f = HOLD.find((x) => x.code === h.code); h.close = f.close; h.chgPct = f.chgPct; h.per = f.per; h.beta = f.beta; h.id = h.code + ':' + h.acct }
 const TAX = 0.20315
 for (const h of HOLD) {
   h.value = h.close * h.qty; h.costAmt = h.cost * h.qty; h.pnl = h.value - h.costAmt
@@ -326,7 +360,7 @@ T.pnl = T.value - T.cost
 T.divGross = sum(HOLD, (h) => sum(Object.values(h.divs), (x) => x) * h.qty)
 T.divNet = sum(HOLD, (h) => sum(Object.values(h.divs), (x) => x) * h.qty * h.net)
 const MARKET = { stock: 'プライム', reit: 'REIT など', etf: 'ETF・ETN' }
-const S17 = { 輸送用機器: '自動車・輸送機', 銀行業: '銀行', 卸売業: '商社・卸売', '情報・通信業': '情報通信・サービスその他', 食料品: '食品', 医薬品: '医薬品', 保険業: '金融（除く銀行）', 電気機器: '電機・精密', 化学: '素材・化学', REIT: 'REIT', ETF: 'ETF' // REIT・ETF は 17 業種の外。種別の名前で出す }
+const S17 = { 輸送用機器: '自動車・輸送機', 銀行業: '銀行', 卸売業: '商社・卸売', '情報・通信業': '情報通信・サービスその他', 食料品: '食品', 医薬品: '医薬品', 保険業: '金融（除く銀行）', 電気機器: '電機・精密', 化学: '素材・化学', REIT: 'REIT', ETF: 'ETF' } // REIT・ETF は 17 業種の外。種別の名前で出す
 const CYC = { '自動車・輸送機': '景気敏感', 銀行: '景気敏感', '商社・卸売': '景気敏感', '電機・精密': '景気敏感', '素材・化学': '景気敏感', '金融（除く銀行）': '景気敏感', 食品: 'ディフェンシブ', 医薬品: 'ディフェンシブ', '情報通信・サービスその他': 'ディフェンシブ' }
 for (const h of HOLD) { h.market = MARKET[h.kind]; h.s17 = S17[h.sector]; h.wob = (rnd() - 0.5) * 0.5 }
 
@@ -340,7 +374,7 @@ const SOLD = [{ code: '9433', name: 'KDDI', sector: '情報・通信業', kind: 
 for (const h of SOLD) { h.net = 1 - TAX; h.s17 = S17[h.sector] }
 const DIVROWS = [...HOLD, ...SOLD]
 for (const h of DIVROWS) {
-  if (!h.sold) h.qty1y = QTY1Y[h.code]
+  if (!h.sold) h.qty1y = h.lot2 ? 0 : QTY1Y[h.code]
   const now = sum(Object.values(h.divs), (x) => x), g = GROW[h.code]
   const hist = [now]; for (let i = 3; i >= 0; i--) hist.unshift(hist[0] / (1 + g[i]))
   h.dps = hist.map((v) => Math.round(v * 10) / 10) // 5 年（古い → 今）
@@ -369,14 +403,16 @@ D.goal = 50_000 // 目標（月あたり。設定。任意）
 
 // ---- 寄与の期間（架空）: 今月・今年の値動き（％）と、その期間に権利落ちした配当（その日の数量 × 1 株配当・税引後） ----
 for (const h of HOLD) { h.chgM = (rnd() - 0.45) * 12; h.chgY = (rnd() - 0.32) * 46 }
+for (const h of HOLD) if (h.lot2) { const f = HOLD.find((x) => x.code === h.code); h.chgM = f.chgM; h.chgY = f.chgY; h.newbuy = 6 }
 const NEWBUY = { 9432: 4, 3462: 6 } // 今年はじめて買った月（記録の pos から分かる）。それより前の値動きは入れない
 function contribOf(h, p) {
   if (h.sold && p !== 2) return null // 売った銘柄は今年だけ（売った日まで）
   if (p === 0) return { price: h.dayPnl, div: 0 }
   if (p === 3) return { price: h.pnl, div: 0 }
   if (h.sold) return { price: -42_000, div: h.qty1y * h.divs[3] * h.net } // 最後に記録した日まで
-  const price = p === 1 ? h.value - h.value / (1 + h.chgM / 100) : NEWBUY[h.code] ? h.pnl : h.value - h.value / (1 + h.chgY / 100)
-  const passed = (m) => (p === 1 ? m === 11 && false : m <= 10 && (!NEWBUY[h.code] || m > NEWBUY[h.code])) // 11 月の権利落ちはまだ（11/26）
+  const nb = h.newbuy ?? NEWBUY[h.code]
+  const price = p === 1 ? h.value - h.value / (1 + h.chgM / 100) : nb ? h.pnl : h.value - h.value / (1 + h.chgY / 100)
+  const passed = (m) => (p === 1 ? m === 11 && false : m <= 10 && (!nb || m > nb)) // 11 月の権利落ちはまだ（11/26）
   const q = p === 2 && h.qty1y && h.qty !== h.qty1y ? (h.qty + h.qty1y) / 2 : h.qty
   return { price, div: sum(Object.entries(h.divs).filter(([m]) => passed(+m)), ([, v]) => v * q * h.net) }
 }
@@ -401,15 +437,19 @@ function makeHistory(days, recDays) {
 }
 
 // ---- 状態 ----
-const S = { mode: 'full', period: 0, est: false, pct: false, bench: 0, cross: -1, group: 0, heat: 0, contrib: 0, tile: 0, crow: 0, ev: 0, focus: null, prevTiles: null, dgroup: 1, dsort: 1, drow: 0, srow: 0 }
+const S = { mode: 'full', period: 0, est: false, pct: false, bench: 0, cross: -1, group: 1, heat: 0, contrib: 0, tile: 0, crow: 0, ev: 0, focus: null, prevTiles: null, dgroup: 1, dsort: 1, drow: 0, srow: 0 }
 let HIST = makeHistory(560, 400)
 const PERIODS = [['記録', 0], ['1M', 21], ['3M', 63], ['6M', 126], ['1Y', 250], ['全', 1e9]]
 const BENCH = ['なし', '日経平均', 'TOPIX 連動 ETF']
-const GROUPS = ['業種', '17 業種', '口座', '種別', '銘柄']
+// 資産構成と分類ごとの資産で共有する（どちらで切り替えても両方が変わる。並びは配当の 2 枚と同じ）
+const GROUPS = ['銘柄', '業種', '17 業種', '市場区分', '種別', '口座']
 const HEATS = ['含み損益率', '前日比']
 const CPER = ['今日', '今月', '今年', '取得来']
 const DGROUPS = ['銘柄', '業種', '17 業種', '市場区分', '種別', '口座']
 const DSORTS = ['年間', '前年比', '利回り', '取得利回り', '増配率']
+// 分類ごとの資産（配当の表と同じ分け方。配当の表とは別に覚える）
+const PSORTS = ['評価額', '評価損益', '損益率', '前日比', '取得利回り']
+Object.assign(S, { psort: 0, pasc: false, prow: 0, popen: new Set(), merge: true, amerge: true, cmerge: true, dmerge: true })
 
 // ---- 書式 ----
 const yen = (v, sign = false) => `${sign && v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v)).toLocaleString('ja-JP')}`
@@ -433,9 +473,20 @@ function heatColor(k) { const base = STEPS[k] < 0 ? css('--down') : css('--up');
 const ink = (bg) => ['#ffffff', '#10131a'].sort((p, q) => contrast(q, bg) - contrast(p, bg))[0]
 
 // ---- 描画 ----
-const card = (cls, title, right, body, keys) => `<section class="card ${cls} ${S.focus === cls ? 'focus' : ''}" data-card="${cls}"><h3>${title}<span class="right">${right}</span></h3>${body}${keys ? `<div class="keys">${keys}</div>` : ''}</section>`
-const seg = (items, on) => `<span class="seg">${items.map((x, i) => `<span class="${i === on ? 'on' : ''}">${x}</span>`).join('')}</span>`
-const kk = (key, s) => `<span><kbd>${key}</kbd> ${s}</span>`
+const card = (cls, title, right, body, keys) => `<section class="card ${cls} ${S.focus === cls ? 'focus' : ''} ${S.pulse?.includes(cls) ? 'pulse' : ''}" data-card="${cls}"><h3>${title}<span class="right">${right}</span></h3>${body}${keys ? `<div class="keys">${keys}</div>` : ''}</section>`
+// key を渡すと押せる（同じ key の seg はすべて同じ状態を指すので、押すと連動する）
+const segMini = (items, on, key) => `<span class="segmini" data-segnext="${key}" title="押すと次の分類（G）">${items[on]} ▾</span>`
+const seg = (items, on, key, cls = '') => `<span class="seg ${cls}" ${key === 'group' ? 'title="資産構成と分類ごとの資産で共有"' : ''}>${items.map((x, i) => `<span class="${i === on ? 'on' : ''}" ${key ? `data-seg="${key}" data-i="${i}"` : ''}>${x}</span>`).join('')}</span>`
+// 口座をまとめるのチェック。損益寄与・分類ごとの資産・配当の表がそれぞれ持つ（連動しない）。分類が口座のときは使えない
+const mchk = (key, byAcct) => `<label class="chk ${byAcct ? 'off' : ''}" title="複数の口座で持つ銘柄を 1 つにまとめる（数量・取得額・評価額を足し、取得単価は取得額 ÷ 数量）。このカードだけに効く"><input type="checkbox" data-chk="${key}" ${S[key] ? 'checked' : ''} ${byAcct ? 'disabled tabindex="-1"' : ''}>同じ銘柄をまとめる</label>`
+// 同じ銘柄の行を 1 つにまとめる（足す項目は fields、ほかは 1 つ目の口座の値。make で割合などを作り直す）
+function mergeLots(rows, fields, make) {
+  const m = new Map(); for (const h of rows) m.set(h.code, [...(m.get(h.code) ?? []), h])
+  return [...m.values()].map((ls) => { if (ls.length === 1) return ls[0]; const o = { ...ls[0], id: ls[0].code, lots: ls, accts: ls.map((l) => l.acct) }; for (const f of fields) o[f] = sum(ls, (l) => l[f]); return make ? make(o, ls) : o })
+}
+const multiAcct = (code) => HOLD.filter((h) => h.code === code).length > 1
+const acctChip = (h, show) => (show ? `<span class="adots" title="${(h.accts ?? [h.acct]).map((a) => ACCT[a]).join('・')}">${(h.accts ?? [h.acct]).map((a) => `<i style="background:var(--acct-${a})"></i>`).join('')}</span>` : '')
+const kk = (key, s, na) => `<span class="${na ? 'na' : ''}"><kbd>${key}</kbd> ${s}</span>`
 
 // 十字線の日（キーで動かしたとき）。モックでは各銘柄の評価額を、その日の評価額の合計に合うように振り分ける
 function crossPoint() { if (S.focus !== 'c-hist' || S.cross < 0 || S.pct || S.mode !== 'full') return null; const pts = seriesFor(); const i = Math.min(S.cross, pts.length - 1); const p = pts[i]; if (!p || p.kind === 'est' || i === pts.length - 1) return null; return { p, prev: pts[Math.max(0, i - 1)], t: i / (pts.length - 1) } }
@@ -456,11 +507,11 @@ function render(first = false) {
 function renderInner(first = false) {
   const f = document.getElementById('folio')
   const recN = HIST.filter((p) => p.kind !== 'est').length
-  document.getElementById('phsub').textContent = S.mode === 'none' ? '' : `${HOLD.length} 銘柄・5 口座`
+  document.getElementById('phsub').textContent = S.mode === 'none' ? '' : `${new Set(HOLD.map((h) => h.code)).size} 銘柄・5 口座`
   document.getElementById('asof').textContent = S.mode === 'none' ? '' : `11/13 の終値（確定）・記録 ${recN} 日`
   document.documentElement.style.setProperty('--hero-tone', T.pnl >= 0 ? 'var(--up)' : 'var(--down)')
   if (S.mode === 'none') { f.innerHTML = `<div class="empty"><div><b>保有がありません</b>楽天証券の「保有商品一覧」の CSV を取り込むと、評価額・配分・配当見込みを表示します。<br><kbd>Ctrl</kbd>+<kbd>O</kbd> で取り込み。取り込んだ日から資産を毎日記録します</div></div>`; return }
-  if (S.mode === 'load') { f.innerHTML = `<div class="grid">${['c-hero', 'c-hist', 'c-alloc', 'c-contrib', 'c-div', 'c-events'].map((c) => `<section class="card ${c}"><div class="sk" style="height:12px;width:28%"></div><div class="sk" style="height:${c === 'c-hero' ? 34 : 12}px;width:${c === 'c-hero' ? 70 : 45}%"></div><div class="sk" style="flex:1;min-height:40px"></div></section>`).join('')}</div>`; return }
+  if (S.mode === 'load') { f.innerHTML = `<div class="grid">${['c-hero', 'c-hist', 'c-alloc', 'c-contrib', 'c-div', 'c-ptab', 'c-events'].map((c) => `<section class="card ${c}"><div class="sk" style="height:12px;width:28%"></div><div class="sk" style="height:${c === 'c-hero' ? 34 : 12}px;width:${c === 'c-hero' ? 70 : 45}%"></div><div class="sk" style="flex:1;min-height:40px"></div></section>`).join('')}</div>`; return }
   const acctT = Object.keys(ACCT).map((a) => [a, sum(HOLD.filter((h) => h.acct === a), (h) => h.value)]).filter((x) => x[1] > 0)
   const nisaCost = sum(HOLD.filter((h) => h.acct === 'nisa_growth' || h.acct === 'nisa_tsumitate'), (h) => h.costAmt)
   const total = T.pnl + T.realized + T.received
@@ -485,14 +536,16 @@ function renderInner(first = false) {
       <div class="legend">${acctT.map(([a, v]) => `<span><span class="dot" style="background:var(--acct-${a})"></span>${ACCT[a]} <span class="num mute">${((v / T.value) * 100).toFixed(0)}%</span></span>`).join('')}</div>
       <div class="nisa" title="保有中の NISA の簿価（このアプリが扱う銘柄だけ。投資信託・外国株は入らない）"><span>NISA 簿価</span><span class="track"><i style="width:${(nisaCost / 18e6) * 100}%;background:var(--text-3)"></i></span><span class="num">${man(nisaCost)} <span class="mute">/ 生涯 1,800万</span></span></div>
       <svg class="spark" id="spark" preserveAspectRatio="none"></svg>`),
-    card('c-hist', '資産推移', `${seg(PERIODS.map((p) => p[0]), S.period)}${seg(['円', '%'], S.pct ? 1 : 0)}`, `
+    card('c-hist', '資産推移', `${seg(PERIODS.map((p) => p[0]), S.period, 'period')}${seg(['円', '%'], S.pct ? 1 : 0, 'pct')}`, `
       <div class="histhead" id="histhead"></div>
       <div class="chart" id="hist"><svg class="main"></svg><div class="tip" id="tip"></div></div>
       <div class="wf" id="wf"></div>`,
       `${kk('Alt+1〜6', '期間')}${kk('← →', '日付の移動')}${kk('P', '円と %')}${kk('B', 'ベンチマーク')}${kk('E', '記録開始前を試算（参考）')}`),
-    card('c-alloc', `資産構成 ${S.crossDay ? `<span class="crossday">${S.crossDay.slice(5).replace('-', '/')} 時点</span>` : ''}`, `${seg(GROUPS, S.group)}${seg(HEATS, S.heat)}`, `<div class="conc" id="conc"></div><div class="tm" id="tm"></div>`,
-      `${kk('G', '分類')}${kk('H', '色')}${kk('← → ↑ ↓', 'タイル')}${kk('Enter', 'チャートに表示')}`),
-    card('c-contrib', `損益寄与 ${S.crossDay && (S.contrib === 0 || S.contrib === 3) ? `<span class="crossday">${S.crossDay.slice(5).replace('-', '/')} 時点</span>` : ''}`, seg(CPER, S.contrib), `<div class="csum" id="csum"></div><div class="contrib" id="contrib"></div>`, `${kk('T', '期間')}${kk('↑ ↓ PgUp PgDn', '選択')}${kk('Enter', 'チャートに表示')}`),
+    card('c-alloc', `資産構成 ${S.crossDay ? `<span class="crossday">${S.crossDay.slice(5).replace('-', '/')} 時点</span>` : ''}`, `${mchk('amerge', GROUPS[S.group] === '口座')}${seg(GROUPS, S.group, 'group', 'gseg')}${segMini(GROUPS, S.group, 'group')}${seg(HEATS, S.heat, 'heat')}`, `<div class="conc" id="conc"></div><div class="tm" id="tm"></div>`,
+      `${kk('G', '分類（表と共有）')}${kk('A', '同じ銘柄をまとめる')}${kk('H', '色')}${kk('← → ↑ ↓', 'タイル')}${kk('Enter', 'チャートに表示')}`),
+    card('c-ptab', `${GROUPS[S.group] === '銘柄' ? '銘柄ごと' : GROUPS[S.group] + 'ごと'}の資産 ${S.crossDay ? `<span class="crossday">${S.crossDay.slice(5).replace('-', '/')} 時点</span>` : ''}`, `${mchk('merge', GROUPS[S.group] === '口座')}${seg(GROUPS, S.group, 'group', 'gseg')}${segMini(GROUPS, S.group, 'group')}`, `<div class="dt pt" id="ptab"></div>`,
+      `${kk('G', '分類（資産構成と共有）')}${kk('A', '同じ銘柄をまとめる')}${kk('S ／ Shift+S', '並べ替え ／ 逆順')}${kk('↑ ↓ PgUp PgDn Home End', '選択')}${kk('← → Space', '閉じる・開く', !S.group)}${kk('Shift+← →', 'すべて', !S.group)}${kk('Enter', 'チャートに表示')}`),
+    card('c-contrib', `損益寄与 ${S.crossDay && (S.contrib === 0 || S.contrib === 3) ? `<span class="crossday">${S.crossDay.slice(5).replace('-', '/')} 時点</span>` : ''}`, seg(CPER, S.contrib, 'contrib'), `<div class="csum" id="csum"></div><div class="contrib" id="contrib"></div>`, `${kk('T', '期間')}${kk('A', '口座をまとめる')}${kk('↑ ↓ PgUp PgDn', '選択')}${kk('Enter', 'チャートに表示')}`),
     card('c-div', '配当見込み', `<span class="mute" style="font-size:11px" title="権利確定月に積む。入金は約 2〜3 か月後">直近 1 年の 1 株配当 × 現在の数量</span>`, `
       <div class="divkpi">
         <div><div class="k">年間（税引後）</div><div class="v num">¥${yen(D.now)}</div></div>
@@ -508,10 +561,11 @@ function renderInner(first = false) {
   <section class="dsec ${first ? 'reveal' : ''}" id="dsec"><h2>配当の分析<span class="mute">1 株配当は直近 1 年の実績（権利落ち N 回分）。前年の数量は日次記録から（記録 ${recN} 日）</span></h2><div class="dgrid">${[
     card('c-dsum', '年間配当（税引後）', `<span class="chip">見込み</span>`, dsumBody()),
     card('c-dwf', '増減要因（前年比）', `<span class="mute" style="font-size:11px">前年 → 現在（年間・税引後）</span>`, `<div class="wfc" id="dwf"></div><div class="note">増配・減配 = 前年の数量 × 1 株配当の増減。新規・買い増し・売却（一部売却を含む）= 数量の増減 × 現在の 1 株配当。合計は現在の額と一致</div>`),
-    card('c-dshare', '配当の内訳', seg(DGROUPS, S.dgroup), `<div class="donut"><svg id="donut"></svg><div class="shr" id="dshare"></div></div>`, `${kk('G', '分類')}${kk('↑ ↓', '選択')}`),
-    card('c-dtab', `${DGROUPS[S.dgroup] === '銘柄' ? '銘柄ごと' : DGROUPS[S.dgroup] + 'ごと'}の配当`, `${seg(DGROUPS, S.dgroup)}`, `<div class="dt" id="dtab"></div>`, `${kk('G', '分類')}${kk('S', '並べ替え')}${kk('↑ ↓ PgUp PgDn Home End', '選択')}${kk('Enter', 'チャートに表示')}`),
+    card('c-dshare', '配当の内訳', seg(DGROUPS, S.dgroup, 'dgroup'), `<div class="donut"><svg id="donut"></svg><div class="shr" id="dshare"></div></div>`, `${kk('G', '分類')}${kk('↑ ↓', '選択')}`),
+    card('c-dtab', `${DGROUPS[S.dgroup] === '銘柄' ? '銘柄ごと' : DGROUPS[S.dgroup] + 'ごと'}の配当`, `${mchk('dmerge', DGROUPS[S.dgroup] === '口座')}${seg(DGROUPS, S.dgroup, 'dgroup')}`, `<div class="dt" id="dtab"></div>`, `${kk('G', '分類')}${kk('A', '口座をまとめる')}${kk('S', '並べ替え')}${kk('↑ ↓ PgUp PgDn Home End', '選択')}${kk('← → Space', '閉じる・開く', !S.dgroup)}${kk('Enter', 'チャートに表示')}`),
   ].join('')}</div></section>`
-  requestAnimationFrame(() => { drawHist(); drawTreemap(); drawContrib(); drawDiv(); drawEvents(); drawSpark(); drawDwf(); drawTrend(); drawShare(); drawDtab(); watch(); if (S.focus) document.querySelector('.card.focus')?.scrollIntoView({ block: 'nearest' }) })
+  S.pulse = null
+  requestAnimationFrame(() => { drawHist(); drawTreemap(); drawContrib(); drawDiv(); drawEvents(); drawSpark(); drawDwf(); drawTrend(); drawShare(); drawDtab(); drawPtab(); watch(); if (S.focus) document.querySelector('.card.focus')?.scrollIntoView({ block: 'nearest' }) })
 }
 
 function briefText() {
@@ -622,7 +676,17 @@ function squarify(items, x, y, w, h) {
   }
   return out
 }
-const keyOf = [(h) => h.sector, (h) => h.s17, (h) => ACCT[h.acct], (h) => ({ stock: '株式', reit: 'REIT', etf: 'ETF' })[h.kind], null]
+const keyOf = [null, (h) => h.sector, (h) => h.s17, (h) => h.market, (h) => ({ stock: '株式', reit: 'REIT', etf: 'ETF' })[h.kind], (h) => ACCT[h.acct]]
+// 同じ銘柄をまとめる（資産構成・分類ごとの資産の右上のチェック・A。カードごとに別の状態）: 同じ銘柄の口座ごとの保有を 1 行（1 タイル）にする。数量・取得額・評価額は足し、取得単価は取得額 ÷ 数量。口座で分けているときは使わない
+function posList(key = 'merge') {
+  if (!S[key] || GROUPS[S.group] === '口座') return HOLD
+  const m = new Map(); for (const h of HOLD) m.set(h.code, [...(m.get(h.code) ?? []), h])
+  return [...m.values()].map((ls) => {
+    if (ls.length === 1) return ls[0]
+    const q = sum(ls, (l) => l.qty), ca = sum(ls, (l) => l.costAmt), v = sum(ls, (l) => l.value)
+    return { ...ls[0], id: ls[0].code, lots: ls, accts: ls.map((l) => l.acct), qty: q, costAmt: ca, cost: ca / q, value: v, pnl: v - ca, dayPnl: sum(ls, (l) => l.dayPnl), yoc: (ls[0].dpsNow * q / ca) * 100 }
+  })
+}
 let TILES = []
 function drawTreemap() {
   const box = document.getElementById('tm'); if (!box) return
@@ -630,13 +694,14 @@ function drawTreemap() {
   const metric = (hs) => (S.heat ? (sum(hs, (h) => h.dayPnl) / sum(hs, (h) => h.value - h.dayPnl)) * 100 : (sum(hs, (h) => h.pnl) / sum(hs, (h) => h.costAmt)) * 100)
   const kf = keyOf[S.group]
   const tiles = []
-  if (!kf) tiles.push(...squarify(HOLD.map((h) => ({ id: h.code, name: h.name, v: h.value, hs: [h] })), 0, 0, r.width, r.height))
+  const PL = posList('amerge')
+  if (!kf) tiles.push(...squarify(PL.map((h) => ({ id: h.id, name: h.name, v: h.value, hs: [h] })), 0, 0, r.width, r.height))
   else {
-    const m = new Map(); for (const h of HOLD) { const key = kf(h); m.set(key, [...(m.get(key) ?? []), h]) }
+    const m = new Map(); for (const h of PL) { const key = kf(h); m.set(key, [...(m.get(key) ?? []), h]) }
     for (const g of squarify([...m].map(([name, hs]) => ({ id: 'g:' + name, name, v: sum(hs, (h) => h.value), hs })), 0, 0, r.width, r.height)) {
       const head = g.h > 44 && g.w > 64 ? 16 : 0
       tiles.push({ ...g, grp: true, head })
-      tiles.push(...squarify(g.hs.map((h) => ({ id: h.code, name: h.name, v: h.value, hs: [h] })), g.x + 1, g.y + head + 1, g.w - 2, g.h - head - 2))
+      tiles.push(...squarify(g.hs.map((h) => ({ id: h.id, name: h.name, v: h.value, hs: [h] })), g.x + 1, g.y + head + 1, g.w - 2, g.h - head - 2))
     }
   }
   const leaves = tiles.filter((t) => !t.grp)
@@ -647,7 +712,7 @@ function drawTreemap() {
     if (t.grp) return `<div class="tile grp" style="left:${t.x}px;top:${t.y}px;width:${t.w}px;height:${t.h}px">${t.head ? `<b class="gh" style="width:${t.w - 2}px"><i style="background:${heatColor(heatStep(m, span))}"></i>${t.name} <span class="num">${((t.v / T.value) * 100).toFixed(0)}% ${pct(m, 1)}</span></b>` : ''}</div>`
     const bg = heatColor(heatStep(m, span)), fg = ink(bg)
     const big = t.w > 74 && t.h > 32, mid = t.w > 40 && t.h > 18
-    const stripe = GROUPS[S.group] === '口座' ? `<i class="stripe" style="background:var(--acct-${t.hs[0].acct})"></i>` : ''
+    const stripe = GROUPS[S.group] === '口座' ? `<i class="stripe" style="background:var(--acct-${t.hs[0].acct})"></i>` : !t.hs[0].lots && multiAcct(t.hs[0].code) ? `<i class="adot" style="background:var(--acct-${t.hs[0].acct})" title="${ACCT[t.hs[0].acct]}"></i>` : ''
     return `<div class="tile ${t === sel ? 'sel' : ''}" data-id="${t.id}" style="left:${t.x}px;top:${t.y}px;width:${t.w}px;height:${t.h}px;background:${bg};color:${fg}">${stripe}${big ? `<b>${t.name}</b><span class="num">${pct(m, 1)}</span>` : mid ? `<b class="num">${t.hs[0].code}</b>` : ''}</div>`
   }).join('')
   // 分け方を変えたら、前の位置から動かす（FLIP。動きを止める設定では動かさない）
@@ -670,21 +735,25 @@ function drawTreemap() {
 
 // 寄与: 全銘柄を大きい順に。値動き（上下の色）に、その期間に権利落ちした配当（金色）を続けて積む
 const CNOTE = ['11/13 の前日比', '11/1 以降・値動き＋配当', '1/1 以降・値動き＋配当・売却銘柄を含む', '含み損益（取得日が不明なため配当を除く）']
-function contribRows() { return DIVROWS.map((h) => ({ h, ...(contribOf(h, S.contrib) ?? {}) })).filter((r) => r.price !== undefined).map((r) => ({ ...r, v: r.price + r.div })).sort((x, y) => y.v - x.v) }
+function contribRows() {
+  let rows = DIVROWS.map((h) => ({ h, ...(contribOf(h, S.contrib) ?? {}) })).filter((r) => r.price !== undefined)
+  if (S.cmerge) rows = mergeLots(rows.map((r) => ({ ...r, code: r.h.code, acct: r.h.acct })), ['price', 'div']).map((r) => ({ ...r, h: r.lots ? { ...r.h, accts: r.accts } : r.h }))
+  return rows.map((r) => ({ ...r, v: r.price + r.div })).sort((x, y) => y.v - x.v)
+}
 function drawContrib() {
   const el = document.getElementById('contrib'); if (!el) return
   const rows = contribRows(), codes = brushed()
   const right = Math.max(...rows.map((r) => Math.max(r.price, 0) + r.div)), left = Math.max(...rows.map((r) => -Math.min(r.price, 0))), mx = Math.max(right, left) || 1
   S.crow = Math.max(0, Math.min(S.crow, rows.length - 1))
   const tot = sum(rows, (r) => r.v), dv = sum(rows, (r) => r.div), up = rows.filter((r) => r.v > 0).length
-  document.getElementById('csum').innerHTML = `<b class="num ${tone(tot)}">${arr(tot)} ${man(tot, true)}</b>` + (dv ? `<span class="num">うち配当 <span style="color:var(--gold)">${man(dv, true)}</span></span>` : '') + `<span>値上がり ${up} ・ 値下がり ${rows.length - up}</span><span style="margin-left:auto">${CNOTE[S.contrib]}</span>`
+  document.getElementById('csum').innerHTML = `<b class="num ${tone(tot)}">${arr(tot)} ${man(tot, true)}</b>` + (dv ? `<span class="num">うち配当 <span style="color:var(--gold)">${man(dv, true)}</span></span>` : '') + `<span>値上がり ${up} ・ 値下がり ${rows.length - up}</span><span style="margin-left:auto">${CNOTE[S.contrib]}</span>${mchk('cmerge', false)}`
   const zeroAt = rows.findIndex((r) => r.v <= 0)
   el.innerHTML = rows.map((r, i) => {
     const { h, price, div, v } = r, pw = (Math.abs(price) / mx) * 50, dw = (div / mx) * 50, pl = price >= 0 ? 50 : 50 - pw, dl = price >= 0 ? 50 + pw : 50
     const sel = S.focus === 'c-contrib' && i === S.crow ? 'sel' : '', dim = codes && !codes.has(h.code) ? 'dim' : ''
     const divBar = div ? `<span class="b" style="left:${dl}%;width:${dw}%;background:var(--gold)"></span>` : ''
     const zero = i === zeroAt && i > 0 ? '<div class="zero">0</div>' : ''
-    return zero + `<div class="crow ${sel} ${dim} ${h.sold ? 'sold' : ''}"${h.sold ? ` title="売却（${h.sold}）。最終記録日まで"` : ''}><span class="nm"><span class="mute num">${h.code}</span> ${h.name}${h.sold ? ' <span class="fx">売却</span>' : ''}</span><span class="track"><span class="b" style="left:${pl}%;width:${pw}%;background:${price >= 0 ? 'var(--up)' : 'var(--down)'}"></span>${divBar}</span><span class="val num ${tone(v)}">${man(v, true)}</span></div>`
+    return zero + `<div class="crow ${sel} ${dim} ${h.sold ? 'sold' : ''}"${h.sold ? ` title="売却（${h.sold}）。最終記録日まで"` : ''}><span class="nm"><span class="mute num">${h.code}</span> ${h.name}${h.sold ? ' <span class="fx">売却</span>' : ''}${acctChip(h, !S.cmerge && multiAcct(h.code))}</span><span class="track"><span class="b" style="left:${pl}%;width:${pw}%;background:${price >= 0 ? 'var(--up)' : 'var(--down)'}"></span>${divBar}</span><span class="val num ${tone(v)}">${man(v, true)}</span></div>`
   }).join('')
   el.querySelector('.crow.sel')?.scrollIntoView({ block: 'nearest' })
 }
@@ -806,9 +875,14 @@ function drawTrend() {
 }
 
 const DKEY = [(h) => h.code, (h) => h.sector, (h) => h.s17, (h) => h.market, (h) => ({ stock: '株式', reit: 'REIT', etf: 'ETF' })[h.kind], (h) => ACCT[h.acct]]
+// 配当の表の行。口座をまとめるときは、年間・前年・要因・数量を足し、取得利回りと要因の種類を作り直す
+function divList() {
+  if (!S.dmerge || DGROUPS[S.dgroup] === '口座') return DIVROWS
+  return mergeLots(DIVROWS, ['qty', 'qty1y', 'annual', 'annualPrev', 'fxRaise', 'fxQty', 'costAmt', 'value'], (o) => ({ ...o, yoc: (o.dpsNow * o.qty / o.costAmt) * 100, kindFx: o.qty === 0 ? '売却' : o.qty1y === 0 ? '新規' : o.qty > o.qty1y ? '買い増し' : o.qty < o.qty1y ? '一部売却' : '' }))
+}
 function dgroups() {
   const kf = DKEY[S.dgroup], m = new Map()
-  for (const h of DIVROWS) { const k = kf(h); m.set(k, [...(m.get(k) ?? []), h]) }
+  for (const h of divList()) { const k = kf(h); m.set(k, [...(m.get(k) ?? []), h]) }
   return [...m].map(([k, hs]) => ({ k, name: S.dgroup ? k : hs[0].name, hs, annual: sum(hs, (h) => h.annual), delta: sum(hs, (h) => h.annual - h.annualPrev), raise: sum(hs, (h) => h.fxRaise), qty: sum(hs, (h) => h.fxQty), value: sum(hs, (h) => h.value), cost: sum(hs, (h) => h.costAmt), gross: sum(hs, (h) => h.qty * h.dpsNow) }))
 }
 // ドーナツ: 大きい順に 7 つ＋その他。色は配当の金の濃さ（割合が大きいほど濃い。同じ色相の段なので、業種ごとに色を振らない）
@@ -873,13 +947,13 @@ function drawDtab() {
   const sf = SORTF[S.dsort], codes = brushed()
   const leaf = (h) => ({ type: 'm', h, code: h.code })
   let gs = []
-  if (S.dgroup === 0) DROWS = DIVROWS.slice().sort((a, b) => sf(b) - sf(a)).map(leaf)
+  if (S.dgroup === 0) DROWS = divList().slice().sort((a, b) => sf(b) - sf(a)).map(leaf)
   else {
     DROWS = []
     gs = dgroups().map((g) => ({ ...g, annualPrev: g.annual - g.delta, yld: g.value ? (g.gross / g.value) * 100 : null, yoc: g.cost ? (g.gross / g.cost) * 100 : null, cagr: null }))
     for (const g of gs.sort((a, b) => sf(b) - sf(a))) { DROWS.push({ type: 'g', g }); if (S.open.has(g.k)) DROWS.push(...g.hs.slice().sort((a, b) => sf(b) - sf(a)).map(leaf)) }
   }
-  const mxD = Math.max(...(S.dgroup ? gs.map((g) => Math.abs(g.delta)) : DIVROWS.map((h) => Math.abs(h.annual - h.annualPrev))), 1)
+  const mxD = Math.max(...(S.dgroup ? gs.map((g) => Math.abs(g.delta)) : divList().map((h) => Math.abs(h.annual - h.annualPrev))), 1)
   S.drow = Math.max(0, Math.min(S.drow, DROWS.length - 1))
   const th = (label, i, cls = '') => `<th class="${cls} ${i === S.dsort ? 'on' : ''}">${label}</th>`
   const head = `<tr><th>${S.dgroup ? DGROUPS[S.dgroup] + ' ／ 銘柄' : '銘柄'}</th><th class="c-mo">権利月</th>${th('年間（税引後）', 0)}${th('前年比', 1)}<th class="c-fx" style="text-align:left">要因</th><th>1 株配当（5 年）</th>${th('増配率（年率・4 年）', 4, 'c-cagr')}<th class="c-streak" title="5 年の範囲で数える">連続増配</th>${th('利回り', 2)}${th('取得利回り', 3, 'c-yoc')}<th class="c-po" title="利回り × PER（実績の配当 ÷ 実績の利益）の概算">配当性向</th></tr>`
@@ -888,12 +962,12 @@ function drawDtab() {
     if (r.type === 'g') {
       const g = r.g, dim = codes && !g.hs.some((h) => codes.has(h.code)) ? 'dim' : ''
       const fx = (Math.abs(g.raise) >= 1 ? `<span class="fx ${g.raise > 0 ? 'up' : 'down'}">${g.raise > 0 ? '増配' : '減配'}<b>${man(g.raise, true)}</b></span>` : '') + (Math.abs(g.qty) >= 1 ? `<span class="fx ${g.qty > 0 ? 'up' : 'down'}">株数増減<b>${man(g.qty, true)}</b></span>` : '')
-      return `<tr class="g ${S.open.has(g.k) ? 'open' : ''} ${sel} ${dim}" data-g="${g.k}"><td>${g.name} <span class="mute" style="font-weight:400">${g.hs.length} 銘柄</span></td><td class="c-mo"></td><td class="num">${ibShare(g.annual)}${yen(g.annual)}</td><td class="num ${tone(g.delta)}">${ibDelta(g.delta, mxD)}${Math.abs(g.delta) < 1 ? '±0' : yen(g.delta, true)}</td><td class="c-fx" style="text-align:left;font-weight:400">${fx}</td><td>${dpsSpark({ dps: [0, 1, 2, 3, 4].map((i) => sum(g.hs, (h) => h.qty * h.dps[i])) })}</td><td class="c-cagr"></td><td class="c-streak"></td><td class="num">${g.yld ? g.yld.toFixed(2) + '%' : '—'}</td><td class="num c-yoc">${g.yoc ? g.yoc.toFixed(2) + '%' : '—'}</td><td class="c-po"></td></tr>`
+      return `<tr class="g ${S.open.has(g.k) ? 'open' : ''} ${sel} ${dim}" data-g="${g.k}"><td>${g.name} <span class="mute" style="font-weight:400">${countLabel(g.hs)}</span></td><td class="c-mo"></td><td class="num">${ibShare(g.annual)}${yen(g.annual)}</td><td class="num ${tone(g.delta)}">${ibDelta(g.delta, mxD)}${Math.abs(g.delta) < 1 ? '±0' : yen(g.delta, true)}</td><td class="c-fx" style="text-align:left;font-weight:400">${fx}</td><td>${dpsSpark({ dps: [0, 1, 2, 3, 4].map((i) => sum(g.hs, (h) => h.qty * h.dps[i])) })}</td><td class="c-cagr"></td><td class="c-streak"></td><td class="num">${g.yld ? g.yld.toFixed(2) + '%' : '—'}</td><td class="num c-yoc">${g.yoc ? g.yoc.toFixed(2) + '%' : '—'}</td><td class="c-po"></td></tr>`
     }
     const h = r.h, dim = codes && !codes.has(h.code) ? 'dim' : '', dl = h.annual - h.annualPrev
     const streak = h.streak ? `${h.streak} 年${h.streak === 4 ? '+' : ''}` : h.noCut ? '<span class="mute">非減配</span>' : '—'
     const po = h.sold || h.payout == null ? '—' : `${h.payout.toFixed(0)}%${h.payout > 100 ? ' <span class="fx warn">100% 超</span>' : ''}`
-    return `<tr class="${S.dgroup ? 'm' : ''} ${sel} ${dim} ${h.sold ? 'sold' : ''}"><td><span class="mute num">${h.code}</span> <span class="nm">${h.name}</span>${h.sold ? ' <span class="fx">売却</span>' : ''}</td><td class="c-mo num mute">${h.months.join('・')}月</td><td class="num">${ibShare(h.annual)}${yen(h.annual)}</td><td class="num ${tone(dl)}">${ibDelta(dl, mxD)}${Math.abs(dl) < 1 ? '±0' : yen(dl, true)}</td><td class="c-fx" style="text-align:left">${fxCell(h)}</td><td>${dpsSpark(h)} <span class="num mute">${h.dpsNow.toLocaleString()}</span></td><td class="num c-cagr ${tone(h.cagr)}">${pct(h.cagr, 1)}</td><td class="num c-streak">${streak}</td><td class="num">${h.sold ? '—' : h.yld.toFixed(2) + '%'}</td><td class="num c-yoc">${h.sold ? '—' : h.yoc.toFixed(2) + '%'}</td><td class="num c-po">${po}</td></tr>`
+    return `<tr class="${S.dgroup ? 'm' : ''} ${sel} ${dim} ${h.sold ? 'sold' : ''}"><td><span class="mute num">${h.code}</span> <span class="nm">${h.name}</span>${h.sold ? ' <span class="fx">売却</span>' : ''}${acctChip(h, DGROUPS[S.dgroup] !== '口座' && multiAcct(h.code))}</td><td class="c-mo num mute">${h.months.join('・')}月</td><td class="num">${ibShare(h.annual)}${yen(h.annual)}</td><td class="num ${tone(dl)}">${ibDelta(dl, mxD)}${Math.abs(dl) < 1 ? '±0' : yen(dl, true)}</td><td class="c-fx" style="text-align:left">${fxCell(h)}</td><td>${dpsSpark(h)} <span class="num mute">${h.dpsNow.toLocaleString()}</span></td><td class="num c-cagr ${tone(h.cagr)}">${pct(h.cagr, 1)}</td><td class="num c-streak">${streak}</td><td class="num">${h.sold ? '—' : h.yld.toFixed(2) + '%'}</td><td class="num c-yoc">${h.sold ? '—' : h.yoc.toFixed(2) + '%'}</td><td class="num c-po">${po}</td></tr>`
   }).join('')
   el.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`
   el.querySelectorAll('tr.g').forEach((tr) => (tr.onclick = () => { const k = tr.dataset.g; S.open.has(k) ? S.open.delete(k) : S.open.add(k); drawDtab() }))
@@ -905,6 +979,86 @@ function dtabToggle(open) {
   const k = r.type === 'g' ? r.g.k : DKEY[S.dgroup](r.h)
   if (open === undefined) open = !S.open.has(k)
   if (open) S.open.add(k); else { S.open.delete(k); if (r.type === 'm') S.drow = DROWS.findIndex((x) => x.type === 'g' && x.g.k === k) }
+}
+
+// ---- 分類ごとの資産: 保有のペインの列（数量・取得単価・現在値・前日比・評価額・評価損益・損益率・比率・取得利回り）を、資産構成と同じ分け方でまとめる ----
+// まとまりの行は合計。数量・取得単価・現在値の 3 列は、まとまりの行では中の銘柄の構成（評価額の積み上げの棒と上位 3 銘柄）に使う。売った銘柄は入れない（保有中だけ）
+let PROWS = []
+const PKEY = DKEY
+const prate = (x) => (x.costAmt ? x.pnl / x.costAmt : 0)
+const PSORTF = [(x) => x.value, (x) => x.pnl, prate, (x) => x.dayPnl, (x) => x.yoc ?? -1]
+const PSORTCOL = { 評価額: 0, 評価損益: 1, 損益率: 2, 前日比: 3, 取得利回り: 4 }
+// まとまりの中身の数え方: 口座を分けているときは「1 銘柄・2 口座」
+function countLabel(hs) { const n = new Set(hs.map((h) => h.code)).size, lots = sum(hs, (h) => h.lots?.length ?? 1); return lots > n && !hs.some((h) => h.lots) ? `${n} 銘柄・${lots} 口座` : `${n} 銘柄` }
+function pgroups() {
+  const kf = PKEY[S.group], m = new Map()
+  for (const h of posList('merge')) { const k = kf(h); m.set(k, [...(m.get(k) ?? []), h]) }
+  return [...m].map(([k, hs]) => { const g = { k, name: k, hs, value: sum(hs, (h) => h.value), costAmt: sum(hs, (h) => h.costAmt), pnl: sum(hs, (h) => h.pnl), dayPnl: sum(hs, (h) => h.dayPnl), div: sum(hs, (h) => h.qty * h.dpsNow) }; g.yoc = (g.div / g.costAmt) * 100; return g })
+}
+// 開け閉めは分類ごとに覚える。はじめて見る分類は、大きい順に上位 2 つを開いておく
+const okey = (k) => `${S.group}:${k}`
+S.pseen = new Set()
+function drawPtab() {
+  const el = document.getElementById('ptab'); if (!el) return
+  const f = PSORTF[S.psort], dir = S.pasc ? -1 : 1, sf = (x) => dir * f(x), codes = S.focus === 'c-ptab' ? null : brushed()
+  const leaf = (h, g) => ({ type: 'm', h, g })
+  let gs = []
+  if (S.group === 0) PROWS = posList('merge').slice().sort((a, b) => sf(b) - sf(a)).map((h) => leaf(h))
+  else {
+    PROWS = []
+    gs = pgroups().sort((a, b) => sf(b) - sf(a))
+    if (!S.pseen.has(S.group)) { S.pseen.add(S.group); gs.slice().sort((a, b) => b.value - a.value).slice(0, 2).forEach((g) => S.popen.add(okey(g.k))) }
+    for (const g of gs) { PROWS.push({ type: 'g', g }); if (S.popen.has(okey(g.k))) PROWS.push(...g.hs.slice().sort((a, b) => sf(b) - sf(a)).map((h) => leaf(h, g))) }
+  }
+  if (S.pjump != null) { S.prow = PROWS.findIndex((x) => x.type === 'g' && x.g.k === S.pjump); S.pjump = null }
+  S.prow = Math.max(0, Math.min(S.prow, PROWS.length - 1))
+  const scale = S.group ? gs : posList('merge')
+  const mxS = Math.max(...scale.map((x) => x.value), 1)
+  // 評価損益の棒: 0 の線を、損の最大と益の最大の比で置く（益ばかりなら左寄り）
+  const gain = Math.max(0, ...scale.map((x) => x.pnl)), loss = Math.max(0, ...scale.map((x) => -x.pnl)), span = gain + loss || 1, z = (loss / span) * 100
+  const ibP = (v) => { const w = (Math.abs(v) / span) * 100; return `<span class="ib"><i style="left:${v >= 0 ? z : z - w}%;width:${w}%;background:${v >= 0 ? 'var(--up)' : 'var(--down)'}"></i><i style="left:${z}%;width:1px;background:var(--line-strong)"></i></span>` }
+  // 比率の棒: いちばん大きい行を満たす（数字は全体に対する %）
+  const ibS = (v) => `<span class="ib"><i style="left:0;width:${Math.min(100, (v / mxS) * 100)}%;background:var(--f-bar)"></i></span>`
+  const bv = (bar, txt, cls = '', title = '') => `<td class="num ${cls}" ${title ? `title="${title}"` : ''}><div class="bvc">${bar}<span>${txt}</span></div></td>`
+  const th = (label, cls = '') => { const i = PSORTCOL[label]; return i === undefined ? `<th class="${cls}">${label}</th>` : `<th class="srt ${cls} ${i === S.psort ? 'on' : ''} ${i === S.psort && S.pasc ? 'asc' : ''}" data-psort="${i}" title="押すと並べ替え（もう一度で逆順）。キーは S ／ Shift+S">${label}</th>` }
+  const head = `<tr><th>${S.group ? GROUPS[S.group] + ' ／ 銘柄' : '銘柄'}</th><th class="c-qty">数量</th><th class="c-avg">取得単価</th><th class="c-close">現在値</th>${th('前日比', 'c-day')}<th class="c-dayp">前日比 %</th>${th('評価額')}${th('評価損益')}${th('損益率')}<th>比率</th>${th('取得利回り', 'c-yoc')}</tr>`
+  const cells = (x, bars = true, inner = null) => {
+    const rate = prate(x) * 100, prevV = x.value - x.dayPnl, share = (x.value / T.value) * 100
+    const inTxt = inner ? `${((x.value / inner.value) * 100).toFixed(0)}%` : ''
+    return `<td class="num c-day ${tone(x.dayPnl)}">${yen(x.dayPnl, true)}</td><td class="num c-dayp ${tone(x.dayPnl)}">${pct(prevV ? (x.dayPnl / prevV) * 100 : 0)}</td><td class="num">${yen(x.value)}</td>${bv(bars ? ibP(x.pnl) : '', yen(x.pnl, true), tone(x.pnl))}<td class="num ${tone(rate)}">${pct(rate, 1)}</td>${bv(bars ? ibS(x.value) : '', `${inner ? `<span class="mute c-in">内 ${inTxt} ・ </span>` : ''}${share.toFixed(1)}%`, '', inner ? `全体の ${share.toFixed(1)}% ・ ${inner.name}の中の ${inTxt}` : '')}`
+  }
+  // まとまりの中の構成: 評価額の積み上げ（大きい順。濃い → 薄い）と、上位 3 銘柄の名前と割合
+  const comp = (g) => {
+    const hs = g.hs.slice().sort((a, b) => b.value - a.value)
+    const segs = hs.map((h, i) => `<i style="width:${(h.value / g.value) * 100}%;opacity:${Math.max(0.3, 1 - i * 0.18)}" title="${h.name} ${((h.value / g.value) * 100).toFixed(0)}%"></i>`).join('')
+    const names = hs.slice(0, 3).map((h) => `${h.name} ${((h.value / g.value) * 100).toFixed(0)}%`).join(' ・ ') + (hs.length > 3 ? ` ほか ${hs.length - 3}` : '')
+    return `<td class="c-comp" colspan="3"><div class="comp"><span class="sb">${segs}</span><span class="cn">${names}</span></div></td>`
+  }
+  const body = PROWS.map((r, i) => {
+    const sel = S.focus === 'c-ptab' && i === S.prow ? 'sel' : ''
+    if (r.type === 'g') {
+      const g = r.g, dim = codes && !g.hs.some((h) => codes.has(h.code)) ? 'dim' : '', open = S.popen.has(okey(g.k))
+      const dot = S.group === 5 ? `<span class="acct-dot" style="background:var(--acct-${HOLD.find((h) => ACCT[h.acct] === g.k).acct})"></span>` : ''
+      return `<tr class="g ${open ? 'open' : ''} ${sel} ${dim}" data-g="${g.k}"><td>${dot}${g.name} <span class="mute" style="font-weight:400">${countLabel(g.hs)}</span></td>${open ? '<td class="c-comp" colspan="3"></td>' : comp(g)}${cells(g)}<td class="num c-yoc">${g.yoc.toFixed(2)}%</td></tr>`
+    }
+    const h = r.h, dim = codes && !codes.has(h.code) ? 'dim' : ''
+    return `<tr class="${S.group ? 'm' : ''} ${sel} ${dim}"><td><span class="mute num">${h.code}</span> <span class="nm">${h.name}</span>${acctChip(h, S.group !== 5 && multiAcct(h.code))}</td><td class="num c-qty">${h.qty.toLocaleString()}</td><td class="num c-avg">${yen(h.cost)}</td><td class="num c-close">${yen(h.close)}</td>${cells(h, true, r.g)}<td class="num c-yoc">${h.yoc.toFixed(2)}%</td></tr>`
+  }).join('')
+  const tot = { value: T.value, costAmt: T.cost, pnl: T.pnl, dayPnl: T.day }
+  const foot = `<tr><td>合計 <span class="mute" style="font-weight:400">${new Set(HOLD.map((h) => h.code)).size} 銘柄</span></td><td class="c-comp" colspan="3"></td>${cells(tot, false)}<td class="num c-yoc">${((T.divGross / T.cost) * 100).toFixed(2)}%</td></tr>`
+  el.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>`
+  el.querySelectorAll('tr.g').forEach((tr) => (tr.onclick = () => { const k = okey(tr.dataset.g); S.popen.has(k) ? S.popen.delete(k) : S.popen.add(k); drawPtab() }))
+  el.querySelectorAll('th[data-psort]').forEach((t) => (t.onclick = () => { const i = +t.dataset.psort; if (i === S.psort) S.pasc = !S.pasc; else { S.psort = i; S.pasc = false } S.prow = 0; render() }))
+  el.querySelector('tr.sel')?.scrollIntoView({ block: 'nearest' })
+}
+// 開け閉め: open が undefined なら切り替え。all なら全部のまとまり
+function ptabToggle(open, all) {
+  if (!S.group) return
+  const r = PROWS[S.prow]; if (!r) return
+  if (all) { for (const g of pgroups()) open ? S.popen.add(okey(g.k)) : S.popen.delete(okey(g.k)); if (!open) S.pjump = r.type === 'g' ? r.g.k : PKEY[S.group](r.h); return }
+  const k = r.type === 'g' ? r.g.k : PKEY[S.group](r.h)
+  if (open === undefined) open = !S.popen.has(okey(k))
+  if (open) S.popen.add(okey(k)); else { S.popen.delete(okey(k)); if (r.type === 'm') S.pjump = k }
 }
 
 const EV = [
@@ -944,14 +1098,15 @@ function brushed() {
   if (S.focus === 'c-div') return new Set(monthHolds(MONTHS[S.dm]).map((x) => x.h.code))
   if (S.focus === 'c-dshare' && SHROWS[S.srow]) return new Set(SHROWS[S.srow].hs.map((h) => h.code))
   if (S.focus === 'c-dtab' && DROWS[S.drow]?.type === 'g') return new Set(DROWS[S.drow].g.hs.map((h) => h.code))
+  if (S.focus === 'c-ptab' && PROWS[S.prow]) { const r = PROWS[S.prow]; return new Set(r.type === 'g' ? r.g.hs.map((h) => h.code) : [r.h.code]) }
   return null
 }
 
 // ---- キー操作（アプリでは registerPane の key() に入れる。Tab は選べるカードだけを巡る。単キーはペインの中で一つの意味） ----
 // G は「選んでいるカードの分け方」（配分・配当の内訳・配当の表。配当の 2 枚は同じ分け方を共有する）
-const CARDS = ['c-hist', 'c-alloc', 'c-contrib', 'c-div', 'c-events', 'c-dshare', 'c-dtab']
+const CARDS = ['c-hist', 'c-alloc', 'c-contrib', 'c-div', 'c-ptab', 'c-events', 'c-dshare', 'c-dtab']
 const MONTHS = Array.from({ length: 12 }, (_, i) => ((10 + i) % 12) + 1)
-const LISTS = { 'c-contrib': ['crow', () => contribRows().length], 'c-dshare': ['srow', () => SHROWS.length], 'c-dtab': ['drow', () => DROWS.length] }
+const LISTS = { 'c-contrib': ['crow', () => contribRows().length], 'c-dshare': ['srow', () => SHROWS.length], 'c-dtab': ['drow', () => DROWS.length], 'c-ptab': ['prow', () => PROWS.length] }
 document.addEventListener('keydown', (e) => {
   if (e.isComposing || S.mode === 'none' || S.mode === 'load') return
   const c = e.code, cardNow = S.focus, folio = document.getElementById('folio')
@@ -963,14 +1118,23 @@ document.addEventListener('keydown', (e) => {
   else if (c === 'KeyB') { S.bench = (S.bench + 1) % BENCH.length; if (S.bench) S.pct = true }
   else if (c === 'KeyE') { S.est = !S.est; if (S.est && S.period === 0) S.period = 5 }
   else if (c === 'KeyG' && (cardNow === 'c-dshare' || cardNow === 'c-dtab')) { S.dgroup = (S.dgroup + 1) % DGROUPS.length; S.srow = 0; S.drow = 0 }
-  else if (c === 'KeyG') { S.group = (S.group + 1) % GROUPS.length; S.tile = 0 }
+  else if (c === 'KeyG') { S.group = (S.group + 1) % GROUPS.length; S.tile = 0; S.prow = 0; S.pulse = [cardNow === 'c-ptab' ? 'c-alloc' : 'c-ptab'] } // 資産構成と分類ごとの資産で共有
+  else if (c === 'KeyA') {
+    const k = { 'c-contrib': 'cmerge', 'c-dtab': 'dmerge', 'c-alloc': 'amerge' }[cardNow] ?? 'merge'
+    if ((k !== 'cmerge' && k !== 'dmerge' && GROUPS[S.group] === '口座') || (k === 'dmerge' && DGROUPS[S.dgroup] === '口座')) return // 口座で分けているときはチェックが無い
+    S[k] = !S[k]; S.tile = 0; S.prow = 0; S.crow = 0; S.drow = 0
+  }
   else if (c === 'KeyH') S.heat = 1 - S.heat
   else if (c === 'KeyT') { S.contrib = (S.contrib + 1) % CPER.length; S.crow = 0 }
+  else if (c === 'KeyS' && cardNow === 'c-ptab') { if (e.shiftKey) S.pasc = !S.pasc; else { S.psort = (S.psort + 1) % PSORTS.length; S.pasc = false } S.prow = 0 }
+  else if (cardNow === 'c-ptab' && (c === 'ArrowRight' || c === 'ArrowLeft')) ptabToggle(c === 'ArrowRight', e.shiftKey)
+  else if (c === 'Space' && cardNow === 'c-ptab') ptabToggle()
   else if (c === 'KeyS' && cardNow === 'c-dtab') { S.dsort = (S.dsort + 1) % DSORTS.length; S.drow = 0 }
   else if (cardNow === 'c-dtab' && (c === 'ArrowRight' || c === 'ArrowLeft')) dtabToggle(c === 'ArrowRight')
-  else if (c === 'Enter' && cardNow === 'c-dtab' && DROWS[S.drow]?.type === 'g') dtabToggle()
+  else if (c === 'Space' && cardNow === 'c-dtab') dtabToggle()
   else if (cardNow === 'c-div' && (c === 'ArrowLeft' || c === 'ArrowRight')) S.dm = Math.max(0, Math.min(11, S.dm + (c === 'ArrowLeft' ? -1 : 1)))
   else if (c === 'Enter' && cardNow === 'c-div') { const first = monthHolds(MONTHS[S.dm])[0]; S.focus = 'c-dtab'; S.dgroup = 0; S.dsort = 0; render(); S.drow = Math.max(0, DROWS.findIndex((r) => r.h?.code === first?.h.code)); e.preventDefault(); return render() }
+  else if (c === 'Enter' && ((cardNow === 'c-ptab' && PROWS[S.prow]?.type === 'g') || (cardNow === 'c-dtab' && DROWS[S.drow]?.type === 'g'))) { e.preventDefault(); return toast('まとまりの銘柄をチャートグリッドに出す') }
   else if (c === 'Enter') { e.preventDefault(); return toast('同じリンク色（4）のチャートに出す') }
   else if (cardNow === 'c-hist' && (c === 'ArrowLeft' || c === 'ArrowRight')) { const n = S.pct ? seriesFor().filter((p) => p.kind !== 'est').length : seriesFor().length; S.cross = S.cross < 0 ? n - 1 : Math.max(0, Math.min(n - 1, S.cross + (c === 'ArrowLeft' ? -1 : 1))); e.preventDefault(); return render() }
   else if (cardNow === 'c-alloc' && c.startsWith('Arrow')) { spatial(c); e.preventDefault(); return render() }
@@ -985,6 +1149,16 @@ document.addEventListener('keydown', (e) => {
   else return
   e.preventDefault(); render()
 })
+// 分類などの切り替えのボタン（押すと、同じ状態を指すカードがすべて変わる）と、口座をまとめるのチェック
+document.getElementById('folio').addEventListener('click', (e) => {
+  const nx = e.target.closest('[data-segnext]'); if (nx) { S.group = (S.group + 1) % GROUPS.length; S.tile = 0; S.prow = 0; S.pulse = ['c-alloc', 'c-ptab']; return render() }
+  const b = e.target.closest('[data-seg]'); if (!b) return
+  const k = b.dataset.seg, i = +b.dataset.i
+  if (k === 'pct') S.pct = !!i; else S[k] = i
+  if (k === 'group') { S.tile = 0; S.prow = 0; S.pulse = [b.closest('.card').dataset.card === 'c-alloc' ? 'c-ptab' : 'c-alloc'] } else if (k === 'dgroup') { S.srow = 0; S.drow = 0 } else if (k === 'contrib') S.crow = 0; else if (k === 'period') S.cross = -1
+  render()
+})
+document.getElementById('folio').addEventListener('change', (e) => { const k = e.target.dataset.chk; if (!k) return; S[k] = e.target.checked; S.tile = 0; S.prow = 0; S.crow = 0; S.drow = 0; render() })
 function goSec(id) { const folio = document.getElementById('folio'), el = document.getElementById(id); folio.scrollTo({ top: id === 'top' || !el ? 0 : el.offsetTop - 4, behavior: document.documentElement.dataset.reduceMotion === 'true' ? 'auto' : 'smooth' }) }
 document.querySelectorAll('#nav [data-sec]').forEach((b) => (b.onclick = () => goSec(b.dataset.sec)))
 document.getElementById('folio').addEventListener('scroll', () => { const folio = document.getElementById('folio'), d = document.getElementById('dsec'), on = d && folio.scrollTop + folio.clientHeight * 0.4 >= d.offsetTop ? 'dsec' : 'top'; document.querySelectorAll('#nav [data-sec]').forEach((b) => b.classList.toggle('on', b.dataset.sec === on)) })
@@ -1038,9 +1212,12 @@ if (tok.has('pct')) S.pct = true
 if (tok.has('bench')) { S.bench = 1; S.pct = true }
 // #group=N・#focus=c-x・#cross=N・#contrib=0〜3・#dgroup=0〜4・#dsort=0〜4・#drow=N・#crow=N・#div（配当の分析までめくる）
 const prm = Object.fromEntries([...tok].filter((t) => t.includes('=')).map((t) => t.split('=')))
-for (const k of ['group', 'cross', 'contrib', 'dgroup', 'dsort', 'drow', 'crow', 'srow', 'ev', 'dm']) if (prm[k] != null) S[k] = +prm[k]
+for (const k of ['group', 'cross', 'contrib', 'dgroup', 'dsort', 'drow', 'crow', 'srow', 'ev', 'dm', 'psort', 'prow']) if (prm[k] != null) S[k] = +prm[k]
 if (prm.open) S.open = new Set(prm.open.split(',').map(decodeURIComponent))
 if (prm.focus) S.focus = prm.focus
+if (prm.popen) S.popen = new Set(prm.popen.split(',').map((k) => `${S.group}:${decodeURIComponent(k)}`))
+if (prm.popen) S.pseen.add(S.group)
+if (tok.has('split')) S.merge = S.amerge = S.cmerge = S.dmerge = false
 render(true)
 if (tok.has('div')) setTimeout(() => document.getElementById('dsec')?.scrollIntoView(), 50)
 </script>
