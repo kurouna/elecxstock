@@ -151,3 +151,16 @@ describe('スクリーンの ID（FR-SC4, SC12）', () => {
     expect(a).not.toBe(b)
   })
 })
+
+describe('スクリーニング条件の一覧の絞り込み（FR-SC12）', () => {
+  it('名前に当たれば印の位置を返し、並びは保存の順のまま。条件の指標の名前でも当たる', () => {
+    const ss = [scr('配当', 3), { ...scr('成長', 4), conditions: [{ field: 'price.chgPct', op: '>=', value: 1 }] } as SavedScreen]
+    const all = S.screenRows(ss, '')
+    expect(all.map((r) => r.s.id)).toEqual(['配当', '成長'])
+    const hit = S.screenRows(ss, '配当')
+    expect(hit.map((r) => [r.s.id, r.ranges])).toEqual([['配当', [[0, 2]]]])
+    // 指標の名前（実績利回り）でも当たる。名前には印を付けない
+    expect(S.screenRows(ss, '利回り').map((r) => [r.s.id, r.ranges])).toEqual([['配当', []]])
+    expect(S.screenRows(ss, 'zzz')).toEqual([])
+  })
+})

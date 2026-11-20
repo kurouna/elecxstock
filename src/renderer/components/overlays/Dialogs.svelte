@@ -6,6 +6,7 @@ import { composing } from '../../lib/keys'
 import { clampSel } from '../../lib/selection'
 import { SHAPE_FIG } from '../../lib/shapeFigs'
 import { app, type Overlay, t } from '../../stores/app.svelte'
+import KeyHints from './KeyHints.svelte'
 import Keys from './Keys.svelte'
 
 let { overlay }: { overlay: Overlay } = $props()
@@ -29,19 +30,22 @@ onMount(() => {
       input?.focus()
       input?.select()
     })
-  } else if (overlay.kind === 'checklist' || overlay.kind === 'choice') queueMicrotask(() => box?.focus())
+  } else if (overlay.kind === 'checklist' || overlay.kind === 'choice') queueMicrotask(() => lst?.focus())
   else if (overlay.kind === 'confirm') {
     csel = overlay.danger ? 0 : 1
     ;(csel ? okBtn : first)?.focus()
   } else first?.focus()
 })
 let box = $state<HTMLDivElement>()
+/** 選ぶ・チェックの一覧（フォーカスを置き、選んでいる行を aria-activedescendant で指す） */
+let lst = $state<HTMLDivElement>()
 const intoView = () => queueMicrotask(() => box?.querySelector('.it.sel')?.scrollIntoView({ block: 'nearest' }))
 function choiceKey(e: KeyboardEvent) {
   if (overlay.kind !== 'choice') return
   const n = overlay.choices.length
-  if (e.key === 'ArrowDown') sel = clampSel(sel + 1, n)
-  else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
+  // Tab も候補を送る（一覧の外へフォーカスを出さない。後ろの画面のボタンが Enter で押されないように）
+  if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) sel = clampSel(sel + 1, n)
+  else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) sel = Math.max(0, sel - 1)
   else if (e.key === 'PageDown') sel = clampSel(sel + 10, n)
   else if (e.key === 'PageUp') sel = Math.max(0, sel - 10)
   else if (e.key === 'Home') sel = 0
@@ -89,8 +93,8 @@ function checkKey(e: KeyboardEvent) {
       ;[it[sel], it[j]] = [it[j]!, it[sel]!]
       sel = j
     }
-  } else if (e.key === 'ArrowDown') sel = clampSel(sel + 1, n)
-  else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
+  } else if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) sel = clampSel(sel + 1, n)
+  else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) sel = Math.max(0, sel - 1)
   else if (e.key === 'Home') sel = 0
   else if (e.key === 'End')
     sel = clampSel(n - 1, n) // 空の一覧で -1 にしない
@@ -118,10 +122,10 @@ function checkKey(e: KeyboardEvent) {
       <button type="button" class="btn" class:sel={csel === 0} bind:this={first} onfocus={() => (csel = 0)} onclick={() => done(overlay.resolve, { ok: false, checked })}>{t('common.cancel')}</button>
       <button type="button" class="btn" class:sel={csel === 1} class:danger={overlay.danger} class:primary={!overlay.danger} bind:this={okBtn} onfocus={() => (csel = 1)} onclick={() => done(overlay.resolve, { ok: true, checked })}>{overlay.ok}</button>
     </div>
-    <div class="keys muted">{t('dlg.confirmKeys')}</div>
+    <KeyHints items={[['← →', t('dlg.select')], ['Enter', t('dlg.decide')], ['Esc', t('common.cancel')]]} />
   </div>
 {:else if overlay.kind === 'prompt'}
-  <div class="dialog box" role="dialog">
+  <div class="dialog box" role="dialog" aria-label={overlay.title}>
     <h3>{overlay.title}</h3>
     <input
       class="name"
@@ -139,15 +143,16 @@ function checkKey(e: KeyboardEvent) {
       <button type="button" class="btn" onclick={() => done(overlay.resolve, null)}>{t('common.cancel')}</button>
       <button type="button" class="btn primary" onclick={() => done(overlay.resolve, value.trim() || null)}>{t('common.ok')}</button>
     </div>
+    <KeyHints items={[['Enter', t('common.ok')], ['Esc', t('common.cancel')]]} />
   </div>
 {:else if overlay.kind === 'choice'}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <!-- 探して選ぶダイアログと同じ骨格（lx。docs/design-dialogs.md §2）: 見出し・一覧・下の段のキー。形の図があれば、説明を名前の下に -->
   <div class="dialog lx pick" class:figs={overlay.choices.some((c) => c.fig)} role="dialog" aria-label={overlay.title} tabindex="-1" onkeydown={choiceKey} bind:this={box}>
     <div class="lx-head"><h3>{overlay.title}</h3></div>
-    <div class="lx-res list" role="listbox" aria-label={overlay.title}>
+    <div class="lx-res list" role="listbox" aria-label={overlay.title} tabindex="-1" aria-activedescendant="dlg-opt-{sel}" bind:this={lst}>
       {#each overlay.choices as c, i (c.id)}
-        <button type="button" class="it" class:sel={i === sel} role="option" aria-selected={i === sel} tabindex="-1" onclick={() => done(overlay.resolve, c.id)} onmousemove={() => (sel = i)}>
+        <button type="button" class="it" class:sel={i === sel} id="dlg-opt-{i}" role="option" aria-selected={i === sel} tabindex="-1" onclick={() => done(overlay.resolve, c.id)} onmousemove={() => (sel = i)}>
           {#if c.fig}<svg class="lx-fig" viewBox="0 0 56 36" aria-hidden="true">{#each SHAPE_FIG[c.fig] as [d, cls], j (j)}<path {d} class={cls ?? ''} />{/each}</svg>{/if}
           <span class="n">{c.label}</span>{#if c.hint}<span class="s">{c.hint}</span>{/if}
         </button>
@@ -163,14 +168,16 @@ function checkKey(e: KeyboardEvent) {
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="dialog lx pick" role="dialog" aria-label={overlay.title} tabindex="-1" onkeydown={checkKey} bind:this={box}>
     <div class="lx-head"><h3>{overlay.title}</h3></div>
-    <div class="lx-res list" role="listbox" aria-label={overlay.title} aria-multiselectable="true">
+    <div class="lx-res list" role="listbox" aria-label={overlay.title} aria-multiselectable="true" tabindex="-1" aria-activedescendant="dlg-opt-{sel}" bind:this={lst}>
       {#each overlay.items as c, i (c.id)}
         <button
           type="button"
           class="it"
           class:sel={i === sel}
           role="option"
-          aria-selected={c.on}
+          id="dlg-opt-{i}"
+          aria-selected={i === sel}
+          aria-checked={c.on}
           tabindex="-1"
           onclick={() => { sel = i; c.on = !c.on }}
           onmousemove={() => (sel = i)}
@@ -186,7 +193,7 @@ function checkKey(e: KeyboardEvent) {
       {#if overlay.reorder}<span><Keys keys="Alt+↑ / Alt+↓" /> {t('dlg.reorder')}</span>{/if}
       <span><Keys keys="Enter" /> {t('common.ok')}</span>
       <span><Keys keys="Esc" /> {t('common.cancel')}</span>
-      {#if overlay.hint}<span class="r">{overlay.hint}</span>{/if}
+      {#if overlay.hint}<span>{overlay.hint}</span>{/if}
     </div>
   </div>
 {:else if overlay.kind === 'ask3'}
@@ -199,7 +206,7 @@ function checkKey(e: KeyboardEvent) {
       <button type="button" class="btn" onclick={() => done(overlay.resolve, 'discard')}>{t('scr.discard')}</button>
       <button type="button" class="btn primary" bind:this={first} onclick={() => done(overlay.resolve, 'save')}>{t('common.save')}</button>
     </div>
-    <div class="keys muted">{t('dlg.confirmKeys')}</div>
+    <KeyHints items={[['← →', t('dlg.select')], ['Enter', t('dlg.decide')], ['Esc', t('common.cancel')]]} />
   </div>
 {/if}
 
@@ -211,6 +218,9 @@ function checkKey(e: KeyboardEvent) {
   /* 選ぶ・チェックの一覧（lx の骨格） */
   .pick {
     width: 600px;
+    outline: none;
+  }
+  .pick .lx-res:focus {
     outline: none;
   }
   .pick .lx-head {
@@ -274,11 +284,6 @@ function checkKey(e: KeyboardEvent) {
   .actions .btn.sel {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
-  }
-  .keys {
-    margin-top: var(--s-2);
-    font-size: var(--fs-1);
-    text-align: right;
   }
   .chk {
     display: flex;

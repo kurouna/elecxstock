@@ -64,8 +64,8 @@ export function menuKey(e: KeyLike, sel: number, count: number): MenuCommand | n
   const ctrl = e.ctrlKey || e.metaKey
   const digit = /^Digit([1-9])$/.exec(e.code)
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey) return { kind: 'reorder', delta: e.key === 'ArrowUp' ? -1 : 1 }
-  if (e.key === 'ArrowDown') return { kind: 'select', sel: clampSel(sel + 1, count) }
-  if (e.key === 'ArrowUp') return { kind: 'select', sel: Math.max(0, sel - 1) }
+  if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) return { kind: 'select', sel: clampSel(sel + 1, count) }
+  if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) return { kind: 'select', sel: Math.max(0, sel - 1) }
   if (e.key === 'Home') return { kind: 'select', sel: 0 }
   if (e.key === 'End') return { kind: 'select', sel: clampSel(count - 1, count) }
   if (e.key === 'Enter') return { kind: 'row' }

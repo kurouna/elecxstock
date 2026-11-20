@@ -155,3 +155,13 @@ describe('キーを押して探す: 記号のキー（FR-KB7）', () => {
     expect(keyCombos('Alt+Shift+Arrows', '')).toEqual([[{ keys: ['Alt', 'Shift', '←→↑↓'], hit: false }]])
   })
 })
+
+describe('キーの割り当ての表（FR-KB6）', () => {
+  it('既定と同じキーなら上書きを消す（変えた印・数に入れない）。null は既定に戻す。空は割り当てなし', async () => {
+    const { withKey } = await import('../../../src/renderer/lib/keys')
+    expect(withKey({ a: 'Ctrl+M' }, 'a', 'Shift+Ctrl+Enter', 'Ctrl+Shift+Enter')).toEqual({})
+    expect(withKey({}, 'a', 'Ctrl+M', 'Ctrl+Shift+Enter')).toEqual({ a: 'Ctrl+M' })
+    expect(withKey({ a: 'Ctrl+M' }, 'a', null, 'Ctrl+Shift+Enter')).toEqual({})
+    expect(withKey({}, 'b', '', 'Ctrl+B')).toEqual({ b: '' })
+  })
+})

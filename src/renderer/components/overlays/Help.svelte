@@ -77,13 +77,8 @@ function setMode(m: 'text' | 'key') {
 }
 function scrollSel() {
   queueMicrotask(() => {
-    const el = list?.querySelector<HTMLElement>('.row.sel')
-    if (!el || !list) return
-    // 段の見出し（sticky）の下に隠れないように
-    const lr = list.getBoundingClientRect()
-    const r = el.getBoundingClientRect()
-    if (r.top < lr.top + 36) list.scrollTop -= lr.top + 36 - r.top
-    else if (r.bottom > lr.bottom) list.scrollTop += r.bottom - lr.bottom
+    // 段の見出し（sticky）の下に隠れないよう、行の scroll-margin-top（CSS の px。表示倍率が掛かっても見出しの高さとそろう）で余白を取る
+    list?.querySelector<HTMLElement>('.row.sel')?.scrollIntoView({ block: 'nearest' })
   })
 }
 function key(e: KeyboardEvent) {
@@ -380,6 +375,7 @@ onMount(() => {
   }
   /* 行: キー（左の固定列・右寄せ）| 操作 | 割り当てを変えられる印。名前とキーが離れない */
   .row {
+    scroll-margin-top: 36px;
     display: grid;
     grid-template-columns: 130px minmax(0, 1fr) 20px;
     align-items: center;

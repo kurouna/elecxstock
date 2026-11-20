@@ -26,6 +26,8 @@ import { rootZoom } from '../../lib/pointer'
 import { clampSel } from '../../lib/selection'
 import { app, t } from '../../stores/app.svelte'
 import { layout, movePage, openablePages, setPage } from '../../stores/layout.svelte'
+import Icon, { type IconName } from '../Icon.svelte'
+import Keys from './Keys.svelte'
 
 const rows = $derived(menuRows(openablePages(), layout.doc.active))
 let sel = $state(
@@ -104,19 +106,22 @@ $effect(() => {
   void sel
   queueMicrotask(() => box?.querySelector('.it.sel')?.scrollIntoView({ block: 'nearest' }))
 })
-const label: Record<Exclude<MenuRow['kind'], 'page'>, () => string> = {
-  new: () => `＋ ${t('lay.new')}`,
-  duplicate: () => `⧉ ${t('lay.duplicate')}`,
-  rename: () => `✎ ${t('lay.rename')}`,
-  copyTab: () => `↓ ${t('lay.saveCurrent')}`,
-  delete: () => `🗑 ${t('lay.delete')}`,
+type Act = Exclude<MenuRow['kind'], 'page'>
+const label: Record<Act, () => string> = {
+  new: () => t('lay.new'),
+  duplicate: () => t('lay.duplicate'),
+  rename: () => t('lay.rename'),
+  copyTab: () => t('lay.saveCurrent'),
+  delete: () => t('lay.delete'),
 }
-const hint: Record<Exclude<MenuRow['kind'], 'page'>, string> = {
+const icon: Record<Act, IconName> = { new: 'plus', duplicate: 'copy', rename: 'edit', copyTab: 'import', delete: 'trash' }
+/** 操作のキー（空白は続けて押す: Delete を 2 回） */
+const hint: Record<Act, string> = {
   new: 'Insert',
   duplicate: 'Shift+Insert',
   rename: 'F2',
   copyTab: '',
-  delete: 'Delete ×2',
+  delete: 'Delete Delete',
 }
 </script>
 
@@ -151,12 +156,19 @@ const hint: Record<Exclude<MenuRow['kind'], 'page'>, string> = {
       </button>
     {:else}
       <button type="button" role="menuitem" class="it act" class:sel={i === sel} onclick={() => click(i)} onmousemove={() => (sel = i)}>
+        <span class="ck"><Icon name={icon[r.kind]} size={14} /></span>
         <span class="n">{label[r.kind]()}</span>
         {#if r.kind === 'delete' && pendingDel && target?.id === pendingDel}<span class="tag warn">{t('scr.deleteAgain')}</span>{/if}
-        <span class="s">{hint[r.kind]}</span>
+        {#if hint[r.kind]}<Keys keys={hint[r.kind]} />{/if}
       </button>
     {/if}
   {/each}
+  <div class="lx-foot">
+    <span><Keys keys="Enter" /> {t('lay.keyOpen')}</span>
+    <span><Keys keys="1〜9" /> {t('lay.keyNum')}</span>
+    <span><Keys keys="Alt+↑ / Alt+↓" /> {t('dlg.reorder')}</span>
+    <span><Keys keys="Ctrl+Z" /> {t('lay.keyUndo')}</span>
+  </div>
 </div>
 
 <style>
@@ -190,7 +202,10 @@ const hint: Record<Exclude<MenuRow['kind'], 'page'>, string> = {
     box-shadow: inset 2px 0 0 var(--focus);
   }
   .it .ck {
-    width: 1em;
+    width: 14px;
+    flex: none;
+    display: grid;
+    place-items: center;
     color: var(--focus);
   }
   .it .n {
@@ -202,6 +217,12 @@ const hint: Record<Exclude<MenuRow['kind'], 'page'>, string> = {
   .it .s {
     color: var(--text-3);
     font-size: var(--fs-1);
+  }
+  .it.act .ck {
+    color: var(--text-3);
+  }
+  .page-menu .lx-foot {
+    margin-top: 4px;
   }
   .it.act .n {
     color: var(--text-2);

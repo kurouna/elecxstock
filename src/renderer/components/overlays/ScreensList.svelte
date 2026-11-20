@@ -4,11 +4,14 @@
 
 import type { SavedScreen } from '@shared/types'
 import { onMount } from 'svelte'
+import { conditionsText } from '../../lib/conditionEdit'
 import { composing } from '../../lib/keys'
-import { missingDefaults, newScreenId, openScreenAnywhere, removeScreen } from '../../lib/screens'
+import { missingDefaults, newScreenId, openScreenAnywhere, removeScreen, screenRows } from '../../lib/screens'
 import { clampSel } from '../../lib/selection'
 import { app, promptDialog, rpc, saveScreens, screenName, t, toast } from '../../stores/app.svelte'
 import { allPanes } from '../../stores/layout.svelte'
+import Hl from './Hl.svelte'
+import Keys from './Keys.svelte'
 
 let query = $state('')
 let sel = $state(0)
@@ -17,11 +20,18 @@ let input = $state<HTMLInputElement>()
 let defs = $state<SavedScreen[]>([])
 const missing = $derived(missingDefaults(defs, app.screens))
 const openId = $derived(allPanes().find((p) => p.widget === 'screener')?.state.screenId as string | undefined)
-const items = $derived(app.screens.filter((s) => !query || screenName(s).toLowerCase().includes(query.toLowerCase())))
+const rows = $derived(screenRows(app.screens, query))
+const items = $derived(rows.map((r) => r.s))
+const cur = $derived(items[sel])
 
 async function key(e: KeyboardEvent) {
   if (composing(e)) return
   if (e.key !== 'Delete') pendingDel = null
+  if (e.key === 'Escape' && query) {
+    query = ''
+    sel = 0
+    return e.preventDefault()
+  }
   const x = items[sel]
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey) {
     if (query || !x) return e.preventDefault()
@@ -34,8 +44,10 @@ async function key(e: KeyboardEvent) {
     sel = j
     saveScreens()
   } else if (e.ctrlKey && e.shiftKey && e.code === 'KeyR') void restoreDefaults()
-  else if (e.key === 'ArrowDown') sel = clampSel(sel + 1, items.length)
-  else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
+  else if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) sel = clampSel(sel + 1, items.length)
+  else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) sel = Math.max(0, sel - 1)
+  else if (e.key === 'Home' && !query) sel = 0
+  else if (e.key === 'End' && !query) sel = clampSel(items.length - 1, items.length)
   else if (e.key === 'Enter' && x) {
     app.overlay = null
     openScreenAnywhere(x.id)
@@ -87,51 +99,98 @@ onMount(() => {
 })
 </script>
 
-<div class="dialog palette" role="dialog" aria-label={t('scr.list')}>
-  <input class="search" bind:this={input} bind:value={query} placeholder={t('scr.searchPh')} onkeydown={key} oninput={() => (sel = 0)} />
-  <div class="list res">
-    <div class="grp">{t('scr.list')}</div>
-    {#each items as s, i (s.id)}
-      <button type="button" class="it" class:sel={i === sel} onclick={() => { app.overlay = null; openScreenAnywhere(s.id) }} onmousemove={() => (sel = i)}>
-        <span class="n">{screenName(s)}{#if pendingDel === s.id}<span class="tag del">{t('scr.deleteAgain')}</span>{/if}</span>
-        <span class="s">{t('scr.conds', { n: s.conditions.length })}</span>
-        {#if s.id === openId}<span class="s">● {t('scr.openNow')}</span>{/if}
+<!-- 探して選ぶダイアログと同じ骨格（lx。docs/design-dialogs.md §2）: 見出しと探す欄・一覧・選んだ条件の中身・キー -->
+<div class="dialog lx scrlist" role="dialog" aria-label={t('scr.list')}>
+  <div class="lx-head">
+    <h3>{t('scr.list')}</h3>
+    <label class="lx-search aux">
+      <svg class="lx-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+      <input
+        bind:this={input}
+        bind:value={query}
+        placeholder={t('scr.searchPh')}
+        role="combobox"
+        aria-expanded="true"
+        aria-controls="scrlist-list"
+        aria-activedescendant={cur ? `scr-${cur.id}` : undefined}
+        data-esc-local={query ? '' : undefined}
+        onkeydown={key}
+        oninput={() => (sel = 0)}
+      />
+    </label>
+  </div>
+  <div class="lx-res list" id="scrlist-list" role="listbox" onmousedown={(e) => e.preventDefault()} aria-label={t('scr.list')}>
+    {#each rows as r, i (r.s.id)}
+      <button
+        type="button"
+        class="it"
+        class:sel={i === sel}
+        id="scr-{r.s.id}"
+        role="option"
+        aria-selected={i === sel}
+        tabindex="-1"
+        onclick={() => {
+          app.overlay = null
+          openScreenAnywhere(r.s.id)
+        }}
+        onmousemove={() => (sel = i)}
+      >
+        <span class="n"><Hl text={screenName(r.s)} ranges={r.ranges} />{#if pendingDel === r.s.id}<span class="tag del">{t('scr.deleteAgain')}</span>{/if}</span>
+        {#if r.s.id === openId}<span class="now">{t('scr.openNow')}</span>{/if}
+        <span class="s num">{t('scr.conds', { n: r.s.conditions.length })}</span>
       </button>
+    {:else}
+      <div class="lx-empty">{t('scr.none', { q: query })}</div>
     {/each}
   </div>
-  <div class="foot keys">
-    <div class="row"><span>{t('cmd.hint.move')}</span><span>Enter {t('scr.open')}</span><span class="end">{t('cmd.hint.close')}</span></div>
-    <div class="row">
-      <span>F2 {t('scr.rename')}</span><span>Ctrl+Shift+D {t('scr.duplicate')}</span><span>Alt+↑↓ {t('dlg.reorder')}</span><span>Delete {t('scr.delete')}</span>
-      {#if missing.length}<span class="restore">Ctrl+Shift+R {t('scr.restoreDefaults', { n: missing.length })}</span>{/if}
-    </div>
+  <div class="lx-desc" aria-live="polite">
+    {#if cur}
+      <b>{screenName(cur)}</b>
+      <span class="d cond">{conditionsText(cur.conditions, app.settings.lang) || '—'}</span>
+      <span class="r"><span><Keys keys="Enter" /> {t('scr.open')}</span></span>
+    {/if}
+  </div>
+  <div class="lx-foot">
+    <span><Keys keys="↑ ↓" /> {t('dlg.select')}</span>
+    <span><Keys keys="F2" /> {t('scr.rename')}</span>
+    <span><Keys keys="Ctrl+Shift+D" /> {t('scr.duplicate')}</span>
+    <span><Keys keys="Alt+↑ / Alt+↓" /> {t('dlg.reorder')}</span>
+    <span><Keys keys="Delete" /> {t('scr.delete')}</span>
+    <span><Keys keys="Esc" /> {query ? t('dlg.clearQuery') : t('dlg.closeKey')}</span>
+    {#if missing.length}<span class="r restore"><Keys keys="Ctrl+Shift+R" /> {t('scr.restoreDefaults', { n: missing.length })}</span>{/if}
   </div>
 </div>
 
 <style>
-  .palette {
-    width: 600px;
-    overflow: hidden;
+  .scrlist {
+    width: 640px;
   }
-  .res {
+  .scrlist .lx-head {
+    border-bottom: 1px solid var(--line);
+  }
+  .scrlist .lx-res {
     max-height: 420px;
-    overflow: auto;
-    padding: 4px 0;
   }
-  .keys {
-    flex-direction: column;
-    gap: 2px;
+  .now {
+    flex: none;
+    font-size: var(--fs-0);
+    line-height: 14px;
+    padding: 0 4px;
+    border-radius: var(--radius-ctl);
+    border: 1px solid var(--line-strong);
+    color: var(--text-2);
   }
-  .keys .row {
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: 16px;
+  /* 条件の文は 2 行まで（長ければ「…」） */
+  .scrlist .lx-desc {
+    height: 64px;
   }
-  .keys span {
-    white-space: nowrap;
-  }
-  .keys .end {
-    margin-left: auto;
+  .scrlist .lx-desc .cond {
+    white-space: normal;
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.45;
   }
   .del {
     color: var(--danger);

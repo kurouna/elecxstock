@@ -79,23 +79,31 @@ function key(e: KeyboardEvent) {
     e.preventDefault()
     return
   }
-  if (!sel) return
+  if (!sel) {
+    if (e.key === 'Tab') e.preventDefault()
+    return
+  }
   const empty = !q
   // 打っている間は ← → が文字のカーソルなので、↑ ↓ は読む順に 1 枚ずつ（同じ行の 2 枚目にも行ける）
+  // Tab は読む順に前後（ダイアログの外へフォーカスを出さない）
   const dir =
-    e.key === 'ArrowDown'
-      ? empty
-        ? 'down'
+    e.key === 'Tab'
+      ? e.shiftKey
+        ? 'prev'
         : 'next'
-      : e.key === 'ArrowUp'
+      : e.key === 'ArrowDown'
         ? empty
-          ? 'up'
-          : 'prev'
-        : e.key === 'ArrowRight' && empty
-          ? 'right'
-          : e.key === 'ArrowLeft' && empty
-            ? 'left'
-            : null
+          ? 'down'
+          : 'next'
+        : e.key === 'ArrowUp'
+          ? empty
+            ? 'up'
+            : 'prev'
+          : e.key === 'ArrowRight' && empty
+            ? 'right'
+            : e.key === 'ArrowLeft' && empty
+              ? 'left'
+              : null
   if (dir) sel = gridMove(groups, cols(), sel, dir)
   else if (e.key === 'Home' && empty) sel = enabled[0]?.id ?? sel
   else if (e.key === 'End' && empty) sel = enabled[enabled.length - 1]?.id ?? sel
@@ -128,7 +136,7 @@ onMount(() => input?.focus())
       />
     </label>
   </div>
-  <div class="lx-res" id="wpick-list" role="listbox" aria-label={title} bind:this={res}>
+  <div class="lx-res" id="wpick-list" role="listbox" onmousedown={(e) => e.preventDefault()} aria-label={title} bind:this={res}>
     {#each groups as g (g.group)}
       <div class="wg" role="group" aria-label={t(`wgroup.${g.group}` as Key)}>
         <div class="lx-grp">{t(`wgroup.${g.group}` as Key)}<span class="n">{g.cards.length}</span></div>

@@ -1,6 +1,6 @@
 // コマンドバーの候補の組み立て（docs/design-dialogs.md §3。FR-KB1・FR-KB9）
 import { describe, expect, it } from 'vitest'
-import { buildPalette, type PalAction, parseQuery, pushRecent } from '../../../src/renderer/lib/palette'
+import { buildPalette, moveRow, type PalAction, parseQuery, pushRecent } from '../../../src/renderer/lib/palette'
 
 const act = (id: string, label: string, group: PalAction['group'], key = '', reason: string | null = null): PalAction => ({
   id,
@@ -12,7 +12,7 @@ const act = (id: string, label: string, group: PalAction['group'], key = '', rea
 const ACTS = [
   act('alertNew', 'アラートを作る', 'alert', 'Ctrl+Alt+A'),
   act('exportHoldings', '保有の記録を JSON に書き出す', 'folio'),
-  act('columns', '列の選択', 'sym', 'Ctrl+Shift+C', '一覧のペインにフォーカスしてから'),
+  act('columns', '列の選択', 'sym', 'Ctrl+Shift+C', '一覧のペインへのフォーカスが必要です'),
   act('update', 'データを更新', 'data', 'F5'),
 ]
 const sym = (code: string, name: string) => ({ id: `JP:${code}`, code, name })
@@ -109,5 +109,24 @@ describe('レビューの指摘の再現（FR-KB9）', () => {
     expect(fmtChgPct(-0.5)).toBe('-0.50%')
     expect(fmtChgPct(0)).toBe('0.00%')
     expect(fmtChgPct(undefined)).toBe('')
+  })
+})
+
+describe('↑ ↓ の移動（最近の銘柄のチップは 1 段。FR-KB1）', () => {
+  // 0〜2 がチップ（1 段）、3〜5 が行
+  const chips = [true, true, true, false, false, false]
+  it('チップの上の ↓ は最初の行へ、↑ は動かない', () => {
+    expect(moveRow(chips, 1, 1)).toBe(3)
+    expect(moveRow(chips, 2, -1)).toBe(2)
+  })
+  it('最初の行の ↑ はチップの先頭へ。行どうしは 1 つずつ。端では動かない', () => {
+    expect(moveRow(chips, 3, -1)).toBe(0)
+    expect(moveRow(chips, 3, 1)).toBe(4)
+    expect(moveRow(chips, 5, 1)).toBe(5)
+  })
+  it('チップが無ければ 1 つずつ・先頭の ↑ は動かない・チップだけなら ↓ で動かない', () => {
+    expect(moveRow([false, false], 0, -1)).toBe(0)
+    expect(moveRow([false, false], 0, 1)).toBe(1)
+    expect(moveRow([true, true], 0, 1)).toBe(0)
   })
 })

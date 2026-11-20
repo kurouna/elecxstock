@@ -31,6 +31,12 @@ const PATHS = {
   /** プライバシーモード（FR-H12）: 目（オフ）と斜線の入った目（オン） */
   eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   eyeOff: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 4l16 16',
+  /** 複製: 重なった 2 枚 */
+  copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
+  /** 名前を変える: 鉛筆 */
+  edit: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
+  /** 削除: ごみ箱 */
+  trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6',
 } as const
 export type IconName = keyof typeof PATHS
 </script>

@@ -10,6 +10,7 @@ import type { Key } from '../../lib/i18n'
 import { composing } from '../../lib/keys'
 import { accountName } from '../../lib/portfolio'
 import { app, closeOverlay, nameOf, rpc, t } from '../../stores/app.svelte'
+import KeyHints from './KeyHints.svelte'
 
 let { holding, resolve }: { holding?: Holding; resolve: (h: Holding | null) => void } = $props()
 // svelte-ignore state_referenced_locally
@@ -172,10 +173,10 @@ onMount(() => (holding ? qtyEl : codeEl)?.focus())
     <div class="err">{error ?? ''}</div>
   </div>
   <div class="actions">
-    <span class="muted keys">{t('hold.formKeys')}</span>
     <button type="button" class="btn" onclick={cancel}>{t('common.cancel')}</button>
     <button type="button" class="btn primary" disabled={!!error} onclick={save}>{t('hold.saveDo')}</button>
   </div>
+  <KeyHints items={[['Tab', t('hold.k.fields')], ['← →', t('hold.k.account')], ['Enter', t('common.save')], ['Esc', t('common.cancel')]]} />
 </div>
 
 <style>
@@ -302,9 +303,5 @@ onMount(() => (holding ? qtyEl : codeEl)?.focus())
     align-items: center;
     justify-content: flex-end;
     margin-top: var(--s-2);
-  }
-  .keys {
-    margin-right: auto;
-    font-size: var(--fs-1);
   }
 </style>

@@ -7,11 +7,14 @@
 import { DEFAULT_RECENT_FIELDS, FIELD_BY_ID, FIELD_GROUPS, type FieldDef, MISSING_FIELDS, NEW_FIELD_IDS } from '@shared/fields'
 import { onMount, tick } from 'svelte'
 import { SvelteSet } from 'svelte/reactivity'
-import { highlightHtml, normText as norm } from '../../lib/highlight'
+import { fieldMatch, fieldUnit } from '../../lib/fieldPick'
+import { hlRanges, normText as norm } from '../../lib/highlight'
 import { composing } from '../../lib/keys'
 import { rootZoom, tipBeside } from '../../lib/pointer'
 import { app, closeOverlay, t } from '../../stores/app.svelte'
 import Icon from '../Icon.svelte'
+import Hl from './Hl.svelte'
+import Keys from './Keys.svelte'
 
 let {
   title,
@@ -38,16 +41,7 @@ let tipEl = $state<HTMLDivElement>()
 let added = $state<string[]>([])
 
 const defs = $derived(fields.map((id) => FIELD_BY_ID.get(id)).filter((f): f is FieldDef => !!f))
-/** 2: 名前・別名で当たった / 1: 説明だけで当たった / 0: 当たらない */
-function match(f: FieldDef): number {
-  if (!q) return 2
-  const t0 = norm(q)
-  // 名前と同じ（「EPS」で EPS を、別名に EPS を持つ配当性向より先に）
-  if (norm(f.label.ja) === t0 || norm(f.label.en) === t0) return 3
-  if (norm(`${f.label.ja} ${f.label.en} ${f.alias ?? ''}`).includes(t0)) return 2
-  if (norm(`${f.description?.ja ?? ''} ${f.description?.en ?? ''}`).includes(t0)) return 1
-  return 0
-}
+const match = (f: FieldDef): number => fieldMatch(f, q)
 /** 分類ごとの項目（段は分類で決まり、絞り込んでも動かない） */
 const cols = $derived.by(() => {
   const out: { id: string; label: string; items: FieldDef[] }[][] = [[], [], [], []]
@@ -82,16 +76,8 @@ const missing = $derived(
   q && !flat.length ? MISSING_FIELDS.filter((x) => norm(`${x.label.ja} ${x.label.en} ${x.words}`).includes(norm(q))) : [],
 )
 
-/** 単位（登録表に無ければ種類から） */
-function unitOf(f: FieldDef): string {
-  if (f.unit) return f.unit[lang]
-  if (f.type === 'percent') return '%'
-  if (f.type === 'ratio') return lang === 'ja' ? '倍' : 'x'
-  return ''
-}
+const unitOf = (f: FieldDef): string => fieldUnit(f, lang)
 const isNew = (id: string) => NEW_FIELD_IDS.has(id) && !usedSet.has(id) && !app.settings.recentFields.includes(id)
-/** 名前の当たった所を <mark> で囲む（lib/highlight.ts。エスケープは切ったあと・元の文字の位置で切る） */
-const hl = (s: string): string => highlightHtml(s, q)
 
 function pick(id: string, keep: boolean) {
   if (!id) return
@@ -169,11 +155,12 @@ async function showTip(id: string, ev: MouseEvent) {
 onMount(() => input?.focus())
 </script>
 
-<div class="dialog picker" role="dialog" aria-label={title}>
-  <div class="dh">
+<!-- 探して選ぶダイアログと同じ骨格（lx。docs/design-dialogs.md §2）: 見出しと探す欄・段の一覧・選んだ項目の説明・キー -->
+<div class="dialog lx picker" role="dialog" aria-label={title}>
+  <div class="lx-head">
     <h3>{title}</h3>
-    <label class="search">
-      <span class="ic">⌕</span>
+    <label class="lx-search aux">
+      <svg class="lx-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
       <input
         bind:this={input}
         bind:value={q}
@@ -186,20 +173,22 @@ onMount(() => input?.focus())
         autocomplete="off"
         onkeydown={key} />
     </label>
-    <span class="cnt">{q ? t('fp.hits', { n: flat.length }) : t('fp.count', { n: defs.length })}</span>
+    <span class="sub num">{q ? t('fp.hits', { n: flat.length }) : t('fp.count', { n: defs.length })}</span>
     <button type="button" class="x" aria-label={t('cmd.hint.close')} onclick={close}>✕</button>
   </div>
   {#if !q && recent.length}
-    <div class="recent">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="recent" onmousedown={(e) => e.preventDefault()}>
       <span>{t('fp.recent')}</span>
       {#each recent as f (f.id)}
-        <button type="button" class="chip" class:sel={f.id === sel} onclick={(e) => pick(f.id, e.shiftKey)} onmouseenter={() => (hover = f.id)} onmouseleave={() => (hover = null)}>
+        <button type="button" class="lx-chip" class:sel={f.id === sel} onclick={(e) => pick(f.id, e.shiftKey)} onmouseenter={() => (hover = f.id)} onmouseleave={() => (hover = null)}>
           {#if usedSet.has(f.id)}<span class="ck">✓</span>{/if}{f.label[lang]}
         </button>
       {/each}
     </div>
   {/if}
-  <div class="grid" id="fp-list" role="listbox" bind:this={grid}>
+  <!-- 押しても検索欄からフォーカスを移さない（行をクリックしたあともキーで続けられる） -->
+  <div class="grid" id="fp-list" role="listbox" bind:this={grid} onmousedown={(e) => e.preventDefault()}>
     {#if flat.length}
       {#each cols as col, ci (ci)}
         <div class="col">
@@ -221,7 +210,7 @@ onMount(() => input?.focus())
                   onmouseenter={() => (hover = f.id)}
                   onmouseleave={() => (hover = null)}>
                   {#if usedSet.has(f.id)}<span class="ck" title={t('fp.used')}>✓</span>{/if}
-                  <span class="nm">{@html hl(f.label[lang])}</span>
+                  <span class="nm"><Hl text={f.label[lang]} ranges={hlRanges(f.label[lang], q)} /></span>
                   {#if unitOf(f)}<span class="u">({unitOf(f)})</span>{/if}
                   {#if isNew(f.id)}<span class="new">{t('fp.new')}</span>{/if}
                   <span class="info" role="img" aria-label={t('common.about')} onmouseenter={(e) => showTip(f.id, e)} onmouseleave={() => (tip = null)}><Icon name="info" size={14} /></span>
@@ -238,20 +227,20 @@ onMount(() => input?.focus())
       </div>
     {/if}
   </div>
-  <div class="desc" aria-live="polite">
+  <div class="lx-desc fp-desc" aria-live="polite">
     {#if cur}
       <b>{cur.label[lang]}{unitOf(cur) ? `（${unitOf(cur)}）` : ''}</b>
       <span class="d">{cur.description?.[lang] ?? ''}{usedSet.has(cur.id) ? t('fp.usedHint') : ''}</span>
     {/if}
   </div>
-  <div class="foot">
+  <div class="lx-foot">
     <span>{t('fp.keyType')}</span>
-    <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> {t('fp.keyMove')}</span>
-    <span><kbd>Tab</kbd> {t('fp.keyGroup')}</span>
-    <span><kbd>Enter</kbd> {t('fp.keyAdd')}</span>
-    {#if onAdd}<span><kbd>Shift+Enter</kbd> {t('fp.keyMore')}{added.length ? `（${added.length}）` : ''}</span>{/if}
-    <span><kbd>Esc</kbd> {q ? t('fp.keyClear') : t('fp.keyClose')}</span>
-    <span class="r"><span class="okc">✓</span> {t('fp.used')} · <Icon name="info" size={13} /> {t('common.about')}</span>
+    <span><Keys keys="← → ↑ ↓" /> {t('fp.keyMove')}</span>
+    <span><Keys keys="Tab" /> {t('fp.keyGroup')}</span>
+    <span><Keys keys="Enter" /> {t('fp.keyAdd')}</span>
+    {#if onAdd}<span><Keys keys="Shift+Enter" /> {t('fp.keyMore')}{added.length ? `（${added.length}）` : ''}</span>{/if}
+    <span><Keys keys="Esc" /> {q ? t('fp.keyClear') : t('fp.keyClose')}</span>
+    <span class="r"><span class="legend"><span class="okc">✓</span> {t('fp.used')} · <Icon name="info" size={13} /> {t('common.about')}</span></span>
   </div>
   {#if tip}
     {@const f = FIELD_BY_ID.get(tip.id)}
@@ -261,53 +250,8 @@ onMount(() => input?.focus())
 
 <style>
   .picker {
-    container: fp / inline-size;
     width: min(980px, calc(100vw - 48px));
     max-height: calc(100vh - 110px);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    padding: 0;
-  }
-  .dh {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 12px 6px;
-  }
-  .dh h3 {
-    margin: 0;
-    font-size: var(--fs-3);
-    white-space: nowrap;
-  }
-  .cnt {
-    font-size: var(--fs-1);
-    color: var(--text-3);
-    white-space: nowrap;
-  }
-  .search {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 10px;
-    border: 1px solid var(--focus);
-    border-radius: 4px;
-    background: var(--bg);
-    min-width: 0;
-  }
-  .search input {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    background: none;
-    color: var(--text);
-    font: inherit;
-    outline: none;
-  }
-  .search .ic {
-    color: var(--text-3);
   }
   .x {
     background: none;
@@ -326,26 +270,11 @@ onMount(() => input?.focus())
     font-size: var(--fs-1);
     color: var(--text-3);
   }
-  .chip {
-    height: 22px;
-    padding: 0 9px;
-    border: 1px solid var(--line-strong);
-    border-radius: 11px;
-    background: var(--panel-3);
-    color: var(--text);
-    font-size: var(--fs-1);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .chip.sel {
-    border-color: var(--focus);
-    background: var(--select-strong);
-  }
   .ck,
   .okc {
     color: var(--ok);
   }
-  .chip .ck {
+  .lx-chip .ck {
     margin-right: 3px;
   }
   /* 分類は決まった段に置く（幅で 4 → 2 → 1 段） */
@@ -364,7 +293,7 @@ onMount(() => input?.focus())
     border-left: 1px solid var(--line-soft);
     padding-left: 16px;
   }
-  @container fp (max-width: 760px) {
+  @container lxdlg (max-width: 760px) {
     .grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -373,7 +302,7 @@ onMount(() => input?.focus())
       padding-left: 0;
     }
   }
-  @container fp (max-width: 420px) {
+  @container lxdlg (max-width: 420px) {
     .grid {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -424,11 +353,6 @@ onMount(() => input?.focus())
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
-  }
-  .nm :global(mark) {
-    background: none;
-    color: var(--focus);
-    font-weight: 700;
   }
   .it.weak .nm {
     color: var(--text-2);
@@ -499,60 +423,23 @@ onMount(() => input?.focus())
   .why b {
     color: var(--text-2);
   }
-  /* 下の段: 選んだ項目の説明を 2 行まで（キーだけでも全文が読める） */
-  .desc {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0 10px;
-    align-items: baseline;
-    height: 50px;
-    padding: 6px 12px;
-    border-top: 1px solid var(--line);
-    background: var(--panel);
-    font-size: var(--fs-1);
-    color: var(--text-2);
-  }
-  .desc b {
-    color: var(--text);
-    font-size: var(--fs-2);
+  /* 印の凡例は 1 行に（アイコンと文字を横に並べる） */
+  .legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     white-space: nowrap;
   }
-  .desc .d {
+  /* 下の段: 選んだ項目の説明を 2 行まで（キーだけでも全文が読める） */
+  .fp-desc {
+    height: 64px;
+  }
+  .fp-desc .d {
+    white-space: normal;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .foot {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 14px;
-    padding: 5px 12px;
-    border-top: 1px solid var(--line);
-    font-size: var(--fs-1);
-    color: var(--text-3);
-  }
-  .foot .r {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-  }
-  @container fp (max-width: 600px) {
-    .foot .r {
-      display: none;
-    }
-  }
-  kbd {
-    font-family: var(--mono);
-    font-size: var(--fs-0);
-    border: 1px solid var(--line-strong);
-    border-bottom-width: 2px;
-    border-radius: 3px;
-    padding: 0 4px;
-    color: var(--text-2);
-    background: var(--panel-3);
+    line-height: 1.45;
   }
 </style>

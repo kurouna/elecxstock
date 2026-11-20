@@ -1,8 +1,7 @@
-// 検索語の強調（条件を選ぶダイアログ。FR-SC17）。全角・半角・大小文字を無視して探し（NFKC と小文字）、元の文字の位置で囲む
+// 検索語の強調（条件を選ぶダイアログ。FR-SC17）。全角・半角・大小文字を無視して探し（NFKC と小文字）、元の文字の位置の範囲を返す
 
 /** 検索の正規化（NFKC と小文字）。条件を選ぶダイアログの当たり判定もこれを使い、強調と食い違わないようにする */
 export const normText = (s: string) => s.normalize('NFKC').toLowerCase()
-const esc = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;')
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
 /**
@@ -30,9 +29,8 @@ export function matchRange(s: string, q: string): [number, number] | null {
   return [from[i]!, to[i + nq.length - 1]!]
 }
 
-/** 名前を HTML にする（当たった所だけ <mark>。エスケープは切ったあとにするので、&amp; の中を囲まない） */
-export function highlightHtml(s: string, q: string): string {
+/** 強調する範囲（Hl.svelte に渡す。当たらなければ空） */
+export function hlRanges(s: string, q: string): [number, number][] {
   const r = q ? matchRange(s, q) : null
-  if (!r) return esc(s)
-  return `${esc(s.slice(0, r[0]))}<mark>${esc(s.slice(r[0], r[1]))}</mark>${esc(s.slice(r[1]))}`
+  return r ? [r] : []
 }

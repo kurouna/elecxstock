@@ -295,3 +295,14 @@ export const fmtChgPct = (v: number | null | undefined) => (v == null ? '' : `${
 /** 取得の対象の銘柄か（プライム・REIT・指数・追加した銘柄）。対象外なら「追加して取得する」も出す（FR-U3） */
 export const isTracked = (i: { userAdded?: boolean; market: string }) =>
   !!i.userAdded || i.market === 'P' || i.market === 'R' || i.market === 'I'
+
+/** ↑ ↓ で移る先（chips[i] は i 番目の候補が最近の銘柄のチップか）。チップの行は 1 段として飛ぶ: チップの上の ↓ は最初の行へ、最初の行の ↑ はチップの先頭へ */
+export function moveRow(chips: readonly boolean[], sel: number, d: 1 | -1): number {
+  if (chips[sel]) {
+    const j = d > 0 ? chips.indexOf(false) : -1
+    return j >= 0 ? j : sel
+  }
+  const j = sel + d
+  if (j < 0 || j >= chips.length) return sel
+  return chips[j] ? chips.indexOf(true) : j
+}

@@ -21,6 +21,7 @@ import { newAlertForFocus, sendSymbol } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
 import { composing } from '../../lib/keys'
 import { app, closeOverlay, rpc, t, toast } from '../../stores/app.svelte'
+import KeyHints from './KeyHints.svelte'
 
 let { tab: initial }: { tab?: 'alerts' | 'history' } = $props()
 // svelte-ignore state_referenced_locally
@@ -182,7 +183,25 @@ onMount(() => root?.focus())
       </table>
     {/if}
   </div>
-  <div class="foot">{tab === 'alerts' ? t('al.keys') : t('al.keysHist')}</div>
+  <div class="lx-foot">
+    {#if tab === 'alerts'}
+      <KeyHints
+        inline
+        items={[
+          ['Insert', t('al.k.new')],
+          ['E', t('al.k.edit')],
+          ['Space', t('al.k.toggle')],
+          ['Delete', t('al.k.del')],
+          ['Enter', t('al.k.open')],
+          ['H', t('al.k.hist')],
+          ['Ctrl+Shift+F', t('al.k.met')],
+          ['Esc', t('dlg.closeKey')],
+        ]}
+      />
+    {:else}
+      <KeyHints inline items={[['Enter', t('al.k.open')], ['R', t('al.k.readAll')], ['H', t('al.k.back')], ['Esc', t('dlg.closeKey')]]} />
+    {/if}
+  </div>
 </div>
 
 <style>

@@ -88,3 +88,31 @@ describe('並べ替えと「または」（FR-SC5）', () => {
     expect(E.withoutLeadingOr([A, B])[1]!.or).toBe(true)
   })
 })
+
+describe('条件の組の文（スクリーニング条件の一覧の下の段。FR-SC12, FR-SC5）', () => {
+  it('記号と値を並べ、「または」は上の条件とつなぎ、まとまりどうしは「かつ」', () => {
+    app.settings = { ...app.settings, lang: 'ja' }
+    const cs: Condition[] = [
+      { field: 'income.yield', op: '>=', value: 4 },
+      { field: 'attr.market', op: 'in', value: ['P', 'R'] },
+      { field: 'income.yield', op: '<=', value: 9, or: true },
+    ]
+    const s = E.conditionsText(cs, 'ja')
+    expect(s).toMatch(/^実績利回り ≥ 4\.00 % かつ 市場区分 ∈ プライム, REIT または 実績利回り ≤ 9\.00 %$/)
+    expect(E.conditionsText([], 'ja')).toBe('')
+  })
+  it('英語', () => {
+    expect(
+      E.conditionsText(
+        [
+          { field: 'income.yield', op: '>=', value: 4 },
+          { field: 'income.yield', op: '<=', value: 9 },
+        ],
+        'en',
+      ),
+    ).toMatch(/ and /)
+  })
+  it('記号: ≥ ≤ = ∈ ∉', () => {
+    expect(['>=', '<=', '=', 'in', 'notin'].map((o) => E.opLabel(o))).toEqual(['≥', '≤', '=', '∈', '∉'])
+  })
+})

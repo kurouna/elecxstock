@@ -138,3 +138,11 @@ export function keyCombos(keys: string, hit: string): { keys: string[]; hit: boo
       .map((tok) => ({ keys: comboParts(tok).map((k) => (k === 'Arrows' ? '←→↑↓' : k)), hit: !!hit && comboHits(tok, hit) })),
   )
 }
+
+/** キーの割り当ての表（設定 keymap）に 1 つ書く。既定と同じキーなら上書きを消す（変えた印・数に入れない）。null は既定に戻す、'' は割り当てなし */
+export function withKey(km: Readonly<Record<string, string>>, id: string, key: string | null, def: string): Record<string, string> {
+  const out = { ...km }
+  if (key == null || (key !== '' && normalizeKey(key) === normalizeKey(def))) delete out[id]
+  else out[id] = key
+  return out
+}

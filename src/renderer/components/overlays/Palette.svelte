@@ -15,6 +15,7 @@ import {
   fmtClose,
   groupOf,
   isTracked,
+  moveRow,
   type PalAction,
   type PalItem,
   parseQuery,
@@ -125,6 +126,14 @@ $effect(() => {
     })
     .catch(() => {})
 })
+/** 検索で当たった銘柄。取得の対象外（スタンダード・グロースなど）は app.instruments に無いので、検索の結果から描く */
+const found = $derived(new Map(syms.map((i) => [i.id, i])))
+const insOf = (id: InstrumentId) => found.get(id) ?? inst(id)
+const nmOf = (id: InstrumentId) => {
+  const i = found.get(id)
+  return i ? (app.settings.lang === 'en' && i.nameEn ? i.nameEn : i.nameJa) : nameOf(id)
+}
+const cdOf = (id: InstrumentId) => found.get(id)?.code ?? codeOf(id)
 const screens = $derived(paletteScreens().map((x) => ({ id: x.id, name: screenName(x) })))
 const screenNameOf = $derived(new Map(screens.map((x) => [x.id, x.name])))
 const groups = $derived(
@@ -150,6 +159,7 @@ const groups = $derived(
   }),
 )
 const flat = $derived(groups.flatMap((g) => g.items.map((it) => ({ it, g }))))
+const chipRows = $derived(flat.map((x) => !!x.g.chips))
 /** 候補の通し番号（行ごとに探さない） */
 const indexOf = $derived(new Map(flat.map((x, i) => [x.it, i])))
 // 終値・前日比は手元の指標から（無ければ取りに行き、届くまでは出さない）
@@ -233,19 +243,7 @@ async function go(i = sel) {
   } else if (x.kind === 'key') app.overlay = { kind: 'help', q: paneKeys[x.index]?.label ?? '' }
 }
 /** ↑ ↓: 最近の銘柄のチップの行は 1 段として飛ぶ。← →: チップの上だけ */
-function moveV(d: 1 | -1) {
-  const onChip = flat[sel]?.g.chips
-  if (onChip) {
-    if (d > 0) {
-      const j = flat.findIndex((x) => !x.g.chips)
-      if (j >= 0) sel = j
-    }
-    return
-  }
-  const j = sel + d
-  if (j < 0 || j >= flat.length) return
-  sel = flat[j]!.g.chips ? flat.findIndex((x) => x.g.chips) : j
-}
+const moveV = (d: 1 | -1) => (sel = moveRow(chipRows, sel, d))
 function key(e: KeyboardEvent) {
   if (composing(e)) return
   const onChip = !!flat[sel]?.g.chips
@@ -256,7 +254,9 @@ function key(e: KeyboardEvent) {
     if (flat[j]?.g.chips) sel = j
   } else if (e.key === 'PageDown') sel = clampSel(sel + 8, flat.length)
   else if (e.key === 'PageUp') sel = Math.max(0, sel - 8)
-  else if (e.key === 'Tab' && !title) {
+  else if (e.key === 'Tab') {
+    // 範囲を巡る（銘柄だけを探すとき（title）は範囲が無いので、何もしない。ダイアログの外へフォーカスを出さない）
+    if (title) return e.preventDefault()
     const i = SCOPES.indexOf(parsed.scope)
     scope = SCOPES[(i + (e.shiftKey ? -1 : 1) + SCOPES.length) % SCOPES.length]!
     query = stripPrefix(query)
@@ -288,7 +288,7 @@ onMount(() => {
 </script>
 
 {#snippet code(id: InstrumentId, hit: number | undefined)}
-  {@const c = codeOf(id)}
+  {@const c = cdOf(id)}
   <span class="code">{#if hit}<mark>{c.slice(0, hit)}</mark>{c.slice(hit)}{:else}{c}{/if}</span>
 {/snippet}
 
@@ -298,7 +298,6 @@ onMount(() => {
     <label class="lx-search">
       <svg class="lx-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
       <input
-        class="search"
         bind:this={input}
         bind:value={query}
         placeholder={title ? t('cmd.symbolPh') : t('cmd.ph')}
@@ -321,7 +320,8 @@ onMount(() => {
       <span class="r"><Keys keys="Tab" /> {t('cmd.scopeNext')}</span>
     </div>
   {/if}
-  <div class="lx-res list" id="pal-list" role="listbox" aria-label={t('a11y.commandBar')} bind:this={res}>
+  <!-- 押しても検索欄からフォーカスを移さない（閉じない行・使えない行をクリックしたあともキーで続けられる） -->
+  <div class="lx-res list" id="pal-list" role="listbox" onmousedown={(e) => e.preventDefault()} aria-label={t('a11y.commandBar')} bind:this={res}>
     {#each groups as g (g.id)}
       <div role="group" aria-labelledby="pal-g-{g.id}">
         <div class="lx-grp" id="pal-g-{g.id}">{g.title}{#if g.more}<span class="more">{t('cmd.more', { n: g.more })}</span>{/if}<span class="n">{g.chips ? '' : g.items.length}</span></div>
@@ -331,7 +331,7 @@ onMount(() => {
               {@const i = indexOf.get(it) ?? -1}
               {#if it.kind === 'sym'}
                 <button type="button" class="lx-chip sym" class:sel={i === sel} id="pal-{i}" role="option" aria-selected={i === sel} tabindex="-1" onclick={() => go(i)} onmousemove={() => (sel = i)}>
-                  <b>{codeOf(it.id)}</b>{nameOf(it.id)}
+                  <b>{cdOf(it.id)}</b>{nmOf(it.id)}
                 </button>
               {/if}
             {/each}
@@ -355,12 +355,12 @@ onMount(() => {
                 onmousemove={() => (sel = i)}
               >
                 {#if it.kind === 'sym'}
-                  {@const ins = inst(it.id)}
+                  {@const ins = insOf(it.id)}
                   {@const m = metric(it.id)}
                   <span class="lead">{@render code(it.id, it.codeHit)}</span>
-                  <span class="n"><Hl text={nameOf(it.id)} ranges={it.ranges} /></span>
+                  <span class="n"><Hl text={nmOf(it.id)} ranges={it.ranges} /></span>
                   <span class="mk">{mkt(ins)}{ins?.status === 'delisted' ? ' · delisted' : ''}</span>
-                  <span class="held">{heldCodes.has(codeOf(it.id)) ? t('cmd.held') : ''}</span>
+                  <span class="held">{heldCodes.has(cdOf(it.id)) ? t('cmd.held') : ''}</span>
                   <span class="px">{fmtClose(m?.close, app.settings.lang)}</span>
                   <span class="chg" class:up={(m?.chgPct ?? 0) > 0} class:down={(m?.chgPct ?? 0) < 0}>{fmtChgPct(m?.chgPct)}</span>
                 {:else if it.kind === 'add'}
@@ -398,18 +398,18 @@ onMount(() => {
         {/if}
       </div>
     {/each}
-    {#if !groups.length && parsed.q}<div class="lx-empty">{t('cmd.none', { q: parsed.q })}</div>{:else if !parsed.q && parsed.scope === 'sym'}<div class="lx-empty">{t('cmd.symEmpty')}</div>{/if}
+    {#if !groups.length && parsed.q}<div class="lx-empty">{t('cmd.none', { q: parsed.q })}</div>{:else if !parsed.q && parsed.scope === 'sym'}<div class="lx-empty">{t('cmd.symEmpty')}</div>{:else if !groups.length}<div class="lx-empty">{t('cmd.scopeEmpty')}</div>{/if}
   </div>
   <span class="lx-sr" aria-live="polite">{t('dlg.count', { n: flat.length })}</span>
   <div class="lx-desc" aria-live="polite">
     {#if cur}
       {@const it = cur.it}
       {#if it.kind === 'sym'}
-        {@const ins = inst(it.id)}
+        {@const ins = insOf(it.id)}
         {@const m = metric(it.id)}
-        <b>{codeOf(it.id)} {nameOf(it.id)}</b>
+        <b>{cdOf(it.id)} {nmOf(it.id)}</b>
         <span class="d">
-          {t('cmd.symDesc', { mkt: mkt(ins), sector: ins ? (app.settings.lang === 'en' ? ins.sectorEn : ins.sectorJa) : '' })}{#if m}{' · '}{m.yieldTrailing ? t('cmd.yield', { v: `${m.yieldTrailing.toFixed(2)}%` }) : t('cmd.noDiv')}{/if}{#if heldCodes.has(codeOf(it.id))}{' · '}{t('cmd.heldYes')}{/if}
+          {t('cmd.symDesc', { mkt: mkt(ins), sector: ins ? (app.settings.lang === 'en' ? ins.sectorEn : ins.sectorJa) : '' })}{#if m}{' · '}{m.yieldTrailing ? t('cmd.yield', { v: `${m.yieldTrailing.toFixed(2)}%` }) : t('cmd.noDiv')}{/if}{#if heldCodes.has(cdOf(it.id))}{' · '}{t('cmd.heldYes')}{/if}
         </span>
         <span class="r">
           <span><Keys keys="Enter" /> {t('cmd.toChart')}</span>

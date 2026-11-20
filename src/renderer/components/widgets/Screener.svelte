@@ -8,7 +8,7 @@ import { onMount, tick, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
 import { keyOf, openInGrid } from '../../lib/commands'
-import { conditionValueText, moveCondition, newCondition, stepValue, valueChoices } from '../../lib/conditionEdit'
+import { conditionValueText, moveCondition, newCondition, opLabel, stepValue, valueChoices } from '../../lib/conditionEdit'
 import { latest } from '../../lib/latest'
 import { registerPane } from '../../lib/panes'
 import { condsOf, extrasOf, isDirty, renameScreen, saveScreen, saveScreenAs, screenOf, setConds } from '../../lib/screens'
@@ -274,7 +274,6 @@ async function addCond() {
   if (choice) add(choice)
 }
 const showValue = (c: Condition): string => conditionValueText(c, app.settings.lang)
-const opLabel = (op: string) => ({ '>=': '≥', '<=': '≤', '=': '=', in: '∈', notin: '∉' })[op] ?? op
 
 onMount(() => {
   const ro = new ResizeObserver(() => {

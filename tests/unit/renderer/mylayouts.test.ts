@@ -473,6 +473,9 @@ describe('メニューのキーと削除の 2 回押し（FR-L14 §3.2, FR-KB5�
     expect(menuKey(ev('ArrowDown'), 3, 4)).toEqual({ kind: 'select', sel: 3 })
     expect(menuKey(ev('ArrowUp', '', { altKey: true }), 2, 4)).toEqual({ kind: 'reorder', delta: -1 })
     expect(menuKey(ev('End'), 0, 4)).toEqual({ kind: 'select', sel: 3 })
+    // Tab も行を送る（メニューの外へフォーカスを出さない）
+    expect(menuKey(ev('Tab', 'Tab'), 1, 4)).toEqual({ kind: 'select', sel: 2 })
+    expect(menuKey(ev('Tab', 'Tab', { shiftKey: true }), 1, 4)).toEqual({ kind: 'select', sel: 0 })
     expect(menuKey(ev('!', 'Digit1'), 0, 4)).toEqual({ kind: 'open', index: 0 }) // 配列によらず物理キー
     expect(menuKey(ev('1', 'Digit1', { ctrlKey: true }), 0, 4)).toBeNull()
     expect(menuKey(ev('Insert', 'Insert'), 0, 4)).toEqual({ kind: 'new' })

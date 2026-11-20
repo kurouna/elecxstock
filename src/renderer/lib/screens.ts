@@ -1,4 +1,6 @@
 // 名前を付けたスクリーン（FR-SC4, SC12〜SC16）の操作。スクリーナーのペインとスクリーン一覧の両方から使う。
+import { FIELD_BY_ID } from '@shared/fields'
+import { type Match, matchText } from '@shared/match'
 import type { Condition, SavedScreen } from '@shared/types'
 import { app, ask3, promptDialog, saveScreens, screenName, t, toast } from '../stores/app.svelte'
 import { allEntries, allPanes, type PaneNode, patchState, setPreset } from '../stores/layout.svelte'
@@ -173,4 +175,19 @@ export function openScreenAnywhere(id: string): void {
   if (!p) return
   revealPane(p) // ドロワーの中のスクリーナー（グリッド・フリーのタブ）は、ドロワーを開いて見せる
   void openScreen(p, id)
+}
+
+/** スクリーニング条件の一覧（Ctrl+O）の行: 名前で絞り込み（条件の指標の名前でも当たる）、並びは保存の順のまま（Alt+↑↓ で並べ替えるため） */
+export function screenRows(screens: readonly SavedScreen[], q: string): { s: SavedScreen; ranges: Match['ranges'] }[] {
+  const lang = app.settings.lang
+  const out: { s: SavedScreen; ranges: Match['ranges'] }[] = []
+  for (const s of screens) {
+    const m = matchText(
+      q,
+      screenName(s),
+      s.conditions.map((c) => FIELD_BY_ID.get(c.field)?.label[lang] ?? c.field),
+    )
+    if (m) out.push({ s, ranges: m.ranges })
+  }
+  return out
 }

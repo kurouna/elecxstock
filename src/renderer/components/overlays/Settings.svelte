@@ -75,7 +75,8 @@ onMount(() => {
     .then((st) => (app.status = st))
     .catch(() => {})
 })
-const focusTab = () => queueMicrotask(() => tabsEl?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus())
+/** タブへ（探している間は選んだタブが無いので、探す欄へ戻す） */
+const focusTab = () => queueMicrotask(() => (tabsEl?.querySelector<HTMLButtonElement>('[aria-selected="true"]') ?? search)?.focus())
 function selectTab(x: SettingTab) {
   cur = x
   q = ''

@@ -395,7 +395,7 @@ test.describe('マイレイアウトのページ・再起動（FR-L4, FR-L14, FR
     await keys(page, 'Control+Shift+l')
     await expect(menu).toBeVisible()
     await expect(current).toContainText('グリッド')
-    await expect(menu).not.toContainText('削除')
+    await expect(menu.getByRole('menuitem', { name: '削除' })).toHaveCount(0)
     await keys(page, 'End', 'Enter')
     await type(page, '朝の確認')
     await keys(page, 'Enter')

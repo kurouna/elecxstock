@@ -5,7 +5,7 @@
 import { onMount } from 'svelte'
 import { ACTIONS, conflicts, keyCapture, keyOf } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
-import { assignable, composing, eventKey, normalizeKey, reservedKey } from '../../lib/keys'
+import { assignable, composing, eventKey, reservedKey, withKey } from '../../lib/keys'
 import { groupOf } from '../../lib/palette'
 import { clampSel } from '../../lib/selection'
 import { groupRows, keyRows } from '../../lib/settingsSpec'
@@ -31,12 +31,9 @@ $effect(() => {
 })
 const custom = (id: string) => app.settings.keymap[id] != null
 const changedCount = $derived(Object.keys(app.settings.keymap).filter((id) => acts.some((a) => a.id === id)).length)
+const defOf = (id: string) => ACTIONS.find((a) => a.id === id)?.key ?? ''
 function setKey(id: string, key: string | null) {
-  const km = { ...app.settings.keymap }
-  const def = ACTIONS.find((a) => a.id === id)?.key ?? ''
-  if (key == null || normalizeKey(key) === normalizeKey(def)) delete km[id]
-  else km[id] = key
-  saveSettings({ keymap: km })
+  saveSettings({ keymap: withKey(app.settings.keymap, id, key, defOf(id)) })
 }
 function stopRecording() {
   recording = false
@@ -52,10 +49,10 @@ function record(e: KeyboardEvent) {
   if (k === 'Esc') return stopRecording()
   // 重なりを知らせている間の Enter は入れ替える
   if (clash && k === 'Enter') {
-    const km = { ...app.settings.keymap }
-    for (const c of clash.others) km[c.id] = ''
-    km[a.id] = clash.key
-    saveSettings({ keymap: km })
+    // 入れ替え: 重なった操作は割り当てなしにし、この操作に書く（既定と同じなら上書きを消す。setKey と同じ）
+    let km = app.settings.keymap
+    for (const c of clash.others) km = withKey(km, c.id, '', defOf(c.id))
+    saveSettings({ keymap: withKey(km, a.id, clash.key, defOf(a.id)) })
     return stopRecording()
   }
   if (!assignable(k)) {
@@ -120,7 +117,16 @@ onMount(() => () => {
     <button type="button" class="btn" onclick={resetAll}>{t('keys.reset')}…</button>
   </div>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="klist" tabindex="0" role="listbox" aria-label={t('set.keys')} aria-activedescendant={rows[sel] ? `key-${rows[sel]!.a.id}` : undefined} bind:this={box}>
+  <!-- 一覧の外へフォーカスが移ったら割り当ての記録をやめる（キーを取ったままにしない。Esc で設定を閉じられるように） -->
+  <div
+    class="klist"
+    tabindex="0"
+    role="listbox"
+    aria-label={t('set.keys')}
+    aria-activedescendant={rows[sel] ? `key-${rows[sel]!.a.id}` : undefined}
+    bind:this={box}
+    onfocusout={(e) => !box?.contains(e.relatedTarget as Node | null) && stopRecording()}
+  >
     {#each indexed as g (g.key)}
       <section class="kgrp" role="group" aria-label={t(`agroup.${g.key}` as Key)}>
         <div class="h4" aria-hidden="true">{t(`agroup.${g.key}` as Key)}</div>

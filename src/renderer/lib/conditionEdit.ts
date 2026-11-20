@@ -97,3 +97,17 @@ export function moveCondition(conds: Condition[], i: number, d: number): Conditi
   next[j] = put(conds[i]!, or(j))
   return withoutLeadingOr(next)
 }
+
+/** 条件の記号（≥ ≤ = ∈ ∉） */
+export const opLabel = (op: string): string => ({ '>=': '≥', '<=': '≤', '=': '=', in: '∈', notin: '∉' })[op] ?? op
+/** 条件の組の文（例: 実績利回り ≥ 4.00 % かつ 市場区分 ∈ プライム, REIT）。「または」は上の条件とつなぐ（FR-SC5） */
+export function conditionsText(conds: readonly Condition[], lang: Lang): string {
+  const and = lang === 'ja' ? ' かつ ' : ' and '
+  const or = lang === 'ja' ? ' または ' : ' or '
+  return conds
+    .map(
+      (c, i) =>
+        `${i ? (c.or ? or : and) : ''}${FIELD_BY_ID.get(c.field)?.label[lang] ?? c.field} ${opLabel(c.op)} ${conditionValueText(c, lang)}`,
+    )
+    .join('')
+}

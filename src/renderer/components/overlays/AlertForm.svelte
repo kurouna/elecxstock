@@ -11,6 +11,7 @@ import { onMount, tick, untrack } from 'svelte'
 import { condText, distanceText, fieldValueText } from '../../lib/alertText'
 import { composing } from '../../lib/keys'
 import { type AlertDraft, app, closeOverlay, codeOf, ensureMetrics, metric, nameOf, screenName, t } from '../../stores/app.svelte'
+import KeyHints from './KeyHints.svelte'
 
 let {
   edit,
@@ -334,7 +335,16 @@ onMount(() => (kind === 'screen' ? (canSymbol ? kindEl : scrEl) : rows[0])?.focu
     <button type="button" class="btn" onclick={cancel}>{t('common.cancel')}</button>
     <button type="button" class="btn primary" disabled={!!error} onclick={save}>{edit ? t('al.saveEdit') : t('al.create')}</button>
   </div>
-  <div class="muted keys">{t('al.formKeys')}</div>
+  <KeyHints
+    align="start"
+    items={[
+      ['Tab', t('al.k.fields')],
+      ['← →', t('al.k.choose')],
+      ['Ctrl+Enter', t('common.save')],
+      ['Esc', t('common.cancel')],
+    ]}
+  />
+  <KeyHints align="start" lead={t('al.k.condRow')} items={[['F', t('al.k.field')], ['O', t('al.k.op')], ['R', t('al.k.rel')], ['← →', t('al.k.value')]]} />
 </div>
 
 <style>
@@ -477,9 +487,5 @@ onMount(() => (kind === 'screen' ? (canSymbol ? kindEl : scrEl) : rows[0])?.focu
   }
   .actions .btn {
     white-space: nowrap;
-  }
-  .keys {
-    margin-top: var(--s-2);
-    font-size: var(--fs-1);
   }
 </style>
