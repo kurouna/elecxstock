@@ -168,6 +168,18 @@ td {
   white-space: nowrap;
   border-bottom: 1px solid var(--line-soft);
   height: 22px;
+  /* 数字は等幅・桁ぞろえ（以前は app.css の .grid td が漏れて当たっていた。銘柄名の列は下で本文の文字に戻す） */
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+td:first-child {
+  font-family: var(--font);
+}
+th {
+  font-size: var(--fs-1);
+}
+tr:hover td {
+  background: var(--hover);
 }
 th:first-child,
 td:first-child,

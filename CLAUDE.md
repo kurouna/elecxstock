@@ -107,6 +107,11 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 - **文言は `lib/i18n.ts` の `ja` と `en` の両方に足す**（キーの一致は単体テストが確かめる）。保存した条件の組は、`ja` では「スクリーニング条件」と書く（「スクリーン」は画面と読まれる。コード・文書・`en` は screen／スクリーンのまま。requirements.md §5.2）。
 - **色・文字・余白は `app.css` のトークン（CSS 変数）から取る**。陽線・陰線は `--up` / `--down`（日本式が既定）。
   増減（増配・減配など）を色で示すときも `--up` / `--down` を使い、金色などで別の意味を持たせない（設定のローソク足の色に従う）。ツールチップに色の名前を書くときは設定に合わせる（`lib/folioTips.ts` の `toneNames`）。
+- **全体の CSS（`app.css`・コンポーネントの `:global`）に、よくある名前のクラス（`.foot`・`.search`・`.list`・`.grid` など）を裸で書かない**。
+  ダイアログの共通の見た目は `.dialog` の中（`overlays/Overlays.svelte`）、一覧の表は `table.grid` に限る（`tests/unit/renderer/global-css.test.ts` が確かめる）。
+  裸で書くと、同じ名前のクラスを使ったペインの見た目が知らないうちに変わる（株価ボードの下の 2 行が `.foot` で横に並んだ）。ペインのクラスは、ぶつかりにくい名前にする。
+- **ヒートマップのペインは `widgets/HeatmapPane.svelte` がヒートマップと株価ボードを切り替える**（[docs/design-quote-board.md](docs/design-quote-board.md)）。
+  `Heatmap.svelte` に株価ボードのことを書かない（親から省略できる props の `wrapApi`・`lead`・`more` を受け取るだけ）。株価ボードの状態のキーは `qb` で始め、計算は `lib/quoteBoard.ts`。
 - **表の 1 つの欄に棒と数字を並べるときは、棒は欄の左端、数字は右寄せで欄の右端にそろえる**（行ごとに数字の幅が違っても、棒の位置と数字の右端が行どうしでそろうように。例: `folio/DivTable.svelte` の `.bv`・`.dpsc`）。
   行を grid で作るときは列の幅を固定し、行ごとに `auto` の幅で変わらないようにする。
 - 依存はすべて `devDependencies` に置き、バンドルに入れる（yahoo-finance2 の MCP 用の依存を配布物に入れないため）。
@@ -159,7 +164,8 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 - 画面の振る舞いは E2E で、**キーボードだけで**確かめる。プロバイダはスタブ、時刻は `ELECXSTOCK_NOW`（基準日時）。固定の待ちを足さない。
 - E2E とスクリーンショットは `npm run build` のあとに動かす（out/ を起動する）。E2E を流している間に `npm run build` しない（ビルドが src/ より古いと E2E は始まらない）。
 - キャンバスの中（チャートの線・タイル）は読めないので、凡例の文字か、描いたものを出す `data-*`（グリッドのタイルの `canvas[data-yield]`）で確かめる。
-  スタブには境界を試す銘柄がある（8002 は無配に転じた・1605 は上場 12 か月未満。`stub.ts` の `EDGE`）。
+  スタブには境界を試す銘柄がある（8002 は無配に転じた・1605 は上場 12 か月未満。`stub.ts` の `EDGE`）。スタブは 50 銘柄（ETF・REIT などを含む）。
+  銘柄を足すと一覧の並びや「画面に出ているか」が変わるので、E2E は件数や先頭の銘柄に頼らず、条件に合う行を選んで確かめる（例: `grid.spec.ts` のドラッグ）。
 - 最大化・タブの切り替えには動きがある（docs/design-motion.md）。E2E で矩形を読む前は `motionDone`（`tests/e2e/support/ops.ts`）で動きの終わりを待つ（`tab()` は待つ）。
   動きそのものを確かめるときは、時間のトークン（`--motion-max` など）を `addStyleTag` で延ばすか、`getAnimations()` を止めて測る。スクリーンショット・デモの撮影は `animations: 'disabled'`。
 - マウスの位置に頼らない。CI のマシンでは実際のカーソルが窓の上にあると十字線や hover の値が変わるので、`ci.yml` で E2E の前にカーソルを窓の外へ動かし、
@@ -170,7 +176,7 @@ npm run gen:icon       # build/icon.svg から PNG・ICO
 リリースの紹介動画のためのデモのスクリプト（`scripts/demo*.mjs`）。**録画は利用者がキャプチャアプリで行う**ので、スクリプトはアプリを動かして見せるところまで。
 
 - 版ごとに `scripts/demo-v<版>.mjs` を作り、package.json に `"demo:<版>"` を足す（例: `demo-v0.1.1.mjs` と `npm run demo:0.1.1`）。前の版から変わったところを、話題ごとに場面にする。初めての紹介は `scripts/demo.mjs`（`npm run demo`）。
-- ポートフォリオの架空の保有と資産推移は `scripts/folio-fixture.mjs`（デモとスクリーンショットが共有する。ポートフォリオだけ撮り直すのは `node scripts/gen-screenshots.mjs folio`）。
+- ポートフォリオの架空の保有と資産推移は `scripts/folio-fixture.mjs`（デモとスクリーンショットが共有する。ポートフォリオだけ撮り直すのは `node scripts/gen-screenshots.mjs folio`。マーケットのタブ（ライトのテーマ・株価ボード）だけは `node scripts/gen-screenshots.mjs market`）。
 - 字幕・押したキー・タイトルと終わりの画面は `scripts/demo-kit.mjs` の `overlay`・`caption`・`card`・`press`・`shot` を使う（画面に重ねるだけで、アプリには入れない）。
 - 作り方:
   1. 1 回目の起動で、初回の取り込みと架空のウォッチリスト・保有を入れて閉じる（録画しない）。2 回目の起動がデモ。

@@ -181,7 +181,37 @@ async function trendSession() {
   await app.close()
 }
 
+/**
+ * マーケットのタブ（ライトのテーマ）。ヒートマップのペインを株価ボード（V。FR-QB1）にして、カードを 1 枚選んだ状態で撮る。
+ * テーマを変えるので、ほかのスクリーンショットとは別に起動する（`node scripts/gen-screenshots.mjs market` でこれだけ撮れる）
+ */
+async function marketSession() {
+  await session('ja', [
+    [
+      'market',
+      async ({ k, page }) => {
+        await k('Control+k')
+        await page.keyboard.type('テーマ')
+        await k('Enter', 'Control+Shift+Digit1')
+        await page.locator('[data-widget="board"] tbody tr').first().waitFor()
+        await page.locator('[data-widget="market"] .tile').last().getByText('USDJPY').waitFor()
+        await page.waitForFunction(() => !document.querySelector('[data-widget="market"] .state'), null, { timeout: 30_000 })
+        await page.locator('[data-widget="news"] .row').first().waitFor()
+        // 左の列からヒートマップのペインへ移り、株価ボードにしてカードを 2 つ右へ選ぶ
+        await k('Alt+ArrowRight', 'KeyV')
+        await page.locator('[data-widget="heatmap"] .grid .card').first().waitFor()
+        await k('ArrowRight', 'ArrowRight')
+        await page.mouse.move(0, 0)
+      },
+    ],
+  ])
+}
+
 const only = process.argv.slice(2)
+if (only.includes('market')) {
+  await marketSession()
+  process.exit(0)
+}
 if (only.includes('folio')) {
   await folioSession()
   await trendSession()
@@ -224,18 +254,6 @@ await session('ja', [
   ],
   ['help', async ({ k }) => k('Escape', 'F1')],
   ['settings', async ({ k }) => k('Escape', 'Control+Comma', 'ArrowDown', 'ArrowDown')],
-  [
-    'market',
-    async ({ k, page }) => {
-      await k('Escape', 'Control+Shift+Digit1', 'Alt+ArrowRight', 'ArrowRight')
-      // マーケット一覧（左上）と、下の指数のタイル（最後はドル/円）が描けるまで待つ
-      await page.locator('[data-widget="board"] tbody tr').first().waitFor()
-      await page.locator('[data-widget="market"] .tile').last().getByText('USDJPY').waitFor()
-      await page.waitForFunction(() => !document.querySelector('[data-widget="market"] .state'), null, { timeout: 30_000 })
-      // ニュース（FR-NW1。初回起動で「取る」のまま始めたので、スタブの架空の見出しが並ぶ）
-      await page.locator('[data-widget="news"] .row').first().waitFor()
-    },
-  ],
   [
     // アラート（FR-AL1・AL2・AL9）: 銘柄のアラートを 2 つ（1 つは成立中）とスクリーンのアラートを作り、チャートの点線を撮る
     'alert-line',
@@ -343,5 +361,6 @@ await session('ja', [
     },
   ],
 ])
+await marketSession()
 await session('en', [['grid-en', async ({ k }) => k('Control+Shift+Digit3', 'n', 'Alt+Digit3')]])
 await folioSession()

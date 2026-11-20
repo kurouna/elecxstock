@@ -537,7 +537,7 @@ table.grid {
   border-collapse: collapse;
   table-layout: fixed;
 }
-.grid th {
+table.grid th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -553,15 +553,15 @@ table.grid {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.grid th.cur {
+table.grid th.cur {
   color: var(--text);
   box-shadow: inset 0 -2px 0 var(--focus);
 }
-.grid th.l,
-.grid td.l {
+table.grid th.l,
+table.grid td.l {
   text-align: left;
 }
-.grid td {
+table.grid td {
   height: var(--row);
   padding: 0 8px;
   text-align: right;
@@ -572,33 +572,33 @@ table.grid {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
-.grid td.name {
+table.grid td.name {
   font-family: var(--font);
 }
 /* マーケット一覧の連動 ETF の正式な名前（FR-U6） */
-.grid td.name .sub {
+table.grid td.name .sub {
   color: var(--text-3);
   font-size: var(--fs-1);
   margin-left: 6px;
 }
-.grid td.code {
+table.grid td.code {
   color: var(--text-2);
 }
-.grid tr.sel td {
+table.grid tr.sel td {
   background: var(--select);
 }
-.grid tr.sel td:first-child {
+table.grid tr.sel td:first-child {
   box-shadow: inset 2px 0 0 var(--focus);
 }
-.grid tr.multi td {
+table.grid tr.multi td {
   background: var(--select);
 }
-.grid tr:hover td {
+table.grid tr:hover td {
   background: var(--hover);
 }
-.focused .grid tr.sel td {
+.focused table.grid tr.sel td {
   background: var(--select-strong);
 }
-.grid tr.stale td {
+table.grid tr.stale td {
   opacity: 0.6;
 }

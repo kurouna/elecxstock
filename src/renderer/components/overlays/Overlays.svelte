@@ -103,13 +103,13 @@ function backdrop(e: MouseEvent) {
     justify-content: flex-end;
     margin-top: var(--s-3);
   }
-  :global(.list .grp) {
+  :global(.dialog .list .grp) {
     padding: 6px 12px 2px;
     font-size: var(--fs-1);
     color: var(--text-3);
     letter-spacing: 0.08em;
   }
-  :global(.list .it) {
+  :global(.dialog .list .it) {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -121,29 +121,29 @@ function backdrop(e: MouseEvent) {
     border: 0;
     text-align: left;
   }
-  :global(.list .it.sel) {
+  :global(.dialog .list .it.sel) {
     background: var(--select-strong);
     box-shadow: inset 2px 0 0 var(--focus);
   }
-  :global(.list .it .c) {
+  :global(.dialog .list .it .c) {
     font-family: var(--mono);
     color: var(--text-2);
     width: 48px;
     flex: none;
   }
-  :global(.list .it .n) {
+  :global(.dialog .list .it .n) {
     flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  :global(.list .it .s) {
+  :global(.dialog .list .it .s) {
     color: var(--text-3);
     font-size: var(--fs-1);
     white-space: nowrap;
   }
-  :global(.foot) {
+  :global(.dialog .foot) {
     display: flex;
     gap: 16px;
     padding: 6px 12px;
@@ -151,7 +151,7 @@ function backdrop(e: MouseEvent) {
     color: var(--text-3);
     font-size: var(--fs-1);
   }
-  :global(.search) {
+  :global(.dialog input.search) {
     width: 100%;
     height: 40px;
     background: var(--bg);

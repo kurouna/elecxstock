@@ -2038,10 +2038,31 @@ onMount(() =>
     text-align: right;
     white-space: nowrap;
     border-bottom: 1px solid var(--line-soft);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* 数字は等幅・桁ぞろえ、見出しは上に貼りつく（以前は app.css の .grid th・td が漏れて当たっていた。銘柄名の列は本文の文字） */
+  .grid-t td {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .grid-t td.c-name {
+    font-family: var(--font);
   }
   .grid-t th {
     color: var(--text-3);
     font-weight: 400;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .grid-t tr:hover td {
+    background: var(--hover);
+  }
+  :global(.focused) .grid-t tr.sel td {
+    background: var(--select-strong);
   }
   .grid-t .l {
     text-align: left;
