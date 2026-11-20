@@ -12,6 +12,7 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from '@playwright/test'
+import { HOLD, history, writeHistory } from './folio-fixture.mjs'
 import { waitIdle } from './wait-idle.mjs'
 
 const SPEED = Number(process.env.DEMO_SPEED ?? 1) || 1
@@ -23,7 +24,9 @@ const SHOTS = process.env.DEMO_SHOTS
 const MULTI_IMG = `data:image/png;base64,${readFileSync(join(process.cwd(), 'docs', 'screenshots', 'multi.png')).toString('base64')}`
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms / SPEED))
 const userData = mkdtempSync(join(tmpdir(), 'elecxstock-demo-'))
-const env = { ...process.env, ELECXSTOCK_PROVIDER: 'stub', ELECXSTOCK_USER_DATA: userData }
+// 日時を固定する（平日の大引けのあと。日付・「あと N 日」・配当見込みの月が録り直しても同じになる）
+const NOW = '2026-11-13'
+const env = { ...process.env, ELECXSTOCK_PROVIDER: 'stub', ELECXSTOCK_USER_DATA: userData, ELECXSTOCK_NOW: `${NOW}T18:00:00+09:00` }
 const call = (page, method, params = {}) => page.evaluate(([m, p]) => window.elecxstock.call(m, p), [method, params])
 
 // ---------------------------------------------------------------- 1 回目: 初回の取り込みと、架空のウォッチリスト・保有を入れる（録画しない）
@@ -49,18 +52,13 @@ const call = (page, method, params = {}) => page.evaluate(([m, p]) => window.ele
   const items = (w) => (is(w, 'favorites') ? fav : is(w, 'income') ? income : is(w, 'watch') ? watch : w.items)
   const lists = u.watchlists.map((w) => ({ ...w, items: items(w) }))
   await call(page, 'user.saveWatchlists', { watchlists: lists })
-  // 保有（数量・取得単価はすべて架空）
-  await call(page, 'portfolio.save', {
-    holdings: [
-      { code: '7203', account: 'tokutei', quantity: 200, avgCost: 15200 },
-      { code: '9434', account: 'nisa_growth', quantity: 1000, avgCost: 1650 },
-      { code: '8951', account: 'nisa_growth', quantity: 10, avgCost: 88000 },
-      { code: '3462', account: 'tokutei', quantity: 8, avgCost: 96000 },
-      { code: '94345', account: 'nisa_growth', quantity: 300, avgCost: 4100 },
-    ],
-  })
+  // 保有（数量・取得単価はすべて架空）。ポートフォリオのタブの資産推移の記録と合うよう、README のスクリーンショットと同じ架空の保有にする
+  await call(page, 'portfolio.save', { holdings: HOLD })
   await waitIdle(page, 120_000)
+  // 今日の評価額 ÷ 取得額（スタブの架空の終値で決まる）。架空の資産推移（1 年半分）を記録の置き場所に書く（ポートフォリオのタブ）
+  const today = (await call(page, 'folio.series', {})).points.at(-1)
   await app.close()
+  writeHistory(userData, history(today ? today.value / today.cost : 1.05, NOW))
 }
 
 // ---------------------------------------------------------------- 2 回目: デモ
@@ -280,11 +278,43 @@ const shot = async (p, name) => {
 }
 const typeCode = (p, code) => press(p, ...[...code].map((c) => (/\d/.test(c) ? `Digit${c}` : `Key${c}`)))
 
+const widget = (w) => page.locator(`[data-widget="${w}"]`).first()
+/** F6 でペインを順に移り、そのペインにフォーカスを置く */
+async function focusPane(target) {
+  for (let i = 0; i < 30; i++) {
+    if (await target.evaluate((e) => e.classList.contains('focused'))) return
+    await page.keyboard.press('F6')
+    await sleep(120)
+  }
+  throw new Error('demo: could not focus the pane')
+}
+/** フォーカスしているペインを最大化し、動きが終わるまで待つ */
+async function maximize() {
+  await press(page, 'Control+Shift+Enter')
+  await page.locator('.pane.maxed').waitFor()
+  await page.mouse.move(0, 0)
+  await sleep(700)
+}
+/** 最大化を戻し、元の場所に着くまで待つ */
+async function restore() {
+  for (let i = 0; i < 3 && (await page.locator('.pane.maxed').count()); i++) {
+    await press(page, 'Escape')
+    await page
+      .locator('.pane.maxed')
+      .waitFor({ state: 'detached', timeout: 1500 })
+      .catch(() => {})
+  }
+  await sleep(700)
+}
+
 await overlay(page)
+// マウスを窓の左上の角へ（実際のカーソルが窓の上にあると十字線や hover の値が出る）
+await page.mouse.move(0, 0)
 await page.evaluate(() => document.querySelectorAll('.toasts .toast').forEach((t) => t.remove()))
 await card(page, [
   'elecxstock',
   '日本株・J-REIT のデータを手元に取り込み、チャートを並べて見比べ、条件で絞り込むデスクトップアプリ',
+  'マーケット・株価ボード・スクリーナー・チャートグリッド・配当シミュレータ・ポートフォリオ・アラート',
   'キーボードで操作でき、データは手元の SQLite に保存します。無料・オープンソース（MIT）です',
   '※ 画面は開発中のものです。株価・利回りなどの値はすべて架空のデモデータです',
 ])
@@ -295,6 +325,37 @@ await card(page, null)
 await sleep(800)
 
 await shot(page, 'title')
+// 0. マーケットのタブ: 指数・為替などの一覧・騰落・ヒートマップ・ニュース・市場の推移
+await press(page, 'Control+Shift+Digit1')
+const heat = widget('heatmap')
+await widget('board').locator('tbody tr').first().waitFor()
+await heat.locator('.map .cell').first().waitFor()
+await caption(page, 'マーケットのタブ: 指数・為替などの一覧、騰落、33 業種のヒートマップ、ニュース、市場の推移を 1 画面に')
+await sleep(4000)
+await shot(page, 'market')
+// 0b. 株価ボード: ヒートマップのペインで V。東証のマーケットセンターの株価ボードのように、銘柄の終値と前日比をカードで並べる
+await focusPane(heat)
+await caption(page, 'ヒートマップのペインで V を押すと株価ボード。時価総額の上位の終値と前日比をカードで一望します')
+await press(page, 'KeyV')
+await heat.locator('.grid .card').first().waitFor()
+await sleep(2500)
+await caption(page, '値は日足の終値（場中の値ではありません）。上段に日経平均・TOPIX・東証REIT、上昇と下落の数を左右に')
+await maximize()
+await sleep(3500)
+await shot(page, 'quote-board')
+await caption(page, '矢印でカードを選ぶと、同じリンク色のチャートが追従します。S で騰落率の順に並べ替え')
+await restore()
+for (let i = 0; i < 3; i++) await press(page, 'ArrowRight'), await sleep(700)
+await press(page, 'KeyS')
+await sleep(2200)
+await caption(page, 'G で一覧を切り替え（ウォッチリスト・保有・スクリーニング条件）。V でヒートマップに戻ります')
+await press(page, 'KeyG')
+await sleep(2200)
+await shot(page, 'quote-board-fav')
+await press(page, 'Shift+KeyG', 'KeyS', 'KeyS', 'KeyS', 'KeyV')
+await heat.locator('.map .cell').first().waitFor()
+await sleep(1200)
+
 // 1. MTF: 日足・週足・月足。ウォッチリストをめくるとチャートが追従する
 await press(page, 'Control+Shift+Digit4')
 await caption(page, 'ウォッチリストで銘柄を選ぶと、日足・週足・月足のチャートが切り替わります')
@@ -319,6 +380,24 @@ await press(page, 'd')
 await sleep(900)
 
 await shot(page, 'jump')
+// 2b. アラート: 表示中の銘柄に条件を決めて知らせる
+await caption(page, 'Ctrl+Alt+A で、表示中の銘柄にアラートを作ります（終値・利回りなど、スクリーナーと同じ条件）')
+await press(page, 'Control+Alt+KeyA')
+const form = page.locator('.dialog.alertform')
+await form.waitFor()
+await sleep(2500)
+await shot(page, 'alert-form')
+await press(page, 'Control+Enter')
+await form.waitFor({ state: 'detached' })
+await page.mouse.move(0, 0)
+await caption(page, 'チャートにしきい値の点線。取得の終わりに判定し、Windows の通知とベルで知らせます（Ctrl+Alt+L で一覧）')
+await sleep(2500)
+await press(page, 'Control+Alt+KeyL')
+await sleep(2500)
+await shot(page, 'alerts')
+await press(page, 'Escape')
+await sleep(800)
+
 // 3. スクリーナー: 条件を変えるとその場で絞られる
 await press(page, 'Control+Shift+Digit2')
 await caption(page, 'スクリーナーでは、条件を変えるとすぐに結果を絞り直します')
@@ -332,6 +411,25 @@ await press(page, 'Escape')
 await sleep(1200)
 
 await shot(page, 'screener')
+// 3b. 配当シミュレータ: 選んだ銘柄を持っていたら、配当と値動きはどうだったか・これからの見込み
+const divsim = widget('divsim')
+await focusPane(divsim)
+await divsim.locator('.c-hero').first().waitFor({ timeout: 30_000 })
+await caption(page, '配当シミュレータ: 選んだ銘柄を持っていたら、受け取った配当と値動きはどうだったか')
+await maximize()
+await divsim.locator('.c-hero').first().waitFor()
+await sleep(3500)
+await shot(page, 'divsim')
+await caption(page, 'PageDown で「これから」。今の配当が続いたら受け取る見込みと、減配のシナリオ')
+await press(page, 'PageDown')
+await divsim.locator('.c-hero').first().waitFor()
+await sleep(3500)
+await press(page, 'PageUp')
+await restore()
+// スクリーナーへフォーカスを戻す（次の場面は結果をグリッドで開く）
+await focusPane(widget('screener'))
+await sleep(600)
+
 // 4. グリッド: 絞った結果をチャートで一度に見比べる
 await caption(page, '絞り込んだ銘柄を、最大 30 枚のチャートで一度に見比べられます')
 await press(page, 'Control+Shift+KeyG')
@@ -428,6 +526,20 @@ for (let i = 0; i < 3; i++) await press(page, 'ArrowDown'), await sleep(800)
 await sleep(600)
 
 await shot(page, 'holdings')
+// 6b. ポートフォリオのタブ: 評価額・資産推移・資産構成・損益寄与・配当の分析
+const folio = widget('folio')
+await press(page, 'Control+Shift+Digit9')
+await folio.locator('.c-hist svg').first().waitFor({ timeout: 30_000 })
+await caption(page, 'ポートフォリオのタブ: 評価額と資産推移（毎日の更新で記録）、資産構成、損益寄与、配当の見込み')
+await sleep(4500)
+await shot(page, 'folio')
+await caption(page, 'PageDown で配当の分析。年間配当の前年比と、増配・減配・新規・買い増し・売却に分けた増減の要因')
+await press(page, 'PageDown')
+await folio.locator('.c-dwf').waitFor()
+await sleep(4000)
+await shot(page, 'folio-div')
+await press(page, 'PageUp')
+await sleep(600)
 // 7. マルチモニタ: 録画では映しにくいので、説明の画面（README のスクリーンショット）で見せる
 if (!MULTI) {
   await caption(page, '')
@@ -525,11 +637,11 @@ await press(page, 'Control+k')
 await page.keyboard.type('テーマ', { delay: 120 / SPEED })
 await press(page, 'Enter')
 await sleep(800)
-await caption(page, '設定画面では、表示・データ・キーの割り当てなどを変更できます（Ctrl+,）')
+await caption(page, '設定画面では、表示・データ・キーの割り当て・ニュースなどを変更できます（Ctrl+,）')
 await press(page, 'Control+Comma')
 await sleep(1500)
-// 一般 → 表示 → チャート → データ → キー（↓ 4 回）。次の ↓ で「このアプリについて」（帰属表示）
-for (let i = 0; i < 4; i++) await press(page, 'ArrowDown'), await sleep(1100)
+// 一般 → 表示 → チャート → データ → キー → ニュース（↓ 5 回）。次の ↓ で「このアプリについて」（帰属表示）
+for (let i = 0; i < 5; i++) await press(page, 'ArrowDown'), await sleep(1100)
 await caption(page, 'チャートには TradingView の Lightweight Charts™ を使っています')
 await press(page, 'ArrowDown')
 await sleep(2500)
@@ -543,6 +655,7 @@ await shot(page, 'help')
 await card(page, [
   'elecxstock',
   '日本株・J-REIT のローカル分析デスクトップアプリ',
+  'マーケット・株価ボード・スクリーナー・グリッド・配当シミュレータ・ポートフォリオ・アラート・ニュース',
   '無料・オープンソース（MIT） ・ Windows ・ github.com/kurouna/elecxstock',
   'チャート: TradingView Lightweight Charts™（Apache-2.0）',
   '※ 画面は開発中のものです。動画の株価・利回りなどの値はすべて架空のデモデータです',
