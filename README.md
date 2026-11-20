@@ -13,11 +13,11 @@
 [日本語](#日本語) | [English](#english)
 
 <p align="center">
-  <a href="https://youtu.be/PEKaSOyOSHw">
+  <a href="https://youtu.be/ny_6oCkO6FA">
     <img src="docs/screenshots/mtf.png" alt="elecxstock の MTF のタブ: 左にウォッチリストとスクリーナー、右に日足（大）と週足・月足のチャート / The MTF tab: a watchlist and a screener on the left, daily, weekly and monthly charts on the right">
   </a>
   <br>
-  ▶ <a href="https://youtu.be/PEKaSOyOSHw">デモ動画を見る / Watch the demo</a>
+  ▶ <a href="https://youtu.be/ny_6oCkO6FA">デモ動画を見る / Watch the demo</a>
 </p>
 
 ---
