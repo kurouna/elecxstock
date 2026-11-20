@@ -362,7 +362,7 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
   <span class="dt">{t('qb.date')}</span><span class={`num ${m?.stale ? 'warn' : ''}`}>{m?.asOf ? dayLabel(m.asOf, lang) : '—'}{m?.provisional ? t('qb.prov') : ''}</span>
 {/snippet}
 
-<PaneHeader {pane} collapse={600} more={moreItems}>
+<PaneHeader {pane} collapse={600} more={moreItems} title={t('qb.view.board')}>
   {@render lead?.()}
   {#if asOf.date}
     <span class="asof" title={asOf.provisional ? `${t('qb.asOfTip')} / ${t('chart.provisional')}` : t('qb.asOfTip')}>

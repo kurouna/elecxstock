@@ -18,11 +18,14 @@ let {
   pane,
   children,
   more,
+  title,
   collapse = 400,
 }: {
   pane: PaneNode
   children?: Snippet
   more?: () => MoreItem[]
+  /** 見出しの名前（省略すればペインの種類の名前。ヒートマップのペインの株価ボードの表示など、表示で名前が変わるペインが渡す） */
+  title?: string
   /** ペインの幅がこれ未満になったら操作ボタンを「⋯」にまとめる（中身が多いペインほど大きく） */
   collapse?: 820 | 600 | 400
 } = $props()
@@ -62,7 +65,7 @@ function act(id: string) {
 >
   <span class={`link l${pane.link}`} title={`${t('link.set', { n: pane.link || '—' })} (Ctrl+${pane.link})`}>{pane.link || '·'}</span>
   <span class="body">
-    {#if !inDock(pane.id)}<span class="title">{t(`widget.${pane.widget}` as Key)}</span>{/if}
+    {#if !inDock(pane.id)}<span class="title">{title ?? t(`widget.${pane.widget}` as Key)}</span>{/if}
     {#if children}{@render children()}{/if}
   </span>
   {#if inDock(pane.id)}

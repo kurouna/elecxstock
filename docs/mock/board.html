@@ -346,12 +346,12 @@ function render() {
     if (k) b.setAttribute('aria-pressed', String(S[k] === v))
   }
   const card = S.view === 'card'
-  $('title').textContent = 'ヒートマップ' // ペインの名前は変えない（どちらの表示かは切り替えのボタンで分かる）
+  $('title').textContent = card ? '株価ボード' : 'ヒートマップ' // 見出しの名前は表示に合わせる
   const day = DAYS[S.day], prevDay = DAYS[S.day - 1] || '2026-11-12'
   // 日付と「終値」は狭くても残す（場中の値ではないことを伝える）
   $('asof').innerHTML = card ? `${md(day)}終値<span class="wide"> / 前日比 ${md(prevDay)}終値</span>` : `${md(day)} 終値まで`
   $('asof').title = '日足の終値です。場中の値ではありません'
-  $('views').innerHTML = ['heat', 'card'].map(v => `<button data-v="${v}" aria-pressed="${S.view === v}" title="${VIEW_LABEL[v]}（V で切り替え）">${ICON[v]}<span class="wide">${VIEW_LABEL[v]}</span></button>`).join('')
+  $('views').innerHTML = ['heat', 'card'].map(v => `<button data-v="${v}" aria-pressed="${S.view === v}" aria-label="${VIEW_LABEL[v]}" title="${S.view === v ? VIEW_LABEL[v] + '（表示中）' : VIEW_LABEL[v] + 'に切り替える (V)'}">${ICON[v]}</button>`).join('')
 
   $('bar2').innerHTML = card
     ? SOURCES.map((s, i) => `<button class="src" role="tab" aria-selected="${i === S.src}" data-i="${i}" title="${s.title || s.label}">${s.label}<span class="n">${s.codes.length}</span></button>`).join('')

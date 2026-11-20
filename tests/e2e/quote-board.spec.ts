@@ -13,7 +13,7 @@ const saved = (userData: string) => {
 }
 
 test.describe('株価ボード（FR-QB1, FR-QB2, FR-QB3, FR-QB5, FR-QB6）', () => {
-  test('既定はヒートマップ。V で株価ボードとヒートマップを行き来し、戻るとヒートマップの期間が残る。名前はヒートマップのまま', async ({
+  test('既定はヒートマップ。V で株価ボードとヒートマップを行き来し、戻るとヒートマップの期間が残る。見出しの名前は表示に合わせる', async ({
     start,
   }) => {
     const { page } = await start({ layout })
@@ -23,12 +23,22 @@ test.describe('株価ボード（FR-QB1, FR-QB2, FR-QB3, FR-QB5, FR-QB6）', () 
     await keys(page, 'p') // 期間を 1 か月に
     const pressedPeriod = heat.locator('.seg button[aria-pressed="true"]')
     await expect(pressedPeriod).toHaveText('1か月')
+    await expect(heat.locator('.ph .title')).toHaveText('ヒートマップ')
+    // 切り替えのボタンはアイコンだけ。名前はツールチップと読み上げ（aria-label）で出す
+    const views = heat.locator('.vs button')
+    await expect(views).toHaveCount(2)
+    for (const b of await views.all()) await expect(b).toHaveText('')
+    await expect(views.nth(0)).toHaveAttribute('aria-label', 'ヒートマップ')
+    await expect(views.nth(0)).toHaveAttribute('title', 'ヒートマップ（表示中）')
+    await expect(views.nth(1)).toHaveAttribute('aria-label', '株価ボード')
+    await expect(views.nth(1)).toHaveAttribute('title', '株価ボードに切り替える (V)')
     // V で株価ボード
     await keys(page, 'v')
     await expect(heat.locator('.map')).toHaveCount(0)
     await expect(heat.locator('.grid .card').first()).toBeVisible()
-    await expect(heat.locator('.vs button[aria-pressed="true"]')).toHaveAttribute('title', /株価ボード \(V\)/)
-    await expect(heat.locator('.ph .title')).toHaveText('ヒートマップ')
+    await expect(heat.locator('.vs button[aria-pressed="true"]')).toHaveAttribute('title', '株価ボード（表示中）')
+    await expect(views.nth(0)).toHaveAttribute('title', 'ヒートマップに切り替える (V)')
+    await expect(heat.locator('.ph .title')).toHaveText('株価ボード')
     // 見出しに基準日と「終値」（日足であること）。指数のカード 3 枚と騰落の帯
     await expect(heat.locator('.asof')).toContainText(/\d+\/\d+\(.\)終値/)
     await expect(heat.locator('.idx .icard')).toHaveCount(3)
@@ -45,6 +55,7 @@ test.describe('株価ボード（FR-QB1, FR-QB2, FR-QB3, FR-QB5, FR-QB6）', () 
     await keys(page, 'v')
     await expect(heat.locator('.map .cell').first()).toBeVisible()
     await expect(pressedPeriod).toHaveText('1か月')
+    await expect(heat.locator('.ph .title')).toHaveText('ヒートマップ')
   })
 
   test('見出しのボタンでも切り替えられ、保存して開き直すと株価ボードのまま', async ({ start }) => {
