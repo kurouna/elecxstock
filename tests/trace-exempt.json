@@ -32,5 +32,13 @@
   "FR-V10": "見た目（文字の尺度・余白）。レビューで確かめる",
   "FR-DR5": "開閉の動きの速さ。手作業で確かめる",
   "NFR-Q1": "デザイントークンだけを使う。レビューで確かめる",
-  "NFR-Q3": "ちらつき・ずれ。手作業で確かめる"
+  "NFR-Q3": "ちらつき・ずれ。手作業で確かめる",
+  "FR-QB1": "未実装（P3。株価ボード。docs/design-quote-board.md）",
+  "FR-QB2": "未実装（P3。株価ボード。docs/design-quote-board.md）",
+  "FR-QB3": "未実装（P3。株価ボード。docs/design-quote-board.md）",
+  "FR-QB4": "未実装（P3。株価ボード。docs/design-quote-board.md）",
+  "FR-QB5": "未実装（P3。株価ボード。docs/design-quote-board.md）",
+  "FR-QB6": "未実装（P3。株価ボード。docs/design-quote-board.md）",
+  "FR-QB7": "未実装（P3。株価ボード。docs/design-quote-board.md）",
+  "FR-QB8": "未実装（P3。株価ボード。docs/design-quote-board.md）"
 }
