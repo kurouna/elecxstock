@@ -12,7 +12,7 @@ import ChartGrid from './widgets/ChartGrid.svelte'
 import DivCalendar from './widgets/DivCalendar.svelte'
 import DivSim from './widgets/DivSim.svelte'
 import Folio from './widgets/Folio.svelte'
-import Heatmap from './widgets/Heatmap.svelte'
+import HeatmapPane from './widgets/HeatmapPane.svelte'
 import Jobs from './widgets/Jobs.svelte'
 import MarketBoard from './widgets/MarketBoard.svelte'
 import MarketBreadth from './widgets/MarketBreadth.svelte'
@@ -89,7 +89,7 @@ function onerror(e: unknown) {
     {:else if pane.widget === 'portfolio'}
       <Portfolio {pane} />
     {:else if pane.widget === 'heatmap'}
-      <Heatmap {pane} />
+      <HeatmapPane {pane} />
     {:else if pane.widget === 'ranking'}
       <Ranking {pane} />
     {:else if pane.widget === 'breadth'}

@@ -2,18 +2,20 @@
 // heatmap（§6.3）: 33 業種と銘柄のツリーマップ。面積 = 時価総額、色 = 騰落率（P で期間を切り替え）。
 // 矢印で長方形を移り、Enter で業種の中へ（銘柄はリンクグループへ送る）、Esc / Backspace で業種へ戻る。
 import type { InstrumentId } from '@shared/types'
-import { onMount } from 'svelte'
+import { onMount, type Snippet } from 'svelte'
 import { fmt, money, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
 import { latest } from '../../lib/latest'
-import { registerPane } from '../../lib/panes'
+import { type PaneApi, registerPane } from '../../lib/panes'
 import { SelectionFollow } from '../../lib/selection'
 import { neighbor, type Placed, sectorMembers, sectorTileKey, squarify } from '../../lib/treemap'
 import { app, bridge, inst, isFav, nameOf, t } from '../../stores/app.svelte'
 import { type PaneNode, patchState, setLinkSymbol } from '../../stores/layout.svelte'
-import PaneHeader from '../PaneHeader.svelte'
+import PaneHeader, { type MoreItem } from '../PaneHeader.svelte'
 
-let { pane }: { pane: PaneNode } = $props()
+// wrapApi・lead・more は親（HeatmapPane.svelte。表示の切り替え）から渡る。省略すれば今までと同じ（docs/design-quote-board.md §6.2）
+let { pane, wrapApi, lead, more }: { pane: PaneNode; wrapApi?: (api: PaneApi) => PaneApi; lead?: Snippet; more?: () => MoreItem[] } =
+  $props()
 const PERIODS = [
   { col: 'chgPct', key: 'heat.1d', range: 3 },
   { col: 'ret1m', key: 'heat.1m', range: 10 },
@@ -129,7 +131,7 @@ onMount(() => {
     H = host?.clientHeight ?? 400
   })
   if (host) ro.observe(host)
-  const off = registerPane(pane.id, {
+  const api: PaneApi = {
     current: () => placed[sel]?.item.id,
     selected: () => {
       const p = placed[sel]
@@ -160,7 +162,8 @@ onMount(() => {
       }
       return false
     },
-  })
+  }
+  const off = registerPane(pane.id, wrapApi ? wrapApi(api) : api)
   return () => {
     ro.disconnect()
     off()
@@ -168,7 +171,8 @@ onMount(() => {
 })
 </script>
 
-<PaneHeader {pane} collapse={600}>
+<PaneHeader {pane} collapse={600} {more}>
+  {@render lead?.()}
   <button type="button" class="chip" disabled={!sector} onclick={back}>{sector ? `← ${secName(sector)}` : t('heat.sectors')}</button>
   <span class="lbl">{t('heat.retLabel')}</span>
   <span class="seg" role="group" aria-label={t('heat.retPeriod')}>

@@ -137,6 +137,16 @@ const G = $derived([
     rows: [
       [ja ? 'ヒートマップ: 移動 / 業種の中へ / 戻る' : 'Heatmap: move / drill in / back', 'Arrows / Enter / Esc'],
       [ja ? 'ヒートマップ: 期間' : 'Heatmap: period', 'P'],
+      [ja ? 'ヒートマップ ⇔ 株価ボード' : 'Heatmap ⇔ quote cards', 'V'],
+      [
+        ja ? '株価ボード: カードを選ぶ' : 'Quote cards: select a card',
+        ja ? '矢印 / PgUp・PgDn / Home・End' : 'Arrows / PgUp, PgDn / Home, End',
+      ],
+      [
+        ja ? '株価ボード: 一覧 / 並べ替え / 分類' : 'Quote cards: list / sort / group',
+        ja ? 'G・Ctrl+PgDn / S / B' : 'G, Ctrl+PgDn / S / B',
+      ],
+      [ja ? '株価ボード: 大きさ / 指数のカード / ★のみ' : 'Quote cards: size / index cards / ★ only', '+ − / I / Ctrl+Shift+F'],
       [ja ? 'ランキング: 指標 / 上位・下位 / 市場' : 'Ranking: metric / top-bottom / market', 'S / Shift+S / G'],
       [ja ? 'マーケット一覧: 区分 / 並べ替え / 列' : 'Market board: group / sort / columns', 'G, Ctrl+PgDn / ← → S / Ctrl+Shift+C'],
       [ja ? '騰落: タブ / 中へ / 戻る' : 'Breadth: tab / drill in / back', 'G, Ctrl+PgDn / Enter / Esc'],
