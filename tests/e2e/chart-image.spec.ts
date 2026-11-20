@@ -50,13 +50,13 @@ test.describe('チャートの画像の保存（FR-C11）', () => {
     await keys(page, 'Control+Comma')
     const dlg = page.getByRole('dialog', { name: '設定' })
     await keys(page, 'ArrowDown', 'ArrowDown', 'Tab', 'Tab')
-    const toggle = dlg.getByRole('button', { name: 'チャートの画像の保存' })
+    const toggle = dlg.getByRole('switch', { name: 'チャートの画像の保存' })
     await expect(toggle).toBeFocused()
     await expect(dlg).toContainText('公開・再配布しないでください')
     await keys(page, 'Space')
-    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    await expect(toggle).toHaveAttribute('aria-checked', 'true')
     await expect.poll(async () => (await rpc<{ settings: { chartSave: boolean } }>(page, 'user.load')).settings.chartSave).toBe(true)
-    await keys(page, 'Escape')
+    await keys(page, 'Escape', 'Escape')
     await expect(dlg).toHaveCount(0)
 
     // ボタンが出る。S で保存する
@@ -87,7 +87,7 @@ test.describe('チャートの画像の保存（FR-C11）', () => {
     await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe('1')
 
     // OFF に戻すとボタンは消え、S も効かない
-    await keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'Tab', 'Tab', 'Space', 'Escape')
+    await keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'Tab', 'Tab', 'Space', 'Escape', 'Escape')
     await expect(btn).toHaveCount(0)
     await pressSNoSave(2)
   })

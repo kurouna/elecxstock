@@ -290,6 +290,7 @@ onMount(() => {
     },
     selected: () => rows.slice(lo, hi + 1),
     columns: () => ({ ids: rows, cols: allCols, name: scr ? screenName(scr) : 'screener' }),
+    runs: ['columns', 'limit'],
     run(action) {
       if (action === 'columns') void pickColumns()
       else if (action === 'limit') void setLimit()

@@ -36,3 +36,21 @@ describe('コントラスト（NFR-Q5）', () => {
     })
   }
 })
+
+// 設定の見本（テーマ・ローソク足の色。docs/design-dialogs.md §6）の色は、本物のトークンと同じ値（app.css を直して見本だけ古い色が残らないように）
+describe('設定の見本の色（FR-KB11, FR-V8, FR-C9）', () => {
+  const dark = tokens(':root')
+  const light = { ...dark, ...tokens(':root[data-theme="light"]') }
+  const usDark = tokens(':root[data-candle="us"]')
+  const usLight = tokens(':root[data-theme="light"][data-candle="us"]')
+  it('テーマの見本は、それぞれのテーマのトークンの値', () => {
+    for (const k of ['bg', 'panel', 'line-strong', 'text-2', 'select-strong', 'focus', 'up', 'down']) {
+      expect(dark[`pv-dark-${k}`], k).toBe(dark[k])
+      expect(dark[`pv-light-${k}`], k).toBe(light[k])
+    }
+  })
+  it('ローソク足の見本は、今のテーマの日本式・欧米式の色', () => {
+    expect([dark['up-jp'], dark['down-jp'], dark['up-us'], dark['down-us']]).toEqual([dark.up, dark.down, usDark.up, usDark.down])
+    expect([light['up-jp'], light['down-jp'], light['up-us'], light['down-us']]).toEqual([light.up, light.down, usLight.up, usLight.down])
+  })
+})

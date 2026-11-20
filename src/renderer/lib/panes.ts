@@ -1,6 +1,5 @@
 // ペインごとのキー操作の窓口。ウィジェットは自分のキー処理と「今選んでいる銘柄」を登録する。
 import type { InstrumentId } from '@shared/types'
-import type { WidgetId } from '../stores/layout.svelte'
 import type { ListCol } from './columns'
 
 export interface PaneApi {
@@ -14,6 +13,8 @@ export interface PaneApi {
   columns?: () => { ids: InstrumentId[]; cols: ListCol[]; name: string } | null
   /** コマンドバーから呼ぶ、ペインごとの操作（例: 'duplicate'・'columns'）。扱えたら true */
   run?: (action: string) => boolean
+  /** run で受ける操作（コマンドバーが「今使えない」を判定する。run と一緒に書く） */
+  runs?: readonly string[]
   /** ペインの中の取り消し・やり直し（チャートの描画。Ctrl+Z / Ctrl+Y）。戻すものが無ければ false（全体の取り消しに回す） */
   undo?: (redo: boolean) => boolean
 }
@@ -32,28 +33,4 @@ export function paneApi(id: string | null | undefined): PaneApi | undefined {
 export function paneSelector(id: string): string {
   const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id.replace(/["\\]/g, '\\$&')
   return `[data-pane-id="${esc}"]`
-}
-
-/** F1 の一覧（Help.svelte）で、そのペインの種類のキーを載せた段の ID（FR-KB7。いまのペインの段に印を付ける） */
-const HELP_SECTION: Record<WidgetId, string> = {
-  watchlist: 'list',
-  screener: 'screener',
-  chart: 'chart',
-  mtf: 'chart',
-  grid: 'grid',
-  divcal: 'list',
-  jobs: 'list',
-  info: 'market',
-  heatmap: 'market',
-  ranking: 'market',
-  board: 'market',
-  breadth: 'market',
-  market: 'market',
-  portfolio: 'market',
-  folio: 'market',
-  divsim: 'market',
-  news: 'news',
-}
-export function helpSection(widget: WidgetId | string | undefined): string {
-  return HELP_SECTION[widget as WidgetId] ?? ''
 }

@@ -23,6 +23,7 @@ import {
   t,
   toast,
   toggleFav,
+  widgetPickerDialog,
   zoomThisWindow,
 } from '../stores/app.svelte'
 import {
@@ -63,7 +64,6 @@ import {
   swapPane,
   toggleDockOpen,
   undoResetSizes,
-  WIDGETS,
   type WidgetId,
 } from '../stores/layout.svelte'
 import { canUndoRemoveAlert, createAlert, toggleAlerts, undoRemoveAlert } from './alerts'
@@ -89,6 +89,8 @@ export interface Action {
    * late: ペインのキー処理のあと（Ctrl+Shift+A のように、ペインが同じキーを使うことがあるもの）
    */
   when?: 'global' | 'late'
+  /** 今使えなければ、その理由（i18n のキー）。コマンドバーは薄くして理由を出し、実行のときは理由を知らせて止める（FR-KB9） */
+  enabled?: () => Key | null
   run: () => void | Promise<void>
 }
 
@@ -537,6 +539,12 @@ export function openPane(widget: WidgetId): void {
 }
 
 const presetName = (p: PresetId) => t(`preset.${p}` as Key)
+/** フォーカス中のペインが run で受ける操作か（受けなければ理由） */
+const needRun = (action: string, reason: Key) => (): Key | null => (paneApi(app.focus)?.runs?.includes(action) ? null : reason)
+/** フォーカス中のペインが一覧を持つか */
+const needList = (): Key | null => (paneApi(app.focus)?.columns?.() ? null : 'cmd.need.list')
+/** 選んだ銘柄（一覧の選択か、フォーカス中のペインの銘柄）があるか */
+const needSymbol = (): Key | null => (paneApi(app.focus)?.selected?.()?.length || focusedSymbol() ? null : 'cmd.need.symbol')
 const paneRun = (action: string) => () => {
   if (!paneApi(app.focus)?.run?.(action)) toast(t('cmd.needList'))
 }
@@ -576,10 +584,10 @@ export const ACTIONS: Action[] = [
     run: () => openPageMenu(),
   },
   { id: 'max', label: () => t('act.max'), key: 'Ctrl+Shift+Enter', when: 'global', run: () => toggleMax() },
-  { id: 'fav', label: () => t('act.fav'), key: 'Ctrl+D', when: 'global', run: () => toggleFav(focusedSymbol()) },
+  { id: 'fav', label: () => t('act.fav'), key: 'Ctrl+D', when: 'global', enabled: needSymbol, run: () => toggleFav(focusedSymbol()) },
   { id: 'update', label: () => t('act.update'), key: 'F5', when: 'global', run: () => startUpdate() },
-  { id: 'refetch', label: () => t('act.updateSel'), key: 'Shift+F5', when: 'global', run: () => refetchSelected() },
-  { id: 'refetchList', label: () => t('act.refetchList'), run: () => refetchList() },
+  { id: 'refetch', label: () => t('act.updateSel'), key: 'Shift+F5', when: 'global', enabled: needSymbol, run: () => refetchSelected() },
+  { id: 'refetchList', label: () => t('act.refetchList'), enabled: needList, run: () => refetchList() },
   { id: 'universe', label: () => t('act.universe'), run: () => void rpc('jobs.start', { kind: 'universe' }) },
   {
     id: 'settings',
@@ -655,7 +663,12 @@ export const ACTIONS: Action[] = [
   })),
   { id: 'toDrawer', label: () => t('act.toDrawer'), run: () => toDrawer('left') },
   { id: 'toDrawerRight', label: () => t('act.toDrawerRight'), run: () => toDrawer('right') },
-  { id: 'fromDrawer', label: () => t('act.fromDrawer'), run: () => fromDrawer() },
+  {
+    id: 'fromDrawer',
+    label: () => t('act.fromDrawer'),
+    enabled: () => (inDock(app.focus ?? '') ? null : 'cmd.need.drawer'),
+    run: () => fromDrawer(),
+  },
   { id: 'openGrid', label: () => t('act.openGrid'), key: 'Ctrl+Shift+G', when: 'global', run: () => openInGrid() },
   {
     id: 'addTo',
@@ -665,11 +678,16 @@ export const ACTIONS: Action[] = [
     run: () => addToListDialog(paneApi(app.focus)?.selected?.() ?? (focusedSymbol() ? [focusedSymbol()!] : [])),
   },
   { id: 'newList', label: () => t('act.newList'), run: () => newList() },
-  { id: 'duplicateList', label: () => t('act.duplicateList'), run: paneRun('duplicate') },
-  { id: 'columns', label: () => t('act.columns'), run: paneRun('columns') },
-  { id: 'limit', label: () => t('act.limit'), run: paneRun('limit') },
-  { id: 'exportCsv', label: () => t('act.exportCsv'), run: () => exportListCsv() },
-  { id: 'exportBars', label: () => t('act.exportBars'), run: () => exportBarsCsv() },
+  {
+    id: 'duplicateList',
+    label: () => t('act.duplicateList'),
+    enabled: needRun('duplicate', 'cmd.need.watchlist'),
+    run: paneRun('duplicate'),
+  },
+  { id: 'columns', label: () => t('act.columns'), enabled: needRun('columns', 'cmd.need.list'), run: paneRun('columns') },
+  { id: 'limit', label: () => t('act.limit'), enabled: needRun('limit', 'cmd.need.screener'), run: paneRun('limit') },
+  { id: 'exportCsv', label: () => t('act.exportCsv'), enabled: needList, run: () => exportListCsv() },
+  { id: 'exportBars', label: () => t('act.exportBars'), enabled: needSymbol, run: () => exportBarsCsv() },
   { id: 'importCodes', label: () => t('act.importCodes'), run: () => importCodes() },
   { id: 'exportUser', label: () => t('act.exportUser'), run: () => exportUser() },
   { id: 'importUser', label: () => t('act.importUser'), run: () => importUser() },
@@ -685,13 +703,13 @@ export const ACTIONS: Action[] = [
   { id: 'backupDb', label: () => t('act.backupDb'), run: () => backupDb() },
   { id: 'openLogs', label: () => t('act.openLogs'), run: () => void window.elecxstock.openLogs() },
   { id: 'checkUpdate', label: () => t('act.checkUpdate'), run: () => checkUpdate(true) },
-  { id: 'split', label: () => t('act.split'), key: 'Ctrl+Shift+E', when: 'global', run: () => focusNew(splitPane(app.focus ?? '', 'row')) },
+  { id: 'split', label: () => t('act.split'), key: 'Ctrl+Shift+E', when: 'global', run: () => splitWithPicker('row') },
   {
     id: 'splitDown',
     label: () => t('act.splitDown'),
     key: 'Ctrl+Shift+O',
     when: 'global',
-    run: () => focusNew(splitPane(app.focus ?? '', 'col')),
+    run: () => splitWithPicker('col'),
   },
   {
     id: 'close',
@@ -729,13 +747,26 @@ export const ACTIONS: Action[] = [
   { id: 'zoomIn', label: () => t('act.zoomIn'), key: 'Ctrl+Alt+=', when: 'global', run: () => void zoomThisWindow(1) },
   { id: 'zoomOut', label: () => t('act.zoomOut'), key: 'Ctrl+Alt+-', when: 'global', run: () => void zoomThisWindow(-1) },
   { id: 'zoomReset', label: () => t('act.zoomReset'), key: 'Ctrl+Alt+0', when: 'global', run: () => void zoomThisWindow(0) },
-  { id: 'sendToFree', label: () => t('act.sendToFree'), key: 'Ctrl+Alt+Enter', when: 'global', run: () => sendToFree() },
+  {
+    id: 'sendToFree',
+    label: () => t('act.sendToFree'),
+    key: 'Ctrl+Alt+Enter',
+    when: 'global',
+    enabled: needSymbol,
+    run: () => sendToFree(),
+  },
 ]
 /** この窓で使えるアクションか（フリー N では、タブ・ドロワー・設定・利用者のデータの編集を使わない） */
 export const allowedHere = (id: string): boolean => !(IS_FREE && blockedInFree(id))
 for (const a of ACTIONS) {
   const orig = a.run
-  a.run = () => (allowedHere(a.id) ? orig() : toast(t('win.notInFree')))
+  a.run = () => {
+    if (!allowedHere(a.id)) return toast(t('win.notInFree'))
+    // 今使えなければ理由を知らせる（コマンドバーの薄い行と同じ判定。FR-KB9）
+    const why = a.enabled?.()
+    if (why) return toast(t(why))
+    return orig()
+  }
 }
 /** コマンドバー（Ctrl+K）に出すアクション: この窓で使えるものだけ（FR-KB1, FR-L7） */
 export function paletteActions(): Action[] {
@@ -806,14 +837,19 @@ async function newList(): Promise<void> {
   app.watchlists.push({ id: `u${Date.now().toString(36)}`, name: { ja: name, en: name }, items: [] })
   saveWatchlists()
 }
+/** ペインの種類を変える（Ctrl+Shift+N。docs/design-dialogs.md §5） */
 async function changeWidgetDialog(): Promise<void> {
   const id = app.focus
-  if (!id) return
-  const w = await choiceDialog(
-    t('act.changeWidget'),
-    (IS_FREE ? FREE_WIDGETS : WIDGETS).map((x) => ({ id: x, label: t(`widget.${x}` as Key) })),
-  )
-  if (w) changeWidget(id, w as (typeof WIDGETS)[number])
+  if (!id || !findPane(id)) return
+  const w = await widgetPickerDialog({ mode: 'change', paneId: id })
+  if (w) changeWidget(id, w)
+}
+/** 右・下に分割する。足すペインの種類を続けて選ぶ（§6.5。やめたら分割しない）。ドロワーの中では分割しない */
+async function splitWithPicker(dir: 'row' | 'col'): Promise<void> {
+  const id = app.focus
+  if (!id || !findPane(id) || inDock(id)) return
+  const w = await widgetPickerDialog({ mode: 'split', dir, paneId: id })
+  if (w) focusNew(splitPane(id, dir, w))
 }
 // 窓の全画面（F11）は main に頼む（renderer の requestFullscreen は権限の拒否で効かない）
 function toggleFullscreen(): void {

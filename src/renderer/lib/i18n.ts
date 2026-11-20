@@ -1,6 +1,7 @@
 // UI の文言（FR-N1）。日本語と英語のキーは型で一致させ、単体テストでも確かめる（FR-N6）。
 // {name} は引数で置き換える。
 import { NEWS_EN, NEWS_JA } from '@shared/news/i18n'
+import { DIALOGS_EN, DIALOGS_JA } from './i18nDialogs'
 
 export const ja = {
   'top.search': '銘柄・コマンドを検索（1〜9 を打つと銘柄ジャンプ）',
@@ -282,15 +283,12 @@ export const ja = {
   'cmd.actions': 'アクション',
   'cmd.screens': 'スクリーニング条件',
   'cmd.hint.move': '↑↓ 移動',
-  'cmd.hint.enter': 'Enter 実行',
   'cmd.hint.close': 'Esc 閉じる',
-  'cmd.hint.actions': '> でアクションのみ',
   'cmd.addUser': '銘柄 {code} を追加して取得する',
   'jump.title': '銘柄ジャンプ',
   'jump.hint': 'Enter 表示',
   'jump.none': '該当なし',
   'help.title': 'ショートカット',
-  'help.focus': '● フォーカス中のペインで効くキー',
   'help.general': '全体',
   'help.list': '一覧',
   'help.chart': 'チャート',
@@ -305,7 +303,6 @@ export const ja = {
   'set.yieldLineHint': '配当利回りが目標の % になる株価（過去 12 か月の配当 ÷ 目標）に、チャートとグリッドのタイルで点線を引きます',
   'set.yieldTargets': '目標利回り（%）',
   'set.yieldTarget': '目標利回り {n}',
-  'set.yieldTargetsHint': '{n} つまで。0.1〜30 の小数で打ち、Enter か Tab で決めます。空にするとその線を消します',
   'set.chartSave': 'チャートの画像の保存',
   'set.chartSaveHint':
     'ON にすると、チャートの見出しに画像（PNG）の保存のボタンが出て、S キーでも保存できます。データは Yahoo Finance のものです。保存した画像は個人で使う範囲にとどめ、公開・再配布しないでください',
@@ -326,10 +323,7 @@ export const ja = {
   'set.jp': '日本式（陽線 赤・陰線 青）',
   'set.us': '欧米式（陽線 緑・陰線 赤）',
   'set.motion': '動きを減らす',
-  'set.dbSize': 'DB の容量',
   'set.symbols': '銘柄数（取得済み / 対象）',
-  'set.failures': '取得失敗',
-  'set.range': '期間',
   'set.monthlyNote': '月足は上場以来（月次系列）',
   'set.retention': '日足の保存期間',
   'set.universe': '銘柄一覧の更新',
@@ -371,7 +365,6 @@ export const ja = {
   'layout.resetAllBody':
     'マイレイアウトを除く 8 つのタブすべてのペインの並び・区切り線・ドロワー・グリッドの銘柄と設定が、プリセットの初期状態に戻ります。ウォッチリスト・スクリーニング条件・保有、マイレイアウトのページ、フリー 2〜4 のウィンドウの配置は変わりません。',
   'layout.resetAllDone': 'すべてのタブのレイアウトを初期状態に戻しました',
-  'set.layout': 'レイアウト',
   'set.resetAllLayouts': 'すべてのタブのレイアウトを初期状態に戻す',
   'layout.resetDone': '「{tab}」のレイアウトを初期状態に戻しました',
   'layout.noDrawer': 'このレイアウトにはドロワーがありません',
@@ -1413,13 +1406,9 @@ export const ja = {
     'Tab 条件へ · ↑↓ 選ぶ · ← → 値 · Enter 値を入力 · F 指標 · O 比較 · A かつ/または · R 相対条件 · Alt+↑↓ 並べ替え · Delete 削除 · T 上位 N 件',
   'keys.needModifier':
     'アプリ全体のキーには Ctrl か Alt を付けてください（単キーはペインの中の操作に使います。F1〜F12 は単独でも使えます）',
-  'keys.conflictTitle': '{key} はほかの操作に割り当てられています',
-  'keys.conflictBody': '入れ替えると、ほかの操作の割り当ては外れます（コマンドバーからは実行できます）。',
-  'keys.conflictDo': '入れ替える',
   'keys.resetTitle': 'キーの割り当てをすべて既定に戻しますか？',
   'keys.reset': '既定に戻す',
   'keys.search': '操作・キーで探す',
-  'keys.press': '割り当てるキーを押してください（Esc でやめる）',
   'keys.note':
     'Enter で割り当てを変える · Delete で外す · Backspace で既定に戻す。青いキーは変えたもの。ペインの中の単キー（一覧の S、チャートの D/W/M など）とリンク色（Ctrl+0〜5）は変えられません。',
   'set.addInstrument': '銘柄を足す（証券コード）',
@@ -1431,7 +1420,6 @@ export const ja = {
   'set.theme': 'テーマ',
   'set.dark': 'ダーク',
   'set.light': 'ライト',
-  'help.market': 'マーケット・保有',
   'info.refetch': '取り直す',
   'info.openYahoo': 'Yahoo!ファイナンスで開く',
   'info.payout': '配当性向',
@@ -1490,6 +1478,7 @@ export const ja = {
   'dlg.confirmKeys': '← → で選ぶ · Enter で決定 · Esc で取り消し',
   // ニュース（src/shared/news/i18n.ts）
   ...NEWS_JA,
+  ...DIALOGS_JA,
 }
 
 export type Key = keyof typeof ja
@@ -1774,15 +1763,12 @@ export const en: Record<Key, string> = {
   'cmd.actions': 'Actions',
   'cmd.screens': 'Screens',
   'cmd.hint.move': '↑↓ move',
-  'cmd.hint.enter': 'Enter run',
   'cmd.hint.close': 'Esc close',
-  'cmd.hint.actions': '> for actions only',
   'cmd.addUser': 'Add {code} and fetch it',
   'jump.title': 'Symbol jump',
   'jump.hint': 'Enter show',
   'jump.none': 'No match',
   'help.title': 'Keyboard shortcuts',
-  'help.focus': '● keys for the focused pane',
   'help.general': 'General',
   'help.list': 'Lists',
   'help.chart': 'Chart',
@@ -1798,7 +1784,6 @@ export const en: Record<Key, string> = {
     'Draws a dashed line on charts and grid tiles at the price where the dividend yield equals the target (trailing 12-month dividends ÷ target)',
   'set.yieldTargets': 'Target yields (%)',
   'set.yieldTarget': 'Target yield {n}',
-  'set.yieldTargetsHint': 'Up to {n}. Type a number from 0.1 to 30 and press Enter or Tab; leave empty to remove the line',
   'set.chartSave': 'Save chart images',
   'set.chartSaveHint':
     'When on, chart headers show a button to save the chart as a PNG image, and S saves it too. The data comes from Yahoo Finance: keep saved images for personal use and do not publish or redistribute them',
@@ -1819,10 +1804,7 @@ export const en: Record<Key, string> = {
   'set.jp': 'Japanese (up red, down blue)',
   'set.us': 'Western (up green, down red)',
   'set.motion': 'Reduce motion',
-  'set.dbSize': 'Database size',
   'set.symbols': 'Symbols (fetched / target)',
-  'set.failures': 'Fetch failures',
-  'set.range': 'Range',
   'set.monthlyNote': 'Monthly since listing (monthly series)',
   'set.retention': 'Daily history',
   'set.universe': 'Update the universe',
@@ -1864,7 +1846,6 @@ export const en: Record<Key, string> = {
   'layout.resetAllBody':
     'The panes, dividers, drawers and the grid’s symbols and settings of all eight tabs except Pages return to their presets. Watchlists, screens, holdings, your pages and the free windows 2–4 are not changed.',
   'layout.resetAllDone': 'All tab layouts reset to presets',
-  'set.layout': 'Layout',
   'set.resetAllLayouts': 'Reset all tab layouts to presets',
   'layout.resetDone': '“{tab}” layout reset to preset',
   'layout.noDrawer': 'No drawer in this layout',
@@ -2906,13 +2887,9 @@ export const en: Record<Key, string> = {
   'scr.hint':
     'Tab conditions · ↑↓ select · ← → value · Enter type · F field · O operator · A and/or · R relative · Alt+↑↓ reorder · Delete remove · T top N',
   'keys.needModifier': 'Global keys need Ctrl or Alt (single keys are used inside panes; F1–F12 are fine)',
-  'keys.conflictTitle': '{key} is already assigned',
-  'keys.conflictBody': 'The other actions lose this key (they stay available in the command bar).',
-  'keys.conflictDo': 'Reassign',
   'keys.resetTitle': 'Reset all key bindings to the defaults?',
   'keys.reset': 'Reset to defaults',
   'keys.search': 'Search actions or keys',
-  'keys.press': 'Press the new key (Esc to cancel)',
   'keys.note':
     'Enter to change · Delete to clear · Backspace for default. Blue keys are customized. Single keys inside panes and link colors (Ctrl+0–5) are fixed.',
   'set.addInstrument': 'Add a symbol (code)',
@@ -2923,7 +2900,6 @@ export const en: Record<Key, string> = {
   'set.theme': 'Theme',
   'set.dark': 'Dark',
   'set.light': 'Light',
-  'help.market': 'Market & portfolio',
   'info.refetch': 'Refetch',
   'info.openYahoo': 'Open in Yahoo Finance',
   'info.payout': 'Payout ratio',
@@ -2981,6 +2957,7 @@ export const en: Record<Key, string> = {
   'act.quit': 'Quit',
   'dlg.confirmKeys': '← → choose · Enter confirm · Esc cancel',
   ...NEWS_EN,
+  ...DIALOGS_EN,
 }
 
 export const DICTS = { ja, en }

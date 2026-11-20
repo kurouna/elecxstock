@@ -1,274 +1,431 @@
 <script lang="ts">
-// ショートカット一覧（F1。FR-KB7）。フォーカス中のペインで効くキーに印を付ける。
-// 割り当てを変えられるキー（アクションの登録表）は、今の割り当てを出す（FR-KB6）。
-import { keyOf } from '../../lib/commands'
-import { helpSection } from '../../lib/panes'
-import { newsHelp } from '../../news/help'
+// ショートカット一覧（F1。FR-KB7。docs/design-dialogs.md §4）: 探して見るだけの画面（実行はコマンドバーの役目）。
+// 文字で絞り込むか、Tab で「キーを押して探す」に切り替えて押したキーを使う操作を探す。フォーカス中のペインの段を先頭に出す。
+// 割り当てを変えられるキー（アクションの登録表）は、今の割り当てを出す（FR-KB6）。行の登録表は lib/shortcuts.ts
+import { onMount } from 'svelte'
+import { ACTIONS, keyCapture, keyOf } from '../../lib/commands'
+import type { Key } from '../../lib/i18n'
+import { composing, eventKey, normalizeKey } from '../../lib/keys'
+import { clampSel } from '../../lib/selection'
+import {
+  blocks,
+  filterShortcuts,
+  helpSection,
+  jumpSection,
+  langIx,
+  rowKeys,
+  SECTION_KEY,
+  type SectionId,
+  SHORTCUTS,
+  sectionOrder,
+} from '../../lib/shortcuts'
 import { app, t } from '../../stores/app.svelte'
-import { findPane } from '../../stores/layout.svelte'
+import { findPane, PRESET_IDS } from '../../stores/layout.svelte'
+import Hl from './Hl.svelte'
+import Keys from './Keys.svelte'
 
-const ja = $derived(app.settings.lang === 'ja')
-const K = (...ids: string[]) => ids.map((id) => keyOf(id) || '—').join(' / ')
-const G = $derived([
-  {
-    id: 'general',
-    title: t('help.general'),
-    rows: [
-      [ja ? '銘柄ジャンプ' : 'Symbol jump', '1–9'],
-      [ja ? 'ジャンプの候補をお気に入りに / 見ているリストに足す' : 'Jump: favorite / add to the focused list', 'Ctrl+D / Ctrl+Enter'],
-      [ja ? 'コマンドバー' : 'Command bar', 'Ctrl+K'],
-      [ja ? 'ショートカット一覧' : 'Shortcuts', K('help')],
-      [ja ? 'ペイン間の移動' : 'Move between panes', 'Alt+← → ↑ ↓'],
-      [ja ? 'ペインを順に巡る' : 'Cycle panes', 'F6 / Shift+F6'],
-      [ja ? '最大化 / 戻す' : 'Maximize / restore', K('max')],
-      [ja ? '右に分割 / 下に分割 / 閉じる' : 'Split right / down / close', K('split', 'splitDown', 'close')],
-      [ja ? 'ペインの種類を変える' : 'Change pane type', K('changeWidget')],
-      [ja ? '区切り線を動かす' : 'Move divider', 'Alt+Shift+Arrows'],
-      [ja ? 'ペインを入れ替える（タイトルのドラッグでも）' : 'Swap pane (or drag the title)', 'Ctrl+Alt+Shift+Arrows'],
-      [ja ? 'サイズを元に戻す / 取り消し' : 'Reset sizes / undo', `${K('resetSizes')} / Ctrl+Z`],
-      [ja ? 'リンク色 1〜5 / 解除' : 'Link color 1–5 / none', 'Ctrl+1–5 / Ctrl+0'],
-      [ja ? 'レイアウト（プリセット）' : 'Layouts (presets)', 'Ctrl+Shift+1–9'],
-      [
-        ja
-          ? 'マイレイアウトのページのメニュー（マイレイアウトで Ctrl+Shift+8 をもう一度でも）'
-          : 'Pages menu (or Ctrl+Shift+8 again on Pages)',
-        K('layouts'),
-      ],
-      [
-        ja
-          ? 'ページのメニューの中: 開く・新しいページ・複製・名前・並べ替え・削除'
-          : 'In the pages menu: open, new, duplicate, rename, reorder, delete',
-        '1–9 / Insert / Shift+Insert / F2 / Alt+↑↓ / Delete×2',
-      ],
-      [ja ? '消したページを元に戻す（10 秒間）' : 'Restore a deleted page (10 s)', 'Ctrl+Z'],
-      [ja ? 'お気に入り' : 'Favorite', K('fav')],
-      [ja ? 'ウォッチリストに追加' : 'Add to watchlist', K('addTo')],
-      [ja ? 'データ更新 / 選んだ銘柄の取り直し' : 'Update / refetch selection', K('update', 'refetch')],
-      [ja ? 'フォーカス中の銘柄でアラートを作る' : 'Create an alert for the focused symbol', K('alertNew')],
-      [ja ? 'アラートの一覧と履歴 / 消したアラートを戻す' : 'Alerts and history / undo removal', `${K('alerts')} / Ctrl+Z`],
-      [ja ? 'プライバシーモード（保有の金額と数量を隠す）' : 'Privacy mode (hide holding amounts and quantities)', K('privacy')],
-      [ja ? '設定（キーの割り当ても）' : 'Settings (incl. key bindings)', K('settings')],
-      [ja ? '全画面' : 'Full screen', K('fullscreen')],
-      [ja ? '新しいフリーのウィンドウ（2 枚目のモニタに）' : 'New Free window (for a second monitor)', K('newWindow')],
-      [ja ? '次 / 前のウィンドウへ' : 'Next / previous window', K('nextWindow', 'prevWindow')],
-      [ja ? '選んだ銘柄をフリーのウィンドウへ送る' : 'Send selection to a Free window', K('sendToFree')],
-      [ja ? 'このウィンドウの文字の大きさ' : 'Text size (this window)', K('zoomIn', 'zoomOut', 'zoomReset')],
-      [ja ? 'ウィンドウを閉じる / 別のモニタへ' : 'Close window / move to another monitor', 'Alt+F4 / Win+Shift+← →'],
-      [ja ? 'アプリを終了' : 'Quit', K('quit')],
-      [ja ? '閉じる・戻す' : 'Close / back', 'Esc'],
-    ],
-  },
-  {
-    id: 'list',
-    title: t('help.list'),
-    rows: [
-      [ja ? '行を移動（チャートが追従）' : 'Move row (charts follow)', '↑ ↓ PgUp PgDn Home End'],
-      [ja ? '列を移動 / 並べ替え' : 'Move column / sort', '← → / S'],
-      [ja ? '列の選択' : 'Choose columns', 'Ctrl+Shift+C'],
-      [ja ? 'リンクグループに送る' : 'Send to link group', 'Enter'],
-      [ja ? '複数選択 / すべて選択' : 'Extend selection / select all', 'Shift+↑ ↓ / Ctrl+A'],
-      [ja ? 'リストに追加（選んだ銘柄）' : 'Add selection to a list', K('addTo')],
-      [ja ? '★のみ表示' : '★ only', 'Ctrl+Shift+F'],
-      [ja ? 'リストから外す / リストを削除' : 'Remove / delete list', 'Delete / Shift+Delete'],
-      [ja ? '行を並べ替える' : 'Reorder rows', 'Alt+↑ ↓'],
-      [ja ? 'リストの切り替え / 並べ替え' : 'Switch / reorder lists', 'Ctrl+PgUp PgDn / Ctrl+Shift+PgUp PgDn'],
-      [ja ? 'リストの名前の変更' : 'Rename list', 'F2'],
-    ],
-  },
-  {
-    id: 'screener',
-    title: t('help.screener'),
-    rows: [
-      [ja ? '条件へ移る / 結果へ戻る' : 'Conditions / results', 'Tab'],
-      [ja ? '値を変える / 値を入力 / 比較を反転' : 'Step / type value / flip operator', '← → / Enter / O'],
-      [ja ? 'かつ・または / 相対条件（別の指標と比べる）' : 'And/or / relative condition', 'A / R'],
-      [ja ? '条件を追加 / 削除' : 'Add / remove condition', 'Insert / Delete'],
-      [ja ? '条件の指標を変える / 並べ替え' : 'Change field / reorder condition', 'F / Alt+↑↓'],
-      [ja ? '上位 N 件に絞る' : 'Keep top N', 'T'],
-      [ja ? '上書き保存 / 名前を付けて保存' : 'Save / save as', 'Ctrl+S / Ctrl+Shift+S'],
-      [ja ? 'スクリーニング条件を開く / 名前の変更' : 'Open / rename screen', `${K('screens')} / F2`],
-      [ja ? 'グリッドで開く' : 'Open in grid', K('openGrid')],
-    ],
-  },
-  {
-    id: 'chart',
-    title: t('help.chart'),
-    rows: [
-      [ja ? '日足 / 週足 / 月足' : 'Daily / weekly / monthly', 'D / W / M'],
-      [ja ? '銘柄を変える（一覧・銘柄情報ではリンク先のチャート）' : 'Change symbol (from lists: the linked charts)', 'C'],
-      [ja ? '対数軸 / 価格の調整 / 種類' : 'Log scale / adjustment / type', 'L / A / T'],
-      [ja ? '指標・移動平均・比較・表示期間の同期' : 'Indicators, MAs, compare, range sync', 'I'],
-      [ja ? '表示期間（3か月〜全期間）' : 'Visible period (3m–all)', 'Alt+1–6'],
-      [ja ? 'ズーム / 既定に戻す' : 'Zoom / reset', '+ − / 0'],
-      [ja ? '時間方向のスクロール' : 'Scroll in time', '← → (Shift)'],
-      [ja ? 'キーボード十字線' : 'Keyboard crosshair', 'X → ← →'],
-      [ja ? '画像で保存（設定 > チャートで ON のとき）' : 'Save as image (when on in Settings > Charts)', 'S'],
-      [ja ? 'マルチ時間軸: 段の移動 / 並べ方' : 'Multi-timeframe: row / arrangement', 'Tab / V'],
-      [ja ? 'トレンドラインを引く / 点を決める' : 'Draw a trend line / set a point', 'Alt+T / Enter'],
-      [ja ? '引く点: 山・谷へ / 高値〜安値' : 'Point: to swing / high–low', 'Ctrl+← → / ↑ ↓'],
-      [
-        ja ? 'トレンドラインを選ぶ / 動かす対象 / 延長 / 消す' : 'Select trend line / move target / extend / delete',
-        'G / Space / E / Delete',
-      ],
-      [ja ? 'トレンドラインを戻す / やり直す' : 'Undo / redo trend line', 'Ctrl+Z / Ctrl+Y'],
-    ],
-  },
-  {
-    id: 'grid',
-    title: t('help.grid'),
-    rows: [
-      [ja ? 'タイルを移動（端を越えると次・前のページ）/ ページ' : 'Move tile (wraps to next/prev page) / page', 'Arrows / PgUp PgDn'],
-      [ja ? '全タイルの時間軸 / 期間' : 'All tiles: timeframe / period', 'D W M / Alt+1–6'],
-      [ja ? '格子を細かく / 粗く' : 'Finer / coarser grid', '+ / −'],
-      [ja ? '対数 / 比較% / MA / 並べ替え' : 'Log / compare % / MA / sort', 'L / N / I / S'],
-      [ja ? '対象の切り替え' : 'Switch source', 'G / Shift+G'],
-      [ja ? 'タイルの銘柄を差し替える' : 'Replace the tile’s symbol', 'C'],
-      [ja ? '銘柄を足す / 外す / 並べ替え' : 'Add / remove / reorder', '1–9 / Delete / Alt+← →'],
-      [ja ? '今の並びを固定' : 'Pin the current set', 'P'],
-      [ja ? '売買候補の切り替え / 売買候補だけ表示' : 'Toggle candidate / candidates only', 'Space / Shift+Space'],
-      [ja ? 'お気に入り / ★だけ表示' : 'Favorite / ★ only', 'F / Ctrl+Shift+F'],
-      [ja ? '売買候補をリストに追加' : 'Add candidates to a list', K('addTo')],
-      [ja ? '1 枚を最大化 / 日付同期' : 'Maximize tile / date sync', 'Enter / X'],
-    ],
-  },
-  {
-    id: 'market',
-    title: t('help.market'),
-    rows: [
-      [ja ? 'ヒートマップ: 移動 / 業種の中へ / 戻る' : 'Heatmap: move / drill in / back', 'Arrows / Enter / Esc'],
-      [ja ? 'ヒートマップ: 期間' : 'Heatmap: period', 'P'],
-      [ja ? 'ヒートマップ ⇔ 株価ボード' : 'Heatmap ⇔ quote cards', 'V'],
-      [
-        ja ? '株価ボード: カードを選ぶ' : 'Quote cards: select a card',
-        ja ? '矢印 / PgUp・PgDn / Home・End' : 'Arrows / PgUp, PgDn / Home, End',
-      ],
-      [
-        ja ? '株価ボード: 一覧 / 並べ替え / 分類' : 'Quote cards: list / sort / group',
-        ja ? 'G・Ctrl+PgDn / S / B' : 'G, Ctrl+PgDn / S / B',
-      ],
-      [ja ? '株価ボード: 大きさ / 指数のカード / ★のみ' : 'Quote cards: size / index cards / ★ only', '+ − / I / Ctrl+Shift+F'],
-      [ja ? 'ランキング: 指標 / 上位・下位 / 市場' : 'Ranking: metric / top-bottom / market', 'S / Shift+S / G'],
-      [ja ? 'マーケット一覧: 区分 / 並べ替え / 列' : 'Market board: group / sort / columns', 'G, Ctrl+PgDn / ← → S / Ctrl+Shift+C'],
-      [ja ? '騰落: タブ / 中へ / 戻る' : 'Breadth: tab / drill in / back', 'G, Ctrl+PgDn / Enter / Esc'],
-      [
-        ja ? 'マーケット: 銘柄を足す / 外す / 時間軸 / 表示期間' : 'Market: add / remove / timeframe / period',
-        '1–9 / Delete / D W M / Alt+1–6',
-      ],
-      [ja ? '保有: 足す / 直す / 外す / 送る' : 'Holdings: add / edit / remove / send', 'Insert / E / Delete / Enter'],
-      [
-        ja
-          ? 'ポートフォリオ: カードを巡る / 資産推移の期間 / 十字線の日（連動）'
-          : 'Portfolio: cycle cards / history period / crosshair day (linked)',
-        'Tab / Alt+1–6 / ← →',
-      ],
-      [
-        ja ? 'ポートフォリオ: 円と % / ベンチマーク / 記録開始前の試算' : 'Portfolio: ¥ and % / benchmark / estimate before records',
-        'P / B / E',
-      ],
-      [
-        ja ? 'ポートフォリオ: 分類 / 色 / 寄与の期間 / 並べ替え' : 'Portfolio: grouping / color / contribution period / sort',
-        'G / H / T / S',
-      ],
-      [
-        ja ? 'ポートフォリオ: 概要 ／ 配当の分析 / 表を開く・閉じる' : 'Portfolio: overview / dividends / expand · collapse',
-        'PgUp PgDn / → ← · Enter',
-      ],
-      [
-        ja
-          ? '銘柄情報: 配当の棒を選ぶ / 年・回の切り替え / Yahoo!ファイナンスで開く'
-          : 'Symbol info: select dividend bar / per year–payout / open in Yahoo Finance',
-        '← → Home End / Y / O',
-      ],
-      [
-        ja
-          ? '配当シミュレータ: 1 銘柄 ⇔ 群 / カードを巡る / 過去 ⇔ これから / 基準日・期間 / 十字線・月'
-          : 'Dividend simulator: one stock ⇔ group / cycle cards / past ⇔ ahead / base · horizon / crosshair · month',
-        'O / Tab / PgUp PgDn / Alt+1–4 · Alt+5 / ← →',
-      ],
-      [
-        ja
-          ? '配当シミュレータ: 前提 / 出どころ / 元本 / 受取・再投資 / 税 / 比べる相手 / 業種 / 円と %'
-          : 'Dividend simulator: notes / source / principal / reinvest / tax / compare / sector / ¥ and %',
-        'N / L / A / R / X / B / G / P',
-      ],
-      [
-        ja
-          ? '配当シミュレータ: 受取月 / 試算の方式 / 配分 / 積立 / 当時の条件で選び直す / シナリオ / 並べ替え'
-          : 'Dividend simulator: pay month / method / weighting / monthly additions / re-screen / scenarios / sort',
-        'V / M / W / D / H / K / S',
-      ],
-    ],
-  },
-  {
-    id: 'drawer',
-    title: t('help.drawer'),
-    rows: [
-      [ja ? '左 / 右のドロワー' : 'Left / right drawer', K('drawer', 'drawerRight')],
-      [ja ? 'ピン留め' : 'Pin', K('drawerPin')],
-      [ja ? 'ドロワーのタブを切り替え' : 'Switch drawer tab', 'Ctrl+Tab'],
-      [
-        ja ? 'ペインをドロワーへ（タイトルを帯に落としても）' : 'Move pane to a drawer (or drop on its rail)',
-        ja ? 'コマンドバー' : 'Command bar',
-      ],
-      [ja ? '閉じる' : 'Close', 'Esc'],
-    ],
-  },
-  newsHelp(ja, t('help.news')),
-])
-// いまのペインの段（ペインの種類から。lib/panes.ts の helpSection）
-const ctx = $derived(helpSection(findPane(app.focus)?.widget))
+let { q: q0 = '' }: { q?: string } = $props()
+let q = $state('')
+let mode = $state<'text' | 'key'>('text')
+let combo = $state('')
+let sel = $state(0)
+let live = $state('')
+let input = $state<HTMLInputElement>()
+/** キーを押して探す間の欄（読み上げで選んだ行を伝えるため combobox にする） */
+let kfield = $state<HTMLSpanElement>()
+let list = $state<HTMLDivElement>()
+
+const li = $derived(langIx(app.settings.lang))
+const focusWidget = $derived(findPane(app.focus)?.widget)
+const ctx = $derived(helpSection(focusWidget))
+const order = $derived(sectionOrder(ctx))
+const keyOfId = (id: string) => keyOf(id)
+const hits = $derived(
+  filterShortcuts(SHORTCUTS, {
+    q: mode === 'text' ? q : '',
+    combo: mode === 'key' ? combo : '',
+    lang: app.settings.lang,
+    keyOf: keyOfId,
+    presetIds: PRESET_IDS,
+  }),
+)
+// 段の順に並べ直し、行に通し番号を振る（↑ ↓ の選択）
+const secs = $derived.by(() => {
+  let i = 0
+  return order.map((s) => {
+    const rows = hits.filter((h) => h.row.sec === s).map((h) => ({ ...h, i: i++ }))
+    return { sec: s, rows, blocks: blocks(rows) }
+  })
+})
+const flat = $derived(secs.flatMap((s) => s.rows))
+$effect(() => {
+  const c = clampSel(sel, flat.length)
+  if (c !== sel) sel = c
+})
+const cur = $derived(flat[sel])
+const secName = (s: SectionId) => t(SECTION_KEY[s])
+const defaultKey = (id: string) => ACTIONS.find((a) => a.id === id)?.key ?? ''
+
+function setMode(m: 'text' | 'key') {
+  mode = m
+  combo = ''
+  sel = 0
+  live = m === 'key' ? t('help.keyMode') : t('help.textMode')
+  // キーを押して探す間は、アプリ全体のキー処理を止める（押したキーで別の操作が動かないように。Esc・Tab はここで受ける）
+  keyCapture.on = m === 'key'
+  queueMicrotask(() => (m === 'key' ? kfield : input)?.focus())
+}
+function scrollSel() {
+  queueMicrotask(() => {
+    const el = list?.querySelector<HTMLElement>('.row.sel')
+    if (!el || !list) return
+    // 段の見出し（sticky）の下に隠れないように
+    const lr = list.getBoundingClientRect()
+    const r = el.getBoundingClientRect()
+    if (r.top < lr.top + 36) list.scrollTop -= lr.top + 36 - r.top
+    else if (r.bottom > lr.bottom) list.scrollTop += r.bottom - lr.bottom
+  })
+}
+function key(e: KeyboardEvent) {
+  if (composing(e)) return
+  const plain = !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey
+  if (e.key === 'Tab') setMode(mode === 'key' ? 'text' : 'key')
+  else if (e.key === 'Escape') {
+    // 押したキー → キーで探す → 打った語 → 閉じる（最後はアプリ全体の Esc が閉じる）
+    if (combo) combo = ''
+    else if (mode === 'key') setMode('text')
+    else if (q) q = ''
+    else return
+    sel = 0
+  } else if (plain && e.key === 'ArrowDown') sel = clampSel(sel + 1, flat.length)
+  else if (plain && e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
+  else if (plain && (e.key === 'PageDown' || e.key === 'PageUp'))
+    sel = jumpSection(
+      flat.map((x) => x.row.sec),
+      sel,
+      e.key === 'PageDown' ? 1 : -1,
+    )
+  else if (mode === 'key') {
+    const k = eventKey(e)
+    if (!k) return
+    combo = normalizeKey(k)
+    sel = 0
+  } else return
+  e.preventDefault()
+  e.stopPropagation()
+  scrollSel()
+}
+function pickSec(s: SectionId) {
+  const i = flat.findIndex((x) => x.row.sec === s)
+  if (i >= 0) sel = i
+  scrollSel()
+  ;(mode === 'key' ? kfield : input)?.focus()
+}
+onMount(() => {
+  q = q0
+  input?.focus()
+  return () => {
+    keyCapture.on = false
+  }
+})
 </script>
 
-<div class="dialog help" role="dialog" aria-label={t('help.title')}>
-  <h3><span>{t('help.title')}</span><span class="muted note">{t('help.focus')} · Esc</span></h3>
-  <div class="cols">
-    {#each G as g (g.id)}
-      <section>
-        <h4 class:ctx={g.id === ctx}>{g.title}{g.id === ctx ? ' ●' : ''}</h4>
-        {#each g.rows as [a, k] (a)}
-          <div class="row"><span>{a}</span><kbd>{k}</kbd></div>
-        {/each}
-      </section>
-    {/each}
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<div
+  class="dialog lx help"
+  role="dialog"
+  aria-label={t('help.title')}
+  tabindex="-1"
+  onkeydown={key}
+  data-esc-local={q || mode === 'key' ? '' : undefined}
+>
+  <div class="lx-head">
+    <h3>{t('help.title')}</h3>
+    <label class="lx-search" class:keymode={mode === 'key'}>
+      <svg class="lx-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+      {#if mode === 'text'}
+        <input
+          bind:this={input}
+          bind:value={q}
+          oninput={() => (sel = 0)}
+          placeholder={t('help.ph')}
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="help-list"
+          aria-activedescendant={cur ? `help-${cur.i}` : undefined}
+        />
+      {:else}
+        <span
+          class="kfield"
+          bind:this={kfield}
+          tabindex="-1"
+          role="combobox"
+          aria-label={t('help.byKey')}
+          aria-expanded="true"
+          aria-controls="help-list"
+          aria-activedescendant={cur ? `help-${cur.i}` : undefined}
+        >
+          {#if combo}<Keys keys={combo} hit={combo} />{:else}<span class="ph">{t('help.pressKey')}</span>{/if}
+        </span>
+      {/if}
+    </label>
+    <span class="cnt" aria-live="polite">{hits.length} / {SHORTCUTS.length}</span>
   </div>
+  <div class="lx-scope">
+    <span>{t('help.how')}</span>
+    <button type="button" class="lx-chip" class:on={mode === 'text'} aria-pressed={mode === 'text'} tabindex="-1" onclick={() => setMode('text')}>{t('help.byText')}</button>
+    <button type="button" class="lx-chip" class:on={mode === 'key'} aria-pressed={mode === 'key'} tabindex="-1" onclick={() => setMode('key')}>{t('help.byKey')}</button>
+    <span class="r"><Keys keys="Tab" /> {t('help.toggleHow')}</span>
+  </div>
+  <div class="hb">
+    <nav class="toc" aria-label={t('help.sections')}>
+      {#each secs as s, k (s.sec)}
+        {#if k === 0 && s.sec === ctx}<span class="ctx">{t('help.ctx')}</span>{/if}
+        {#if k === 1 && secs[0]!.sec === ctx}<hr />{/if}
+        <button type="button" tabindex="-1" class:on={cur?.row.sec === s.sec} class:zero={!s.rows.length} title={secName(s.sec)} onclick={() => pickSec(s.sec)}>
+          <span class="t">{secName(s.sec)}</span><span class="n">{s.rows.length}</span>
+        </button>
+      {/each}
+    </nav>
+    <div class="list" id="help-list" role="listbox" aria-label={t('help.title')} bind:this={list}>
+      {#each secs as s (s.sec)}
+        {#if s.rows.length}
+          <div role="group" aria-label={secName(s.sec)}>
+            <div class="sec">
+              <span class="h4" aria-hidden="true">{secName(s.sec)}</span>
+              {#if s.sec === ctx && focusWidget}<span class="badge">{t('help.ctxPane', { name: t(`widget.${focusWidget}` as Key) })}</span>{/if}
+              <span class="n">{s.rows.length}</span>
+            </div>
+            <!-- 行が多い段は、幅があれば小見出しのまとまりごとに 2 段組み -->
+            <div class:cols={s.rows.length >= 8}>
+              {#each s.blocks as b, bi (bi)}
+                <div class="blk">
+                  {#if b.grp[li] !== secName(s.sec)}<div class="sub">{b.grp[li]}</div>{/if}
+                  {#each b.items as x (x.i)}
+                    {@const k = rowKeys(x.row, keyOfId, PRESET_IDS)}
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <div class="row" class:sel={x.i === sel} id="help-{x.i}" role="option" aria-selected={x.i === sel} tabindex="-1" onclick={() => ((sel = x.i), (mode === 'key' ? kfield : input)?.focus())}>
+                      <span class="k">
+                        {#if k}<Keys keys={k} hit={mode === 'key' ? combo : ''} />{:else}<span class="nokey">{t('help.noKey')}</span>{/if}
+                      </span>
+                      <span class="nm"><Hl text={x.row.label[li]} ranges={x.ranges} /></span>
+                      <span class="b">
+                        {#if x.row.act}
+                          <svg class="lx-icon pen" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13 7 4 4" /></svg>
+                          <span class="lx-sr">{t('help.rebindable')}</span>
+                        {/if}
+                      </span>
+                    </div>
+                  {/each}
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      {/each}
+      {#if !flat.length}<div class="lx-empty">{mode === 'key' ? (combo ? t('help.keyNone', { key: combo }) : t('help.pressKey')) : t('help.textNone', { q })}</div>{/if}
+    </div>
+  </div>
+  <div class="lx-desc" aria-live="polite">
+    {#if cur}
+      {@const a = cur.row.act}
+      <b>{cur.row.label[li]}</b>
+      <span class="d">
+        {#if a}
+          {t('help.rebind')}{#if defaultKey(a) !== keyOf(a)}{' · '}{t('help.default', { key: defaultKey(a) || '—' })}{/if}
+        {:else}
+          {cur.row.sec === 'general' ? t('help.fixedKey') : t('help.paneKey', { sec: secName(cur.row.sec) })}
+        {/if}
+      </span>
+      <span class="r"><span class="path">{secName(cur.row.sec)} › {cur.row.grp[li]}</span></span>
+    {/if}
+  </div>
+  <div class="lx-foot">
+    <span><Keys keys="↑ ↓" /> {t('wpick.move')}</span>
+    <span><Keys keys="PgUp PgDn" /> {t('help.section')}</span>
+    <span><Keys keys="Esc" /> {mode === 'key' ? (combo ? t('dlg.clearQuery') : t('help.toText')) : q ? t('dlg.clearQuery') : t('dlg.closeKey')}</span>
+    <span class="r">{t('help.footRebind')}</span>
+  </div>
+  <span class="lx-sr" aria-live="assertive">{live}</span>
 </div>
 
 <style>
   .help {
     width: 980px;
-    padding: var(--s-3) var(--s-4) var(--s-4);
+    height: 640px;
   }
-  h3 {
+  .help:focus,
+  .kfield:focus {
+    outline: none;
+  }
+  .kfield {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    justify-content: space-between;
+    align-items: center;
   }
-  .note {
-    font-weight: 400;
-    font-size: var(--fs-1);
-  }
-  .cols {
-    columns: 2;
-    column-gap: 24px;
-  }
-  section {
-    break-inside: avoid;
-    margin-bottom: var(--s-3);
-  }
-  h4 {
-    margin: 0 0 4px;
-    font-size: var(--fs-1);
+  .cnt {
     color: var(--text-3);
-    letter-spacing: 0.08em;
+    font: var(--fs-1) var(--mono);
+    white-space: nowrap;
   }
-  h4.ctx {
+  .hb {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+  @container lxdlg (max-width: 720px) {
+    .hb {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .toc {
+      display: none;
+    }
+  }
+  .toc {
+    border-right: 1px solid var(--line);
+    overflow: auto;
+    padding: 6px 0;
+    background: var(--panel);
+  }
+  .toc button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    height: 28px;
+    padding: 0 12px;
+    background: none;
+    border: 0;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+  .toc button .t {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .toc button:hover {
+    background: var(--hover);
+  }
+  .toc button.on {
+    background: var(--select-strong);
+    color: var(--text);
+    box-shadow: inset var(--sel-bar) 0 0 var(--focus);
+  }
+  .toc button.zero,
+  .toc button.zero .n {
+    color: var(--text-3);
+  }
+  .toc .n {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: var(--fs-0);
+    color: var(--text-3);
+  }
+  .toc .ctx {
+    display: block;
+    padding: 0 12px 2px;
+    font-size: var(--fs-0);
     color: var(--focus);
   }
-  .row {
+  .toc hr {
+    border: 0;
+    border-top: 1px solid var(--line);
+    margin: 6px 12px;
+  }
+  .list {
+    overflow: auto;
+    padding: 0 0 10px;
+  }
+  .sec {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     display: flex;
-    justify-content: space-between;
-    min-height: 22px;
-    align-items: center;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 16px 4px;
+    background: var(--panel-2);
     border-bottom: 1px solid var(--line);
+  }
+  .sec .h4 {
+    font-weight: 700;
+    font-size: var(--fs-3);
+  }
+  .sec .badge {
+    font-size: var(--fs-0);
+    color: var(--focus);
+  }
+  .sec .n {
+    margin-left: auto;
+    font: var(--fs-0) var(--mono);
+    color: var(--text-3);
+  }
+  .cols {
+    columns: 2 360px;
+    column-gap: 24px;
+    padding-right: 8px;
+  }
+  .blk {
+    break-inside: avoid;
+  }
+  .sub {
+    padding: 8px 16px 2px;
+    font-size: var(--fs-1);
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+  }
+  /* 行: キー（左の固定列・右寄せ）| 操作 | 割り当てを変えられる印。名前とキーが離れない */
+  .row {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr) 20px;
+    align-items: center;
     gap: 12px;
+    min-height: 28px;
+    padding: 2px 8px 2px 12px;
+    cursor: default;
+  }
+  .row:hover {
+    background: var(--hover);
+  }
+  .row.sel {
+    background: var(--select-strong);
+    box-shadow: inset var(--sel-bar) 0 0 var(--focus);
+  }
+  /* 長いキーの並び（↑ ↓ PgUp PgDn Home End など）は切らずに折り返す（右寄せのまま） */
+  .row .k {
+    min-width: 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .row .k :global(.lx-keys) {
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 2px;
+  }
+  .row .nm {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .row .b {
+    display: grid;
+    place-items: center;
+    color: var(--text-3);
+  }
+  .pen {
+    width: 13px;
+    height: 13px;
+  }
+  .nokey {
+    color: var(--text-3);
+    font-size: var(--fs-1);
+  }
+  .path {
+    color: var(--text-3);
   }
 </style>

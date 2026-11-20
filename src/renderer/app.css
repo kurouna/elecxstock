@@ -82,6 +82,32 @@
   --s-4: 16px;
   --row: 24px;
   --radius: 2px;
+  /* 設定の見本（テーマ・ローソク足。docs/design-dialogs.md §6）: それぞれのテーマ・色の値。本物のトークンと同じ値であることを tests/unit/renderer/contrast.test.ts が確かめる */
+  --pv-dark-bg: #0b0d10;
+  --pv-dark-panel: #101318;
+  --pv-dark-line-strong: #2d3540;
+  --pv-dark-text-2: #a3adb9;
+  --pv-dark-select-strong: #22334b;
+  --pv-dark-focus: #7aa7ff;
+  --pv-dark-up: #ff6b70;
+  --pv-dark-down: #5aa2ee;
+  --pv-light-bg: #e9ecf0;
+  --pv-light-panel: #ffffff;
+  --pv-light-line-strong: #c3cad3;
+  --pv-light-text-2: #4a5562;
+  --pv-light-select-strong: #e6eefb;
+  --pv-light-focus: #2f6fe0;
+  --pv-light-up: #c62f37;
+  --pv-light-down: #1a62b0;
+  --up-jp: #ff6b70;
+  --down-jp: #5aa2ee;
+  --up-us: #3cc488;
+  --down-us: #ff6b70;
+  /* ダイアログの部品（ボタン・検索欄・kbd・セグメント）と、ダイアログ・枠・カードの角丸（docs/design-dialogs.md §2.1） */
+  --radius-ctl: 4px;
+  --radius-dlg: 8px;
+  /* 選択行の左の線の太さ */
+  --sel-bar: 3px;
   --motion: 150ms;
   /* 最大化・戻す（FR-V9 の 150ms 以下）と、タブの切り替え（下線と中身。FR-V9 の例外で 200ms・同じ --ease-view でそろえる）。
      docs/design-motion.md。動きを減らすときは 0ms */
@@ -113,6 +139,10 @@
   --f-gold-fill: #c9971a;
   --select: #e3ecfb;
   --select-strong: #e6eefb;
+  --up-jp: #c62f37;
+  --down-jp: #1a62b0;
+  --up-us: #18804f;
+  --down-us: #d9363e;
   --hover: #f0f3f7;
   --up: #c62f37;
   --down: #1a62b0;

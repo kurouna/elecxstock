@@ -119,6 +119,7 @@ export const settingsSchema = z.object({
   closeToTray: z.boolean(),
   keymap: z.record(z.string().max(40), z.string().max(40)),
   recentFields: z.array(z.string().max(40)).max(12),
+  paletteRecent: z.array(z.string().max(60)).max(20),
   maPeriods: z.object({ D: periods, W: periods, M: periods }),
 })
 

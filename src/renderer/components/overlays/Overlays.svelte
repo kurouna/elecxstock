@@ -13,6 +13,7 @@ import PageMenu from './PageMenu.svelte'
 import Palette from './Palette.svelte'
 import ScreensList from './ScreensList.svelte'
 import Settings from './Settings.svelte'
+import WidgetPicker from './WidgetPicker.svelte'
 
 // 閉じたら、フォーカスしていたペインへ戻す（閉じた要素に残すと Tab・枠の表示が迷子になる。FR-KB2, KB3）。続けて別のダイアログが開くときは戻さない
 let shown = false
@@ -36,13 +37,17 @@ function backdrop(e: MouseEvent) {
       {#if app.overlay.kind === 'palette'}
         <Palette q={app.overlay.q ?? ''} title={app.overlay.title} />
       {:else if app.overlay.kind === 'help'}
-        <Help />
+        <Help q={app.overlay.q ?? ''} />
       {:else if app.overlay.kind === 'settings'}
         <Settings tab={app.overlay.tab ?? 'general'} />
       {:else if app.overlay.kind === 'screens'}
         <ScreensList />
       {:else if app.overlay.kind === 'pageMenu'}
         <PageMenu />
+      {:else if app.overlay.kind === 'widgetPicker'}
+        {#key app.overlay}
+          <WidgetPicker overlay={app.overlay} />
+        {/key}
       {:else if app.overlay.kind === 'firstrun'}
         <FirstRun />
       {:else if app.overlay.kind === 'holding'}
@@ -123,7 +128,7 @@ function backdrop(e: MouseEvent) {
   }
   :global(.dialog .list .it.sel) {
     background: var(--select-strong);
-    box-shadow: inset 2px 0 0 var(--focus);
+    box-shadow: inset var(--sel-bar) 0 0 var(--focus);
   }
   :global(.dialog .list .it .c) {
     font-family: var(--mono);
@@ -161,5 +166,246 @@ function backdrop(e: MouseEvent) {
     font-size: var(--fs-4);
     padding: 0 12px;
     outline: none;
+  }
+
+  /* ---- 探して選ぶダイアログの共通の骨格（コマンドバー・ショートカット一覧・ペインの種類・設定。docs/design-dialogs.md §2） */
+  :global(.dialog.lx) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: var(--radius-dlg);
+    container: lxdlg / inline-size;
+  }
+  :global(.dialog .lx-head) {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+  }
+  :global(.dialog .lx-head h3) {
+    margin: 0;
+    font-size: var(--fs-3);
+    white-space: nowrap;
+  }
+  :global(.dialog .lx-head .sub) {
+    color: var(--text-3);
+    font-size: var(--fs-1);
+    white-space: nowrap;
+  }
+  /* 検索欄は 2 つの高さだけ: 主役 34px・補助 28px（.aux） */
+  :global(.dialog .lx-search) {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--focus);
+    border-radius: var(--radius-ctl);
+    background: var(--bg);
+    min-width: 0;
+  }
+  :global(.dialog .lx-search.aux) {
+    height: 28px;
+    border-color: var(--line-strong);
+  }
+  :global(.dialog .lx-search.aux:focus-within) {
+    border-color: var(--focus);
+  }
+  :global(.dialog .lx-search.keymode) {
+    border-style: dashed;
+  }
+  :global(.dialog .lx-search input) {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: var(--fs-3);
+    outline: none;
+    padding: 0;
+  }
+  :global(.dialog .lx-search .ph) {
+    color: var(--text-3);
+    font-size: var(--fs-3);
+  }
+  /* 範囲・探し方のチップは検索欄の下の行（狭い幅・英語でも検索欄を潰さない） */
+  :global(.dialog .lx-scope) {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    padding: 0 12px 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: var(--fs-1);
+    color: var(--text-3);
+  }
+  :global(.dialog .lx-scope .r) {
+    margin-left: auto;
+  }
+  :global(.dialog .lx-chip) {
+    height: 22px;
+    padding: 0 9px;
+    border: 1px solid var(--line-strong);
+    border-radius: 11px;
+    background: var(--panel-3);
+    color: var(--text-2);
+    font-size: var(--fs-1);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  :global(.dialog .lx-chip.on),
+  :global(.dialog .lx-chip.sel) {
+    border-color: var(--focus);
+    background: var(--select-strong);
+    color: var(--text);
+  }
+  :global(.dialog .lx-chip .n) {
+    font-family: var(--mono);
+    font-size: var(--fs-0);
+    color: var(--text-3);
+    margin-left: 4px;
+  }
+  :global(.dialog .lx-res) {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 4px 0 6px;
+  }
+  :global(.dialog .lx-grp) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px 3px;
+    font-size: var(--fs-1);
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+  }
+  :global(.dialog .lx-grp .n) {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: var(--fs-0);
+    letter-spacing: 0;
+  }
+  /* 下の段: 選んだ項目の説明（高さは固定。出し入れしない）。右の案内は 1 行に横並び */
+  :global(.dialog .lx-desc) {
+    flex: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-content: start;
+    gap: 2px 12px;
+    height: 54px;
+    padding: 7px 12px;
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+    font-size: var(--fs-1);
+    color: var(--text-2);
+    overflow: hidden;
+  }
+  :global(.dialog .lx-desc b) {
+    color: var(--text);
+    font-size: var(--fs-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  :global(.dialog .lx-desc .d) {
+    grid-column: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  :global(.dialog .lx-desc .r) {
+    grid-row: 1;
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    white-space: nowrap;
+  }
+  :global(.dialog .lx-desc .warn) {
+    color: var(--warn);
+  }
+  :global(.dialog .lx-foot) {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+    padding: 6px 12px;
+    border-top: 1px solid var(--line);
+    font-size: var(--fs-1);
+    color: var(--text-3);
+  }
+  :global(.dialog .lx-foot .r) {
+    margin-left: auto;
+  }
+  :global(.dialog .lx-empty) {
+    padding: 30px;
+    text-align: center;
+    color: var(--text-3);
+  }
+  :global(.dialog .lx-keys) {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+  :global(.dialog .lx-keys .combo) {
+    display: inline-flex;
+    align-items: center;
+  }
+  :global(.dialog .lx-keys .or),
+  :global(.dialog .lx-keys .pl) {
+    color: var(--text-3);
+    font-size: var(--fs-0);
+    margin: 0 1px;
+  }
+  :global(.dialog .lx-keys kbd) {
+    font-size: var(--fs-0);
+    border-radius: var(--radius-ctl);
+    border-bottom-width: 2px;
+    min-width: 18px;
+    text-align: center;
+  }
+  /* 当たったキー・既定から変えたキー（警告の色ではなく、強調の色。mark とそろえる） */
+  :global(.dialog .lx-keys kbd.hit) {
+    border-color: var(--focus);
+    color: var(--focus);
+  }
+  :global(.dialog mark) {
+    background: none;
+    color: var(--focus);
+    font-weight: 700;
+  }
+  /* 読み上げ用に隠す文 */
+  :global(.dialog .lx-sr) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  :global(.dialog .lx-icon) {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  @container lxdlg (max-width: 600px) {
+    :global(.dialog .lx-foot .r),
+    :global(.dialog .lx-scope .r) {
+      display: none;
+    }
   }
 </style>

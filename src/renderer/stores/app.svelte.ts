@@ -21,6 +21,7 @@ import type {
 import { SvelteMap } from 'svelte/reactivity'
 import { DICTS, format, type Key } from '../lib/i18n'
 import { IS_FREE } from '../lib/windowSlot'
+import type { WidgetId } from './layout.svelte'
 
 const raw = window.elecxstock
 /** Core への窓口。Svelte の状態（Proxy）は構造化複製できないので、送る前に必ずスナップショットにする */
@@ -36,7 +37,8 @@ export { DEFAULT_SETTINGS }
 export type Overlay =
   | { kind: 'palette'; q?: string; title?: string }
   | { kind: 'jump'; first: string }
-  | { kind: 'help' }
+  /** ショートカット一覧（F1）。q があればその語で絞り込んで開く（コマンドバーのペインの中のキーから） */
+  | { kind: 'help'; q?: string }
   | { kind: 'settings'; tab?: string }
   | { kind: 'screens' }
   | { kind: 'firstrun' }
@@ -62,6 +64,8 @@ export type Overlay =
       resolve: (v: CheckItem[] | null) => void
     }
   | { kind: 'pageMenu' }
+  /** ペインの種類を選ぶ（Ctrl+Shift+N と、分割の続き。docs/design-dialogs.md §5） */
+  | { kind: 'widgetPicker'; mode: 'change' | 'split'; dir?: 'row' | 'col'; paneId: string; resolve: (w: WidgetId | null) => void }
   | { kind: 'holding'; holding?: Holding; resolve: (h: Holding | null) => void }
   /** アラートのポップアップ（FR-AL8）。tab が無ければ、未読があれば履歴 */
   | { kind: 'alerts'; tab?: 'alerts' | 'history' }
@@ -421,6 +425,10 @@ export function checklistDialog(title: string, items: CheckItem[], reorder = fal
     null,
   )
 }
+/** ペインの種類を選ぶ（変える・分割の続き）。閉じたら null */
+export function widgetPickerDialog(o: { mode: 'change' | 'split'; dir?: 'row' | 'col'; paneId: string }): Promise<WidgetId | null> {
+  return ask((resolve) => ({ kind: 'widgetPicker', ...o, resolve }), null)
+}
 /** オーバーレイを閉じる（答えを待っているものには「取り消し」を返す） */
 export function closeOverlay(): void {
   const o = app.overlay
@@ -429,5 +437,5 @@ export function closeOverlay(): void {
   if (o.kind === 'confirm') o.resolve({ ok: false, checked: false })
   else if (o.kind === 'prompt' || o.kind === 'choice' || o.kind === 'checklist') o.resolve(null)
   else if (o.kind === 'ask3') o.resolve('cancel')
-  else if (o.kind === 'alertForm' || o.kind === 'fieldPicker' || o.kind === 'holding') o.resolve(null)
+  else if (o.kind === 'alertForm' || o.kind === 'fieldPicker' || o.kind === 'holding' || o.kind === 'widgetPicker') o.resolve(null)
 }

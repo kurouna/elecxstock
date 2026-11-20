@@ -1,9 +1,11 @@
 <script lang="ts">
 // 設定の「ニュース」のタブ（docs/design-news.md §8.2）: 取る / 取らない・間隔・フィードの一覧・このアプリの通信先・注意書き。
 // フィードの一覧は ↑↓ で選び、Space でオン・オフ、D で既定に戻す。通信先の一覧は Ctrl+C でコピーできる
+
 import type { NewsFeed, NewsLang } from '@shared/news/schema'
 import { feedOn, intervalFromInput, listedFor } from '@shared/news/settings'
 import { onMount } from 'svelte'
+import Switch from '../components/overlays/settings/Switch.svelte'
 import type { Key } from '../lib/i18n'
 import { composing } from '../lib/keys'
 import { clampSel } from '../lib/selection'
@@ -99,10 +101,12 @@ const groupLabel = (g: NewsFeed['group']) => t(`news.tab.${g}` as Key)
 
 {#if view && s}
   {#if view.state === 'policy-off'}<p class="muted small">{t('set.news.policy')}</p>{/if}
+  <section class="card2">
+  <h4>{t('set.news.secFetch')}</h4>
   <div class="field">
     <span>{t('set.news.enabled')}</span>
     <span class="row">
-      <button type="button" class="toggle" class:on={s.enabled === true} aria-pressed={s.enabled === true} aria-label={t('set.news.enabled')} disabled={locked} onclick={() => setNews({ enabled: s.enabled !== true })}><span class="box"></span></button>
+      <Switch on={s.enabled === true} label={t('set.news.enabled')} disabled={locked} onchange={() => setNews({ enabled: s.enabled !== true })} />
       <span class="muted small">{t('set.news.enabledHint')}</span>
     </span>
   </div>
@@ -114,6 +118,9 @@ const groupLabel = (g: NewsFeed['group']) => t(`news.tab.${g}` as Key)
       <span class="muted small" class:warn={ivBad}>{ivBad ? t('set.news.intervalBad') : ivNote || t('set.news.intervalHint')}</span>
     </span>
   </div>
+  </section>
+  <section class="card2">
+  <h4>{t('set.news.feeds')}</h4>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
   <div class="feeds" class:dim={locked || s.enabled !== true} tabindex="0" role="listbox" aria-label={t('set.news.feeds')} bind:this={box} onkeydown={feedKey}>
     {#each groups as g (g.lang)}
@@ -124,7 +131,7 @@ const groupLabel = (g: NewsFeed['group']) => t(`news.tab.${g}` as Key)
           {@const on = feedOn(f, s, lang)}
           {@const i = flat.indexOf(f)}
           <div class="frow" class:sel={i === fsel} role="option" aria-selected={i === fsel} tabindex="-1" onclick={() => (fsel = i)} onkeydown={() => {}}>
-            <button type="button" class="toggle" class:on aria-pressed={on} aria-label={f.name[lang]} disabled={locked} onclick={() => toggleFeed(f)}><span class="box"></span></button>
+            <Switch {on} label={f.name[lang]} disabled={locked} onchange={() => toggleFeed(f)} />
             <span class="src">{f.short}</span>
             <span class="nm"><span class="nmt">{f.name[lang]}</span>
               {#if f.lang !== lang}<small class="badge">{t(`set.news.badge.${f.lang}` as Key)}</small>{/if}
@@ -142,18 +149,35 @@ const groupLabel = (g: NewsFeed['group']) => t(`news.tab.${g}` as Key)
       {/if}
     {/each}
   </div>
-  <div class="grp">
-    <div class="sh"><b>{t('set.news.endpoints')}</b><span>{t('set.news.endpointsHint')}</span></div>
+  </section>
+  <section class="card2 grp">
+    <h4>{t('set.news.endpoints')}<span class="s">{t('set.news.endpointsHint')}</span></h4>
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div class="hosts" tabindex="0" role="list" aria-label={t('set.news.endpoints')} onkeydown={hostsKey}>
       {#each hosts as h (h)}<div role="listitem">{h}</div>{/each}
     </div>
     <p class="muted small">{t('set.news.terms')}</p>
     <button type="button" class="btn" disabled={locked} onclick={clear}>{t('set.news.clear')}</button>
-  </div>
+  </section>
 {/if}
 
 <style>
+  .card2 > .field,
+  .card2 > .feeds {
+    margin: 0 14px;
+  }
+  .card2 > .field:last-child {
+    border-bottom: 0;
+  }
+  .card2.grp {
+    padding: 0 14px 12px;
+  }
+  .card2.grp > h4 {
+    margin: 0 -14px;
+  }
+  .card2 > .feeds {
+    padding-bottom: 10px;
+  }
   .field {
     display: grid;
     grid-template-columns: 190px 1fr;
@@ -213,8 +237,10 @@ const groupLabel = (g: NewsFeed['group']) => t(`news.tab.${g}` as Key)
   .feeds {
     outline: none;
   }
-  .feeds.dim .frow {
-    opacity: 0.55;
+  .feeds.dim .frow,
+  .feeds.dim .frow .badge,
+  .feeds.dim .frow .src {
+    color: var(--text-3);
   }
   .frow {
     display: grid;

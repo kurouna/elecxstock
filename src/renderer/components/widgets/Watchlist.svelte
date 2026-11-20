@@ -302,6 +302,7 @@ onMount(() => {
       }
       return false
     },
+    runs: ['duplicate', 'columns'],
     run(action) {
       if (action === 'duplicate') void duplicateList()
       else if (action === 'columns') void pickColumns()

@@ -258,7 +258,8 @@ await session('ja', [
     // アラート（FR-AL1・AL2・AL9）: 銘柄のアラートを 2 つ（1 つは成立中）とスクリーンのアラートを作り、チャートの点線を撮る
     'alert-line',
     async ({ k, type, page }) => {
-      await k('Control+Shift+Digit4')
+      // 前の場面の設定を閉じる（980×660 の設定がチャートを覆うので、背景を押しても閉じない）
+      await k('Escape', 'Control+Shift+Digit4')
       await page
         .locator('[data-widget="chart"]')
         .first()

@@ -23,9 +23,9 @@ test.describe('目標利回りの線（FR-C12）', () => {
     await keys(page, 'ArrowDown', 'ArrowDown')
     await expect(dlg.getByRole('tab', { name: 'チャート' })).toHaveAttribute('aria-selected', 'true')
     await keys(page, 'Tab')
-    await expect(dlg.getByRole('button', { name: '目標利回りの線' })).toBeFocused()
+    await expect(dlg.getByRole('switch', { name: '目標利回りの線' })).toBeFocused()
     await keys(page, 'Space')
-    await expect(dlg.getByRole('button', { name: '目標利回りの線' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(dlg.getByRole('switch', { name: '目標利回りの線' })).toHaveAttribute('aria-checked', 'true')
     const inputs = dlg.getByRole('textbox', { name: /^目標利回り \d$/ })
     await expect(inputs).toHaveCount(3)
     await expect(inputs.first()).toHaveValue('4')
@@ -39,7 +39,7 @@ test.describe('目標利回りの線（FR-C12）', () => {
     await keys(page, 'Enter')
     await expect.poll(async () => (await rpc<{ settings: Settings }>(page, 'user.load')).settings.yieldTargets).toEqual([4, 5.5])
     await expect(inputs.nth(2)).toHaveValue('')
-    await keys(page, 'Escape')
+    await keys(page, 'Escape', 'Escape')
     await expect(dlg).toHaveCount(0)
 
     // 凡例: 利回りの低い順（株価の高い順）に、目標の利回り・株価・今の株価からの差
@@ -53,7 +53,7 @@ test.describe('目標利回りの線（FR-C12）', () => {
     await expect(yl.nth(1)).toContainText(Math.round(m.div12! / 0.055).toLocaleString('ja-JP'))
 
     // OFF に戻すと消える
-    await keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'Tab', 'Space', 'Escape')
+    await keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'Tab', 'Space', 'Escape', 'Escape')
     await expect(yl).toHaveCount(0)
   })
 
@@ -91,7 +91,7 @@ test.describe('目標利回りの線（FR-C12）', () => {
     const dlg = page.getByRole('dialog', { name: '設定' })
     await expect(dlg.getByRole('textbox', { name: '目標利回り 2' })).toBeFocused()
     await page.keyboard.type('6')
-    await keys(page, 'Escape')
+    await keys(page, 'Escape', 'Escape')
     await expect(dlg).toHaveCount(0)
     await expect.poll(async () => (await rpc<{ settings: Settings }>(page, 'user.load')).settings.yieldTargets).toEqual([4, 6])
   })

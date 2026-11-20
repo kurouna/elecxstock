@@ -79,3 +79,62 @@ export function assignable(key: string): boolean {
 export function composing(e: Pick<KeyboardEvent, 'isComposing' | 'keyCode'>): boolean {
   return e.isComposing || e.keyCode === 229
 }
+
+// ---- キーの表記の分解と、押したキーでの当たり（ショートカット一覧・コマンドバー。docs/design-dialogs.md §2・§4）
+
+/** 1 つの組み合わせの表記（'Ctrl+Shift+N'・'+'・'Ctrl+Alt+='）を、同時に押すキーに分ける */
+function comboParts(tok: string): string[] {
+  if (tok.length <= 1) return [tok]
+  // 末尾の + は「+ キー」（Ctrl++ など）
+  if (tok.endsWith('++')) return [...tok.slice(0, -2).split('+'), '+']
+  return tok.includes('+') ? tok.split('+') : [tok]
+}
+/** 比べるためのキーの名前（全角のマイナスと半角、大小文字をそろえる） */
+const keyName = (k: string) => (k === '−' ? '-' : k.length === 1 ? k.toUpperCase() : k)
+const modsOf = (ps: string[]) =>
+  ps
+    .map((m) => m.toLowerCase())
+    .map((m) => (m === 'cmd' || m === 'meta' ? 'ctrl' : m))
+    .sort()
+    .join('+')
+/**
+ * 組み合わせの表記 tok が、押した組み合わせ combo（eventKey の形）に当たるか。
+ * 範囲（'1–9'・'Alt+1–6'）と、矢印をまとめた 'Arrows' にも当てる
+ */
+/**
+ * 押した組み合わせを表記の形に寄せる: + は物理キーでは Shift+=（US）・Shift+;（JIS）・テンキー（NumpadAdd）、
+ * − はテンキー（NumpadSubtract）でも押せる
+ */
+function typedCombo(combo: string): string {
+  if (combo === 'Shift+=' || combo === 'Shift+;' || combo === 'NumpadAdd') return '+'
+  if (combo === 'NumpadSubtract') return '-'
+  return combo
+}
+export function comboHits(tok: string, combo: string): boolean {
+  if (!combo) return false
+  const want = comboParts(typedCombo(combo))
+  const wk = keyName(want.pop()!)
+  const have = comboParts(tok)
+  const hk = keyName(have.pop()!)
+  if (modsOf(have) !== modsOf(want)) return false
+  if (hk === wk) return true
+  const r = /^(\d)[–-](\d)$/.exec(hk)
+  if (r && /^\d$/.test(wk)) return +wk >= +r[1]! && +wk <= +r[2]!
+  return hk === 'Arrows' && '←→↑↓'.includes(wk)
+}
+/** 表記（' / ' や空白で並んだもの）のどれかが、押した組み合わせに当たるか */
+export function keyHits(keys: string, combo: string): boolean {
+  if (!keys || !combo) return false
+  return keys.split(/\s\/\s/).some((alt) => alt.split(' ').some((tok) => tok && comboHits(tok, combo)))
+}
+/** 表記を描く形: 別の組み合わせ（' / '）ごとに、並んだ組み合わせと、押したキー hit に当たるか */
+export function keyCombos(keys: string, hit: string): { keys: string[]; hit: boolean }[][] {
+  if (!keys.trim()) return []
+  return keys.split(/\s\/\s/).map((alt) =>
+    alt
+      .split(' ')
+      .filter(Boolean)
+      // 矢印をまとめた Arrows は矢印で描く
+      .map((tok) => ({ keys: comboParts(tok).map((k) => (k === 'Arrows' ? '←→↑↓' : k)), hit: !!hit && comboHits(tok, hit) })),
+  )
+}

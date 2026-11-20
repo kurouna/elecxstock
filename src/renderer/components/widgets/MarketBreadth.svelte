@@ -252,6 +252,7 @@ onMount(() => {
       if (k === 'Escape' || k === 'Backspace') return back()
       return false
     },
+    runs: ['columns'],
     run(action) {
       if (action !== 'columns') return false
       void pickColumns()

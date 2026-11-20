@@ -363,30 +363,31 @@ F1 の一覧と requirements.md §6.5 に足す。
 
 ## 11. 既存のファイルへの差し込み（これだけ）
 
-| 場所                                                                                 | 足すもの                                                                                                 |
-| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `src/shared/api.ts`                                                                  | `NEWS_PARAMS`・`NewsResults`・`NewsEvents` の取り込み                                                    |
-| `src/core/service.ts`（または `dispatch.ts`）                                        | `news.*` を `NewsService` に渡す・フリーの窓の制限・`app.endpoints`                                      |
-| `src/core/worker.ts`                                                                 | `newsFetch` を作り `NewsService` を作る・ポリシーを渡す                                                  |
-| `src/main/index.ts`                                                                  | ポリシー（レジストリ）・`isNewsLink`・`news.windowHidden`・`app:copyText`                                |
-| `src/preload/index.ts`                                                               | `copyText`                                                                                               |
-| `src/main/background.ts`                                                             | 窓を隠した・戻したときの知らせ                                                                           |
-| `src/renderer/stores/layout.svelte.ts`                                               | `WIDGETS`・マーケットのプリセット（`FREE_WIDGETS` には足さない）                                         |
-| `src/renderer/components/Pane.svelte`                                                | `news` のとき `NewsPane`                                                                                 |
-| `src/renderer/components/overlays/Settings.svelte`・`FirstRun.svelte`・`Help.svelte` | `NewsSettings`・`FirstRunStep`・キーの一覧                                                               |
-| `src/renderer/components/App.svelte`                                                 | 一度だけの案内                                                                                           |
-| `src/renderer/lib/i18n.ts`                                                           | `NEWS_JA` / `NEWS_EN` の取り込み                                                                         |
-| 全データの削除の処理                                                                 | `data/news/`                                                                                             |
-| `package.json`・`scripts/gen-notices.mjs`                                            | `gen:news-feeds-doc`・`fast-xml-parser`                                                                  |
-| `scripts/demo*.mjs`・`gen-screenshots.mjs`・`tests/trace-exempt.json`                | ニュースの場面・撮り直し                                                                                 |
-| `docs/requirements.md`・README                                                       | §6.19・NFR-S1・§6.5・配信元の規約の注意                                                                  |
-| `src/core/netGuard.ts`                                                               | 許可を述語でも渡せるようにする（§4.3）                                                                   |
-| `src/shared/bridge.ts`                                                               | `ElecxstockBridge` の型に `copyText`                                                                     |
-| `src/core/dispatch.ts`                                                               | フリーの窓からの `news.*` を断る（§5）                                                                   |
-| Core → main のメッセージ（`worker.ts` と main の受け口）                             | 全フィードの `linkHosts` を渡す（§9）                                                                    |
-| main のポリシーの読み取り                                                            | ネイティブのモジュールは使わず、`reg.exe query` を `execFile` で呼ぶ（Windows だけ。失敗はポリシーなし） |
-| キーの設定（`keymap` の検証）                                                        | Ctrl+C・Ctrl+Alt+C を全体のアクションに割り当てさせない（§7.4）                                          |
-| `tests/e2e/support/launch.ts`・デモの初回の流れ                                      | 初回起動が 3 段になる                                                                                    |
+| 場所                                                                  | 足すもの                                                                                                 |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `src/shared/api.ts`                                                   | `NEWS_PARAMS`・`NewsResults`・`NewsEvents` の取り込み                                                    |
+| `src/core/service.ts`（または `dispatch.ts`）                         | `news.*` を `NewsService` に渡す・フリーの窓の制限・`app.endpoints`                                      |
+| `src/core/worker.ts`                                                  | `newsFetch` を作り `NewsService` を作る・ポリシーを渡す                                                  |
+| `src/main/index.ts`                                                   | ポリシー（レジストリ）・`isNewsLink`・`news.windowHidden`・`app:copyText`                                |
+| `src/preload/index.ts`                                                | `copyText`                                                                                               |
+| `src/main/background.ts`                                              | 窓を隠した・戻したときの知らせ                                                                           |
+| `src/renderer/stores/layout.svelte.ts`                                | `WIDGETS`・マーケットのプリセット（`FREE_WIDGETS` には足さない）                                         |
+| `src/renderer/components/Pane.svelte`                                 | `news` のとき `NewsPane`                                                                                 |
+| `src/renderer/components/overlays/Settings.svelte`・`FirstRun.svelte` | `NewsSettings`・`FirstRunStep`                                                                           |
+| `src/renderer/lib/shortcuts.ts`                                       | キーの一覧（F1 とコマンドバーの登録表。`NEWS_SHORTCUTS`。docs/design-dialogs.md §4）                     |
+| `src/renderer/components/App.svelte`                                  | 一度だけの案内                                                                                           |
+| `src/renderer/lib/i18n.ts`                                            | `NEWS_JA` / `NEWS_EN` の取り込み                                                                         |
+| 全データの削除の処理                                                  | `data/news/`                                                                                             |
+| `package.json`・`scripts/gen-notices.mjs`                             | `gen:news-feeds-doc`・`fast-xml-parser`                                                                  |
+| `scripts/demo*.mjs`・`gen-screenshots.mjs`・`tests/trace-exempt.json` | ニュースの場面・撮り直し                                                                                 |
+| `docs/requirements.md`・README                                        | §6.19・NFR-S1・§6.5・配信元の規約の注意                                                                  |
+| `src/core/netGuard.ts`                                                | 許可を述語でも渡せるようにする（§4.3）                                                                   |
+| `src/shared/bridge.ts`                                                | `ElecxstockBridge` の型に `copyText`                                                                     |
+| `src/core/dispatch.ts`                                                | フリーの窓からの `news.*` を断る（§5）                                                                   |
+| Core → main のメッセージ（`worker.ts` と main の受け口）              | 全フィードの `linkHosts` を渡す（§9）                                                                    |
+| main のポリシーの読み取り                                             | ネイティブのモジュールは使わず、`reg.exe query` を `execFile` で呼ぶ（Windows だけ。失敗はポリシーなし） |
+| キーの設定（`keymap` の検証）                                         | Ctrl+C・Ctrl+Alt+C を全体のアクションに割り当てさせない（§7.4）                                          |
+| `tests/e2e/support/launch.ts`・デモの初回の流れ                       | 初回起動が 3 段になる                                                                                    |
 
 ニュースのフォルダ: `resources/news/`・`src/shared/news/`・`src/core/news/`・`src/renderer/news/`・`tests/unit/news/`・`tests/e2e/news.spec.ts`。
 `Settings`・DB・利用者のデータの JSON・`CHANGES`・`SCREEN_REBASE` には触れない。

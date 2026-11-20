@@ -208,10 +208,9 @@ await caption(page, 'Ctrl+Shift+N で、フォーカス中のペインを別の�
 await press(page, 'Control+Shift+KeyN')
 await sleep(1600)
 await shot(page, 'widget')
-// 選択肢を ↓ で「配当カレンダー」まで送って Enter
-const items = await page.locator('.dialog .it').allTextContents()
-const to = items.findIndex((x) => x.includes('配当カレンダー'))
-for (let i = 0; i < to; i++) await press(page, 'ArrowDown')
+// 打って絞り込み（docs/design-dialogs.md §5）、「配当カレンダー」を選んで Enter
+await page.keyboard.type('配当カレンダー')
+await page.locator('.dialog.wpick .card.sel[data-widget="divcal"]').waitFor()
 await sleep(500)
 await press(page, 'Enter')
 await sleep(1800)

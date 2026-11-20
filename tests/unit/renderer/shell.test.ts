@@ -1,5 +1,4 @@
 // 画面のシェル（オーバーレイ・キー・フォーカス・ドロワー）の流れ。DOM は最小の偽物（docs/testing.md の L1）
-import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { stubWindow } from '../../support/window'
 
@@ -43,7 +42,8 @@ vi.stubGlobal('getComputedStyle', () => ({ boxShadow: 'none', getPropertyValue: 
 const { app, closeOverlay, holdingDialog, fieldPicker, alertDialog } = await import('../../../src/renderer/stores/app.svelte')
 const L = await import('../../../src/renderer/stores/layout.svelte')
 const C = await import('../../../src/renderer/lib/commands')
-const { registerPane, paneSelector, helpSection } = await import('../../../src/renderer/lib/panes')
+const { registerPane, paneSelector } = await import('../../../src/renderer/lib/panes')
+const { helpSection } = await import('../../../src/renderer/lib/shortcuts')
 const { composing } = await import('../../../src/renderer/lib/keys')
 
 const ev = (code: string, o: Partial<KeyboardEvent> = {}) =>
@@ -258,15 +258,13 @@ describe('フリーへ送る（FR-L7）', () => {
 })
 
 describe('F1 の一覧の「いまのペイン」の段（FR-KB7）', () => {
-  it('すべてのペインの種類に、F1 の一覧にある段がある', () => {
-    const help = readFileSync('src/renderer/components/overlays/Help.svelte', 'utf8')
-    const ids = new Set([...help.matchAll(/^ {4}id: '(\w+)',$/gm)].map((m) => m[1]!).concat('news'))
-    expect(ids.size).toBeGreaterThan(5)
-    for (const w of L.WIDGETS) expect(ids.has(helpSection(w)), w).toBe(true)
-  })
-  it('ポートフォリオ・銘柄情報は、そのキーを載せた段（market）', () => {
-    expect(helpSection('folio')).toBe('market')
-    expect(helpSection('info')).toBe('market')
-    expect(helpSection('portfolio')).toBe('market')
+  // すべての種類に段があることは tests/unit/registry/shortcuts.test.ts
+  it('ペインの種類ごとの段（保有・ポートフォリオ・銘柄情報・配当シミュレータはそれぞれの段）', () => {
+    expect(helpSection('folio')).toBe('folio')
+    expect(helpSection('portfolio')).toBe('folio')
+    expect(helpSection('info')).toBe('info')
+    expect(helpSection('divsim')).toBe('divsim')
+    expect(helpSection('mtf')).toBe('chart')
+    expect(helpSection('unknown')).toBe('')
   })
 })

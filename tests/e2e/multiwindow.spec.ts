@@ -84,7 +84,9 @@ test.describe('フリー N（FR-L7）', () => {
     // ペインの種類はチャートを並べるものだけ
     await keys(free, 'Control+Shift+n')
     await expect(free.locator('.dialog')).toBeVisible()
-    await expect(free.locator('.dialog')).not.toContainText('ウォッチリスト')
+    // 使えない種類は「1 枚目だけ」の札を付けて薄く出す（選べない）
+    await expect(free.locator('.dialog .card:not(.off)', { hasText: 'ウォッチリスト' })).toHaveCount(0)
+    await expect(free.locator('.dialog .card.off', { hasText: 'ウォッチリスト' })).toContainText('1 枚目だけ')
     await keys(free, 'Escape')
     // Ctrl+F6 で窓を移る（OS の前面ではなく main の「いま前にある窓」で確かめる）
     await keys(page, 'Control+F6')
@@ -211,8 +213,8 @@ test.describe('フリー N（FR-L7）', () => {
     const drawn = grid.locator('canvas[data-yield]:not([data-yield=""])')
     await expect(grid.locator('canvas[data-id]').first()).toBeVisible()
     await expect(drawn).toHaveCount(0)
-    // 1 枚目: 設定 → チャート → Tab で「目標利回りの線」→ Space で ON
-    const toggle = () => keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'Tab', 'Space', 'Escape')
+    // 1 枚目: 設定 → チャート → Tab で「目標利回りの線」→ Space で ON → Esc でタブへ、もう一度で閉じる
+    const toggle = () => keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'Tab', 'Space', 'Escape', 'Escape')
     await toggle()
     await expect.poll(() => drawn.count()).toBeGreaterThan(0)
     await toggle()

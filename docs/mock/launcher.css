@@ -1,5 +1,5 @@
 /* コマンドバー・ショートカット一覧・ペインの種類・設定のモックが共有する見た目（docs/design-dialogs.md §2）。
-   色・文字は src/renderer/app.css のトークンと同じ値。--radius-dlg・--radius-ctl と、ライトの --select-strong は案（§2.1） */
+   色・文字は src/renderer/app.css のトークンと同じ値。--radius-dlg・--radius-ctl・--sel-bar は案（§2.1） */
 :root {
   --bg: #0b0d10; --panel: #101318; --panel-2: #151920; --panel-3: #1b2029;
   --line: #20262f; --line-soft: #161a20; --line-strong: #2d3540; --text: #dfe4ea; --text-2: #a3adb9; --text-3: #8b95a2;
@@ -16,8 +16,7 @@
 :root[data-theme="light"] {
   --bg: #e9ecf0; --panel: #ffffff; --panel-2: #f5f7fa; --panel-3: #eceff3;
   --line: #d6dbe1; --line-soft: #e6e9ee; --line-strong: #c3cad3; --text: #1a1f26; --text-2: #4a5562; --text-3: #5d6875;
-  /* --select-strong は app.css の #e6eefb では地（#f5f7fa）とほぼ同じなので一段濃くする案 */
-  --focus: #2f6fe0; --select: #e3ecfb; --select-strong: #d6e4fa; --hover: #f0f3f7;
+  --focus: #2f6fe0; --select: #e3ecfb; --select-strong: #e6eefb; --hover: #f0f3f7;
   --up: #c62f37; --down: #1a62b0; --warn: #9a6b00; --ok: #18804f; --gold: #8f6700; --star-on: #b98a00;
   --danger: #c4282f; --danger-bg: #fdecec; --danger-line: #e9b5b8; --yield-line: #2f6f8f;
   --scrim: rgba(30, 36, 44, .35); --shadow: 0 12px 32px rgba(20, 30, 45, .18);

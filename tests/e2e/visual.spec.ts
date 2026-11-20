@@ -36,10 +36,31 @@ test.describe('見た目（NFR-Q10, FR-V8）', () => {
     await keys(page, 'Enter')
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
     await expect(set).toHaveScreenshot('settings-display-light.png', opts)
-    await keys(page, 'Escape')
+    // 本文の Esc はタブへ戻る（もう一度で閉じる。docs/design-dialogs.md §6）
+    await keys(page, 'Escape', 'Escape')
     await expect(set).toHaveCount(0)
     await keys(page, 'F1')
     await expect(page.getByRole('dialog', { name: 'ショートカット' })).toHaveScreenshot('help-light.png', opts)
+  })
+
+  test('ペインの種類・設定のデータのタブ（ライト。危険な操作の枠）（FR-KB10, FR-KB11）', async ({ start }) => {
+    const { page } = await start()
+    await page.evaluate(() => document.fonts.ready)
+    await keys(page, 'Control+Shift+KeyN')
+    const wp = page.locator('.dialog.wpick')
+    await expect(wp.locator('.card.sel')).toBeVisible()
+    await expect(wp).toHaveScreenshot('widget-picker.png', opts)
+    await keys(page, 'Escape')
+    await expect(wp).toHaveCount(0)
+    await keys(page, 'Control+Comma', 'ArrowDown')
+    const set = page.getByRole('dialog', { name: '設定' })
+    await set.getByRole('button', { name: 'ライト' }).focus()
+    await keys(page, 'Enter')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    await keys(page, 'Escape', 'ArrowDown', 'ArrowDown')
+    await expect(set.getByRole('tab', { name: 'データ' })).toHaveAttribute('aria-selected', 'true')
+    await expect(set.locator('.card2.danger')).toBeVisible()
+    await expect(set).toHaveScreenshot('settings-data-light.png', opts)
   })
 
   test('マイレイアウトのページのメニュー（FR-L14）', async ({ start }) => {

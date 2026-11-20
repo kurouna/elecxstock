@@ -384,6 +384,8 @@ export interface Settings {
   keymap: Record<string, string>
   /** スクリーナーの条件に最近足した指標（条件を選ぶダイアログの「よく使う」。新しい順） */
   recentFields: string[]
+  /** コマンドバーで最近使ったもの（'sym:<銘柄 ID>'・'act:<アクションの ID>'。新しい順。利用者が選ぶ設定ではないので、設定の画面には出さない） */
+  paletteRecent: string[]
   /** チャートの移動平均の期間（FR-C2）。時間軸ごとに 3 本 */
   maPeriods: { D: number[]; W: number[]; M: number[] }
   /** 配当の目標（月あたり・円。0 は無し） */

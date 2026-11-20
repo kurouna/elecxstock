@@ -87,7 +87,7 @@ const GATES = new Set([
   'src/renderer/components/Pane.svelte',
   'src/renderer/components/overlays/Settings.svelte',
   'src/renderer/components/overlays/FirstRun.svelte',
-  'src/renderer/components/overlays/Help.svelte',
+  'src/renderer/lib/shortcuts.ts',
   'src/renderer/components/App.svelte',
 ])
 

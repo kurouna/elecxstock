@@ -29,6 +29,13 @@ const near = (a: number, b: number, tol = 12) => Math.abs(a - b) <= tol
 const panes = (page: Page) => page.locator('.main [data-pane-id]')
 const byId = (page: Page, id: string) => page.locator(`[data-pane-id="${id}"]`)
 const idOf = async (l: Locator) => (await l.getAttribute('data-pane-id'))!
+/** 分割の続きのペインの種類のダイアログで、選んでいる種類のまま足す */
+async function splitPick(page: Page): Promise<void> {
+  const dlg = page.locator('.dialog.wpick')
+  await expect(dlg.locator('.card.sel')).toBeVisible()
+  await keys(page, 'Enter')
+  await expect(dlg).toHaveCount(0)
+}
 
 /** フリーのタブ（左に大きいチャート、右の列に 3 枚）を開いた状態で始める */
 async function openFree(start: (o?: LaunchOpts) => Promise<Launched>, opts?: LaunchOpts): Promise<Launched> {
@@ -152,8 +159,9 @@ test.describe('キーでのペインの操作（FR-L1, FR-L3, FR-L9, FR-KB4）',
       .toBe(true)
     await expect(byId(page, fid)).toHaveClass(/focused/)
 
-    // Ctrl+Shift+E で右に分割 → 新しいペインにフォーカス → Ctrl+Shift+W で閉じると元のペインにフォーカスが戻る
+    // Ctrl+Shift+E で右に分割（種類を続けて選ぶ。Enter で今の種類）→ 新しいペインにフォーカス → Ctrl+Shift+W で閉じると元のペインにフォーカスが戻る
     await keys(page, 'Control+Shift+e')
+    await splitPick(page)
     await expect(panes(page)).toHaveCount(5)
     await expect(focused).not.toHaveAttribute('data-pane-id', fid)
     await keys(page, 'Control+Shift+w')
@@ -246,6 +254,8 @@ test.describe('フリーのタブ（FR-L11, FR-L10）', () => {
     await panes(page).nth(0).hover()
     await panes(page).nth(0).getByRole('button', { name: 'その他の操作' }).click()
     await page.locator('.dialog').getByText('下に分割', { exact: true }).click()
+    // 足すペインの種類を続けて選ぶ（既定はチャート。docs/design-dialogs.md §5）
+    await splitPick(page)
     await expect(panes(page)).toHaveCount(5)
     await expect(panes(page).nth(1).locator('.ph')).toContainText('7203')
 
@@ -804,6 +814,7 @@ test.describe('最大化したままほかの操作をすると、結果が見�
     await maximize(page)
     const before = await panes(page).count()
     await keys(page, 'Control+Shift+KeyE')
+    await splitPick(page)
     await expect(panes(page)).toHaveCount(before + 1)
     await expect(page.locator('.pane.maxed')).toHaveCount(0)
     await expect(page.locator('.main .pane.focused')).toBeVisible()
@@ -845,6 +856,7 @@ test.describe('最大化したままほかの操作をすると、結果が見�
       await maximize(page)
       await page.addStyleTag({ content: ':root { --motion-restore: 3000ms !important; }' })
       await keys(page, key)
+      await splitPick(page)
       await expect(page.locator('.pane.maxed')).toHaveCount(0)
       await expect.poll(() => page.evaluate(() => document.getAnimations().some((a) => a.id === 'pane-max'))).toBe(true)
     })

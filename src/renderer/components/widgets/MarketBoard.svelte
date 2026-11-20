@@ -150,6 +150,7 @@ onMount(() => {
       }
       return false
     },
+    runs: ['columns'],
     run(action) {
       if (action !== 'columns') return false
       void pickColumns()

@@ -94,3 +94,64 @@ describe('IME の変換中の判定をそろえる（FR-KB5）', () => {
     expect(bad).toEqual([])
   })
 })
+
+describe('キーの表記の分解と、押したキーでの当たり（FR-KB7）', () => {
+  it('「 / 」で別の組み合わせ、空白で並び、+ で同時押しに分ける', async () => {
+    const { keyCombos } = await import('../../../src/renderer/lib/keys')
+    const parts = (x: string) => keyCombos(x, '').map((alt) => alt.map((c) => c.keys))
+    expect(parts('Ctrl+Shift+N / Ctrl+Z')).toEqual([[['Ctrl', 'Shift', 'N']], [['Ctrl', 'Z']]])
+    expect(parts('D W M')).toEqual([[['D'], ['W'], ['M']]])
+    // + と − そのものもキー
+    expect(parts('+ −')).toEqual([[['+'], ['−']]])
+    expect(parts('Ctrl+Alt+=')).toEqual([[['Ctrl', 'Alt', '=']]])
+    expect(parts('')).toEqual([])
+  })
+  it('押した組み合わせに当たる組み合わせの表記だけを当てる（範囲・矢印・全角のマイナスも）', async () => {
+    const { keyHits, comboHits } = await import('../../../src/renderer/lib/keys')
+    expect(comboHits('Alt+1–6', 'Alt+3')).toBe(true)
+    expect(comboHits('Alt+1–6', 'Alt+7')).toBe(false)
+    expect(comboHits('Alt+1–6', '3')).toBe(false)
+    expect(comboHits('1–9', '5')).toBe(true)
+    expect(comboHits('Ctrl+1–5', 'Ctrl+3')).toBe(true)
+    expect(comboHits('Arrows', '←')).toBe(true)
+    expect(comboHits('Alt+Shift+Arrows', 'Alt+Shift+↓')).toBe(true)
+    expect(comboHits('Ctrl+Alt+−', 'Ctrl+Alt+-')).toBe(true)
+    // 修飾キーの順・大小文字によらない
+    expect(comboHits('Ctrl+Shift+N', 'Shift+Ctrl+n')).toBe(true)
+    expect(comboHits('Ctrl+Shift+N', 'Ctrl+N')).toBe(false)
+    expect(keyHits('D W M / Alt+1–6', 'Alt+3')).toBe(true)
+    expect(keyHits('D W M / Alt+1–6', 'W')).toBe(true)
+    expect(keyHits('D W M / Alt+1–6', 'Ctrl+W')).toBe(false)
+    expect(keyHits('', 'W')).toBe(false)
+  })
+})
+describe('キーの表記を描く形（FR-KB7）', () => {
+  it('組み合わせごとに、押したキーに当たるかの印を付ける（当たらない組み合わせは印なし）', async () => {
+    const { keyCombos } = await import('../../../src/renderer/lib/keys')
+    expect(keyCombos('D W M / Alt+1–6', 'Alt+3')).toEqual([
+      [
+        { keys: ['D'], hit: false },
+        { keys: ['W'], hit: false },
+        { keys: ['M'], hit: false },
+      ],
+      [{ keys: ['Alt', '1–6'], hit: true }],
+    ])
+    expect(keyCombos('Ctrl+Z', '')).toEqual([[{ keys: ['Ctrl', 'Z'], hit: false }]])
+    expect(keyCombos('', 'A')).toEqual([])
+  })
+})
+describe('キーを押して探す: 記号のキー（FR-KB7）', () => {
+  it('+ は物理キーでは Shift+=（US）・Shift+;（JIS）・テンキー。− はテンキーも', async () => {
+    const { comboHits, keyHits } = await import('../../../src/renderer/lib/keys')
+    expect(comboHits('+', 'Shift+=')).toBe(true)
+    expect(comboHits('+', 'Shift+;')).toBe(true)
+    expect(comboHits('+', 'NumpadAdd')).toBe(true)
+    expect(comboHits('−', 'NumpadSubtract')).toBe(true)
+    expect(keyHits('+ −', 'Shift+=')).toBe(true)
+    expect(comboHits('Ctrl+Alt+=', 'Ctrl+Alt+=')).toBe(true)
+  })
+  it('Arrows は矢印で描く', async () => {
+    const { keyCombos } = await import('../../../src/renderer/lib/keys')
+    expect(keyCombos('Alt+Shift+Arrows', '')).toEqual([[{ keys: ['Alt', 'Shift', '←→↑↓'], hit: false }]])
+  })
+})

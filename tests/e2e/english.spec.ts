@@ -44,6 +44,13 @@ test.describe('英語の画面（FR-N1, FR-N4, NFR-Q6）', () => {
     // 金額の単位も英語（億円 → ¥100M）
     await expect(scr.locator('.cond').last().locator('.v')).not.toContainText('億')
 
+    // ペインの種類（docs/design-dialogs.md §5）
+    await keys(page, 'Control+Shift+KeyN')
+    const wp = page.getByRole('dialog', { name: 'Change pane type' })
+    await expect(wp).toBeVisible()
+    await noJapanese(wp)
+    await keys(page, 'Escape')
+    await expect(wp).toHaveCount(0)
     // ショートカット一覧・設定
     await keys(page, 'F1')
     const help = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
