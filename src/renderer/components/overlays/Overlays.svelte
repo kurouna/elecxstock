@@ -402,6 +402,33 @@ function backdrop(e: MouseEvent) {
     stroke-linecap: round;
     stroke-linejoin: round;
   }
+  /* 56×36 の線画の図（ペインの種類・ページの形。データは描かない）。fl 塗り・th 細い線・tk 太い線・dim 薄い・fr 枠 */
+  :global(.dialog .lx-fig) {
+    width: 56px;
+    height: 36px;
+    flex: none;
+    color: var(--text-3);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  :global(.dialog .lx-fig .fr),
+  :global(.dialog .lx-fig .dim) {
+    stroke: var(--line-strong);
+  }
+  :global(.dialog .lx-fig .fl) {
+    fill: currentColor;
+    fill-opacity: 0.35;
+  }
+  :global(.dialog .lx-fig .th) {
+    stroke-width: 0.9;
+    stroke: var(--line-strong);
+  }
+  :global(.dialog .lx-fig .tk) {
+    stroke-width: 3;
+  }
   @container lxdlg (max-width: 600px) {
     :global(.dialog .lx-foot .r),
     :global(.dialog .lx-scope .r) {

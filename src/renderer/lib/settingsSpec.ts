@@ -99,6 +99,7 @@ export const SETTING_ROWS: readonly SettingRow[] = [
   R('news', 'news', 'newsTab', 'tablink', { label: 'set.news', desc: 'set.sub.news', alias: 'set.newsAlias' }),
   // ---- このアプリについて
   R('about', 'app', 'app', 'app'),
+  R('about', 'license', 'usage', 'info', { label: 'set.usageLabel', desc: 'set.usageDesc', alias: 'set.usageAlias' }),
   R('about', 'license', 'licenseLabel', 'info', { desc: 'set.license' }),
   R('about', 'license', 'dataLabel', 'info'),
   R('about', 'license', 'chartsLabel', 'info'),

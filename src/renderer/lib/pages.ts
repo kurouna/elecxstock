@@ -24,6 +24,7 @@ import {
 import type { Key } from './i18n'
 import { composing } from './keys'
 import { clampSel } from './selection'
+import { type ShapeFig, shapeFigOf } from './shapeFigs'
 import { freeNo, IS_FREE, SLOT } from './windowSlot'
 
 /** メニューの行: ページ（番号は 1〜9 だけ）と、操作 */
@@ -131,13 +132,14 @@ function added(r: SavedLayout | PageRefusal | null): void {
   app.overlay = null
   toast(t('lay.added', { name: nameOfPage(r) }))
 }
+/** 新しいページの形の選択肢（形の図つき） */
+export function pageShapeOptions(): { id: string; label: string; hint: string; fig?: ShapeFig }[] {
+  return PAGE_SHAPES.map(([id, label, hint]) => ({ id, label: t(label), hint: t(hint), fig: shapeFigOf(id) }))
+}
 /** 新しいページ（Insert）: 形を選ぶ → 名前を打つ → 開く。取り消したらメニューに戻る */
 export async function newPage(): Promise<void> {
   if (openablePages().length >= PAGES_MAX) return refused('limit')
-  const shape = await choiceDialog(
-    t('lay.shapeTitle'),
-    PAGE_SHAPES.map(([id, label, hint]) => ({ id, label: t(label), hint: t(hint) })),
-  )
+  const shape = await choiceDialog(t('lay.shapeTitle'), pageShapeOptions())
   if (!shape) return backToMenu()
   const name = await promptDialog(t('lay.saveTitle'), '')
   if (!name) return backToMenu()
@@ -197,13 +199,14 @@ export function pageCommands(): { id: string; label: string; run: () => void }[]
 
 // ---------------------------------------------------------------- フリー 2〜4 でページを開く（docs/design-mylayouts.md §3.6）
 /** 新しいウィンドウの初期の形の選択肢に足す、開けるページ（`page:<ID>`。写しを開く） */
-export function pageShapeChoices(pages: readonly SavedLayout[]): { id: string; label: string; hint: string }[] {
+export function pageShapeChoices(pages: readonly SavedLayout[]): { id: string; label: string; hint: string; fig: ShapeFig }[] {
   return pages
     .filter((p) => pageOpenable(p) && /^[\w-]{1,40}$/.test(p.id))
     .map((p) => ({
       id: `page:${p.id}`,
       label: t('win.shape.page', { tab: t('preset.free'), name: nameOfPage(p) }),
       hint: t('win.shape.pageHint'),
+      fig: 'page' as const,
     }))
 }
 /** フリー N を開いたときに、ページから変えたもの・ページが無かったことを知らせる */

@@ -244,7 +244,7 @@ const groupLabel = (g: NewsFeed['group']) => t(`news.tab.${g}` as Key)
   }
   .frow {
     display: grid;
-    grid-template-columns: 34px 46px minmax(0, 1fr) 70px minmax(140px, 200px);
+    grid-template-columns: 76px 52px minmax(0, 1fr) 70px minmax(140px, 200px);
     align-items: center;
     gap: 10px;
     height: 28px;

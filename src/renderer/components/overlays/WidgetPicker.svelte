@@ -148,7 +148,7 @@ onMount(() => input?.focus())
               onclick={() => choose(c.id)}
               onmousemove={() => !c.disabled && (sel = c.id)}
             >
-              <svg class="fig" viewBox="0 0 56 36" aria-hidden="true">
+              <svg class="lx-fig" viewBox="0 0 56 36" aria-hidden="true">
                 {#each WIDGET_INFO[c.id].fig as [d, cls], i (i)}<path {d} class={cls ?? ''} />{/each}
               </svg>
               <span class="nm"><Hl text={c.name} ranges={c.ranges} /></span>
@@ -255,36 +255,11 @@ onMount(() => input?.focus())
     background: var(--select-strong);
     box-shadow: 0 0 0 1px var(--focus);
   }
-  /* 線画の図（データは描かない）。fl 塗り・th 細い線・tk 太い線・dim 薄い・fr 枠 */
-  .fig {
+  /* 線画の図の見た目は共通の骨格（Overlays.svelte の .lx-fig） */
+  .card .lx-fig {
     grid-row: 1 / 4;
-    width: 56px;
-    height: 36px;
-    color: var(--text-3);
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.3;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
-  .fig :global(.fr) {
-    stroke: var(--line-strong);
-  }
-  .fig :global(.fl) {
-    fill: currentColor;
-    fill-opacity: 0.35;
-  }
-  .fig :global(.th) {
-    stroke-width: 0.9;
-    stroke: var(--line-strong);
-  }
-  .fig :global(.tk) {
-    stroke-width: 3;
-  }
-  .fig :global(.dim) {
-    stroke: var(--line-strong);
-  }
-  .card.sel .fig {
+  .card.sel .lx-fig {
     color: var(--focus);
   }
   .nm {
@@ -324,7 +299,7 @@ onMount(() => input?.focus())
     color: var(--text-2);
     font-weight: 400;
   }
-  .card.off .fig {
+  .card.off .lx-fig {
     color: var(--line-strong);
   }
 </style>

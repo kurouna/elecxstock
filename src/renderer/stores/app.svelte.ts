@@ -20,6 +20,7 @@ import type {
 } from '@shared/types'
 import { SvelteMap } from 'svelte/reactivity'
 import { DICTS, format, type Key } from '../lib/i18n'
+import type { ShapeFig } from '../lib/shapeFigs'
 import { IS_FREE } from '../lib/windowSlot'
 import type { WidgetId } from './layout.svelte'
 
@@ -53,7 +54,7 @@ export type Overlay =
       resolve: (v: { ok: boolean; checked: boolean }) => void
     }
   | { kind: 'prompt'; title: string; value: string; resolve: (v: string | null) => void }
-  | { kind: 'choice'; title: string; choices: { id: string; label: string; hint?: string }[]; resolve: (v: string | null) => void }
+  | { kind: 'choice'; title: string; choices: Choice[]; resolve: (v: string | null) => void }
   | { kind: 'ask3'; title: string; body: string; resolve: (v: 'save' | 'discard' | 'cancel') => void }
   | {
       kind: 'checklist'
@@ -396,7 +397,14 @@ export function confirmDialog(o: {
 export function promptDialog(title: string, value: string): Promise<string | null> {
   return ask((resolve) => ({ kind: 'prompt', title, value, resolve }), null)
 }
-export function choiceDialog(title: string, choices: { id: string; label: string; hint?: string }[]): Promise<string | null> {
+/** 選ぶダイアログの選択肢。fig は形の図（新しいページ・ウィンドウの初めの形）。図があると、説明を名前の下に出す */
+export interface Choice {
+  id: string
+  label: string
+  hint?: string
+  fig?: ShapeFig | undefined
+}
+export function choiceDialog(title: string, choices: Choice[]): Promise<string | null> {
   return ask((resolve) => ({ kind: 'choice', title, choices, resolve }), null)
 }
 /** 保有を足す・直すフォーム（FR-H7） */

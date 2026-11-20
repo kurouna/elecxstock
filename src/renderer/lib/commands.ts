@@ -9,6 +9,7 @@ import { flushSync } from 'svelte'
 import {
   app,
   applySettingsToDom,
+  type Choice,
   candidates,
   choiceDialog,
   closeOverlay,
@@ -781,12 +782,14 @@ async function newWindowDialog(): Promise<void> {
   await flushLayoutSave()
   const u = await rpc('user.load', {})
   const raw = u.layout as { windows?: Record<string, unknown> } | null
-  const choices = [
-    ...(raw?.windows?.[next] ? [{ id: 'last', label: t('win.shape.last', { n: freeNo(next) }), hint: t('win.shape.lastHint') }] : []),
-    { id: 'grid', label: t('win.shape.grid'), hint: t('win.shape.gridHint') },
-    { id: 'quad', label: t('win.shape.quad'), hint: t('win.shape.quadHint') },
-    { id: 'detail', label: t('win.shape.detail'), hint: t('win.shape.detailHint') },
-    { id: 'empty', label: t('win.shape.empty'), hint: t('win.shape.emptyHint') },
+  const choices: Choice[] = [
+    ...(raw?.windows?.[next]
+      ? [{ id: 'last', label: t('win.shape.last', { n: freeNo(next) }), hint: t('win.shape.lastHint'), fig: 'last' as const }]
+      : []),
+    { id: 'grid', label: t('win.shape.grid'), hint: t('win.shape.gridHint'), fig: 'grid' },
+    { id: 'quad', label: t('win.shape.quad'), hint: t('win.shape.quadHint'), fig: 'quad' },
+    { id: 'detail', label: t('win.shape.detail'), hint: t('win.shape.detailHint'), fig: 'detail' },
+    { id: 'empty', label: t('win.shape.empty'), hint: t('win.shape.emptyHint'), fig: 'empty' },
     ...pageShapeChoices(u.layouts),
   ]
   const c = await choiceDialog(t('win.newTitle', { n: freeNo(next) }), choices)

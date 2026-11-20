@@ -354,3 +354,85 @@ test.describe('設計との突き合わせの回帰（FR-KB7, FR-KB9, FR-KB11）
     await expect(dlg.getByRole('tab', { name: 'キー' })).toBeFocused()
   })
 })
+
+// 利用者の指摘（2026-11-21）の再現: どれも直す前は落ちた
+test.describe('設定の見た目の回帰（FR-KB11, FR-NW2）', () => {
+  /** 文字が何行に折れているか */
+  const lines = (els: import('@playwright/test').Locator) =>
+    els.evaluateAll((xs) =>
+      xs.map((x) => {
+        const r = document.createRange()
+        r.selectNodeContents(x)
+        return new Set([...r.getClientRects()].map((b) => Math.round(b.top))).size
+      }),
+    )
+  test('データの状態は見出しを折り返さず値も切らない・ニュースのフィードは 1 行に収まる・このアプリについてはアイコンと個人利用の注意', async ({
+    start,
+  }) => {
+    const { page } = await start()
+    await keys(page, 'Control+Comma')
+    const dlg = page.getByRole('dialog', { name: '設定' })
+    await keys(page, 'ArrowDown', 'ArrowDown', 'ArrowDown')
+    await expect(dlg.getByRole('tab', { name: 'データ' })).toHaveAttribute('aria-selected', 'true')
+    const cells = dlg.locator('.stats > div')
+    await expect(cells).toHaveCount(4)
+    expect(await lines(dlg.locator('.stats .k'))).toEqual([1, 1, 1, 1])
+    expect(await dlg.locator('.stats b').evaluateAll((bs) => bs.filter((b) => b.scrollWidth > b.clientWidth).length)).toBe(0)
+
+    // ニュース: スイッチ（オン／オフの文字とつまみ）・配信元・名前・分類・状態が 1 行の中
+    await keys(page, 'ArrowDown', 'ArrowDown')
+    await expect(dlg.getByRole('tab', { name: 'ニュース' })).toHaveAttribute('aria-selected', 'true')
+    const rows = dlg.locator('.frow')
+    await expect(rows.first()).toBeVisible()
+    const out = await rows.evaluateAll((rs) =>
+      rs.flatMap((r) => {
+        const b = r.getBoundingClientRect()
+        return [...r.querySelectorAll('.swl, .sw, .src, .nm, .gp, .st')]
+          .map((c) => c.getBoundingClientRect())
+          .filter((c) => c.height && (c.top < b.top - 1 || c.bottom > b.bottom + 1))
+          .map(() => r.textContent)
+      }),
+    )
+    expect(out).toEqual([])
+    // オン／オフの文字はつまみの左（同じ列の中）
+    const [l, s] = await Promise.all([rows.first().locator('.swl').boundingBox(), rows.first().locator('.sw').boundingBox()])
+    expect(l!.x + l!.width).toBeLessThanOrEqual(s!.x + 1)
+
+    // このアプリについて: アプリのアイコン（画像）と、個人の利用に限る注意
+    await keys(page, 'ArrowDown')
+    await expect(dlg.getByRole('tab', { name: 'このアプリについて' })).toHaveAttribute('aria-selected', 'true')
+    const logo = dlg.locator('.appcard img.logo')
+    await expect(logo).toBeVisible()
+    expect(await logo.evaluate((i) => (i as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+    await expect(dlg.locator('[data-row="usage"]')).toContainText('個人の利用')
+  })
+})
+
+test.describe('選ぶダイアログ（FR-KB2, FR-L14）', () => {
+  test('新しいページの初めの形: 共通の骨格・形の図・下の段のキー。↓ Enter で決め、Esc でメニューに戻る', async ({ start }) => {
+    const { page } = await start()
+    await tab(page, 'free')
+    await keys(page, 'Control+Shift+Digit8', 'Insert')
+    const dlg = page.getByRole('dialog', { name: '新しいページの初めの形' })
+    await expect(dlg).toBeVisible()
+    await expect(dlg).toHaveClass(/\blx\b/)
+    const opts = dlg.getByRole('option')
+    await expect(opts).toHaveCount(5)
+    await expect(dlg.locator('svg.lx-fig')).toHaveCount(5)
+    await expect(opts.first()).toHaveAttribute('aria-selected', 'true')
+    // 説明は切らずに名前の下に
+    await expect(opts.nth(3)).toContainText('格子・期間・並べ替えは今のグリッドと同じ')
+    expect(
+      await opts
+        .nth(3)
+        .locator('.s')
+        .evaluate((s) => s.scrollWidth <= s.clientWidth),
+    ).toBe(true)
+    await expect(dlg.locator('.lx-foot')).toContainText('Enter')
+    await keys(page, 'ArrowDown')
+    await expect(opts.nth(1)).toHaveAttribute('aria-selected', 'true')
+    await keys(page, 'Escape')
+    await expect(dlg).toHaveCount(0)
+    await expect(page.locator('.page-menu[role="menu"]')).toBeVisible()
+  })
+})

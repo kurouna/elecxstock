@@ -12,6 +12,8 @@ let {
 }: { on: boolean; label: string; disabled?: boolean; describedby?: string; onchange: () => void } = $props()
 </script>
 
+<!-- 文字とつまみを 1 つの要素にまとめる（表の行の中で 2 つの欄に分かれないように） -->
+<span class="swr">
 <span class="swl" aria-hidden="true">{on ? t('set.on') : t('set.off')}</span>
 <button
   type="button"
@@ -26,8 +28,15 @@ let {
   data-primary
   onclick={() => !disabled && onchange()}
 ></button>
+</span>
 
 <style>
+  .swr {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+  }
   .swl {
     width: 28px;
     text-align: right;

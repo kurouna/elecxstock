@@ -454,6 +454,13 @@ describe('フリー 2〜4 でページを開く（FR-L7, FR-L14 §3.6, §5.8）'
     const { pageShapeChoices } = await import('../../../src/renderer/lib/pages')
     const cs = pageShapeChoices([page('a'), future('x'), page('bad id')])
     expect(cs.map((c) => [c.id, c.label])).toEqual([['page:a', 'マイレイアウト: a']])
+    expect(cs[0]?.fig).toBe('page')
+  })
+  it('新しいページの形の選択肢は、どれも形の図を持つ', async () => {
+    const { pageShapeOptions, PAGE_SHAPES } = await import('../../../src/renderer/lib/pages')
+    const cs = pageShapeOptions()
+    expect(cs.map((c) => c.id)).toEqual(PAGE_SHAPES.map(([id]) => id))
+    expect(cs.map((c) => c.fig)).toEqual(['free', 'empty', 'quad', 'grid', 'detail'])
   })
 })
 

@@ -9,6 +9,8 @@ import { CODE_RE } from '@shared/code'
 import type { Settings as S } from '@shared/types'
 import { targetsFromInputs, targetTexts, YIELD_TARGETS_UI } from '@shared/yieldLines'
 import { onMount } from 'svelte'
+// アプリのアイコン（インストーラ・タスクバーと同じ。build/icon.svg が正）
+import appIcon from '../../../../build/icon.svg'
 import { ACTIONS, checkUpdate, doResetAllLayouts, exportUser, importUser, keyCapture } from '../../lib/commands'
 import { noticeOpen } from '../../lib/fileNotice'
 import { dateTime } from '../../lib/format'
@@ -443,14 +445,17 @@ const runAction = (id: string) => ACTIONS.find((a) => a.id === id)?.run()
   {#if row.kind === 'stats'}
     {@const st = app.status}
     <div class="stats">
-      <div><b class="num">{fmtMb(st?.dbBytes)} MB</b><span>{t('set.statDb')}</span></div>
-      <div><b class="num">{(st?.withBars ?? 0).toLocaleString()} / {(st?.instruments ?? 0).toLocaleString()}</b><span>{t('set.symbols')}</span></div>
-      <div><b class="num" class:bad={(st?.failures ?? 0) > 0}>{(st?.failures ?? 0).toLocaleString()}</b><span>{t('set.statFailures')}</span></div>
-      <div><b class="num sm">{st?.oldestBar ?? '—'} – {st?.newestBar ?? '—'}</b><span>{t('set.statRange', { at: dateTime(st?.lastUpdate) })} · {t('set.monthlyNote')}</span></div>
+      <div><span class="k">{t('set.statDb')}</span><b class="num">{fmtMb(st?.dbBytes)} MB</b></div>
+      <div><span class="k">{t('set.symbols')}</span><b class="num">{(st?.withBars ?? 0).toLocaleString()} / {(st?.instruments ?? 0).toLocaleString()}</b></div>
+      <div><span class="k">{t('set.statFailures')}</span><b class="num" class:bad={(st?.failures ?? 0) > 0}>{(st?.failures ?? 0).toLocaleString()}</b></div>
+      <div>
+        <span class="k">{t('set.statRangeLabel')}</span><b class="num">{st?.oldestBar ?? '—'} – {st?.newestBar ?? '—'}</b>
+        <span class="note">{t('set.statRangeNote', { at: dateTime(st?.lastUpdate) })} · {t('set.monthlyNote')}</span>
+      </div>
     </div>
   {:else if row.kind === 'app'}
     <div class="appcard" data-row={row.id} tabindex="-1">
-      <span class="logo" aria-hidden="true">ex</span>
+      <img class="logo" src={appIcon} alt="" />
       <div>
         <b>elecxstock</b>
         <span class="sub">{t('set.version')} <span class="num">{app.info?.version ?? __APP_VERSION__}</span> · <button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal('https://github.com/kurouna/elecxstock')}>github.com/kurouna/elecxstock</button></span>
@@ -977,17 +982,20 @@ const TAB_ICON: Record<string, string> = {
     color: var(--text-3);
     cursor: pointer;
   }
-  /* データの状態 */
+  /* データの状態: 2 列 × 2 段。見出しを上に 1 行、値をその下に（4 列だと見出しが折れ、値が切れた） */
   .stats {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.7fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .stats > div {
     padding: 10px 14px;
     min-width: 0;
   }
-  .stats > div + div {
+  .stats > div:nth-child(even) {
     border-left: 1px solid var(--line-soft);
+  }
+  .stats > div:nth-child(n + 3) {
+    border-top: 1px solid var(--line-soft);
   }
   .stats b {
     display: block;
@@ -997,16 +1005,20 @@ const TAB_ICON: Record<string, string> = {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .stats b.sm {
-    font-size: var(--fs-3);
-  }
   .stats b.bad {
     color: var(--warn);
   }
-  .stats span {
+  .stats .k,
+  .stats .note {
     display: block;
     color: var(--text-3);
     font-size: var(--fs-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .stats .k {
+    margin-bottom: 2px;
   }
   .appcard {
     display: flex;
@@ -1019,12 +1031,7 @@ const TAB_ICON: Record<string, string> = {
   .appcard .logo {
     width: 48px;
     height: 48px;
-    border-radius: var(--radius-dlg);
-    background: linear-gradient(135deg, var(--brand), var(--accent-bg));
-    display: grid;
-    place-items: center;
-    color: var(--accent-fg);
-    font: 700 var(--fs-5) var(--mono);
+    flex: none;
   }
   .appcard b {
     font-size: var(--fs-4);
@@ -1127,15 +1134,6 @@ const TAB_ICON: Record<string, string> = {
     .srow .rst {
       grid-column: 2;
       grid-row: 1;
-    }
-    .stats {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .stats > div:nth-child(3) {
-      border-left: 0;
-    }
-    .stats > div:nth-child(n + 3) {
-      border-top: 1px solid var(--line-soft);
     }
   }
 </style>
