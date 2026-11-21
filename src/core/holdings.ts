@@ -63,6 +63,8 @@ export function normalize(h: Holding, splits: Split[] = []): Holding {
     ...h,
     quantity: Math.round(h.quantity * f * 1e6) / 1e6,
     avgCost: Math.round((h.avgCost / f) * 1e4) / 1e4,
+    // CSV の現在値（日足の無い銘柄の評価に使う）も今の基準に
+    ...(h.price != null ? { price: Math.round((h.price / f) * 1e4) / 1e4 } : {}),
     importedAt: `${last}T00:00:00+09:00`,
   }
 }

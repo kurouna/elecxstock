@@ -76,6 +76,10 @@ describe('取り込んだあとの分割（FR-H7・FR-D3。レビューで見つ
     // 資産推移の記録の株数は、換算の前と同じ
     for (const d of ['2025-09-30', '2025-10-01', '2025-11-13']) expect(posOf([n], d, () => sp)).toEqual(posOf([h], d, () => sp))
   })
+  it('CSV の現在値（日足の無い銘柄の評価に使う）も分割で割る。現在値が無ければ足さない', () => {
+    expect(normalize({ ...h, price: 3200 }, sp)).toMatchObject({ quantity: 200, avgCost: 1500, price: 1600 })
+    expect(normalize(h, sp)).not.toHaveProperty('price')
+  })
   it('分割が無い・取り込んだ日が無い（手で足した）ときはそのまま', () => {
     expect(normalize(h, [])).toBe(h)
     const { importedAt: _i, ...manual } = h
