@@ -172,7 +172,13 @@ onMount(() => {
     min-height: 0;
     cursor: pointer;
   }
-  .tile.sel {
+  /* 選んだタイルの枠は中身より上に重ねる（::before。チャートの端の足・右端の価格のラベルに上書きされない） */
+  .tile.sel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
     box-shadow: inset 0 0 0 1px var(--focus);
   }
   .h {

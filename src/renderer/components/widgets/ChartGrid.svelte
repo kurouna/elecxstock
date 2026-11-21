@@ -712,14 +712,25 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
     min-width: 0;
     min-height: 0;
   }
-  .tile.sel {
+  /* 選んだタイルの枠は中身より上に重ねる（::before。チャートの端の足・右端の価格のラベルに上書きされない）。::after は銘柄を落とす場所の表示が使う */
+  .tile.sel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
     box-shadow: inset 0 0 0 1px var(--focus);
   }
   /* マウスで操作しているときは枠を出さず、ポインタを載せたタイルを淡く縁取る（FR-KB3） */
-  :global(:root[data-input='pointer']:not([data-focus-always='true'])) .tile.sel {
+  :global(:root[data-input='pointer']:not([data-focus-always='true'])) .tile.sel::before {
     box-shadow: none;
   }
-  :global(:root[data-input='pointer']) .tile:hover {
+  :global(:root[data-input='pointer']) .tile:hover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
     box-shadow: inset 0 0 0 1px var(--line-strong);
   }
   .tile.cand .h {

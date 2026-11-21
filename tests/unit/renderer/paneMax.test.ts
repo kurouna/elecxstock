@@ -57,9 +57,7 @@ vi.stubGlobal('getComputedStyle', (x: { ring?: string }) => ({
   getPropertyValue: (n: string) => tokens[n] ?? '',
 }))
 
-const { setMaximized, clearMaximized, playIn, liftShadow, MAX_IDS, setTabHint, takeTabHint } = await import(
-  '../../../src/renderer/lib/paneMax'
-)
+const { setMaximized, clearMaximized, playIn, MAX_IDS, setTabHint, takeTabHint } = await import('../../../src/renderer/lib/paneMax')
 
 beforeEach(() => {
   els.clear()
@@ -99,11 +97,11 @@ describe('最大化と戻すの動き（FR-L3・FR-V9）', () => {
     expect(opts.duration).toBe(150)
     expect(MAX_IDS).toEqual(['pane-max', 'pane-max-lift'])
   })
-  it('飛んでいる間もキーのフォーカスの枠を消さない（影は今の枠に足す）', () => {
-    const a = el('a', 'rgb(0, 0, 255) 0px 0px 0px 1px inset')
+  it('飛んでいる間の影はトークンの影だけ（フォーカスの枠は ::before に描くので、ペインの box-shadow に足さない）', () => {
+    const a = el('a')
     setMaximized('a')
     const [lift] = calls(a, 'pane-max-lift')[0]!
-    expect(lift[0].boxShadow).toBe('rgb(0, 0, 255) 0px 0px 0px 1px inset, 0 12px 32px black')
+    expect(lift[0].boxShadow).toBe('0 12px 32px black')
   })
   it('戻す: 状態はすぐ戻り、広い矩形から 120ms でスロットへ着地する（後始末の状態を持たない）', () => {
     const a = el('a')
@@ -163,15 +161,6 @@ describe('最大化と戻すの動き（FR-L3・FR-V9）', () => {
     expect(app.maximized).toBeNull()
     expect(a.anims).toHaveLength(0)
     expect(calls(a, 'pane-max')).toHaveLength(1)
-  })
-})
-
-describe('飛んでいる間の影（FR-V9・FR-KB3）', () => {
-  it('枠が無ければ影だけ、影が無ければ枠だけ', () => {
-    expect(liftShadow('none', 'S')).toBe('S')
-    expect(liftShadow('', 'S')).toBe('S')
-    expect(liftShadow('R', '')).toBe('R')
-    expect(liftShadow('R', 'S')).toBe('R, S')
   })
 })
 

@@ -176,7 +176,13 @@ function resize(e: MouseEvent) {
     padding-top: 6px;
     outline: none;
   }
-  .rail:focus-visible {
+  /* キーでフォーカスしたときの枠は中身より上に重ねる（::before。選んでいるタブのボタンの背景と線に上書きされない） */
+  .rail:focus-visible::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
     box-shadow: inset 0 0 0 1px var(--focus);
   }
   .rail button {

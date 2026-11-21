@@ -116,7 +116,7 @@ test.describe('タブ・知らせ・フォーカスの枠（FR-L5, FR-F10, FR-KB
       page
         .locator('.pane.focused')
         .first()
-        .evaluate((el) => getComputedStyle(el).boxShadow)
+        .evaluate((el) => getComputedStyle(el, '::before').boxShadow)
     await keys(page, 'Alt+ArrowRight')
     await expect(page.locator('html')).toHaveAttribute('data-input', 'keyboard')
     expect(await ring()).not.toBe('none')

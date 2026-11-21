@@ -109,8 +109,16 @@ const share = (t: Tile) => t.item.rows.reduce((s, r) => s + r.value, 0) / (total
   z-index: 1;
 }
 .tile.sel {
-  box-shadow: inset 0 0 0 2px var(--focus);
   z-index: 2;
+}
+/* 選んだタイルの枠は中身より上に重ねる（::before。口座で分けたときの左の帯に上書きされない） */
+.tile.sel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--focus);
 }
 .tile b {
   display: block;

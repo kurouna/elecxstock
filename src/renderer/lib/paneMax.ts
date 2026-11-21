@@ -26,13 +26,6 @@ function stop(el: HTMLElement | null): void {
   for (const a of el?.getAnimations?.() ?? []) if ((MAX_IDS as readonly string[]).includes(a.id)) a.cancel()
 }
 
-/** 飛んでいる間の影。フォーカスの枠（.pane.focused の box-shadow）を消さないよう、今の枠に足す */
-export function liftShadow(current: string, shadow: string): string {
-  const s = shadow || 'none'
-  if (!current || current === 'none') return s
-  return s === 'none' ? current : `${current}, ${s}`
-}
-
 /** 最大化するペインを替える（null で戻す）。動かせないとき（動きを減らす・測れない）は今までどおり一度で切り替える。
  * キー・クリックのイベントから呼ぶ（中で flushSync するので、$effect の中からは呼ばない） */
 export function setMaximized(next: string | null): void {
@@ -46,7 +39,6 @@ export function setMaximized(next: string | null): void {
   const before = ms > 0 && el?.isConnected && typeof el.animate === 'function' ? box(el) : null
   stop(el)
   stop(paneEl(prev))
-  const ring = before ? getComputedStyle(el!).boxShadow : ''
   app.maximized = next
   if (!before || !el) return
   flushSync()
@@ -57,8 +49,8 @@ export function setMaximized(next: string | null): void {
   if (!f) return
   const timing = { duration: ms, easing: token('--ease-out') || 'ease-out' }
   target.animate([{ transform: flipTransform(f) }, { transform: 'none' }], { ...timing, id: 'pane-max' })
-  // 飛んでいる間だけ前に出し、影で下のペインと見分ける（一定の値。影は動かさない）
-  const lift = { zIndex: 31, boxShadow: liftShadow(ring, token('--shadow')) }
+  // 飛んでいる間だけ前に出し、影で下のペインと見分ける（一定の値。影は動かさない）。フォーカスの枠は ::before なので、影で上書きしても消えない
+  const lift = { zIndex: 31, boxShadow: token('--shadow') || 'none' }
   target.animate([lift, lift], { ...timing, id: 'pane-max-lift' })
 }
 
