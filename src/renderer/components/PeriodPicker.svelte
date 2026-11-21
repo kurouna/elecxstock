@@ -23,6 +23,8 @@ let {
   value={value ?? -1}
   onchange={(e) => {
     const v = Number((e.currentTarget as HTMLSelectElement).value)
+    // 選んだあと欄にフォーカスを残さない（残るとペインのキーが効かない。FR-KB4）
+    e.currentTarget.blur()
     onchange(v < 0 ? undefined : v)
   }}
 >

@@ -19,8 +19,13 @@ test.describe('表示期間（FR-C1, FR-G3）', () => {
     await expect(per).toBeVisible()
     await keys(page, 'Alt+Digit1')
     await expect(per).toHaveValue('0')
+    // マウスで選ぶ（選択の欄にフォーカスが移る）。選んだあともペインのキーが効く（欄にフォーカスを残さない。FR-KB4）
+    await per.focus()
     await per.selectOption({ label: '1年' })
     await expect(per).toHaveValue('2')
+    await expect(per).not.toBeFocused()
+    await keys(page, 'Alt+Digit1')
+    await expect(per).toHaveValue('0')
   })
 
   test('表示期間はグリッドとチャートで同じ形（選択・Alt+1〜6 のツールチップ）', async ({ start }) => {

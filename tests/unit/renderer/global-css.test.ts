@@ -30,3 +30,21 @@ describe('全体の CSS の漏れ（FR-V5）', () => {
     expect(leaked).toEqual([])
   })
 })
+
+describe('動きを減らす（FR-V9）', () => {
+  it('app.css の --motion* のトークンは、設定（data-reduce-motion）と OS（prefers-reduced-motion）の両方で 0ms にする', () => {
+    const css = read('src/renderer/app.css').replace(/\/\*[\s\S]*?\*\//g, '')
+    const all = new Set([...css.matchAll(/(--motion[\w-]*)\s*:/g)].map((m) => m[1]!))
+    const block = (head: RegExp) => {
+      const i = css.search(head)
+      expect(i).toBeGreaterThanOrEqual(0)
+      // 最初の } まで（@media は中の :root の規則の終わりまで）
+      const body = css.slice(i, css.indexOf('}', i))
+      return new Set([...body.matchAll(/(--motion[\w-]*)\s*:\s*0ms/g)].map((m) => m[1]!))
+    }
+    const bySetting = block(/:root\[data-reduce-motion="true"\]\s*\{/)
+    const byOs = block(/@media \(prefers-reduced-motion: reduce\)/)
+    expect([...bySetting].sort()).toEqual([...all].sort())
+    expect([...byOs].sort()).toEqual([...all].sort())
+  })
+})

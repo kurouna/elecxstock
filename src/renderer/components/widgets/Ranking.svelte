@@ -118,7 +118,11 @@ const mkLabel = (i: number) => (MARKETS[i] ?? []).map((m) => t(`mkt.${m}` as Key
   <span class="dim">{COLUMN_BY_ID.get(key)?.label()} · {dir < 0 ? t('rank.top') : t('rank.bottom')}</span>
 </PaneHeader>
 <div class="bar">
-  <select title={`${t('rank.metric')} (S)`} aria-label={t('rank.metric')} value={key} onchange={(e) => change({ key: (e.currentTarget as HTMLSelectElement).value })}>
+  <select title={`${t('rank.metric')} (S)`} aria-label={t('rank.metric')} value={key} onchange={(e) => {
+    // 選んだあと欄にフォーカスを残さない（残るとペインのキーが効かない。FR-KB4）
+    e.currentTarget.blur()
+    change({ key: (e.currentTarget as HTMLSelectElement).value })
+  }}>
     {#each KEYS as k (k)}<option value={k}>{COLUMN_BY_ID.get(k)?.label()}</option>{/each}
   </select>
   <button type="button" class="chip" title={`${t('rank.dir')} (Shift+S)`} onclick={() => change({ dir: -dir })}>{dir < 0 ? `▼ ${t('rank.top')}` : `▲ ${t('rank.bottom')}`}</button>

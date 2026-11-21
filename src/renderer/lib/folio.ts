@@ -746,7 +746,21 @@ export function assetScale(rows: AssetRow[], g: DivGroup): { sc: { z: number; sp
   const xs = rows.flatMap((r): { pnl: number; value: number }[] =>
     g === 'code' ? (r.type === 'm' ? [r.r] : []) : r.type === 'g' ? [r.g] : [],
   )
-  return { sc: pnlScale(xs), maxValue: Math.max(1, ...xs.map((x) => x.value)) }
+  // 損益の目盛りは見えている行すべて（開いた分類の中に、分類の合計と逆の符号や合計より大きい銘柄がある）
+  const all = rows.map((r) => (r.type === 'g' ? r.g : r.r))
+  return { sc: pnlScale(all), maxValue: Math.max(1, ...xs.map((x) => x.value)) }
+}
+/** まとめる・分けるを切り替えたあとに選び直す位置。分類の行は同じ分類の行、銘柄の行は同じ銘柄の最初の行（口座で鍵が変わる）、無ければ今の位置 */
+export function keepRow<T>(
+  list: readonly T[],
+  was: { key: string | null; code?: string | undefined },
+  keyOf: (x: T) => string,
+  codeOf: (x: T) => string | undefined,
+  cur: number,
+): number {
+  let i = was.key ? list.findIndex((x) => keyOf(x) === was.key) : -1
+  if (i < 0 && was.code) i = list.findIndex((x) => codeOf(x) === was.code)
+  return i >= 0 ? i : clampIndex(cur, list.length)
 }
 /** 棒の長さ（%。最大で 100） */
 export const barPct = (v: number, max: number) => Math.min(100, (v / (max || 1)) * 100)

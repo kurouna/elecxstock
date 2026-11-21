@@ -209,6 +209,9 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     // 口座で分けたときは口座ごと（チェックは見えなくなり、A は効かない）
     await f.locator('.c-alloc').getByRole('radio', { name: '口座' }).click()
     await expect(pt.locator('.mchk')).toHaveCSS('visibility', 'hidden')
+    // キーの案内の A も効かない印になる
+    await expect(pt.locator('.keys span', { hasText: '同じ銘柄をまとめる' })).toHaveClass(/\bna\b/)
+    await expect(f.locator('.c-alloc .keys span', { hasText: '同じ銘柄をまとめる' })).toHaveClass(/\bna\b/)
     await shot(page, 'folio-ptab')
     // 最大化して L の並び（2 段目に予定、その下に表）にすると、Tab も予定の次に表へ移る
     await keys(page, 'Control+Shift+Enter')
@@ -246,6 +249,81 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(tb).toHaveClass(/focus/)
     await keys(page, 'a')
     await expect(tb.locator('tbody tr', { hasText: '7203' })).toHaveCount(2)
+  })
+
+  test('「同じ銘柄をまとめる」を押してもキーが効く。まとめる・分けるで選んだタイル・分類の行がずれない。見出しが切れない（FR-PF6・PF9・FR-KB4）', async ({
+    start,
+  }) => {
+    const hold = [...HOLD, ...holdings([{ code: '7203', account: 'nisa_growth', quantity: 50, avgCost: 16000 }])]
+    const { page } = await start({ user: { holdings: hold, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    const pt = f.locator('.c-ptab')
+    const chk = pt.locator('.mchk input')
+    // チェックを押したあとも、ペインのキー（A・Tab）が効く（入力欄にフォーカスが残らない）
+    await chk.click()
+    await expect(chk).not.toBeChecked()
+    await keys(page, 'a')
+    await expect(chk).toBeChecked()
+    await keys(page, 'Tab')
+    await expect(f.locator('.card.focus')).toHaveCount(1)
+
+    // 資産構成: 7203 より後ろのタイル（7203 が口座ごとの 2 枚になると位置がずれる）を選んで A を押しても、同じ銘柄のタイルを選んだまま
+    const last = f.locator('.c-alloc .tile').last()
+    const code = (await last.getAttribute('title'))!.match(/\d{4}/)![0]
+    expect(code).not.toBe('7203')
+    await last.click()
+    await expect(f.locator('.c-alloc')).toHaveClass(/focus/)
+    await expect(f.locator('.c-alloc .tile.sel')).toHaveAttribute('title', new RegExp(code))
+    for (let i = 0; i < 2; i++) {
+      await keys(page, 'a')
+      await expect(f.locator('.c-alloc .tile[title*="7203"]')).toHaveCount(i === 0 ? 2 : 1)
+      await expect(f.locator('.c-alloc .tile.sel')).toHaveAttribute('title', new RegExp(code))
+    }
+
+    // 分類ごとの資産: すべて開き、7203 の分類より下の分類の行を選んで A を押しても、同じ分類の行を選んだまま
+    await keys(page, 'Tab', 'Tab')
+    await expect(pt).toHaveClass(/focus/)
+    await keys(page, 'Shift+ArrowRight')
+    const rowsOf = () =>
+      pt.locator('tbody tr').evaluateAll((trs) =>
+        trs.map((tr) => ({
+          g: tr.classList.contains('g'),
+          sel: tr.classList.contains('sel'),
+          text: tr.querySelector('td')?.textContent ?? '',
+        })),
+      )
+    const rs = await rowsOf()
+    const toyota = rs.findIndex((r) => r.text.includes('7203'))
+    const target = rs.findIndex((r, i) => i > toyota && r.g)
+    expect(target).toBeGreaterThan(toyota)
+    const name = rs[target]!.text.replace(/\s.*$/, '')
+    const from = rs.findIndex((r) => r.sel)
+    for (let i = from; i < target; i++) await keys(page, 'ArrowDown')
+    await expect(pt.locator('tbody tr.sel')).toContainText(name)
+    await keys(page, 'a')
+    await expect(pt.locator('tbody tr', { hasText: '7203' })).toHaveCount(2)
+    await expect(pt.locator('tbody tr.sel')).toHaveClass(/\bg\b/)
+    await expect(pt.locator('tbody tr.sel')).toContainText(name)
+
+    // 見出しは狭い幅・L の下限でもカードの中に収まる（折り返す）
+    const over = () =>
+      f.evaluate((el) =>
+        [...el.querySelectorAll('.card h3')]
+          .filter(
+            (h) =>
+              h.scrollWidth > h.clientWidth + 1 || h.getBoundingClientRect().right > h.closest('.card')!.getBoundingClientRect().right + 1,
+          )
+          .map((h) => h.closest('.card')!.getAttribute('data-card')),
+      )
+    for (const w of [700, 1300]) {
+      await page.setViewportSize({ width: w, height: 960 })
+      await expect.poll(over, String(w)).toEqual([])
+    }
+    await keys(page, 'Control+Shift+Enter')
+    await motionDone(page)
+    await page.setViewportSize({ width: 1200, height: 960 })
+    await expect.poll(over, 'max 1200').toEqual([])
   })
 
   test('配当の表: 銘柄を選んだあと、分類の行を押して開く・並べ替えると、選んでいる行は前の銘柄に戻らない（FR-PF7）', async ({ start }) => {

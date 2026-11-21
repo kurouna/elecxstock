@@ -44,6 +44,7 @@ import {
   histHead,
   histPoints,
   importedAtText,
+  keepRow,
   manYen,
   mergeLocked,
   moveRow,
@@ -239,6 +240,8 @@ const stats = $derived(allocStats(shown))
 const aGroup = $derived(ALLOC_GROUPS[view.group]!)
 /** 複数の口座で持つ銘柄（口座の印を出す） */
 const multi = $derived(multiAcct(shown))
+/** 配当の表は十字線の日ではなく今の保有を出すので、口座の印も今の保有で */
+const dMulti = $derived(multiAcct(rows))
 const aSplit = $derived(splitOf(view, 'alloc'))
 const pSplit = $derived(splitOf(view, 'ptab'))
 const cSplit = $derived(splitOf(view, 'contrib'))
@@ -318,6 +321,8 @@ let crowKey: string | null = null
 let evKey: string | null = null
 let drowKey: string | null = null
 let tileKey: string | null = null
+/** 資産構成のタイルを、AllocMap が新しいタイルを返してから選び直す（null は選び直さない。code が無ければ先頭） */
+let tileAfter: { code?: string | undefined } | null = null
 let srowKey: string | null = null
 const evKeyOf = (e: (typeof events)[number]) => `${e.type}:${e.code}:${e.date}`
 let prowKey: string | null = null
@@ -343,7 +348,8 @@ function remember(): void {
   crowKey = cRows[crow] ? contribKey(cRows[crow]!) : null
   evKey = events[ev] ? evKeyOf(events[ev]!) : null
   drowKey = tRows[drow] ? divRowKey(tRows[drow]!) : null
-  tileKey = leaves[tile]?.item.key ?? null
+  // タイルを選び直すのを待っている間は、前の並びのタイルを覚えない（onTiles が覚える）
+  if (!tileAfter) tileKey = leaves[tile]?.item.key ?? null
   srowKey = shareList[srow]?.key ?? null
   prowKey = ptRows[prow] ? assetRowKey(ptRows[prow]!) : null
 }
@@ -400,6 +406,11 @@ $effect(() => {
 $effect(() => {
   void crow
   if (card === 'contrib') queueMicrotask(() => scroller?.querySelector('.crow.sel')?.scrollIntoView({ block: 'nearest' }))
+})
+$effect(() => {
+  // L では予定がカードの中でスクロールするので、選んだ予定を見える位置へ
+  void ev
+  if (card === 'events') queueMicrotask(() => scroller?.querySelector('.ev.sel')?.scrollIntoView({ block: 'nearest' }))
 })
 
 // ---- 今選んでいる銘柄 ----
@@ -573,56 +584,41 @@ function flash(c: Card): void {
   pulse = null
   queueMicrotask(() => (pulse = c))
 }
-/** まとめる・分けるを切り替えたあと、選んでいた銘柄の行を選び直す（行の鍵がコードとコード/口座で変わるため） */
-function keepCode(list: { code: string }[], code: string | undefined, cur: number): number {
-  const i = code ? list.findIndex((x) => x.code === code) : -1
-  return i >= 0 ? i : clampIndex(cur, list.length)
+function onTiles(l: Tile[]): void {
+  leaves = l
+  if (!tileAfter) return
+  const code = tileAfter.code
+  tileAfter = null
+  tile = code
+    ? keepRow(
+        l,
+        { key: null, code },
+        (x) => x.item.key,
+        (x) => x.item.rows[0]?.code,
+        tile,
+      )
+    : 0
+  tileKey = l[tile]?.item.key ?? null
 }
+const pCode = (x: AssetRow | undefined) => (x?.type === 'm' ? x.r.code : undefined)
+const dCode = (x: TableRow | undefined) => (x?.type === 'm' ? x.r.code : undefined)
 /** 表示の状態を変える（キーと、見出しの切り替え・列名を押したときで同じ。選んでいる行・タイル・十字線は戻す） */
 function applyView(v: FolioView, from: Card | null = card): void {
+  const merged = { a: v.amerge !== view.amerge, p: v.pmerge !== view.pmerge, c: v.cmerge !== view.cmerge, d: v.dmerge !== view.dmerge }
+  // まとめる・分けるでは選んでいた行から動かさない（分類の行は同じ分類、銘柄の行は同じ銘柄。銘柄の行の鍵は口座で変わる）
+  const was = {
+    p: { key: ptRows[prow] ? assetRowKey(ptRows[prow]!) : null, code: pCode(ptRows[prow]) },
+    c: { key: null, code: cRows[crow]?.code },
+    d: { key: tRows[drow] ? divRowKey(tRows[drow]!) : null, code: dCode(tRows[drow]) },
+  }
+  // タイルは AllocMap が描き直してから届く（leaves はまだ前の並び）ので、届いたときに選び直す
+  if (v.group !== view.group) tileAfter = {}
+  else if (merged.a) tileAfter = { code: leaves[tile]?.item.rows[0]?.code }
   if (v.group !== view.group) {
-    tile = 0
     prow = 0
     flash(from === 'ptab' ? 'alloc' : 'ptab')
   }
   if (v.psort !== view.psort || v.pasc !== view.pasc) prow = 0
-  // まとめる・分けるでは選んでいた銘柄から動かさない（並びが落ち着いてから同じ銘柄の行を選び直す）
-  const was = {
-    a: leaves[tile]?.item.rows[0]?.code,
-    p: (() => {
-      const x = ptRows[prow]
-      return x?.type === 'm' ? x.r.code : undefined
-    })(),
-    c: cRows[crow]?.code,
-    d: (() => {
-      const x = tRows[drow]
-      return x?.type === 'm' ? x.r.code : undefined
-    })(),
-  }
-  const merged = { a: v.amerge !== view.amerge, p: v.pmerge !== view.pmerge, c: v.cmerge !== view.cmerge, d: v.dmerge !== view.dmerge }
-  if (merged.a || merged.p || merged.c || merged.d)
-    queueMicrotask(() => {
-      if (merged.a)
-        tile = keepCode(
-          leaves.map((x) => x.item.rows[0]!),
-          was.a,
-          tile,
-        )
-      if (merged.p)
-        prow = keepCode(
-          ptRows.map((x) => (x.type === 'm' ? x.r : { code: '' })),
-          was.p,
-          prow,
-        )
-      if (merged.c) crow = keepCode(cRows, was.c, crow)
-      if (merged.d)
-        drow = keepCode(
-          tRows.map((x) => (x.type === 'm' ? x.r : { code: '' })),
-          was.d,
-          drow,
-        )
-      remember()
-    })
   if (v.dgroup !== view.dgroup) {
     srow = 0
     drow = 0
@@ -632,6 +628,10 @@ function applyView(v: FolioView, from: Card | null = card): void {
   if (v.dsort !== view.dsort) drow = 0
   if (v.pct !== view.pct || v.period !== view.period) cross = -1
   setView(v)
+  // 表の一覧は  なので、ここで読めば新しい並び
+  if (merged.p) prow = keepRow(ptRows, was.p, assetRowKey, pCode, prow)
+  if (merged.c) crow = keepRow(cRows, was.c, contribKey, (x) => x.code, crow)
+  if (merged.d) drow = keepRow(tRows, was.d, divRowKey, dCode, drow)
   remember()
 }
 const segLabel = (k: Key) => t(k)
@@ -750,8 +750,8 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           <span>{t('folio.top5')}<b class="num">{(stats.top5 * 100).toFixed(0)}%</b></span>
           <span title={t('folio.effTip')}>{t('folio.eff')}<b class="num">{stats.effective.toFixed(1)}</b></span>
         </div>
-        <AllocMap rows={shown} group={aGroup} heat={view.heat} split={aSplit} {multi} sel={tile} focused={card === 'alloc'} label={groupLabel} ontiles={(l) => (leaves = l)} onpick={(i) => pick('alloc', i)} />
-        <div class="keys" class:off={card !== 'alloc'} aria-hidden={card !== 'alloc'}>{#each [kk('G', 'folio.k.groupShared'), kk('A', 'folio.k.merge'), kk('H', 'folio.k.heat'), kk('← → ↑ ↓', 'folio.k.tile'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
+        <AllocMap rows={shown} group={aGroup} heat={view.heat} split={aSplit} {multi} sel={tile} focused={card === 'alloc'} label={groupLabel} ontiles={onTiles} onpick={(i) => pick('alloc', i)} />
+        <div class="keys" class:off={card !== 'alloc'} aria-hidden={card !== 'alloc'}>{#each [kk('G', 'folio.k.groupShared'), kk('A', 'folio.k.merge', mergeLocked(view, 'alloc')), kk('H', 'folio.k.heat'), kk('← → ↑ ↓', 'folio.k.tile'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span class:na={x.na}><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
 
       <!-- 損益寄与 -->
@@ -778,7 +778,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             </div>
           {/each}
         </div>
-        <div class="keys" class:off={card !== 'contrib'} aria-hidden={card !== 'contrib'}>{#each [kk('T', 'folio.k.cperiod'), kk('A', 'folio.k.merge'), kk('↑ ↓ PgUp PgDn', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
+        <div class="keys" class:off={card !== 'contrib'} aria-hidden={card !== 'contrib'}>{#each [kk('T', 'folio.k.cperiod'), kk('A', 'folio.k.merge', mergeLocked(view, 'contrib')), kk('↑ ↓ PgUp PgDn', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span class:na={x.na}><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
 
       <!-- 配当見込み -->
@@ -823,7 +823,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             togglePtab(i)
           }}
         />
-        <div class="keys" class:off={card !== 'ptab'} aria-hidden={card !== 'ptab'}>{#each [kk('G', 'folio.k.groupShared'), kk('A', 'folio.k.merge'), kk('S / Shift+S', 'folio.k.sortRev'), kk('↑ ↓', 'folio.k.row'), kk('← → Space', 'folio.k.open', aGroup === 'code'), kk('Shift+← →', 'folio.k.openAll', aGroup === 'code'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span class:na={x.na}><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
+        <div class="keys" class:off={card !== 'ptab'} aria-hidden={card !== 'ptab'}>{#each [kk('G', 'folio.k.groupShared'), kk('A', 'folio.k.merge', mergeLocked(view, 'ptab')), kk('S / Shift+S', 'folio.k.sortRev'), kk('↑ ↓ PgUp PgDn Home End', 'folio.k.row'), kk('← → Space', 'folio.k.open', aGroup === 'code'), kk('Shift+← →', 'folio.k.openAll', aGroup === 'code'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span class:na={x.na}><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
 
       <!-- 今後 30 日の予定 -->
@@ -914,7 +914,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             sel={drow}
             focused={card === 'dtab'}
             {brushed}
-            {multi}
+            multi={dMulti}
             label={groupLabel}
             onpick={(i) => pick('dtab', i)}
             onsort={(i) => applyView({ ...view, dsort: i })}
@@ -923,7 +923,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
               toggleDtab(i)
             }}
           />
-          <div class="keys" class:off={card !== 'dtab'} aria-hidden={card !== 'dtab'}>{#each [kk('G', 'folio.k.group'), kk('A', 'folio.k.merge'), kk('S', 'folio.k.sort'), kk('→ ← Space', 'folio.k.open', dGroup === 'code'), kk('Shift+→ ←', 'folio.k.openAll', dGroup === 'code'), kk('↑ ↓ PgUp PgDn Home End', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span class:na={x.na}><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
+          <div class="keys" class:off={card !== 'dtab'} aria-hidden={card !== 'dtab'}>{#each [kk('G', 'folio.k.group'), kk('A', 'folio.k.merge', mergeLocked(view, 'dtab')), kk('S', 'folio.k.sort'), kk('← → Space', 'folio.k.open', dGroup === 'code'), kk('Shift+← →', 'folio.k.openAll', dGroup === 'code'), kk('↑ ↓ PgUp PgDn Home End', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span class:na={x.na}><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
         </section>
       </div>
     </section>
@@ -1073,10 +1073,16 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   align-items: center;
   gap: 8px;
   min-height: 20px;
+  /* 幅が足りないとき（L の下限・狭い幅・英語）は右の切り替えを次の行へ送る（カードは overflow: hidden で切れる） */
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 .right {
   margin-left: auto;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 4px;
   gap: 6px;
   align-items: center;
 }
@@ -1585,34 +1591,24 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 .mark.dim {
   opacity: 0.35;
 }
+/* 予定は縦の一覧。L ではカードの高さに収め、中でスクロールする */
 .events {
   display: flex;
+  flex-direction: column;
   gap: 6px;
-  overflow-x: auto;
-}
-@container (max-width: 1179px) {
-  .events {
-    flex-direction: column;
-    overflow: visible;
-  }
-  .ev {
-    flex: none !important;
-  }
 }
 @container (min-width: 1180px) {
   .events {
-    flex-direction: column;
     flex: 1 1 0;
     min-height: 0;
     overflow-y: auto;
   }
   .ev {
-    flex: none !important;
     padding: 3px 10px;
   }
 }
 .ev {
-  flex: 1 0 190px;
+  flex: none;
   display: grid;
   grid-template-columns: auto auto;
   column-gap: 8px;

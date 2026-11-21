@@ -531,7 +531,11 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
 </PaneHeader>
 <div class="bar">
   <span class="lbl">{t('grid.src')}</span>
-  <select class="srcsel" title={`${t('grid.src')} (G / Shift+G)`} value={src} onchange={(e) => set({ src: (e.currentTarget as HTMLSelectElement).value, page: 0 })}>
+  <select class="srcsel" title={`${t('grid.src')} (G / Shift+G)`} value={src} onchange={(e) => {
+    // 選んだあと欄にフォーカスを残さない（残るとペインのキーが効かない。FR-KB4）
+    e.currentTarget.blur()
+    set({ src: (e.currentTarget as HTMLSelectElement).value, page: 0 })
+  }}>
     {#each SRC_OPTIONS as s (s)}<option value={s}>{srcLabel(s)}</option>{/each}
   </select>
   <span class="sep"></span>

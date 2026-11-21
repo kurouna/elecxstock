@@ -1,6 +1,6 @@
 // ショートカット一覧の並びと絞り込み（docs/design-dialogs.md §4。FR-KB7）
 import { describe, expect, it } from 'vitest'
-import { filterShortcuts, type ShortcutRow, sectionOrder } from '../../../src/renderer/lib/shortcuts'
+import { filterShortcuts, SHORTCUTS, type ShortcutRow, sectionOrder } from '../../../src/renderer/lib/shortcuts'
 
 const R = (sec: ShortcutRow['sec'], ja: string, en: string, keys: string, act?: string, alias?: string[]): ShortcutRow => ({
   sec,
@@ -130,5 +130,14 @@ describe('キーを押して探すとの切り替え（FR-KB7）', () => {
     expect(isModeToggle(e('Tab', { altKey: true }))).toBe(false)
     expect(isModeToggle(e('Tab', { metaKey: true }))).toBe(false)
     expect(isModeToggle(e('a'))).toBe(false)
+  })
+})
+
+describe('ショートカット一覧: ポートフォリオの表のキー（FR-KB7・FR-PF6・PF9）', () => {
+  it('同じ銘柄をまとめる（A）・逆順（Shift+S）・開け閉め（Space）・すべて開け閉め（Shift+← →）が F1 に出る', () => {
+    const keys = SHORTCUTS.filter((r) => r.sec === 'folio')
+      .map((r) => r.keys ?? '')
+      .join(' | ')
+    for (const k of ['A', 'Shift+S', 'Space', 'Shift+← →']) expect(keys).toContain(k)
   })
 })

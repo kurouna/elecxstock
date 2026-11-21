@@ -278,8 +278,11 @@ r(['分類', 'Grouping'], 'G')
 r(['色', 'Color'], 'H')
 r(['寄与の期間', 'Contribution period'], 'T')
 r(['並べ替え', 'Sort'], 'S')
+r(['並べ替えの逆順', 'Reverse sort'], 'Shift+S')
+r(['同じ銘柄をまとめる', 'Combine same stock'], 'A')
 r(['概要 ⇔ 配当の分析', 'Overview ⇔ dividends'], 'PgUp PgDn')
-r(['表を開く・閉じる', 'Expand or collapse table'], '→ ← / Enter')
+r(['表を開く・閉じる', 'Expand or collapse table'], '← → Space / Enter')
+r(['表をすべて開く・閉じる', 'Expand or collapse all'], 'Shift+← →')
 
 // ---- 銘柄情報
 r = sec('info', ['銘柄情報', 'Symbol info'])

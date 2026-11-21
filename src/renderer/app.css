@@ -209,6 +209,7 @@
     --motion-restore: 0ms;
     --motion-tab: 0ms;
     --motion-view: 0ms;
+    --motion-pulse: 0ms;
   }
 }
 

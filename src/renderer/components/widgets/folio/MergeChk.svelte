@@ -6,7 +6,11 @@ let { on, locked, onchange }: { on: boolean; locked: boolean; onchange: (on: boo
 </script>
 
 <label class="mchk" class:off={locked} title={t('folio.mergeTip')}>
-  <input type="checkbox" checked={on} disabled={locked} tabindex="-1" onchange={(e) => onchange(e.currentTarget.checked)} />{t('folio.merge')}
+  <input type="checkbox" checked={on} disabled={locked} tabindex="-1" onchange={(e) => {
+      // 押したあと入力欄にフォーカスを残さない（残ると入力中とみなされ、ペインのキーが効かなくなる）
+      e.currentTarget.blur()
+      onchange(e.currentTarget.checked)
+    }} />{t('folio.merge')}
 </label>
 
 <style>

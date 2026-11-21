@@ -36,6 +36,7 @@ import {
   divSummary,
   divYields,
   eventsOf,
+  type FRow,
   firstOpen,
   folioWidth,
   groupKey,
@@ -46,6 +47,7 @@ import {
   histPoints,
   importedAtText,
   importedNote,
+  keepRow,
   lastTone,
   lotCount,
   manYen,
@@ -930,6 +932,45 @@ describe('分類ごとの資産のレビューの直し（FR-PF6・PF9）', () =
     expect(barPct(225_000, s.maxValue)).toBe(50)
     expect(barPct(900_000, s.maxValue)).toBe(100)
     expect(assetScale(assetTable(pr, 'code', 0, false, new Set()), 'code').maxValue).toBe(450_000)
+  })
+  it('損益の棒の目盛りは開いた子の行も含める（分類の合計と逆の符号の銘柄の棒が消えない・はみ出さない）', () => {
+    const mk = (code: string, sector: string, value: number, cost: number): FRow => ({
+      ...rows[0]!,
+      code,
+      name: code,
+      sector,
+      kind: 'stock',
+      acct: 'tokutei',
+      qty: 1,
+      value,
+      cost,
+      pnl: value - cost,
+      avgCost: cost,
+    })
+    // 分類 A は合計で含み益（+90）だが中に含み損（-10）、分類 B は含み益
+    const pr = posRows([mk('1001', 'A', 200, 100), mk('1002', 'A', 90, 100), mk('1003', 'B', 150, 100)], false)
+    const t = assetTable(pr, 'sector', 0, false, new Set([openKey('sector', 'A'), openKey('sector', 'B')]))
+    const { sc } = assetScale(t, 'sector')
+    for (const r of t) {
+      const b = pnlBar(r.type === 'g' ? r.g.pnl : r.r.pnl, sc)
+      expect(b.left).toBeGreaterThanOrEqual(0)
+      expect(b.left + b.width).toBeLessThanOrEqual(100 + 1e-9)
+      expect(b.width).toBeGreaterThan(0)
+    }
+  })
+  it('まとめる・分けるのあとに選び直す: 分類の行は同じ分類の行、銘柄の行は同じ銘柄の最初の行、無ければ今の位置', () => {
+    const list = [
+      { key: 'g:A', code: undefined },
+      { key: 'm:7203/tokutei', code: '7203' },
+      { key: 'm:7203/nisa_growth', code: '7203' },
+      { key: 'g:B', code: undefined },
+    ]
+    const keyOf = (x: (typeof list)[number]) => x.key
+    const codeOf = (x: (typeof list)[number]) => x.code
+    expect(keepRow(list, { key: 'g:B' }, keyOf, codeOf, 1)).toBe(3)
+    expect(keepRow(list, { key: 'm:7203', code: '7203' }, keyOf, codeOf, 0)).toBe(1)
+    expect(keepRow(list, { key: 'g:Z' }, keyOf, codeOf, 9)).toBe(3)
+    expect(keepRow(list, { key: null }, keyOf, codeOf, 2)).toBe(2)
   })
   it('構成の段の濃さは大きい順に薄く（最も薄くて 0.3）。口座の分類の鍵から口座', () => {
     expect(compShade(0)).toBe(1)
