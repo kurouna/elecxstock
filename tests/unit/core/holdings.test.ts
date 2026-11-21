@@ -1,5 +1,6 @@
 // 保有の記録（FR-H5, H8, H9）: 移動平均法・分割の調整・手数料・JSON の取り込みの差分
-import { applyImport, exportHoldings, fromLots, previewImport } from '@core/holdings'
+import { applyImport, exportHoldings, fromLots, normalize, previewImport } from '@core/holdings'
+import { posOf } from '@shared/folio'
 import type { Holding } from '@shared/types'
 import { describe, expect, it } from 'vitest'
 
@@ -61,5 +62,42 @@ describe('保有の JSON（FR-H8, H9）', () => {
   it('別の形式・新しすぎる版は取り込まない', () => {
     expect(() => previewImport('{"format":"other","version":1,"holdings":[]}', cur, () => true)).toThrow()
     expect(() => previewImport('{"format":"elecxstock.holdings","version":99,"holdings":[]}', cur, () => true)).toThrow()
+  })
+})
+
+describe('取り込んだあとの分割（FR-H7・FR-D3。レビューで見つけた不具合）', () => {
+  const sp = [{ date: '2025-10-01', ratio: 2 }]
+  const h: Holding = { code: '7203', account: 'tokutei', quantity: 100, avgCost: 3000, importedAt: '2025-09-01T01:00:00Z' }
+  it('取り込んだ日より後の分割で、株数を掛け取得単価を割る（保有のペインの評価が分割の前の株数のままにならない）', () => {
+    const n = normalize(h, sp)
+    expect(n).toMatchObject({ quantity: 200, avgCost: 1500 })
+    // 基準の日は最後の分割の日（画面から保存し直しても、もう一度は掛けない）
+    expect(normalize(n, sp)).toEqual(n)
+    // 資産推移の記録の株数は、換算の前と同じ
+    for (const d of ['2025-09-30', '2025-10-01', '2025-11-13']) expect(posOf([n], d, () => sp)).toEqual(posOf([h], d, () => sp))
+  })
+  it('分割が無い・取り込んだ日が無い（手で足した）ときはそのまま', () => {
+    expect(normalize(h, [])).toBe(h)
+    const { importedAt: _i, ...manual } = h
+    expect(normalize(manual, sp)).toBe(manual)
+    expect(normalize(h, [{ date: '2025-08-01', ratio: 2 }])).toBe(h)
+  })
+})
+
+describe('取引のある保有と取り込んだ日（FR-H5・FR-D3。全体のレビューで見つけた不具合）', () => {
+  it('取引から計算した数量は今の基準なので、取り込んだ日を外す（資産推移の記録で分割をもう一度掛けない）', () => {
+    const sp = [{ date: '2025-10-01', ratio: 2 }]
+    const h: Holding = {
+      code: '7203',
+      account: 'tokutei',
+      quantity: 0,
+      avgCost: 0,
+      importedAt: '2025-09-01T01:00:00Z',
+      lots: [{ date: '2025-08-01', side: 'buy', quantity: 100, price: 3000 }],
+    }
+    const n = normalize(h, sp)
+    expect(n).toMatchObject({ quantity: 200, avgCost: 1500 })
+    expect(n.importedAt).toBeUndefined()
+    expect(posOf([n], '2025-11-13', () => sp)[0]!.qty).toBe(200)
   })
 })

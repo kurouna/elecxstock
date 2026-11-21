@@ -5,7 +5,7 @@ let { items, on, label, onpick }: { items: string[]; on: number; label: string; 
 
 <span class="seg" role="radiogroup" aria-label={label}>
   {#each items as x, i (i)}
-    <button type="button" role="radio" aria-checked={i === on} class:on={i === on} tabindex="-1" onclick={() => onpick(i)}>{x}</button>
+    <button type="button" role="radio" aria-checked={i === on} class:on={i === on} tabindex="-1" onmousedown={(e) => e.preventDefault()} onclick={() => onpick(i)}>{x}</button>
   {/each}
 </span>
 

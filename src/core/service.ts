@@ -266,14 +266,15 @@ export class CoreService {
   }
   /**
    * 資産推移を記録する（FR-PF2）。書けない・失敗しても取得や保存は止めない。
-   * 保有を変えたのが取引の終わった日の後でなければ（取引時間中・休日）、前の取引日の確定した点の保有は変えない
+   * 取引の終わった日の後でなければ（取引時間中・休日）、前の取引日の確定した点は変えない（保有を変えた呼び出しだけでなく、
+   * そのあとの起動・日々の更新の記録でも。recordPoint の today）
    */
-  recordFolio(jobDone = false, holdingsChanged = false): void {
+  recordFolio(jobDone = false): void {
     try {
       const d = lastClosedSession()
       const next = recordPoint(this.folio.load(), {
         d,
-        keepFinal: holdingsChanged && d !== jstNow().date,
+        today: jstNow().date,
         holdings: this.holdings(),
         meta: this.user.load('portfolioMeta'),
         market: this.folioMarket(),
@@ -612,7 +613,7 @@ export class CoreService {
       case 'portfolio.save':
         this.user.save('holdings', P.holdings as never)
         this.trackHoldings()
-        this.recordFolio(false, true)
+        this.recordFolio()
         return this.holdings() as Results[M]
       case 'portfolio.export':
         return exportHoldings(
@@ -635,7 +636,7 @@ export class CoreService {
         this.trackHoldings()
         // 保有の JSON に入っていた資産推移は日付で混ぜる（丸ごと置き換えない）
         if (P.history) this.folio.save(mergePoints(this.folio.load(), P.history as FolioPoint[]))
-        this.recordFolio(false, true)
+        this.recordFolio()
         return this.holdings() as Results[M]
       }
       case 'portfolio.undoImport':
@@ -643,7 +644,7 @@ export class CoreService {
         this.user.restoreBefore('portfolioMeta', 'preimport')
         this.folio.restoreBefore()
         this.trackHoldings()
-        this.recordFolio(false, true)
+        this.recordFolio()
         return this.holdings() as Results[M]
       case 'portfolio.meta':
         return this.user.load('portfolioMeta') as Results[M]
@@ -658,18 +659,11 @@ export class CoreService {
         this.user.save('holdings', hs)
         this.user.save('portfolioMeta', P.meta as never)
         this.trackHoldings()
-        this.recordFolio(false, true)
+        this.recordFolio()
         return this.holdings() as Results[M]
       }
       case 'folio.series':
-        return seriesResult(
-          this.folio,
-          this.folioMarket(),
-          Boolean(P.est),
-          this.user.readOnly,
-          this.holdings(),
-          lastClosedSession(),
-        ) as Results[M]
+        return seriesResult(this.folio, this.folioMarket(), Boolean(P.est), this.user.readOnly, this.holdings()) as Results[M]
       case 'folio.at':
         return atOf(this.folio.load(), String(P.d), this.folioMarket()) as Results[M]
       case 'folio.contrib':

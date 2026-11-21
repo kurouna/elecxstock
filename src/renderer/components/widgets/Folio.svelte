@@ -34,6 +34,9 @@ import {
   divRows,
   divSummary,
   divYields,
+  eventKey,
+  eventLifts,
+  eventStep,
   eventsOf,
   type FolioView,
   firstOpen,
@@ -45,11 +48,13 @@ import {
   histPoints,
   importedAtText,
   keepRow,
+  lotCount,
   manYen,
   mergeLocked,
   moveRow,
   multiAcct,
   nextCard,
+  nisaCostOf,
   nisaShare,
   posRows,
   reselect,
@@ -174,19 +179,25 @@ $effect(() => {
 })
 $effect(() => {
   const id = benchId
+  // データの更新（日足の取得）のあとも読み直す（開いたときにまだ日足が無かった・新しい日の足が入った）
+  void app.dataVersion
   if (!id) {
     bench = []
     return
   }
+  let live = true
   void rpc('bars.get', { id, tf: 'D', adjustment: 'split' })
     .then((b) => {
-      // 素早く切り替えたとき、古い応答で新しいベンチマークを上書きしない
-      if (benchId === id) bench = b.time.map((d, i) => ({ d, c: b.close[i]! }))
+      // 素早く切り替えた・読み直したとき、古い応答で上書きしない
+      if (live) bench = b.time.map((d, i) => ({ d, c: b.close[i]! }))
     })
     .catch(() => {
       // 前のベンチマークの線を出したままにしない
-      if (benchId === id) bench = []
+      if (live) bench = []
     })
+  return () => {
+    live = false
+  }
 })
 
 // ---- 行と数 ----
@@ -228,12 +239,9 @@ const heroN = $derived(heroNumbers(series?.points ?? [], crossDay && at ? crossD
 const received = $derived(app.portfolioMeta?.dividends ?? 0)
 const receivedAt = $derived(importedAtText(app.portfolioMeta?.importedAt, app.settings.lang))
 const acctMix = $derived(acctParts(shown))
-const accts = $derived.by(() => {
-  const m = new Map<string, number>()
-  for (const r of shown) m.set(r.acct, (m.get(r.acct) ?? 0) + r.value)
-  return [...m].filter(([, v]) => v > 0)
-})
-const nisaCost = $derived(shown.filter((r) => r.acct === 'nisa_growth' || r.acct === 'nisa_tsumitate').reduce((s, r) => s + r.cost, 0))
+/** 見出しの銘柄と口座の数は今の保有（十字線の日ではない） */
+const headAccts = $derived(acctParts(rows).length)
+const nisaCost = $derived(nisaCostOf(shown))
 const benchS = $derived(view.bench ? benchSeries(hp, bench) : null)
 const stats = $derived(allocStats(shown))
 /** 資産構成と分類ごとの資産の分類（共有） */
@@ -259,6 +267,8 @@ $effect(() => {
 })
 const cPeriod = $derived(CONTRIB_PERIODS[view.contrib]!)
 const cRows = $derived(contribRows(cPeriod, shown, cPeriod === 'month' ? contribM : contribY, (c) => nameOf(`JP:${c}`), cSplit))
+/** 損益寄与を口座ごとに分けたとき、口座の点を付ける銘柄（今は持っていない売った銘柄も、行が口座ごとに分かれていれば） */
+const cMulti = $derived(new Set([...multi, ...multiAcct(cRows.flatMap((r) => (r.acct ? [{ code: r.code, acct: r.acct }] : [])))]))
 const cBars = $derived(contribBars(cRows))
 const cSum = $derived(contribSummary(cRows))
 const zeroAt = $derived(cRows.findIndex((r) => r.v <= 0))
@@ -300,6 +310,7 @@ const alertsMet = $derived(
     }),
 )
 const events = $derived(eventsOf(rows, dRows, alertsMet, today))
+const evLifts = $derived(eventLifts(events))
 /** 今後 30 日の予定でマウスを載せた予定（時間軸の印と一覧のカードを結ぶ） */
 let evHov = $state(-1)
 const brief = $derived(
@@ -324,12 +335,11 @@ let tileKey: string | null = null
 /** 資産構成のタイルを、AllocMap が新しいタイルを返してから選び直す（null は選び直さない。code が無ければ先頭） */
 let tileAfter: { code?: string | undefined } | null = null
 let srowKey: string | null = null
-const evKeyOf = (e: (typeof events)[number]) => `${e.type}:${e.code}:${e.date}`
 let prowKey: string | null = null
 $effect(() => {
   const c = reselect(cRows, crowKey, contribKey, crow)
   if (c !== crow) crow = c
-  const e = reselect(events, evKey, evKeyOf, ev)
+  const e = reselect(events, evKey, eventKey, ev)
   if (e !== ev) ev = e
   const d = reselect(tRows, drowKey, divRowKey, drow)
   if (d !== drow) drow = d
@@ -346,7 +356,7 @@ $effect(() => {
  */
 function remember(): void {
   crowKey = cRows[crow] ? contribKey(cRows[crow]!) : null
-  evKey = events[ev] ? evKeyOf(events[ev]!) : null
+  evKey = events[ev] ? eventKey(events[ev]!) : null
   drowKey = tRows[drow] ? divRowKey(tRows[drow]!) : null
   // タイルを選び直すのを待っている間は、前の並びのタイルを覚えない（onTiles が覚える）
   if (!tileAfter) tileKey = leaves[tile]?.item.key ?? null
@@ -491,8 +501,9 @@ function key(e: KeyboardEvent): boolean {
     follow()
     return true
   }
-  if (card === 'events' && (c === 'ArrowLeft' || c === 'ArrowRight')) {
-    ev = Math.max(0, Math.min(events.length - 1, ev + (c === 'ArrowLeft' ? -1 : 1)))
+  const evNext = card === 'events' ? eventStep(ev, events.length, c) : null
+  if (evNext != null) {
+    ev = evNext
     follow()
     return true
   }
@@ -628,7 +639,7 @@ function applyView(v: FolioView, from: Card | null = card): void {
   if (v.dsort !== view.dsort) drow = 0
   if (v.pct !== view.pct || v.period !== view.period) cross = -1
   setView(v)
-  // 表の一覧は  なので、ここで読めば新しい並び
+  // 表の一覧は $derived なので、ここで読めば新しい並び
   if (merged.p) prow = keepRow(ptRows, was.p, assetRowKey, pCode, prow)
   if (merged.c) crow = keepRow(cRows, was.c, contribKey, (x) => x.code, crow)
   if (merged.d) drow = keepRow(tRows, was.d, divRowKey, dCode, drow)
@@ -643,10 +654,10 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 </script>
 
 <PaneHeader {pane} collapse={600}>
-  {#if !empty}<span class="muted sub">{t('folio.sub', { n: new Set(rows.map((r) => r.code)).size, a: accts.length })}</span>{/if}
+  {#if !empty}<span class="muted sub">{t('folio.sub', { n: lotCount(rows).n, a: headAccts })}</span>{/if}
   <span class="nav" role="tablist">
-    <button type="button" role="tab" aria-selected={sec === 'top'} class:on={sec === 'top'} onclick={() => goSec('top')}>{t('folio.secTop')} <kbd>PgUp</kbd></button>
-    <button type="button" role="tab" aria-selected={sec === 'div'} class:on={sec === 'div'} onclick={() => goSec('div')}>{t('folio.secDiv')} <kbd>PgDn</kbd></button>
+    <button type="button" role="tab" tabindex="-1" aria-selected={sec === 'top'} class:on={sec === 'top'} onmousedown={(e) => e.preventDefault()} onclick={() => goSec('top')}>{t('folio.secTop')} <kbd>PgUp</kbd></button>
+    <button type="button" role="tab" tabindex="-1" aria-selected={sec === 'div'} class:on={sec === 'div'} onmousedown={(e) => e.preventDefault()} onclick={() => goSec('div')}>{t('folio.secDiv')} <kbd>PgDn</kbd></button>
   </span>
   {#if series?.readOnly}<span class="chip warn" title={series.error ?? ''}>{t('folio.readOnly')}</span>{/if}
   <span class="muted asof">{t('folio.asof', { d: lastClosedSession().slice(5).replace('-', '/'), n: realN })}</span>
@@ -737,7 +748,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
       <!-- 資産構成 -->
       <section class="card c-alloc" class:focus={card === 'alloc'} class:pulse={pulse === 'alloc'} data-card="alloc" onanimationend={() => pulse === 'alloc' && (pulse = null)}>
         <h3>
-          {t('folio.alloc')}{#if crossDay}<span class="crossday">{t('folio.atDay', { d: crossDay.slice(5).replace('-', '/') })}</span>{/if}
+          {t('folio.alloc')}<span class="crossday" class:off={!crossDay} aria-hidden={!crossDay}>{t('folio.atDay', { d: (crossDay ?? '0000-00-00').slice(5).replace('-', '/') })}</span>
           <span class="right">
             <MergeChk on={view.amerge} locked={mergeLocked(view, 'alloc')} onchange={(on) => applyView({ ...view, amerge: on }, 'alloc')} />
             {@render groupSeg('alloc')}
@@ -757,7 +768,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
       <!-- 損益寄与 -->
       <section class="card c-contrib" class:focus={card === 'contrib'} data-card="contrib">
         <h3>
-          {t('folio.contrib')}{#if crossDay && (cPeriod === 'day' || cPeriod === 'all')}<span class="crossday">{t('folio.atDay', { d: crossDay.slice(5).replace('-', '/') })}</span>{/if}
+          {t('folio.contrib')}<span class="crossday" class:off={!(crossDay && (cPeriod === 'day' || cPeriod === 'all'))} aria-hidden={!(crossDay && (cPeriod === 'day' || cPeriod === 'all'))}>{t('folio.atDay', { d: (crossDay ?? '0000-00-00').slice(5).replace('-', '/') })}</span>
           <span class="right"><Seg items={CONTRIB_PERIODS.map((p) => t(`folio.c.${p}` as Key))} on={view.contrib} label={segLabel('folio.k.cperiod')} onpick={(i) => applyView({ ...view, contrib: i })} /></span>
         </h3>
         <div class="csum">
@@ -772,7 +783,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             {#if i === zeroAt && i > 0}<div class="zero">0</div>{/if}
             <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
             <div class="crow" class:sel={card === 'contrib' && i === crow} class:dim={dim(r.code)} class:sold={!!r.soldOn} title={contribTip(r, t)} onclick={() => pick('contrib', i)}>
-              <span class="nm"><span class="mute num">{r.code}</span> {r.name}{#if r.acct && multi.has(r.code)}<AcctDots accts={[r.acct]} />{/if}{#if r.soldOn}<span class="tag">{t('folio.fx.sold')}</span>{/if}</span>
+              <span class="nm"><span class="mute num">{r.code}</span> {r.name}{#if r.acct && cMulti.has(r.code)}<AcctDots accts={[r.acct]} />{/if}{#if r.soldOn}<span class="tag">{t('folio.fx.sold')}</span>{/if}</span>
               <span class="track"><span class="b" class:upb={r.price >= 0} class:downb={r.price < 0} style:left={`${cBars[i]!.pl}%`} style:width={`${cBars[i]!.pw}%`}></span>{#if r.div}<span class="b goldb" style:left={`${cBars[i]!.dl}%`} style:width={`${cBars[i]!.dw}%`}></span>{/if}</span>
               <span class={`val num ${toneOf(r.v)}`}>{manYen(r.v, true)}</span>
             </div>
@@ -799,7 +810,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
       <!-- 分類ごとの資産（FR-PF9。分類は資産構成と共有） -->
       <section class="card c-ptab" class:focus={card === 'ptab'} class:pulse={pulse === 'ptab'} data-card="ptab" onanimationend={() => pulse === 'ptab' && (pulse = null)}>
         <h3>
-          {aGroup === 'code' ? t('folio.ptabCode') : t('folio.ptabGroup', { g: t(`folio.dg.${aGroup}` as Key) })}{#if crossDay}<span class="crossday">{t('folio.atDay', { d: crossDay.slice(5).replace('-', '/') })}</span>{/if}
+          {aGroup === 'code' ? t('folio.ptabCode') : t('folio.ptabGroup', { g: t(`folio.dg.${aGroup}` as Key) })}<span class="crossday" class:off={!crossDay} aria-hidden={!crossDay}>{t('folio.atDay', { d: (crossDay ?? '0000-00-00').slice(5).replace('-', '/') })}</span>
           <span class="right">
             <MergeChk on={view.pmerge} locked={mergeLocked(view, 'ptab')} onchange={(on) => applyView({ ...view, pmerge: on }, 'ptab')} />
             {@render groupSeg('ptab')}
@@ -814,6 +825,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           focused={card === 'ptab'}
           brushed={card === 'ptab' ? null : brushed}
           {multi}
+          atDay={!!crossDay}
           total={{ value: pSum.value, cost: pSum.cost, pnl: pSum.pnl, day: pSum.dayPnl, yoc: pSum.yoc, label: lotText(pRows) }}
           label={groupLabel}
           onpick={(i) => pick('ptab', i)}
@@ -833,7 +845,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           <i class="axis"></i>
           {#each [0, 7, 14, 21, 30] as d (d)}<span class="tick" style:left={`${(d / evRange) * 100}%`}><em>{d === 0 ? t('folio.today') : d === 30 ? t('folio.d30') : t('folio.weeks', { n: d / 7 })}</em></span>{/each}
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-          {#each events as e, i (i)}<span class={`mark ${e.type}`} class:sel={card === 'events' && i === ev} class:hov={i === evHov} class:dim={dim(e.code)} style:left={`${(e.day / evRange) * 100}%`} style:bottom={`${events.slice(0, i).filter((x) => x.day === e.day).length * 9 + 12}px`} title={eventTip(e, t)} onclick={() => pick('events', i)} onmouseenter={() => (evHov = i)} onmouseleave={() => (evHov = -1)}></span>{/each}
+          {#each events as e, i (i)}<span class={`mark ${e.type}`} class:sel={card === 'events' && i === ev} class:hov={i === evHov} class:dim={dim(e.code)} style:left={`${(e.day / evRange) * 100}%`} style:bottom={`${evLifts[i]}px`} title={eventTip(e, t)} onclick={() => pick('events', i)} onmouseenter={() => (evHov = i)} onmouseleave={() => (evHov = -1)}></span>{/each}
         </div>
         {#if events.length}
           <div class="events">
@@ -850,6 +862,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
         {:else}
           <div class="note">{t('folio.noEvents')}</div>
         {/if}
+        <div class="keys" class:off={card !== 'events'} aria-hidden={card !== 'events'}>{#each [kk('← → ↑ ↓', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
     </div>
 
@@ -932,7 +945,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 
 {#snippet groupSeg(from: Card)}
   <span class="gseg"><Seg items={ALLOC_GROUPS.map((g) => t(`folio.dg.${g}` as Key))} on={view.group} label={segLabel('folio.groupShared')} onpick={(i) => applyView({ ...view, group: i }, from)} /></span>
-  <button type="button" class="segmini" tabindex="-1" title={t('folio.groupNext')} onclick={() => applyView({ ...view, group: (view.group + 1) % ALLOC_GROUPS.length }, from)}>{t(`folio.dg.${aGroup}` as Key)} ▾</button>
+  <button type="button" class="segmini" tabindex="-1" onmousedown={(e) => e.preventDefault()} title={t('folio.groupNext')} onclick={() => applyView({ ...view, group: (view.group + 1) % ALLOC_GROUPS.length }, from)}>{t(`folio.dg.${aGroup}` as Key)} ▾</button>
 {/snippet}
 
 <style>
@@ -1082,8 +1095,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  row-gap: 4px;
-  gap: 6px;
+  gap: 4px 6px;
   align-items: center;
 }
 .small {
@@ -1102,6 +1114,9 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 .chip.warn {
   color: var(--warn);
   border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}
+.crossday.off {
+  visibility: hidden;
 }
 .crossday {
   font-size: var(--fs-1);
@@ -1457,11 +1472,12 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   text-overflow: ellipsis;
   color: var(--text-2);
 }
-.track {
+.crow .track {
   position: relative;
   height: 8px;
 }
-.track::before {
+/* 寄与の 0 の線（NISA 枠・配当目標の棒には出さない） */
+.crow .track::before {
   content: '';
   position: absolute;
   left: 50%;
@@ -1529,6 +1545,9 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   font-size: var(--fs-3);
   font-weight: 600;
   white-space: nowrap;
+  /* 狭い L で隣の列に重ならない */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* 予定 */
 .tl {

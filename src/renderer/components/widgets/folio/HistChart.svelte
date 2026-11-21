@@ -3,7 +3,7 @@
 // % にすると時間加重の概算とベンチマーク。記録の前の試算は細い中立の線だけ（数に入れない）
 import type { FolioSeriesPoint } from '@shared/types'
 import { histGeom, histIndexAt, manYen, monthTicks, pctGeom, signPct, yenFull } from '../../../lib/folio'
-import { localX } from '../../../lib/pointer'
+import { localX, tipAside } from '../../../lib/pointer'
 import { t } from '../../../stores/app.svelte'
 
 let {
@@ -26,6 +26,8 @@ let {
 } = $props()
 let w = $state(0)
 let h = $state(0)
+/** 十字線の説明の幅（狭いカードで切れないよう位置を決める） */
+let tipW = $state(0)
 const uid = $props.id()
 const real = $derived(points.filter((p) => p.src !== 'est'))
 const g = $derived(w > 20 && h > 20 && points.length ? histGeom(points, w, h) : null)
@@ -91,7 +93,7 @@ function move(e: MouseEvent) {
     </svg>
   {/if}
   {#if cp}
-    <div class="tip" class:flip={cx > w / 2} style:left={`${cx}px`}>
+    <div class="tip" bind:offsetWidth={tipW} style:left={`${tipAside(cx, tipW, w)}px`}>
       <div class="row"><b class="num">{cp.d}</b><span class="mute">{t(`folio.src.${cp.src}`)}</span></div>
       <div class="row"><span class="mute">{t('folio.value')}</span><span class="num">¥{yenFull(cp.value)}</span></div>
       {#if cp.src !== 'est'}
@@ -205,7 +207,6 @@ svg {
 .tip {
   position: absolute;
   top: 6px;
-  transform: translateX(10px);
   pointer-events: none;
   background: var(--panel-2);
   border: 1px solid var(--line-strong);
@@ -214,9 +215,6 @@ svg {
   font-size: var(--fs-1);
   white-space: nowrap;
   z-index: 2;
-}
-.tip.flip {
-  transform: translateX(calc(-100% - 10px));
 }
 .row {
   display: flex;

@@ -443,3 +443,31 @@ describe('日付・無配・口座の移動・内訳の端（FR-PF2・PF4・PF7�
     expect(x.received).toBe(0)
   })
 })
+
+describe('分割・時間加重のレビューの直し（FR-PF2・PF4）', () => {
+  it('取り込んだ日が記録の日より後（分割の日の場中に取り込んだ）なら、分割を戻して記録の日の株数にする', () => {
+    // 10/1（分割の日）の 12 時に取り込んだ 200 株は、分割の前の 9/30 では 100 株・取得単価は 2 倍
+    const h: Holding = { code: '7203', account: 'tokutei', quantity: 200, avgCost: 1500, importedAt: '2025-10-01T03:00:00Z' }
+    const sp = () => [{ date: '2025-10-01', ratio: 2 }]
+    expect(posOf([h], '2025-09-30', sp)[0]).toEqual({ code: '7203', acct: 'tokutei', qty: 100, cost: 3000 })
+    // 取り込んだ日のあとの記録の日では、そのまま
+    expect(posOf([h], '2025-10-02', sp)[0]!.qty).toBe(200)
+  })
+  it('時間加重: 買いは日の初めに入れたとみなす（小さな元手に大きく買い増した日に少し下がっても、大きく下げた・反転したと数えない）', () => {
+    const r = twr([
+      { value: 10, cost: 10 },
+      { value: 1000, cost: 1010 }, // 1000 を買い、合わせて 1% 下がった
+      { value: 1010, cost: 1010 },
+    ])
+    expect(r[1]).toBeCloseTo((1000 / 1010 - 1) * 100)
+    // 翌日に 1000 → 1010 と戻せば、通しで ±0
+    expect(r[2]).toBeCloseTo(0)
+    expect(r.every((x) => x > -100)).toBe(true)
+    // b.value − flow が小さな正の値でも、−95% のように飛ばない（実際はおよそ −0.9%）
+    const s = twr([
+      { value: 10, cost: 10 },
+      { value: 1000.5, cost: 1010 },
+    ])
+    expect(s[1]).toBeCloseTo((1000.5 / 1010 - 1) * 100)
+  })
+})

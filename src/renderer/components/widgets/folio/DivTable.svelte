@@ -180,9 +180,6 @@ td {
 td:first-child {
   font-family: var(--font);
 }
-th {
-  font-size: var(--fs-1);
-}
 tr:hover td {
   background: var(--hover);
 }
@@ -271,7 +268,6 @@ tr.sold td {
   height: 7px;
   background: var(--panel-3);
   border-radius: 1px;
-  margin-right: 8px;
   vertical-align: middle;
   position: relative;
   overflow: hidden;
@@ -284,7 +280,6 @@ tr.sold td {
 }
 .bv .ib {
   flex: none;
-  margin-right: 0;
 }
 .ib i {
   position: absolute;

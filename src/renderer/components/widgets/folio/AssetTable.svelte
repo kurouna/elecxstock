@@ -33,6 +33,7 @@ let {
   asc,
   sel,
   focused,
+  atDay = false,
   brushed,
   multi,
   total,
@@ -47,6 +48,8 @@ let {
   asc: boolean
   sel: number
   focused: boolean
+  /** 十字線の日の値（列名を「終値」にする） */
+  atDay?: boolean
   brushed: Set<string> | null
   /** 複数の口座で持つ銘柄（口座の印を出す） */
   multi: Set<string>
@@ -81,7 +84,7 @@ const dim = (codes: string[]) => dimmed(brushed, codes)
         <th>{group === 'code' ? t('folio.colCode') : t('folio.colGroup', { g: t(`folio.dg.${group}` as Key) })}</th>
         <th class="c-qty">{t('hold.qty')}</th>
         <th class="c-avg">{t('hold.avgShort')}</th>
-        <th class="c-close">{t('folio.pcClose')}</th>
+        <th class="c-close">{t(atDay ? 'folio.pcCloseAt' : 'folio.pcClose')}</th>
         <th class={`c-day sortable ${on('day')}`} aria-sort={ariaSort('day')} title={t('folio.sortTip')} onclick={() => sortBy('day')}>{t('hold.chgAmt')}</th>
         <th class="c-dayp">{t('hold.chg')}</th>
         <th class={`sortable ${on('value')}`} aria-sort={ariaSort('value')} title={t('folio.sortTip')} onclick={() => sortBy('value')}>{t('hold.value')}</th>

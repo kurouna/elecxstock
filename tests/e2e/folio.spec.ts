@@ -71,9 +71,16 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await keys(page, 'Alt+Digit3')
     await expect(f.locator('.c-hist .seg button.on').first()).toHaveText('3M')
     const before = await f.locator('.hero-value').textContent()
+    // 十字線の日の印は場所を取ったまま出し入れする（見出しが折り返してツリーマップの高さが変わらない）
+    const tmH = () => f.locator('.c-alloc .tm').evaluate((e) => Math.round(e.getBoundingClientRect().height))
+    const h0 = await tmH()
+    await expect(f.locator('.c-ptab th.c-close')).toHaveText('現在値')
     await keys(page, 'ArrowLeft', 'ArrowLeft', 'ArrowLeft')
     await expect(f.locator('.c-hero .crossday')).toBeVisible()
     await expect(f.locator('.c-alloc .crossday')).toBeVisible()
+    expect(await tmH()).toBe(h0)
+    // 十字線の日の分類ごとの資産は、その日の終値
+    await expect(f.locator('.c-ptab th.c-close')).toHaveText('終値')
     // 十字線の日の評価額の線に点。期間の内訳の棒には期首・期末の日付が出る
     await expect(f.locator('.c-hist .cdot')).toHaveCount(1)
     await expect(f.locator('.c-hist .wfbox .hit title').first()).toContainText(/期首 .*（\d{4}\/\d{2}\/\d{2}）/)
@@ -577,6 +584,30 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(hist.locator('path.bench')).toHaveCount(1)
     await hist.getByRole('radio', { name: 'なし' }).click()
     await expect(hist.locator('path.bench')).toHaveCount(0)
+  })
+
+  test('見出しのナビ・切り替えを押してもフォーカスを残さない。NISA 枠の棒に寄与の 0 の線を出さない（FR-PF1・PF6・FR-KB4）', async ({
+    start,
+  }) => {
+    const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    // 見出しのナビ・分類の切り替えを押しても、ボタンにフォーカスが残らない（残ると Enter・Space でもう一度押される）
+    for (const b of [f.getByRole('tab', { name: /配当の分析/ }), f.locator('.c-alloc').getByRole('radio', { name: '17 業種' })]) {
+      await b.click()
+      expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('BUTTON')
+    }
+    // 予定のカードにもキーの案内（選んでいないときは場所を取ったまま見えない）
+    await expect(f.locator('.c-events .keys')).toHaveCount(1)
+    // 損益寄与の 0 の線（.track::before）は寄与の行だけ
+    const zeroLine = (sel: string) =>
+      f
+        .locator(sel)
+        .first()
+        .evaluate((el) => getComputedStyle(el, '::before').content)
+    await expect(f.locator('.nisa .track')).toHaveCount(1)
+    expect(await zeroLine('.nisa .track')).toBe('none')
+    expect(await zeroLine('.crow .track')).not.toBe('none')
   })
 
   test('保有が無ければ取り込みの案内', async ({ start }) => {

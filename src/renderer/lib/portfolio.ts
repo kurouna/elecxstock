@@ -19,8 +19,6 @@ export async function loadHoldings(): Promise<void> {
 
 /** NISA の口座区分（配当・売却益が非課税） */
 export const isNisa = (a: AccountType) => a.startsWith('nisa')
-/** 配当にかかる税（所得税・住民税・復興特別所得税）。値は shared/folio.ts の 1 か所で持つ */
-export { DIVIDEND_TAX }
 
 export interface Valuation {
   /** 現在値: 取り込んだ日足の最新の終値。無ければ CSV の現在値 */

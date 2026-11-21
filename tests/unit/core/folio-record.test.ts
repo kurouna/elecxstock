@@ -2,7 +2,8 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { atOf, contribOf, dividendsOf, FolioBook, type Market, periodFrom, recordPoint, seriesOf } from '@core/folio'
+import { atOf, contribOf, dividendsOf, FolioBook, type Market, periodFrom, recordPoint, seriesOf, seriesResult } from '@core/folio'
+import { normalize } from '@core/holdings'
 import type { Dividend, FolioPoint, Holding, Split } from '@shared/types'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -349,5 +350,58 @@ describe('記録の保存の世代（FR-PF2。レビューで見つけた不具�
     expect(readdirSync(dir).some((f) => f.startsWith('portfolioHistory.broken-'))).toBe(true)
     c.save([pt('2026-11-12'), pt('2026-11-14')])
     expect(JSON.parse(readFileSync(join(dir, 'portfolioHistory.json.bak'), 'utf8')).data).toHaveLength(1)
+  })
+})
+
+describe('記録の実現損益・受取配当（FR-PF2。レビューで見つけた不具合）', () => {
+  const m = market({ A: [['2026-11-12', 130]] })
+  const meta = (realized: number, dividends: number) => ({ broker: 'rakuten', importedAt: '', realized, dividends })
+  it('保有が同じでも、実現損益・受取配当が変わったら同じ日の記録を書き直す', () => {
+    const a = recordPoint([], { d: '2026-11-12', holdings: [H('A', 10, 90)], meta: meta(100, 10), market: m, now: 1 })!
+    expect(a[0]).toMatchObject({ final: true, realized: 100, received: 10 })
+    const b = recordPoint(a, { d: '2026-11-12', holdings: [H('A', 10, 90)], meta: meta(100, 25), market: m, now: 2 })
+    expect(b?.[0]).toMatchObject({ realized: 100, received: 25 })
+    // 何も変わらなければ書き直さない
+    expect(recordPoint(a, { d: '2026-11-12', holdings: [H('A', 10, 90)], meta: meta(100, 10), market: m, now: 3 })).toBeNull()
+  })
+  it('取引時間中・休日に保有を変えたとき（keepFinal）、前の取引日の暫定の点は保有と一緒に実現損益・受取配当もその日のまま', () => {
+    // 11/12 の足がまだ無い（暫定の点）
+    const early = market({ A: [['2026-11-11', 120]] })
+    const a = recordPoint([], { d: '2026-11-12', holdings: [H('A', 10, 90)], meta: meta(100, 10), market: early, now: 1 })!
+    expect(a[0]).toMatchObject({ final: false, realized: 100 })
+    // 翌朝に売って実現損益が増えた（keepFinal）。11/12 の点に翌日の売却の実現損益を入れない
+    const b = recordPoint(a, { d: '2026-11-12', holdings: [], meta: meta(900, 10), market: m, now: 2, keepFinal: true })!
+    expect(b[0]).toMatchObject({ d: '2026-11-12', realized: 100, received: 10 })
+    expect(b[0]!.pos[0]!.qty).toBe(10)
+  })
+})
+
+describe('今の株数・前の取引日の点（FR-PF1・PF2。全体のレビューで見つけた不具合）', () => {
+  let dir = ''
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+  // 11/16（月）が 1:2 の分割。日足は分割で調整済み（11/13 の終値も半分）
+  const sp = { A: [{ date: '2026-11-16', ratio: 2 }] }
+  const m = market({ A: [['2026-11-13', 500]] }, sp)
+  const mon10 = Date.parse('2026-11-16T10:00:00+09:00')
+  const nowQty = (h: Holding) => {
+    dir = mkdtempSync(join(tmpdir(), 'folio-'))
+    return seriesResult(new FolioBook(dir), m, false, false, [normalize(h, sp.A)], mon10).now[0]!.qty
+  }
+  it('分割の日の場中でも、今の株数は今日の基準（調整済みの終値と掛けて評価額が半分にならない）', () => {
+    // 木曜に取り込んだ 100 株も、月曜の朝に取り込んだ分割後の 200 株も、今は 200 株
+    expect(nowQty(H('A', 100, 1000, { importedAt: '2026-11-12T08:00:00Z' }))).toBe(200)
+    expect(nowQty(H('A', 200, 500, { importedAt: '2026-11-16T00:30:00Z' }))).toBe(200)
+  })
+  it('記録の日が今日でなければ（取引時間中・休日）、保有を変えたあとの素の記録（起動・日々の更新）でも前の取引日の確定した点を変えない', () => {
+    const m2 = market({ A: [['2026-11-13', 130]] })
+    const meta = (realized: number) => ({ broker: 'rakuten', importedAt: '', realized, dividends: 0 })
+    const a = recordPoint([], { d: '2026-11-13', today: '2026-11-13', holdings: [H('A', 10, 90)], meta: meta(100), market: m2, now: 1 })!
+    expect(a[0]).toMatchObject({ final: true, realized: 100 })
+    // 土曜に売って取り込み、そのあと起動し直した（keepFinal を渡さない呼び出し）
+    expect(recordPoint(a, { d: '2026-11-13', today: '2026-11-14', holdings: [], meta: meta(900), market: m2, now: 2 })).toBeNull()
+    // 金曜の大引けのあと（今日が記録の日）なら書き直す
+    expect(recordPoint(a, { d: '2026-11-13', today: '2026-11-13', holdings: [], meta: meta(900), market: m2, now: 3 })?.[0]).toMatchObject({
+      realized: 900,
+    })
   })
 })

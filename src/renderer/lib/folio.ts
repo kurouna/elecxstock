@@ -1,6 +1,5 @@
 // ポートフォリオのペイン（folio。docs/design-portfolio.md・FR-PF1〜PF8）の画面のロジック。コンポーネントには計算を書かず、ここに置く。
 // 値の材料（保有・指標・銘柄・Core の記録と配当の分析）を受け取り、カードに出す形を返す純粋な関数（L4 のテストで確かめる）。
-import { addDays } from '@shared/calendar'
 import {
   bridge,
   byMonth,
@@ -283,17 +282,24 @@ export function rowsOf(
 /** 銘柄ごとにまとめる（口座区分をまたいで足す） */
 export function byCode(rows: FRow[]): FRow[] {
   const m = new Map<string, FRow>()
+  const big = new Map<string, number>()
   for (const r of rows) {
     const was = m.get(r.code)
-    if (!was) m.set(r.code, { ...r })
-    else {
+    if (!was) {
+      m.set(r.code, { ...r })
+      big.set(r.code, r.value)
+    } else {
       was.qty += r.qty
       was.value += r.value
       was.cost += r.cost
       was.pnl += r.pnl
       was.dayPnl += r.dayPnl
       was.avgCost = was.qty ? was.cost / was.qty : 0
-      if (r.value > was.value - r.value) was.acct = r.acct
+      // 代表の口座は評価額が最も大きい口座
+      if (r.value > (big.get(r.code) ?? 0)) {
+        was.acct = r.acct
+        big.set(r.code, r.value)
+      }
     }
   }
   return [...m.values()]
@@ -414,11 +420,15 @@ export function histGeom(points: FolioSeriesPoint[], w: number, h: number, pad =
   const xs = (i: number) => x(i + est)
   const vPath = rp.map((p, i) => `${i ? 'L' : 'M'}${f(xs(i))},${f(y(p.value))}`).join('')
   const cPath = rp.map((p, i) => (i ? `H${f(xs(i))}V${f(y(p.cost))}` : `M${f(xs(i))},${f(y(p.cost))}`)).join('')
-  const cRev = rp
-    .slice()
-    .reverse()
-    .map((p, j) => `L${f(xs(rp.length - 1 - j))},${f(y(p.cost))}`)
-    .join('')
+  // 取得額の側を逆にたどる（cPath と同じ階段。斜めに結ぶと大きな入出金の日に帯がずれる）
+  const last = rp.length - 1
+  const cRev = rp.length
+    ? `L${f(xs(last))},${f(y(rp[last]!.cost))}` +
+      rp
+        .slice(0, last)
+        .map((_, j) => `V${f(y(rp[last - 1 - j]!.cost))}H${f(xs(last - 1 - j))}`)
+        .join('')
+    : ''
   const estPath = points
     .slice(0, est + 1)
     .map((p, i) => `${i ? 'L' : 'M'}${f(x(i))},${f(y(p.value))}`)
@@ -583,7 +593,6 @@ export function allocTiles(rows: FRow[], group: AllocGroup, heat: number, w: num
   }
   return out
 }
-export const HEAT_SPAN = [30, 3]
 /** 矢印の向きでいちばん近いタイル（並び順ではなく位置で選ぶ） */
 export function spatialNext(tiles: { x: number; y: number; w: number; h: number }[], cur: number, key: string): number {
   const c = tiles[cur]
@@ -762,6 +771,29 @@ export function keepRow<T>(
   if (i < 0 && was.code) i = list.findIndex((x) => codeOf(x) === was.code)
   return i >= 0 ? i : clampIndex(cur, list.length)
 }
+/** 予定（縦の一覧）のキー: ← ↑ で前、→ ↓ で次（端で止まる）。ほかのキーは null */
+export function eventStep(cur: number, n: number, code: string): number | null {
+  const d = code === 'ArrowLeft' || code === 'ArrowUp' ? -1 : code === 'ArrowRight' || code === 'ArrowDown' ? 1 : 0
+  return d ? clampIndex(cur + d, n) : null
+}
+/** NISA の口座（成長投資枠・つみたて投資枠）の取得額の合計（生涯の非課税枠の使用の目安） */
+export const nisaCostOf = (rows: Pick<FRow, 'acct' | 'cost'>[]) =>
+  rows.filter((r) => r.acct === 'nisa_growth' || r.acct === 'nisa_tsumitate').reduce((s, r) => s + r.cost, 0)
+/** 予定の鍵（選んだ予定を覚える。同じ銘柄のアラートが 2 件でもぶつからないよう、アラートは文言も入れる） */
+export const eventKey = (e: FolioEvent) => `${e.type}:${e.code}:${e.date}${e.type === 'alert' ? `:${e.text ?? ''}` : ''}`
+/** 予定の印ごとの高さ（同じ日の何件目か・何件あるかを 1 回で数える） */
+export function eventLifts(events: Pick<FolioEvent, 'day'>[]): number[] {
+  const total = new Map<number, number>()
+  for (const e of events) total.set(e.day, (total.get(e.day) ?? 0) + 1)
+  const seen = new Map<number, number>()
+  return events.map((e) => {
+    const k = seen.get(e.day) ?? 0
+    seen.set(e.day, k + 1)
+    return markLift(k, total.get(e.day)!)
+  })
+}
+/** 同じ日の予定の印の高さ（px。帯の 12〜22px に収める。2 件までは 9px ずつ、それより多いと詰める） */
+export const markLift = (k: number, n: number) => 12 + k * Math.min(9, 10 / Math.max(1, n - 1))
 /** 棒の長さ（%。最大で 100） */
 export const barPct = (v: number, max: number) => Math.min(100, (v / (max || 1)) * 100)
 /** 構成の積み上げの段の濃さ（大きい順に薄く。最も薄くて 0.3） */
@@ -857,6 +889,8 @@ export interface DivRow {
   annual: number
   annualPrev: number
   gross: number
+  /** 今の株数（口座の合計） */
+  shares: number
   raise: number
   qty: number
   factor: ReturnType<typeof decompose>['factor']
@@ -923,6 +957,7 @@ export function divRows(
       annual: dc.annual,
       annualPrev: dc.annualPrev,
       gross: q * dpsNow,
+      shares: q,
       raise: dc.raise,
       qty: dc.qty,
       factor: dc.factor,
@@ -931,7 +966,10 @@ export function divRows(
       noCut: st.noCut,
       yld: r?.close ? (dpsNow / r.close) * 100 : null,
       yoc: r && r.avgCost > 0 ? (dpsNow / (r.cost / r.qty)) * 100 : null,
-      payout: i.ins?.kind === 'stock' ? payoutRatio(r?.close ? (dpsNow / r.close) * 100 : null, i.m?.per ?? null) : null,
+      payout:
+        i.ins?.kind === 'stock' || i.ins?.kind === 'pref'
+          ? payoutRatio(r?.close ? (dpsNow / r.close) * 100 : null, i.m?.per ?? null)
+          : null,
       value: r?.value ?? 0,
       cost: r?.cost ?? 0,
       special: x.special,
@@ -1088,7 +1126,7 @@ export function divGroups(rs: DivRow[], g: DivGroup): DivGroupRow[] {
       yld: value ? (gross / value) * 100 : null,
       yoc: cost ? (gross / cost) * 100 : null,
       // 今の株数で見た 1 株配当の 5 年（分類の行の小さな棒）
-      dps: [0, 1, 2, 3, 4].map((i) => xs.reduce((a, r) => a + (r.dpsNow ? (r.dps[i] ?? 0) * (r.gross / r.dpsNow) : 0), 0)),
+      dps: [0, 1, 2, 3, 4].map((i) => xs.reduce((a, r) => a + (r.dps[i] ?? 0) * r.shares, 0)),
     }
   })
 }
@@ -1311,8 +1349,6 @@ export function arcPath(a0: number, a1: number, R: number, r0: number, cx = 100,
 }
 /** 損益の色の段の文字の色: ダークは本文の色、ライトは濃い段（0・4）だけ白 */
 export const tileInk = (step: number, light: boolean) => (light && (step === 0 || step === 4) ? '#ffffff' : 'var(--text)')
-/** 期間の初めの日（表示用） */
-export const yearStart = (today: JstDate) => addDays(`${today.slice(0, 4)}-01-01`, 0)
 
 /**
  * 十字線の日の行（FR-PF8）: その日の保有（株数は今の基準）× その日の終値。前日比はその日と前の取引日の終値の差。

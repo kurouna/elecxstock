@@ -35,7 +35,8 @@ export function posOf(holdings: Holding[], d: JstDate, splitsOf: (code: string) 
     if (!(h.quantity > 0)) continue
     const t = h.importedAt ? Date.parse(h.importedAt) : Number.NaN
     const base = Number.isFinite(t) ? toJstDate(t) : asOf
-    const f = base < d ? splitFactor(splitsOf(h.code), base, d) : 1
+    // 取り込んだ日が d より後（分割の日の場中・休日に取り込んだ）なら、その間の分割を戻す
+    const f = base < d ? splitFactor(splitsOf(h.code), base, d) : base > d ? 1 / splitFactor(splitsOf(h.code), d, base) : 1
     out.push({ code: h.code, acct: h.account, qty: h.quantity * f, cost: h.avgCost / f })
   }
   return out
@@ -112,7 +113,9 @@ export function twr(points: Pick<FolioSeriesPoint, 'value' | 'cost' | 'realized'
     const realizedOk = (a.realized == null) === (b.realized == null)
     if (a.value > 0 && b.value > 0 && realizedOk) {
       const flow = b.cost - a.cost - ((b.realized ?? 0) - (a.realized ?? 0))
-      g *= (b.value - flow) / a.value
+      // 買い（入金）は日の初めに入れた、売り（出金）は日の終わりに出したとみなす。比は常に正で、入出金の額に対して連続
+      // （日の終わりに入れたとみなすと、小さな元手に大きく買い増した日に少し下がっただけで −95% や符号の反転になる）
+      g *= flow > 0 ? b.value / (a.value + flow) : (b.value - flow) / a.value
     }
     out.push((g - 1) * 100)
   }

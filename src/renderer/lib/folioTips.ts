@@ -11,7 +11,8 @@ export type Tr = (k: Key, v?: Record<string, string | number>) => string
 /** 円（桁区切り）。sign で +/− を付ける */
 export const yen = (v: number, sign = false) => {
   const s = v < 0 && Math.round(Math.abs(v)) ? '−' : sign && Math.round(v) > 0 ? '+' : sign ? '±' : ''
-  return `${s}¥${yenFull(Math.abs(v))}`
+  // 符号ごと隠す（−¥**** だと損か益かが分かる）
+  return secret(`${s}¥${Math.round(Math.abs(v)).toLocaleString('ja-JP')}`)
 }
 const pctOf = (v: number, total: number) => (total ? `${((v / total) * 100).toFixed(1)}%` : '—')
 /** 額の大きい順に max 件と「ほか N 件」 */

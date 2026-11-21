@@ -53,6 +53,12 @@ const tipOf = (k: number) => {
   return sl.item ? donutTip(sl.item.g, total, label(sl.item.g), byCode, t) : donutOtherTip(list.slice(restFrom), total, label, t)
 }
 let w = $state(0)
+let shr = $state<HTMLDivElement>()
+$effect(() => {
+  // キーで選んだ行を見える位置へ（一覧が長いとき）
+  if (s < 0 || !shr) return
+  queueMicrotask(() => shr?.querySelector('.r.sel')?.scrollIntoView({ block: 'nearest' }))
+})
 </script>
 
 <!-- 狭いカードでは、ドーナツを上・一覧を下に重ねて名前を切らない（さらに狭ければドーナツをやめて横棒） -->
@@ -82,7 +88,7 @@ let w = $state(0)
       {/if}
     </svg>
   {/if}
-  <div class="shr" class:bars={w < 360}>
+  <div class="shr" class:bars={w < 360} bind:this={shr}>
     {#each list as g, i (g.key)}
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
       <div class="r" class:sel={i === s} class:dim={isDim(g)} title={donutTip(g, total, label(g), byCode, t)} onclick={() => onpick(i)} onmouseenter={() => (hov = sliceOf(i))} onmouseleave={() => (hov = -1)}>
@@ -141,6 +147,10 @@ svg {
   text-anchor: middle;
   fill: var(--text);
   font-family: var(--mono);
+  /* 金色（選んだ扇）や明るい色の扇の上でも読めるよう、地の色で縁取る */
+  paint-order: stroke;
+  stroke: var(--panel);
+  stroke-width: 2.5px;
 }
 .c1 {
   font-size: 11px;

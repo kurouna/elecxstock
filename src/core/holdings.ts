@@ -1,5 +1,7 @@
 // 保有の記録（§6.9, FR-H5, H7〜H10）。純粋関数。保存は UserStore（holdings.json）で、市場データの DB には置かない。
 import { folioPointSchema, holdingSchema, portfolioMetaSchema } from '@shared/api'
+import { toJstDate } from '@shared/calendar'
+import { splitFactor } from '@shared/folio'
 import type { BrokerCsvPreview, FolioPoint, Holding, HoldingsImportPreview, Lot, PortfolioMeta, Split } from '@shared/types'
 import { z } from 'zod'
 import { parseRakutenCsv } from './brokers/rakuten'
@@ -36,10 +38,33 @@ export function fromLots(lots: Lot[], splits: Split[] = []): { quantity: number;
   return { quantity: Math.round(qty * 1e6) / 1e6, avgCost: Math.round(avg * 1e4) / 1e4 }
 }
 
-/** 取引があれば数量・平均取得単価を取引から計算し直す */
+/**
+ * 取引があれば数量・平均取得単価を取引から計算し直す。取引が無ければ（CSV で取り込んだ保有）、取り込んだ日より後の分割で
+ * 数量を掛け取得単価を割り、今の基準（日足と同じ）にそろえる。基準の日（importedAt）は最後の分割の日に寄せるので、
+ * 画面から保存し直しても、資産推移の記録（posOf）でもう一度は掛けない。CSV を取り込み直すまでの保有のペインの評価を正しくする
+ */
 export function normalize(h: Holding, splits: Split[] = []): Holding {
-  if (!h.lots?.length) return h
-  return { ...h, ...fromLots(h.lots, splits) }
+  if (h.lots?.length) {
+    // 取引から計算した数量は今の基準なので、取り込んだ日は外す（posOf で分割をもう一度掛けない）
+    const { importedAt: _i, ...rest } = h
+    return { ...rest, ...fromLots(h.lots, splits) }
+  }
+  const t = h.importedAt ? Date.parse(h.importedAt) : Number.NaN
+  if (!Number.isFinite(t)) return h
+  const base = toJstDate(t)
+  const later = splits.filter((x) => x.date > base)
+  if (!later.length) return h
+  const f = splitFactor(later, base)
+  const last = later
+    .map((x) => x.date)
+    .sort()
+    .at(-1)!
+  return {
+    ...h,
+    quantity: Math.round(h.quantity * f * 1e6) / 1e6,
+    avgCost: Math.round((h.avgCost / f) * 1e4) / 1e4,
+    importedAt: `${last}T00:00:00+09:00`,
+  }
 }
 
 const keyOf = (h: Pick<Holding, 'code' | 'account'>) => `${h.code}/${h.account}`

@@ -10,6 +10,15 @@ export function localX(clientX: number, rect: { left: number; width: number }, c
   return rect.width > 0 ? ((clientX - rect.left) * cssWidth) / rect.width : 0
 }
 
+/**
+ * 図の中の説明（position: absolute）の左の位置（CSS の px）。十字線 cx の右に収まれば右、だめなら左、
+ * どちらにも収まらなければ図の右の端に寄せる（狭いカードで切れない）
+ */
+export function tipAside(cx: number, tipWidth: number, width: number, gap = 10): number {
+  if (cx + gap + tipWidth <= width) return cx + gap
+  if (cx - gap - tipWidth >= 0) return cx - gap - tipWidth
+  return Math.max(0, width - tipWidth)
+}
 /** 要素の右に出す説明（position: fixed）の位置（CSS の px）。`anchor` は getBoundingClientRect の値。窓の右からはみ出さない */
 export function tipBeside(
   anchor: { right: number; top: number },

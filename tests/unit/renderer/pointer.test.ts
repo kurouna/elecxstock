@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { histIndexAt } from '../../../src/renderer/lib/folio'
 import { trendIndexAt } from '../../../src/renderer/lib/folioTips'
-import { gutterRatio, localX, tipBeside } from '../../../src/renderer/lib/pointer'
+import { gutterRatio, localX, tipAside, tipBeside } from '../../../src/renderer/lib/pointer'
 
 describe('表示倍率とポインタ（FR-V10）', () => {
   it('ポインタの x を要素の中の CSS の px に直す（倍率 150% なら 1.5 で割る）', () => {
@@ -54,5 +54,15 @@ describe('区切り線のドラッグ（FR-L1）', () => {
   it('両隣の幅が 0（隠れている・縮みきった）なら比を出さない（NaN でサイズを壊さない）', () => {
     expect(gutterRatio(120, 100, 0)).toBeNull()
     expect(gutterRatio(120, 100, -5)).toBeNull()
+  })
+})
+
+describe('図の中の説明の位置（FR-PF1。狭いカードで切れない）', () => {
+  it('十字線の右に収まれば右、だめなら左、どちらも収まらなければ図の中に寄せる', () => {
+    expect(tipAside(100, 120, 600)).toBe(110)
+    expect(tipAside(550, 120, 600)).toBe(420)
+    // 狭い図（幅 300）の真ん中: 右にも左にも 220 は収まらない → 図の端に寄せる
+    expect(tipAside(150, 220, 300)).toBe(80)
+    expect(tipAside(150, 400, 300)).toBe(0)
   })
 })

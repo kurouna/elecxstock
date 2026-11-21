@@ -4,7 +4,7 @@
 import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { folioPointSchema } from '@shared/api'
-import { addDays, addYears, isTradingDay } from '@shared/calendar'
+import { addDays, addYears, isTradingDay, jstNow } from '@shared/calendar'
 import { dpsBlocks, estStart, gapDays, mergePoints, netRate, periodContrib, pointOn, posOf, samePos, splitFactor } from '@shared/folio'
 import type {
   AccountType,
@@ -165,9 +165,20 @@ function valueAt(pos: FolioPos[], basis: JstDate, x: JstDate, m: Market, close: 
  */
 export function recordPoint(
   points: FolioPoint[],
-  inp: { d: JstDate; holdings: Holding[]; meta: PortfolioMeta | null; market: Market; now: number; jobDone?: boolean; keepFinal?: boolean },
+  inp: {
+    d: JstDate
+    /** 今日の日付。d と違えば（取引時間中・休日）前の取引日の確定した点を変えない（keepFinal） */
+    today?: JstDate
+    holdings: Holding[]
+    meta: PortfolioMeta | null
+    market: Market
+    now: number
+    jobDone?: boolean
+    keepFinal?: boolean
+  },
 ): FolioPoint[] | null {
   const { d, market: m } = inp
+  const keepFinal = inp.keepFinal ?? (inp.today != null && inp.today !== d)
   if (!isTradingDay(d)) return null
   const pos = posOf(inp.holdings, d, (c) => m.splits(c))
   const out = [...points]
@@ -206,9 +217,17 @@ export function recordPoint(
     }
   }
   const was = out.find((p) => p.d === d)
-  const keep = was && was.src === 'rec' && was.final && (samePos(was.pos, pos) || inp.keepFinal)
+  const realized = inp.meta?.realized ?? undefined
+  const received = inp.meta?.dividends ?? undefined
+  // 保有が同じでも、実現損益・受取配当が変わったら書き直す
+  const sameMeta = was?.realized === realized && was?.received === received
+  const keep = was && was.src === 'rec' && was.final && ((samePos(was.pos, pos) && sameMeta) || keepFinal)
   if (!keep && (pos.length || was || last?.pos.length)) {
-    const use = inp.keepFinal && was ? was.pos : pos
+    // keepFinal（取引時間中・休日に保有を変えた）なら、前の取引日の点は保有も実現損益・受取配当もその日のまま
+    const hold = keepFinal && was
+    const use = hold ? was.pos : pos
+    const r = hold ? was.realized : realized
+    const rc = hold ? was.received : received
     const v = valueAt(use, d, d, m, close)
     const point: FolioPoint = {
       d,
@@ -218,8 +237,8 @@ export function recordPoint(
       value: v.value,
       cost: v.cost,
       pos: use,
-      ...(inp.meta?.realized != null ? { realized: inp.meta.realized } : {}),
-      ...(inp.meta?.dividends != null ? { received: inp.meta.dividends } : {}),
+      ...(r != null ? { realized: r } : {}),
+      ...(rc != null ? { received: rc } : {}),
       at: inp.now,
     }
     if (was) out.splice(out.indexOf(was), 1, point)
@@ -267,7 +286,7 @@ export function seriesResult(
   est: boolean,
   readOnly: boolean,
   holdings: Holding[],
-  today: JstDate,
+  now: number = Date.now(),
 ): FolioSeries {
   const pts = book.load()
   const err = book.broken ?? book.warning
@@ -275,8 +294,8 @@ export function seriesResult(
     points: seriesOf(pts, m, est),
     first: pts[0]?.d ?? null,
     readOnly: readOnly || book.locked,
-    // 今の株数（分割で換算済み。CSV を取り込み直す前でも、記録と同じ株数で画面を出す）
-    now: posOf(holdings, today, (c) => m.splits(c)),
+    // 今の株数（今日の基準。分割の日の場中も、調整済みの終値と掛けて評価額がずれない。前の取引日の基準にしない）
+    now: posOf(holdings, jstNow(now).date, (c) => m.splits(c)),
     ...(err ? { error: err } : {}),
   }
 }

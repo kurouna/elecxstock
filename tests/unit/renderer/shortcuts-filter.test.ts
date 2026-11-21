@@ -141,3 +141,12 @@ describe('ショートカット一覧: ポートフォリオの表のキー（FR
     for (const k of ['A', 'Shift+S', 'Space', 'Shift+← →']) expect(keys).toContain(k)
   })
 })
+
+describe('ショートカット一覧: ポートフォリオのタイル・行・予定（FR-KB7・FR-PF6）', () => {
+  it('タイル・行・予定を選ぶキーが F1 に出る', () => {
+    const rows = SHORTCUTS.filter((r) => r.sec === 'folio')
+    expect(rows.some((r) => r.label[0].includes('予定') && r.keys?.includes('↑ ↓'))).toBe(true)
+    expect(rows.some((r) => r.label[0].includes('タイル'))).toBe(true)
+    expect(rows.some((r) => r.label[0].includes('行') && r.keys?.includes('Home End'))).toBe(true)
+  })
+})

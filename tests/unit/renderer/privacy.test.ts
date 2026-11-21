@@ -28,7 +28,7 @@ describe('プライバシーモードの書式（FR-H12）', () => {
     expect(yenFull(1_234_567)).toBe(MASK)
     expect(manYen(-1_876_494, true)).toBe(MASK)
     expect(man1(52_000, true)).toBe(MASK)
-    expect(yen(52_000)).toBe(`¥${MASK}`)
+    expect(yen(52_000)).toBe(MASK)
     expect(signPct(12.34)).toBe('+12.3%')
   })
 
@@ -53,5 +53,15 @@ describe('符号つきの個人の金額（FR-H12）', () => {
     privacy.on = true
     expect(ownSignedMoney(1_234_0000)).toEqual({ n: MASK, u: '' })
     expect(ownSignedMoney(-1_234_0000)).toEqual({ n: MASK, u: '' })
+  })
+})
+
+describe('ツールチップの円の符号（FR-H12。レビューで見つけた漏れ）', () => {
+  it('オンなら符号ごと隠す（−¥**** で損か益かが分からないように）', () => {
+    privacy.on = true
+    expect(yen(-52_000)).toBe(MASK)
+    expect(yen(52_000, true)).toBe(MASK)
+    privacy.on = false
+    expect(yen(-52_000)).toBe('−¥52,000')
   })
 })

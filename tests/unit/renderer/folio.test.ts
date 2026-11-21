@@ -1,5 +1,5 @@
 // ポートフォリオのペインの画面のロジック（FR-PF1・PF4〜PF8。src/renderer/lib/folio.ts。docs/testing.md の L4）。値はすべて架空
-import type { FolioAt, FolioDividends, FolioSeriesPoint, Holding, Instrument, MetricsRow } from '@shared/types'
+import type { AccountType, FolioAt, FolioDividends, FolioSeriesPoint, Holding, Instrument, MetricsRow } from '@shared/types'
 import { describe, expect, it } from 'vitest'
 import {
   ALLOC_GROUPS,
@@ -35,6 +35,9 @@ import {
   divRows,
   divSummary,
   divYields,
+  eventKey,
+  eventLifts,
+  eventStep,
   eventsOf,
   type FRow,
   firstOpen,
@@ -51,6 +54,7 @@ import {
   lastTone,
   lotCount,
   manYen,
+  markLift,
   mergeLocked,
   monthTip,
   moveRow,
@@ -243,7 +247,8 @@ describe('資産推移（FR-PF3・PF4）', () => {
     expect(h.pnl).toBe(30)
     const b = h.bridge!
     expect(b.start + b.flow + b.move).toBe(b.end)
-    expect(h.twr.at(-1)).toBeCloseTo((((120 / 100) * (230 - 100)) / 120) * 100 - 100)
+    // 買い（入金 100）は日の初めに入れたとみなす: 120 + 100 → 230
+    expect(h.twr.at(-1)).toBeCloseTo((120 / 100) * (230 / (120 + 100)) * 100 - 100)
   })
   it('ベンチマークは記録が 20 日たまってから。記録の初日を 0% として測る', () => {
     expect(benchSeries(pts, [{ d: '2026-01-06', c: 100 }])).toBeNull()
@@ -1006,5 +1011,87 @@ describe('分類ごとの資産のレビューの直し 2（FR-PF5・PF9）', ()
     expect(last(false)[0]).not.toBeNull()
     expect(last(true)[0]).not.toBeNull()
     expect(last(true).at(-1)).toBeNull()
+  })
+})
+
+describe('ポートフォリオの全体のレビューの直し（FR-PF1・PF5・PF7）', () => {
+  const D1: FolioDividends = {
+    yearAgoDate: '2025-11-13',
+    trend: [],
+    rows: [
+      // 今年無配に転じた（1 株配当 50 → 0）
+      {
+        code: '7203',
+        dps: [40, 45, 50, 50, 0],
+        perYear: 2,
+        regimeChanged: false,
+        special: false,
+        last: [],
+        prev: [
+          { date: '2025-03-28', amount: 25 },
+          { date: '2025-09-29', amount: 25 },
+        ],
+        now: [{ acct: 'tokutei', qty: 100 }],
+        yearAgo: [{ acct: 'tokutei', qty: 100 }],
+      },
+    ],
+  }
+  it('無配に転じた銘柄も、分類の行の 1 株配当の 5 年は今の株数で数える（全期間 0 にしない）', () => {
+    const dr = divRows(D1, rows, (c) => ({ name: c, ins: DB[`JP:${c}`]?.ins, m: DB[`JP:${c}`]?.m }))
+    const g = divGroups(dr, 'sector')[0]!
+    expect(g.dps).toEqual([4000, 4500, 5000, 5000, 0])
+  })
+  it('優先株も配当性向を出す（株と同じ扱い）', () => {
+    const D2: FolioDividends = { ...D1, rows: [{ ...D1.rows[0]!, dps: [40, 45, 50, 50, 60] }] }
+    const pref = divRows(D2, rows, (c) => ({ name: c, ins: { ...DB[`JP:${c}`]!.ins, kind: 'pref' }, m: DB[`JP:${c}`]?.m }))
+    expect(pref[0]!.payout).not.toBeNull()
+  })
+  it('資産推移の帯の取得額の側も階段（斜めに結ばない）', () => {
+    const p = (d: string, value: number, cost: number) =>
+      ({ d, src: 'rec', final: true, value, cost, pos: [], at: 1 }) as unknown as FolioSeriesPoint
+    const g = histGeom([p('2026-11-11', 100, 100), p('2026-11-12', 300, 250), p('2026-11-13', 320, 250)], 600, 200)
+    const cmds = g.band.match(/[A-Z][^A-Z]*/g)!
+    const lineTo = cmds.filter((c) => c.startsWith('L'))
+    // 評価額の線（2 本）と、取得額へ戻る 1 本だけが L。ほかの取得額の側は H・V
+    expect(lineTo).toHaveLength(3)
+    expect(cmds.some((c) => c.startsWith('V'))).toBe(true)
+  })
+  it('銘柄をまとめた行の代表の口座は、評価額が最も大きい口座（3 口座以上でも）', () => {
+    const r = (acct: AccountType, value: number) => ({ ...rows[0]!, code: '9999', acct, value })
+    expect(byCode([r('tokutei', 10), r('nisa_growth', 30), r('nisa_tsumitate', 35)])[0]!.acct).toBe('nisa_tsumitate')
+  })
+  it('同じ日の予定の印は、何件でも帯の高さに収める', () => {
+    for (const n of [1, 2, 3, 6, 12]) {
+      for (let k = 0; k < n; k++) {
+        expect(markLift(k, n)).toBeGreaterThanOrEqual(12)
+        expect(markLift(k, n)).toBeLessThanOrEqual(22)
+      }
+    }
+    expect(markLift(1, 2) - markLift(0, 2)).toBe(9)
+  })
+})
+
+describe('予定のキー（FR-PF6。縦の一覧）', () => {
+  it('← ↑ で前、→ ↓ で次。端で止まる。ほかのキーは動かさない（null）', () => {
+    expect(eventStep(2, 5, 'ArrowUp')).toBe(1)
+    expect(eventStep(2, 5, 'ArrowLeft')).toBe(1)
+    expect(eventStep(2, 5, 'ArrowDown')).toBe(3)
+    expect(eventStep(2, 5, 'ArrowRight')).toBe(3)
+    expect(eventStep(0, 5, 'ArrowUp')).toBe(0)
+    expect(eventStep(4, 5, 'ArrowDown')).toBe(4)
+    expect(eventStep(2, 5, 'Enter')).toBeNull()
+  })
+})
+
+describe('予定の印と鍵（FR-PF6。全体のレビューで見つけた不具合）', () => {
+  const e = (day: number, code: string, type: 'rights' | 'earnings' | 'alert' = 'rights', text?: string) =>
+    ({ day, date: '2026-11-13', type, code, name: code, ...(text ? { text } : {}) }) as Parameters<typeof eventKey>[0]
+  it('同じ日の印の高さは 1 回の数え上げで（同じ日の何件目か・何件あるか）', () => {
+    const xs = [e(3, 'A'), e(5, 'B'), e(3, 'C'), e(3, 'D')]
+    expect(eventLifts(xs)).toEqual([markLift(0, 3), markLift(0, 1), markLift(1, 3), markLift(2, 3)])
+  })
+  it('同じ銘柄のアラートが 2 件あっても鍵がぶつからない', () => {
+    expect(eventKey(e(0, 'A', 'alert', '終値 ≥ 100'))).not.toBe(eventKey(e(0, 'A', 'alert', '終値 ≤ 50')))
+    expect(eventKey(e(3, 'A'))).toBe(eventKey(e(3, 'A')))
   })
 })
