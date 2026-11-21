@@ -75,6 +75,14 @@ export const DIV_SORTS = ['code', 'annual', 'delta', 'yield', 'yoc', 'cagr'] as 
 export type DivSort = (typeof DIV_SORTS)[number]
 export const CONTRIB_PERIODS = ['day', 'month', 'year', 'all'] as const
 export type ContribPeriod = (typeof CONTRIB_PERIODS)[number]
+/**
+ * 損益寄与の注記の日付（MM/DD）。今日・取得来は十字線の日（無ければ前の取引日）で、十字線の日なら at。今月・今年は前の取引日。
+ * 十字線の日の印を見出しに出すと見出しが 2 行になるので、注記の日付で示す（注記の長さは十字線で変わらない）
+ */
+export function contribNoteDay(period: ContribPeriod, crossDay: JstDate | null, lastClosed: JstDate): { d: string; at: boolean } {
+  const at = !!crossDay && (period === 'day' || period === 'all')
+  return { d: (at ? crossDay! : lastClosed).slice(5).replace('-', '/'), at }
+}
 export const BENCHES = ['', 'IDX:N225', 'JP:1306'] as const
 
 /** ペインに保存する表示の状態（pane.state.folio） */

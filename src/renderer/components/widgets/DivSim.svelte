@@ -1618,6 +1618,8 @@ onMount(() =>
   }
   h3 {
     margin: 0;
+    /* 高さの決まったカードの中で 1 行分に縮まない（折り返した 2 行目が下に重ならない） */
+    flex: none;
     font-size: var(--fs-2);
     font-weight: 500;
     color: var(--text);

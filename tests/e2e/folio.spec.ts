@@ -21,6 +21,14 @@ const HOLD = holdings([
   { code: '1306', account: 'nisa_tsumitate', quantity: 300, avgCost: 2600 },
 ])
 /** 架空の記録（約 1 年半。8306 は 1 年前は 200 株＝買い増し、2914 は今年の新規） */
+/** カードの見出しで分類を選ぶ。見出しが狭くて 1 つのボタンにたたまれていれば、その名前になるまで押す */
+async function pickGroup(card: Locator, name: string): Promise<void> {
+  const mini = card.locator('h3 .segmini')
+  if (await mini.isVisible()) {
+    for (let i = 0; i < 6 && !(await mini.textContent())!.startsWith(name); i++) await mini.click()
+    await expect(mini).toHaveText(new RegExp(`^${name} `))
+  } else await card.getByRole('radio', { name, exact: true }).click()
+}
 function history(): FolioPoint[] {
   const out: FolioPoint[] = []
   let d = '2025-05-01'
@@ -211,10 +219,10 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(pt).toContainText('17 業種ごとの資産')
     await expect(f.locator('.c-alloc .gseg button.on')).toHaveText('17 業種')
     // 資産構成の見出しで替えても表が替わる
-    await f.locator('.c-alloc').getByRole('radio', { name: '市場区分' }).click()
+    await pickGroup(f.locator('.c-alloc'), '市場区分')
     await expect(pt).toContainText('市場区分ごとの資産')
     // 口座で分けたときは口座ごと（チェックは見えなくなり、A は効かない）
-    await f.locator('.c-alloc').getByRole('radio', { name: '口座' }).click()
+    await pickGroup(f.locator('.c-alloc'), '口座')
     await expect(pt.locator('.mchk')).toHaveCSS('visibility', 'hidden')
     // キーの案内の A も効かない印になる
     await expect(pt.locator('.keys span', { hasText: '同じ銘柄をまとめる' })).toHaveClass(/\bna\b/)
@@ -258,7 +266,7 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(tb.locator('tbody tr', { hasText: '7203' })).toHaveCount(2)
   })
 
-  test('「同じ銘柄をまとめる」を押してもキーが効く。まとめる・分けるで選んだタイル・分類の行がずれない。見出しが切れない（FR-PF6・PF9・FR-KB4）', async ({
+  test('「同じ銘柄をまとめる」を押してもキーが効く。まとめる・分けるで選んだタイル・分類の行がずれない（FR-PF6・PF9・FR-KB4）', async ({
     start,
   }) => {
     const hold = [...HOLD, ...holdings([{ code: '7203', account: 'nisa_growth', quantity: 50, avgCost: 16000 }])]
@@ -312,26 +320,72 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(pt.locator('tbody tr', { hasText: '7203' })).toHaveCount(2)
     await expect(pt.locator('tbody tr.sel')).toHaveClass(/\bg\b/)
     await expect(pt.locator('tbody tr.sel')).toContainText(name)
-
-    // 見出しは狭い幅・L の下限でもカードの中に収まる（折り返す）
-    const over = () =>
-      f.evaluate((el) =>
-        [...el.querySelectorAll('.card h3')]
-          .filter(
-            (h) =>
-              h.scrollWidth > h.clientWidth + 1 || h.getBoundingClientRect().right > h.closest('.card')!.getBoundingClientRect().right + 1,
-          )
-          .map((h) => h.closest('.card')!.getAttribute('data-card')),
-      )
-    for (const w of [700, 1300]) {
-      await page.setViewportSize({ width: w, height: 960 })
-      await expect.poll(over, String(w)).toEqual([])
-    }
-    await keys(page, 'Control+Shift+Enter')
-    await motionDone(page)
-    await page.setViewportSize({ width: 1200, height: 960 })
-    await expect.poll(over, 'max 1200').toEqual([])
   })
+
+  for (const lang of ['ja', 'en'] as const)
+    test(`カードの見出しは下に重ならず、L の幅では 1 行。キーの案内はカードの中（${lang}。FR-PF1・PF6）`, async ({ start }) => {
+      const hold = [...HOLD, ...holdings([{ code: '7203', account: 'nisa_growth', quantity: 50, avgCost: 16000 }])]
+      const { page } = await start({ user: { holdings: hold, portfolioHistory: history() }, lang })
+      await keys(page, 'Control+Shift+Digit9')
+      const f = page.locator('[data-widget="folio"]')
+      await f.locator('.c-alloc .tile').first().waitFor()
+      await keys(page, 'Control+Shift+Enter')
+      await motionDone(page)
+      // 見出し（h3）ごとに: 横にはみ出さない・中身が見出しの高さに収まる・次の要素に重ならない・L の幅（ペイン 1180 以上）では 1 行・キーの案内がカードの中
+      const check = () =>
+        f.evaluate((el) => {
+          const wide = (el.querySelector('.folio') as HTMLElement).clientWidth >= 1180
+          const bad: string[] = []
+          for (const h of el.querySelectorAll<HTMLElement>('.card h3')) {
+            const card = h.closest('.card')!
+            const name = card.getAttribute('data-card')
+            const hr = h.getBoundingClientRect()
+            const cr = card.getBoundingClientRect()
+            if (h.scrollWidth > h.clientWidth + 1 || hr.right > cr.right + 1) bad.push(`${name}: 横`)
+            if (h.scrollHeight > h.offsetHeight + 1) bad.push(`${name}: 縦`)
+            const next = h.nextElementSibling?.getBoundingClientRect()
+            if (next && next.height > 0 && hr.bottom > next.top + 1) bad.push(`${name}: 重なり`)
+            if (wide && hr.height > 26) bad.push(`${name}: 2 行`)
+            const k = card.querySelector('.keys')?.getBoundingClientRect()
+            if (k && k.height > 0 && k.bottom > cr.bottom + 1) bad.push(`${name}: キーの案内`)
+          }
+          // 表は横にはみ出さない（列の出し分けは表の幅で決める。ペインの幅で決めると、L の下限で表が M より狭いのに列が多くなった）
+          for (const t of el.querySelectorAll<HTMLElement>('.pt, .dt')) {
+            if (t.scrollWidth > t.clientWidth + 1) bad.push(`${t.closest('.card')!.getAttribute('data-card')}: 表が横にはみ出す`)
+          }
+          // 評価額の大きな数字は 1 行で、カードの中に収まる（めくる桁の間で折り返して上の段が高くなった）
+          const hv = el.querySelector<HTMLElement>('.hero-value')
+          if (hv && (hv.scrollWidth > hv.clientWidth + 1 || hv.getBoundingClientRect().height > 60)) bad.push('hero: 評価額の数字')
+          // 中身がつぶれない: 残りの高さを埋める箱（flex-basis: 0）が、高さが中身で決まるカード（狭い幅）で中身より低くならない
+          // （配当の内訳のドーナツが狭い幅で 0px になり、図が一部しか出なかった）
+          for (const e of el.querySelectorAll<HTMLElement>('.card *')) {
+            if (getComputedStyle(e).flexBasis !== '0px' || !e.children.length) continue
+            const inner = Math.max(...[...e.children].map((c) => c.getBoundingClientRect().height))
+            if (inner > e.getBoundingClientRect().height + 20) bad.push(`${e.closest('.card')!.getAttribute('data-card')}: つぶれる`)
+          }
+          return bad
+        })
+      for (const w of [700, 770, 900, 1190, 1300, 1400, 1920]) {
+        await page.setViewportSize({ width: w, height: 1000 })
+        await expect.poll(check, `${lang} ${w}`).toEqual([])
+      }
+      // M の並び: 十字線の日を出し入れしても、カードとツリーマップの高さは変わらない（日付の印・評価額の要約は場所を取ったまま）
+      await page.setViewportSize({ width: 900, height: 1000 })
+      await expect.poll(check).toEqual([])
+      const heights = () =>
+        f.evaluate((el) =>
+          [...el.querySelectorAll('.grid > .card, .c-alloc .tm')].map((c) => Math.round(c.getBoundingClientRect().height)).join(','),
+        )
+      const h0 = await heights()
+      await keys(page, 'Tab')
+      await expect(f.locator('.c-hist')).toHaveClass(/focus/)
+      await keys(page, 'ArrowLeft', 'ArrowLeft')
+      await expect(f.locator('.c-alloc .crossday')).toBeVisible()
+      expect(await heights()).toBe(h0)
+      await keys(page, 'Escape')
+      await expect(f.locator('.c-alloc .crossday')).not.toBeVisible()
+      expect(await heights()).toBe(h0)
+    })
 
   test('配当の表: 銘柄を選んだあと、分類の行を押して開く・並べ替えると、選んでいる行は前の銘柄に戻らない（FR-PF7）', async ({ start }) => {
     const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
@@ -391,7 +445,7 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(chart).toContainText(first)
     // 配当の表（銘柄ごと）の行（損益寄与を選んでいる間の PgDn は行なので、Esc で外してから段を移る）
     await keys(page, 'Escape', 'PageDown')
-    await f.locator('.c-dshare .seg button').first().waitFor()
+    await f.locator('.c-dshare h3').waitFor()
     await keys(page, 'Shift+Tab')
     // 初期値は銘柄ごと
     const tr = f.locator('.c-dtab tbody tr').nth(2)
@@ -488,7 +542,7 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     const f = page.locator('[data-widget="folio"]')
     await expect(f.locator('.c-dsum')).toBeVisible()
     await keys(page, 'PageDown')
-    await f.locator('.c-dshare').getByRole('radio', { name: '口座' }).click()
+    await pickGroup(f.locator('.c-dshare'), '口座')
     await keys(page, 'PageDown')
     const clipped = (sel: string) =>
       f.locator(sel).evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent))
@@ -593,7 +647,7 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await tab(page, 'folio')
     const f = page.locator('[data-widget="folio"]')
     // 見出しのナビ・分類の切り替えを押しても、ボタンにフォーカスが残らない（残ると Enter・Space でもう一度押される）
-    for (const b of [f.getByRole('tab', { name: /配当の分析/ }), f.locator('.c-alloc').getByRole('radio', { name: '17 業種' })]) {
+    for (const b of [f.getByRole('tab', { name: /配当の分析/ }), f.locator('.c-alloc h3 .segmini')]) {
       await b.click()
       expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('BUTTON')
     }

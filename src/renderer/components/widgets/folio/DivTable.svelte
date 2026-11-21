@@ -132,6 +132,8 @@ const dpsW = $derived(Math.max(1, ...rows.map((r) => (r.type === 'g' ? 0 : dpsTe
   flex: 1 1 0;
   min-height: 0;
   overflow: auto;
+  /* 列は表の幅で出し分ける（分類ごとの資産の表とそろえる） */
+  container: dtab / inline-size;
 }
 table {
   width: 100%;
@@ -338,13 +340,14 @@ tr.sold td {
 .flat {
   color: var(--flat);
 }
-@container (max-width: 1179px) {
+/* しきい値は、その列の組み合わせで表がいる幅（実測。ja・en の大きいほう 1166・1048px）に、金額の桁の多い保有の分の余裕を足す */
+@container dtab (max-width: 1219px) {
   .c-mo,
   .c-po {
     display: none;
   }
 }
-@container (max-width: 759px) {
+@container dtab (max-width: 1109px) {
   .c-cagr,
   .c-streak,
   .c-yoc,

@@ -23,6 +23,7 @@ import {
   compShade,
   contribBars,
   contribKey,
+  contribNoteDay,
   contribRows,
   contribSummary,
   DEFAULT_VIEW,
@@ -1093,5 +1094,14 @@ describe('予定の印と鍵（FR-PF6。全体のレビューで見つけた不�
   it('同じ銘柄のアラートが 2 件あっても鍵がぶつからない', () => {
     expect(eventKey(e(0, 'A', 'alert', '終値 ≥ 100'))).not.toBe(eventKey(e(0, 'A', 'alert', '終値 ≤ 50')))
     expect(eventKey(e(3, 'A'))).toBe(eventKey(e(3, 'A')))
+  })
+})
+
+describe('損益寄与の注記の日付（FR-PF5・PF8。十字線の日を見出しの外に出す）', () => {
+  it('今日・取得来は十字線の日（無ければ前の取引日）。今月・今年は前の取引日。十字線の日なら印を付ける', () => {
+    expect(contribNoteDay('day', '2026-11-10', '2026-11-13')).toEqual({ d: '11/10', at: true })
+    expect(contribNoteDay('all', '2026-11-10', '2026-11-13')).toEqual({ d: '11/10', at: true })
+    expect(contribNoteDay('day', null, '2026-11-13')).toEqual({ d: '11/13', at: false })
+    expect(contribNoteDay('month', '2026-11-10', '2026-11-13')).toEqual({ d: '11/13', at: false })
   })
 })

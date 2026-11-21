@@ -107,7 +107,9 @@ $effect(() => {
   display: grid;
   grid-template-columns: minmax(140px, 38%) 1fr;
   gap: 10px;
-  flex: 1 1 0;
+  /* 中身の高さから伸び縮みする（0 から伸ばすと、高さが中身で決まる狭い幅のカードで 0px になり、ドーナツが一部しか出ない）。
+     高さの決まった L のカードでは、一覧（.shr）の分だけ縮んでスクロールする */
+  flex: 1 1 auto;
   min-height: 0;
   align-items: center;
 }

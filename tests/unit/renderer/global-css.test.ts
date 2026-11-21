@@ -141,3 +141,18 @@ describe('マウスで操作しているときは枠を出さない（FR-KB3。:
     }
   })
 })
+
+describe('カードの見出しは縮まない・幅でたたむ（FR-PF1。見出しの 2 行目が下に重なった）', () => {
+  it('ポートフォリオと配当シミュレータのカードの見出しは flex: none（高さの決まったカードの中で 1 行分に縮まない）', () => {
+    const folio = rules(style('src/renderer/components/widgets/Folio.svelte')).find((r) => r.sel === '.card h3')
+    expect(folio?.body).toMatch(/flex:\s*none/)
+    const sim = rules(style('src/renderer/components/widgets/DivSim.svelte')).find((r) => r.sel === 'h3')
+    expect(sim?.body).toMatch(/flex:\s*none/)
+  })
+  it('ポートフォリオの見出しは名前付きのコンテナで、分類の切り替えは見出しの幅でたたむ（ペインの幅ではない）', () => {
+    const css = style('src/renderer/components/widgets/Folio.svelte')
+    expect(rules(css).find((r) => r.sel === '.card h3')?.body).toMatch(/container:\s*fhead\s*\/\s*inline-size/)
+    expect(css).toMatch(/@container fhead \(max-width: \d+px\) \{\s*\.gseg/)
+    expect(css).not.toMatch(/@container \(max-width: 759px\) \{\s*\.gseg/)
+  })
+})

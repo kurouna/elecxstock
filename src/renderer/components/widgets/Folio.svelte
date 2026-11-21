@@ -23,6 +23,7 @@ import {
   clampIndex,
   contribBars,
   contribKey,
+  contribNoteDay,
   contribRows,
   contribSummary,
   DIV_GROUPS,
@@ -266,6 +267,8 @@ $effect(() => {
   untrack(() => (popen = new Set([...popen, ...first])))
 })
 const cPeriod = $derived(CONTRIB_PERIODS[view.contrib]!)
+/** 損益寄与の注記の日付（今日・取得来は十字線の日） */
+const cNote = $derived(contribNoteDay(cPeriod, crossDay, lastClosedSession()))
 const cRows = $derived(contribRows(cPeriod, shown, cPeriod === 'month' ? contribM : contribY, (c) => nameOf(`JP:${c}`), cSplit))
 /** 損益寄与を口座ごとに分けたとき、口座の点を付ける銘柄（今は持っていない売った銘柄も、行が口座ごとに分かれていれば） */
 const cMulti = $derived(new Set([...multi, ...multiAcct(cRows.flatMap((r) => (r.acct ? [{ code: r.code, acct: r.acct }] : [])))]))
@@ -679,9 +682,10 @@ const empty = $derived(loaded && !rows.length && !recs.length)
         <div class="hero-sub">
           <span class={`num ${toneOf(tot.day)}`}>{yenFull(tot.day, true)}（{signPct(pct(tot.day, tot.value - tot.day), 2)}）</span>
           <span class="mute">{crossDay ? t('folio.prevDay') : t('folio.today')}</span>
-          {#if !crossDay}<span class="mute">{t('folio.n225')} <span class={`num ${toneOf(metric('IDX:N225')?.chgPct)}`}>{signPct(metric('IDX:N225')?.chgPct, 2)}</span> · <span title="1306">{t('folio.topixEtf')}</span> <span class={`num ${toneOf(metric('JP:1306')?.chgPct)}`}>{signPct(metric('JP:1306')?.chgPct, 2)}</span></span>{/if}
+          <span class="mute" class:off={!!crossDay} aria-hidden={!!crossDay}>{t('folio.n225')} <span class={`num ${toneOf(metric('IDX:N225')?.chgPct)}`}>{signPct(metric('IDX:N225')?.chgPct, 2)}</span> · <span title="1306">{t('folio.topixEtf')}</span> <span class={`num ${toneOf(metric('JP:1306')?.chgPct)}`}>{signPct(metric('JP:1306')?.chgPct, 2)}</span></span>
         </div>
-        {#if !crossDay && brief}<div class="brief">{briefText(brief)}</div>{/if}
+        <!-- 今日の値（指数の前日比・要約の文）は十字線の日には見せないが、場所を取ったまま（上の段の高さを変えない。M では下のカードがずれた） -->
+        {#if brief}<div class="brief" class:off={!!crossDay} aria-hidden={!!crossDay}>{briefText(brief)}</div>{/if}
         <div class="stats">
           <div class="stat"><span class="k">{t('folio.pnl')}</span><span class={`v num ${toneOf(tot.pnl)}`}>{manYen(tot.pnl, true)} <span class="mute">{signPct(pct(tot.pnl, tot.cost))}</span></span></div>
           <div class="stat"><span class="k">{t('folio.cost')}</span><span class="v num">{manYen(tot.cost)}</span></div>
@@ -748,7 +752,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
       <!-- 資産構成 -->
       <section class="card c-alloc" class:focus={card === 'alloc'} class:pulse={pulse === 'alloc'} data-card="alloc" onanimationend={() => pulse === 'alloc' && (pulse = null)}>
         <h3>
-          {t('folio.alloc')}<span class="crossday" class:off={!crossDay} aria-hidden={!crossDay}>{t('folio.atDay', { d: (crossDay ?? '0000-00-00').slice(5).replace('-', '/') })}</span>
+          {t('folio.alloc')}
           <span class="right">
             <MergeChk on={view.amerge} locked={mergeLocked(view, 'alloc')} onchange={(on) => applyView({ ...view, amerge: on }, 'alloc')} />
             {@render groupSeg('alloc')}
@@ -760,6 +764,8 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           <span>{t('folio.maxShare')}<b class="num">{(stats.max * 100).toFixed(1)}%</b></span>
           <span>{t('folio.top5')}<b class="num">{(stats.top5 * 100).toFixed(0)}%</b></span>
           <span title={t('folio.effTip')}>{t('folio.eff')}<b class="num">{stats.effective.toFixed(1)}</b></span>
+          <!-- 十字線の日（見出しに出すと見出しが 2 行になる）。場所を取ったまま出し入れする（ツリーマップの高さを変えない） -->
+          <span class="crossday atday" class:off={!crossDay} aria-hidden={!crossDay}>{t('folio.atDay', { d: (crossDay ?? '0000-00-00').slice(5).replace('-', '/') })}</span>
         </div>
         <AllocMap rows={shown} group={aGroup} heat={view.heat} split={aSplit} {multi} sel={tile} focused={card === 'alloc'} label={groupLabel} ontiles={onTiles} onpick={(i) => pick('alloc', i)} />
         <div class="keys" class:off={card !== 'alloc'} aria-hidden={card !== 'alloc'}>{#each [kk('G', 'folio.k.groupShared'), kk('A', 'folio.k.merge', mergeLocked(view, 'alloc')), kk('H', 'folio.k.heat'), kk('← → ↑ ↓', 'folio.k.tile'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span class:na={x.na}><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
@@ -768,14 +774,14 @@ const empty = $derived(loaded && !rows.length && !recs.length)
       <!-- 損益寄与 -->
       <section class="card c-contrib" class:focus={card === 'contrib'} data-card="contrib">
         <h3>
-          {t('folio.contrib')}<span class="crossday" class:off={!(crossDay && (cPeriod === 'day' || cPeriod === 'all'))} aria-hidden={!(crossDay && (cPeriod === 'day' || cPeriod === 'all'))}>{t('folio.atDay', { d: (crossDay ?? '0000-00-00').slice(5).replace('-', '/') })}</span>
+          {t('folio.contrib')}
           <span class="right"><Seg items={CONTRIB_PERIODS.map((p) => t(`folio.c.${p}` as Key))} on={view.contrib} label={segLabel('folio.k.cperiod')} onpick={(i) => applyView({ ...view, contrib: i })} /></span>
         </h3>
         <div class="csum">
           <b class={`num ${toneOf(cSum.total)}`}>{manYen(cSum.total, true)}</b>
           {#if cSum.div}<span>{t('folio.ofDiv')} <span class="num gold">{manYen(cSum.div, true)}</span></span>{/if}
           <span>{t('folio.upDown', { u: cSum.up, d: cSum.down })}</span>
-          <span class="right">{t(`folio.cNote.${cPeriod}` as Key, { d: lastClosedSession().slice(5).replace('-', '/') })}{#if (cPeriod === 'month' ? contribM : contribY)?.beforeRecords && (cPeriod === 'month' || cPeriod === 'year')} · {t('folio.beforeRecords')}{/if}</span>
+          <span class="right" class:atday={cNote.at}>{t(`folio.cNote.${cPeriod}` as Key, { d: cNote.d })}{#if (cPeriod === 'month' ? contribM : contribY)?.beforeRecords && (cPeriod === 'month' || cPeriod === 'year')} · {t('folio.beforeRecords')}{/if}</span>
           <span class="cmerge"><MergeChk on={view.cmerge} locked={false} onchange={(on) => applyView({ ...view, cmerge: on }, 'contrib')} /></span>
         </div>
         <div class="contrib">
@@ -871,7 +877,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
       <h2>{t('folio.secDiv')}<span class="mute">{t('folio.divNote', { n: realN })}</span></h2>
       <div class="dgrid">
         <section class="card c-dshare" class:focus={card === 'dshare'} data-card="dshare">
-          <h3>{t('folio.dshare')}<span class="right"><Seg items={DIV_GROUPS.map((g) => t(`folio.dg.${g}` as Key))} on={view.dgroup} label={segLabel('folio.k.group')} onpick={(i) => applyView({ ...view, dgroup: i })} /></span></h3>
+          <h3>{t('folio.dshare')}<span class="right">{@render divGroupSeg()}</span></h3>
           {#if dsum}<Donut groups={dGroups} total={dsum.now} sel={srow} focused={card === 'dshare'} {brushed} label={(g) => (dGroup === 'code' ? `${g.key} ${g.rows[0]?.name ?? ''}` : groupLabel(g.key))} unit={t(`folio.unit.${dGroup}` as Key)} byCode={dGroup === 'code'} onpick={(i) => pick('dshare', i)} />{/if}
           <div class="keys" class:off={card !== 'dshare'} aria-hidden={card !== 'dshare'}>{#each [kk('G', 'folio.k.group'), kk('↑ ↓', 'folio.k.row')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
         </section>
@@ -919,7 +925,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           <div class="note">{t('folio.dwfDef')}</div>
         </section>
         <section class="card c-dtab" class:focus={card === 'dtab'} data-card="dtab">
-          <h3>{dGroup === 'code' ? t('folio.dtabCode') : t('folio.dtabGroup', { g: t(`folio.dg.${dGroup}` as Key) })}<span class="right"><MergeChk on={view.dmerge} locked={mergeLocked(view, 'dtab')} onchange={(on) => applyView({ ...view, dmerge: on }, 'dtab')} /><Seg items={DIV_GROUPS.map((g) => t(`folio.dg.${g}` as Key))} on={view.dgroup} label={segLabel('folio.k.group')} onpick={(i) => applyView({ ...view, dgroup: i })} /></span></h3>
+          <h3>{dGroup === 'code' ? t('folio.dtabCode') : t('folio.dtabGroup', { g: t(`folio.dg.${dGroup}` as Key) })}<span class="right"><MergeChk on={view.dmerge} locked={mergeLocked(view, 'dtab')} onchange={(on) => applyView({ ...view, dmerge: on }, 'dtab')} />{@render divGroupSeg()}</span></h3>
           <DivTable
             rows={tRows}
             group={dGroup}
@@ -943,9 +949,26 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   {/if}
 </div>
 
+<!-- 分類の切り替え: 見出しの幅が足りなければ（@container fhead）、今の分類のボタン 1 つにたたむ（押すと次の分類） -->
+{#snippet groupSwitch(items: string[], on: number, label: string, onpick: (i: number) => void)}
+  <span class="gseg"><Seg {items} {on} {label} {onpick} /></span>
+  <button type="button" class="segmini" tabindex="-1" onmousedown={(e) => e.preventDefault()} title={t('folio.groupNext')} onclick={() => onpick((on + 1) % items.length)}>{items[on]} ▾</button>
+{/snippet}
 {#snippet groupSeg(from: Card)}
-  <span class="gseg"><Seg items={ALLOC_GROUPS.map((g) => t(`folio.dg.${g}` as Key))} on={view.group} label={segLabel('folio.groupShared')} onpick={(i) => applyView({ ...view, group: i }, from)} /></span>
-  <button type="button" class="segmini" tabindex="-1" onmousedown={(e) => e.preventDefault()} title={t('folio.groupNext')} onclick={() => applyView({ ...view, group: (view.group + 1) % ALLOC_GROUPS.length }, from)}>{t(`folio.dg.${aGroup}` as Key)} ▾</button>
+  {@render groupSwitch(
+    ALLOC_GROUPS.map((g) => t(`folio.dg.${g}` as Key)),
+    view.group,
+    segLabel('folio.groupShared'),
+    (i) => applyView({ ...view, group: i }, from),
+  )}
+{/snippet}
+{#snippet divGroupSeg()}
+  {@render groupSwitch(
+    DIV_GROUPS.map((g) => t(`folio.dg.${g}` as Key)),
+    view.dgroup,
+    segLabel('folio.k.group'),
+    (i) => applyView({ ...view, dgroup: i }),
+  )}
 {/snippet}
 
 <style>
@@ -985,7 +1008,8 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   flex: 1;
   min-height: 0;
   overflow: auto;
-  container-type: inline-size;
+  /* ペインの幅（名前の無い @container もここを見る）。表は自分の幅（ptab・dtab）で列を決める */
+  container: folio / inline-size;
   background: var(--bg);
 }
 .grid,
@@ -1079,6 +1103,9 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 }
 .card h3 {
   margin: 0;
+  /* 高さの決まったカードの中で 1 行分に縮まない（縮むと 2 行目が下の行に重なる）。分類の切り替えを見出しの幅でたたむコンテナ */
+  flex: none;
+  container: fhead / inline-size;
   font-size: var(--fs-2);
   font-weight: 500;
   color: var(--text-2);
@@ -1114,6 +1141,12 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 .chip.warn {
   color: var(--warn);
   border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}
+.conc .crossday {
+  margin-left: auto;
+}
+.atday {
+  color: var(--focus);
 }
 .crossday.off {
   visibility: hidden;
@@ -1169,7 +1202,8 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   cursor: pointer;
   white-space: nowrap;
 }
-@container (max-width: 759px) {
+/* 見出しの幅（fhead）で決める。ペインの幅ではない（同じ分類の切り替えでも、狭い資産構成はたたみ、広い表は 6 つを出す） */
+@container fhead (max-width: 620px) {
   .gseg {
     display: none;
   }
@@ -1203,6 +1237,8 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 /* 評価額 */
 .c-hero {
   gap: 6px;
+  /* 評価額の数字の大きさをカードの幅で決める（ペインの幅で決めると M の狭いカードで大きすぎた） */
+  container: hero / inline-size;
 }
 .c-hero::before {
   content: '';
@@ -1216,14 +1252,18 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 }
 .hero-value {
   font-family: var(--mono);
-  font-size: clamp(28px, 6cqi, 42px);
+  /* カード（hero）の幅の 12.5%。M の下限（カード約 240px）でも 1 億円台（12 字）が 1 行に収まる */
+  font-size: clamp(22px, 12.5cqi, 42px);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.05;
+  /* めくる桁は inline-block なので、間で折り返せてしまう（十字線の日に 2 行になり、上の段が高くなった） */
+  white-space: nowrap;
 }
-@container (min-width: 1180px) {
-  .hero-value {
-    font-size: clamp(30px, 2.7cqi, 42px);
+@container folio (min-width: 1180px) {
+  /* L の 1 段目は高さに上限がある。見出しの増減の文が 2 行になっても、キーの案内がカードの下からはみ出さないよう図を少し縮められる */
+  .c-hist :global(.chart) {
+    min-height: 120px;
   }
 }
 .hero-sub {
@@ -1233,6 +1273,10 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   font-size: var(--fs-2);
   color: var(--text-2);
   align-items: baseline;
+}
+.hero-sub .off,
+.brief.off {
+  visibility: hidden;
 }
 .brief {
   font-size: var(--fs-2);

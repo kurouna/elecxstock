@@ -158,8 +158,10 @@ const dim = (codes: string[]) => dimmed(brushed, codes)
   flex: none;
   max-height: 400px;
   overflow: auto;
+  /* 列は表の幅で出し分ける（ペインの幅で決めると、L の下限で表が M より狭いのに列が多くなり、横にはみ出した） */
+  container: ptab / inline-size;
 }
-@container (min-width: 1180px) {
+@container folio (min-width: 1180px) {
   .pt {
     max-height: 330px;
   }
@@ -353,7 +355,8 @@ tr.dim {
 .flat {
   color: var(--flat);
 }
-@container (max-width: 1179px) {
+/* しきい値は、その列の組み合わせで表がいる幅（実測。ja・en の大きいほう 1144・875px）に、金額の桁の多い保有の分の余裕を足す */
+@container ptab (max-width: 1199px) {
   .c-dayp,
   .c-yoc,
   .c-in,
@@ -364,7 +367,7 @@ tr.dim {
     grid-template-columns: 1fr;
   }
 }
-@container (max-width: 759px) {
+@container ptab (max-width: 939px) {
   .c-qty,
   .c-avg,
   .c-close,
