@@ -6,7 +6,7 @@ import { type Launched, type LaunchOpts, launch as rawLaunch, ready } from './la
 export { expect } from '@playwright/test'
 export { TEST_NOW } from '../../../src/shared/clock'
 export * from './keys'
-export { type Launched, type LaunchOpts, readUser, ready, type UserFile, userFile, writeUser } from './launch'
+export { type Launched, type LaunchOpts, readUser, readUserIf, ready, type UserFile, userFile, writeUser } from './launch'
 export * from './layout'
 export * from './ops'
 

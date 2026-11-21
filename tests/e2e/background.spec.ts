@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ElectronApplication, Locator, Page } from '@playwright/test'
-import { expect, keys, pane, readUser, rpc, tab, test } from './support'
+import { expect, keys, pane, readUser, readUserIf, rpc, tab, test } from './support'
 import { launchEnv, ROOT } from './support/launch'
 
 const STUB = { ELECXSTOCK_BACKGROUND_STUB: '1' }
@@ -52,7 +52,7 @@ test.describe('閉じても通知領域に残す（FR-BG1・BG2・BG3・BG5）',
     await tabTo(page, sw)
     await keys(page, 'Space')
     await expect(sw).toHaveAttribute('aria-checked', 'true')
-    await expect.poll(() => readUser<{ closeToTray: boolean }>(userData, 'settings').closeToTray).toBe(true)
+    await expect.poll(() => readUserIf<{ closeToTray: boolean }>(userData, 'settings')?.closeToTray).toBe(true)
     await keys(page, 'Escape', 'Escape')
 
     // しまう前はトレイを出さない

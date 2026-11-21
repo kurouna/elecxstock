@@ -1,5 +1,5 @@
 // アプリの起動（docs/test-plan.md §3.1・§3.2）: スタブのプロバイダ・基準日時・種の userData の写し
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type ElectronApplication, _electron as electron, expect, type Page } from '@playwright/test'
@@ -43,6 +43,13 @@ export const userFile = (userData: string, name: string) => join(userData, 'data
 export function readUser<T = unknown>(userData: string, name: UserFile): T {
   const raw = JSON.parse(readFileSync(userFile(userData, name), 'utf8'))
   return (raw && typeof raw === 'object' && 'data' in raw ? raw.data : raw) as T
+}
+/**
+ * 利用者の JSON を読む。まだ無ければ undefined（expect.poll の中で使う。Core が書く前に読むと readUser は投げ、
+ * poll は投げた時点で待たずに落ちる。CI の遅いマシンで drawings.json が無いと落ちた）
+ */
+export function readUserIf<T = unknown>(userData: string, name: UserFile): T | undefined {
+  return existsSync(userFile(userData, name)) ? readUser<T>(userData, name) : undefined
 }
 /**
  * 利用者の JSON を書く。Core が読むときと同じスキーマ（USER_FILE_SCHEMAS）で先に確かめる。通らないフィクスチャは、Core が黙って退避して

@@ -2,7 +2,7 @@
 // 時間軸を替えても同じ日付・再起動しても残る・グリッドのタイルにも出る。キャンバスの中は読めないので、チャートの要素の
 // data-drawings（図形）・data-draw-state（状態とカーソル）と、タイルの canvas[data-drawings]（描いた本数）で確かめる。値はスタブ（架空）
 import type { Locator, Page } from '@playwright/test'
-import { expect, keys, readUser, rpc, tab, test } from './support'
+import { expect, keys, readUserIf, rpc, tab, test } from './support'
 
 type Shown = {
   id: string
@@ -64,7 +64,7 @@ test.describe('トレンドラインをキーだけで引く（FR-C13, FR-C14）
     expect(d!.extend).toBe('none')
     await expect(guide).toContainText('Space')
     // Core に保存されている
-    await expect.poll(() => Object.values(readUser<Record<string, unknown[]>>(userData, 'drawings') ?? {}).flat().length).toBe(1)
+    await expect.poll(() => Object.values(readUserIf<Record<string, unknown[]>>(userData, 'drawings') ?? {}).flat().length).toBe(1)
     // Esc で選択を外すと案内も消える
     await keys(page, 'Escape')
     await expect(guide).toHaveCSS('visibility', 'hidden')
