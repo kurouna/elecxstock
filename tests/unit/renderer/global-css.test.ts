@@ -5,6 +5,12 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const read = (p: string) => readFileSync(join(__dirname, '../../../', p), 'utf8')
+/** コンポーネントの <style> の中身 */
+const style = (file: string) => read(file).split('<style>')[1] ?? ''
+/** CSS の規則（セレクタと中身）。コメントを除く */
+const rules = (css: string) =>
+  [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }))
+const zOf = (body: string) => Number(body.match(/z-index:\s*(\d+)/)?.[1] ?? Number.NaN)
 /** CSS の規則のセレクタ（{ の前）を、コメントを除いて取り出す */
 const selectors = (css: string) =>
   css
@@ -15,8 +21,8 @@ const selectors = (css: string) =>
 
 describe('全体の CSS の漏れ（FR-V5）', () => {
   it('Overlays.svelte の :global はダイアログ（.dialog）か背景（.scrim）の中に閉じる', () => {
-    const style = read('src/renderer/components/overlays/Overlays.svelte').split('<style>')[1] ?? ''
-    const globals = [...style.matchAll(/:global\(([^)]*)\)/g)].map((m) => m[1]!.trim())
+    const css = style('src/renderer/components/overlays/Overlays.svelte')
+    const globals = [...css.matchAll(/:global\(([^)]*)\)/g)].map((m) => m[1]!.trim())
     expect(globals.length).toBeGreaterThan(0)
     const leaked = globals.filter((g) => !/^(\.dialog|\.scrim|:root)\b/.test(g))
     expect(leaked).toEqual([])
@@ -58,13 +64,10 @@ describe('フォーカス・選択の枠は中身より上に重ねる（FR-KB3�
     ['src/renderer/components/widgets/folio/AllocMap.svelte', '.tile.sel'],
     ['src/renderer/components/Dock.svelte', '.rail:focus-visible'],
   ]
-  /** CSS の規則（セレクタと中身）。コメントを除く */
-  const rules = (css: string) =>
-    [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }))
   for (const [file, sel] of FILES) {
     it(`${file} の ${sel}`, () => {
       const src = read(file)
-      const css = file.endsWith('.svelte') ? (src.split('<style>')[1] ?? '') : src
+      const css = file.endsWith('.svelte') ? style(file) : src
       const rs = rules(css)
       // 要素そのものには var(--focus) の inset の枠を描かない
       const own = rs.filter(
@@ -90,10 +93,6 @@ describe('フォーカス・選択の枠は中身より上に重ねる（FR-KB3�
 })
 
 describe('枠の重なりの順番（FR-KB3。レビューで見つけた不具合）', () => {
-  const rules = (css: string) =>
-    [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }))
-  const style = (file: string) => read(file).split('<style>')[1] ?? ''
-  const zOf = (body: string) => Number(body.match(/z-index:\s*(\d+)/)?.[1] ?? Number.NaN)
   it('タイルの枠は、タイルの中の見出し・印（z-index を持つ子）より上', () => {
     for (const file of [
       'src/renderer/components/widgets/ChartGrid.svelte',
@@ -128,12 +127,10 @@ describe('枠の重なりの順番（FR-KB3。レビューで見つけた不具�
 })
 
 describe('マウスで操作しているときは枠を出さない（FR-KB3。::before に移しても効く）', () => {
-  const rules = (css: string) =>
-    [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }))
   it('ペインとチャートグリッドの選んだタイルの枠は、ポインタの操作で（枠を常に出す設定でなければ）消す', () => {
     for (const [css, target] of [
       [read('src/renderer/app.css'), '.pane.focused::before'],
-      [read('src/renderer/components/widgets/ChartGrid.svelte').split('<style>')[1] ?? '', '.tile.sel::before'],
+      [style('src/renderer/components/widgets/ChartGrid.svelte'), '.tile.sel::before'],
     ] as const) {
       const off = rules(css).find((r) => r.sel.includes('data-input') && r.sel.includes('not([data-focus-always') && r.sel.endsWith(target))
       expect(off?.body, target).toMatch(/box-shadow:\s*none/)
