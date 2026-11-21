@@ -130,7 +130,7 @@ const groupLabel = (g: NewsFeed['group']) => t(`news.tab.${g}` as Key)
           {@const st = statusOf(f.id)}
           {@const on = feedOn(f, s, lang)}
           {@const i = flat.indexOf(f)}
-          <div class="frow" class:sel={i === fsel} role="option" aria-selected={i === fsel} tabindex="-1" onclick={() => ((fsel = i), box?.focus())} onkeydown={() => {}}>
+          <div class="frow" class:sel={i === fsel} role="option" aria-selected={i === fsel} tabindex="-1" onclick={() => ((fsel = i), box?.focus({ preventScroll: true }))} onkeydown={() => {}}>
             <Switch {on} label={f.name[lang]} disabled={locked} tabindex={-1} onchange={() => toggleFeed(f)} />
             <span class="src">{f.short}</span>
             <span class="nm"><span class="nmt">{f.name[lang]}</span>

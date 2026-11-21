@@ -138,3 +138,43 @@ test.describe('設定の本文の回帰（FR-KB11, FR-C12, FR-V10）', () => {
     await expect(dlg.getByRole('textbox', { name: '設定を探す' })).toBeFocused()
   })
 })
+
+// コードレビュー（2026-11-21、2 回目）: 一覧の行を押したときに、本文のスクロールを一覧の上端へ戻さない
+test.describe('一覧の行を押しても本文がスクロールで戻らない（FR-KB6, FR-NW2, FR-KB11）', () => {
+  /** 本文を下へスクロールし、見えている行のうち下のほうを押して、本文のスクロール位置が変わらないか */
+  const clickLowerRow = async (page: Page, row: string) => {
+    const body = page.locator('.sbody')
+    await body.evaluate((b) => {
+      b.scrollTop = b.scrollHeight
+    })
+    const before = await body.evaluate((b) => b.scrollTop)
+    expect(before).toBeGreaterThan(0)
+    // 本文の中で見えている行の最後
+    const idx = await page.locator(row).evaluateAll((rs) => {
+      const box = document.querySelector('.sbody')!.getBoundingClientRect()
+      let k = -1
+      rs.forEach((r, i) => {
+        const b = r.getBoundingClientRect()
+        if (b.top >= box.top && b.bottom <= box.bottom) k = i
+      })
+      return k
+    })
+    expect(idx).toBeGreaterThanOrEqual(0)
+    await page.locator(row).nth(idx).click()
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))))
+    expect(Math.abs((await body.evaluate((b) => b.scrollTop)) - before)).toBeLessThanOrEqual(1)
+  }
+  test('キーのタブ', async ({ start }) => {
+    const { page } = await start()
+    await keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown')
+    await expect(page.getByRole('tab', { name: 'キー' })).toHaveAttribute('aria-selected', 'true')
+    await clickLowerRow(page, '.krow')
+  })
+  test('ニュースのタブ', async ({ start }) => {
+    const { page } = await start()
+    await keys(page, 'Control+Comma', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown')
+    await expect(page.getByRole('tab', { name: 'ニュース' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.locator('.frow').first()).toBeVisible()
+    await clickLowerRow(page, '.frow')
+  })
+})

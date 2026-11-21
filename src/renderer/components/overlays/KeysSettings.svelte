@@ -141,7 +141,7 @@ onMount(() => () => {
         {#each g.items as r (r.a.id)}
           {@const on = r.i === sel}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <div class="krow" class:sel={on} id="key-{r.a.id}" role="option" aria-selected={on} tabindex="-1" onclick={() => ((sel = r.i), (clash = null), (recording = true), box?.focus())}>
+          <div class="krow" class:sel={on} id="key-{r.a.id}" role="option" aria-selected={on} tabindex="-1" onclick={() => ((sel = r.i), (clash = null), (recording = true), box?.focus({ preventScroll: true }))}>
             <span class="k">
               {#if recording && on}
                 <span class="rec">{clash ? clash.key : t('keys.pressing')}</span>
