@@ -130,7 +130,7 @@ const dim = (codes: string[]) => dimmed(brushed, codes)
         <td class={`num ${toneOf(total.pnl)}`}>{yenFull(total.pnl, true)}</td>
         <td class={`num ${toneOf(total.pnl)}`}>{signPct(rateOf(total))}</td>
         <td class="num">100.0%</td>
-        <td class="num c-yoc">{total.yoc == null ? '—' : `${total.yoc.toFixed(2)}%`}</td>
+        <td class="num c-yoc" title={t('folio.yocTip')}>{total.yoc == null ? '—' : `${total.yoc.toFixed(2)}%`}</td>
       </tr>
     </tfoot>
   </table>

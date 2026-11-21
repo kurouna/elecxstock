@@ -19,6 +19,7 @@ import {
   briefOf,
   type Card,
   CONTRIB_PERIODS,
+  cardOrder,
   clampIndex,
   contribBars,
   contribKey,
@@ -36,6 +37,7 @@ import {
   eventsOf,
   type FolioView,
   firstOpen,
+  folioWidth,
   groupKey,
   HIST_PERIODS,
   heroNumbers,
@@ -379,6 +381,8 @@ const dim = (code: string) => !!brushed && !brushed.has(code)
 
 // ---- 段（概要 ／ 配当の分析） ----
 let scroller = $state<HTMLDivElement>()
+// ペインの幅（Tab の順を画面の並びに合わせる）
+let fw = $state(0)
 let dsec = $state<HTMLElement>()
 let sec = $state<'top' | 'div'>('top')
 function goSec(s: 'top' | 'div') {
@@ -446,7 +450,7 @@ function pick(c: Card, i: number): void {
 function key(e: KeyboardEvent): boolean {
   const c = e.code
   if (c === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
-    card = nextCard(card, e.shiftKey)
+    card = nextCard(card, e.shiftKey, cardOrder(folioWidth(fw)))
     return true
   }
   const p = periodOfKey(e)
@@ -648,7 +652,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   <span class="muted asof">{t('folio.asof', { d: lastClosedSession().slice(5).replace('-', '/'), n: realN })}</span>
 </PaneHeader>
 
-<div class="folio" bind:this={scroller} onscroll={onScroll}>
+<div class="folio" bind:this={scroller} bind:clientWidth={fw} onscroll={onScroll}>
   {#if isLoading}
     <div class="grid">
       {#each ['hero', 'hist', 'alloc', 'contrib', 'events', 'ptab', 'div'] as c (c)}<section class={`card c-${c}`}><div class="sk w28"></div><div class="sk w45"></div><div class="sk fill"></div></section>{/each}

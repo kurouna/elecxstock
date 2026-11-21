@@ -5,6 +5,7 @@ import type { Locator, Page } from '@playwright/test'
 import { addDays, isTradingDay } from '../../src/shared/calendar'
 import type { FolioPoint } from '../../src/shared/types'
 import { expect, holdings, keys, tab, test } from './support'
+import { motionDone } from './support/ops'
 
 /** 目で確かめるためのスクリーンショット（FOLIO_SHOTS=<フォルダ> のときだけ） */
 const shot = async (page: Page, name: string) => {
@@ -168,9 +169,11 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     const f = page.locator('[data-widget="folio"]')
     const pt = f.locator('.c-ptab')
     await expect(pt).toContainText('業種ごとの資産')
-    // 資産推移 → 資産構成 → 損益寄与 → 予定 → 分類ごとの資産（L の並び）
-    await keys(page, 'Tab', 'Tab', 'Tab', 'Tab', 'Tab')
+    // 既定の窓（ペインの幅は中）: 資産推移 → 資産構成 → 損益寄与 → 分類ごとの資産（画面の並びの順）
+    await keys(page, 'Tab', 'Tab', 'Tab', 'Tab')
     await expect(pt).toHaveClass(/focus/)
+    // 合計の取得利回りは、全体の利回りと読まれないよう数え方を添える
+    await expect(pt.locator('tfoot td.c-yoc')).toHaveAttribute('title', /配当の分からない銘柄は除く/)
     // はじめて見る分類は大きい上位 2 つが開いている。Shift+→ ですべて開き、Shift+← ですべて閉じる
     await expect(pt.locator('tr.g.open')).toHaveCount(2)
     const groups = await pt.locator('tr.g').count()
@@ -207,6 +210,18 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await f.locator('.c-alloc').getByRole('radio', { name: '口座' }).click()
     await expect(pt.locator('.mchk')).toHaveCSS('visibility', 'hidden')
     await shot(page, 'folio-ptab')
+    // 最大化して L の並び（2 段目に予定、その下に表）にすると、Tab も予定の次に表へ移る
+    await keys(page, 'Control+Shift+Enter')
+    await motionDone(page)
+    expect(await f.locator('.folio').evaluate((e) => e.clientWidth)).toBeGreaterThanOrEqual(1180)
+    const order = ['hist', 'alloc', 'contrib', 'events', 'ptab', 'div', 'dshare', 'dtab']
+    await expect(f.locator('.card.focus')).toHaveCount(1)
+    const now = await f.locator('.card.focus').getAttribute('data-card')
+    for (let i = (order.indexOf('contrib') - order.indexOf(now!) + 8) % 8; i > 0; i--) await keys(page, 'Tab')
+    for (const c of ['contrib', 'events', 'ptab', 'div']) {
+      await expect(f.locator(`.c-${c}`)).toHaveClass(/focus/)
+      await keys(page, 'Tab')
+    }
   })
 
   test('損益寄与・配当の表の「同じ銘柄をまとめる」はカードごと。外すと 2 口座の銘柄が口座ごとの行になる（FR-PF6）', async ({ start }) => {
@@ -314,7 +329,8 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
         tiles: [...el.querySelectorAll('.c-alloc .tile')].map((t) => t.getAttribute('title')).join('|'),
       }))
     const base = await measure()
-    for (const name of ['hist', 'alloc', 'contrib', 'events', 'ptab', 'div']) {
+    // 既定の窓（中の幅）の画面の並び
+    for (const name of ['hist', 'alloc', 'contrib', 'ptab', 'div', 'events']) {
       await keys(page, 'Tab')
       await expect(f.locator(`.c-${name}`)).toHaveClass(/focus/)
       if (name !== 'events') await expect(f.locator(`.c-${name} .keys`)).toBeVisible()

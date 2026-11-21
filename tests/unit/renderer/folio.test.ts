@@ -17,6 +17,7 @@ import {
   briefOf,
   byCode,
   CARDS,
+  cardOrder,
   clampIndex,
   compOf,
   compShade,
@@ -36,6 +37,7 @@ import {
   divYields,
   eventsOf,
   firstOpen,
+  folioWidth,
   groupKey,
   heatBg,
   heroNumbers,
@@ -133,6 +135,23 @@ describe('表示の状態とキー（FR-PF6）', () => {
     expect(CARDS).toHaveLength(8)
     expect(nextCard('events', false)).toBe('ptab')
     expect(nextCard('ptab', false)).toBe('div')
+  })
+  it('Tab の順はペインの幅の並びに合わせる（狭い: 縦 1 列・中: 2 段目の次に表・L: 2 段目に予定）', () => {
+    expect(folioWidth(500)).toBe('s')
+    expect(folioWidth(759)).toBe('s')
+    expect(folioWidth(760)).toBe('m')
+    expect(folioWidth(1179)).toBe('m')
+    expect(folioWidth(1180)).toBe('l')
+    // 幅がまだ分からない（0）ときは L の並び
+    expect(folioWidth(0)).toBe('l')
+    expect(cardOrder('s')).toEqual(['hist', 'alloc', 'ptab', 'contrib', 'div', 'events', 'dshare', 'dtab'])
+    expect(cardOrder('m')).toEqual(['hist', 'alloc', 'contrib', 'ptab', 'div', 'events', 'dshare', 'dtab'])
+    expect(cardOrder('l')).toEqual([...CARDS])
+    for (const w of ['s', 'm', 'l'] as const) expect([...cardOrder(w)].sort()).toEqual([...CARDS].sort())
+    expect(nextCard('alloc', false, cardOrder('s'))).toBe('ptab')
+    expect(nextCard('events', false, cardOrder('m'))).toBe('dshare')
+    expect(nextCard('contrib', true, cardOrder('m'))).toBe('alloc')
+    expect(nextCard(null, true, cardOrder('s'))).toBe('dtab')
   })
   it('単キーの意味はカードで変えない: G は選んでいるカードの分類、S は表の並べ替え、B はベンチマークで % にする', () => {
     const v = DEFAULT_VIEW

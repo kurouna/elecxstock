@@ -38,9 +38,19 @@ import { type Placed, squarify } from './treemap'
 /** L の並び（2 段目: 資産構成・損益寄与・予定、3 段目: 分類ごとの資産・配当見込み）の順 */
 export const CARDS = ['hist', 'alloc', 'contrib', 'events', 'ptab', 'div', 'dshare', 'dtab'] as const
 export type Card = (typeof CARDS)[number]
-export function nextCard(cur: Card | null, back: boolean): Card {
-  const i = cur ? CARDS.indexOf(cur) : back ? 0 : -1
-  return CARDS[(i + (back ? -1 : 1) + CARDS.length) % CARDS.length]!
+/** ペインの幅の段（Folio.svelte の @container 760px・1180px と同じ境）。幅がまだ分からない（0）ときは L */
+export type FolioWidth = 's' | 'm' | 'l'
+export const folioWidth = (w: number): FolioWidth => (w <= 0 || w >= 1180 ? 'l' : w >= 760 ? 'm' : 's')
+/** 幅ごとの画面の並び（grid-template-areas）の順。Tab はこの順に巡る */
+const ORDERS: Record<FolioWidth, readonly Card[]> = {
+  s: ['hist', 'alloc', 'ptab', 'contrib', 'div', 'events', 'dshare', 'dtab'],
+  m: ['hist', 'alloc', 'contrib', 'ptab', 'div', 'events', 'dshare', 'dtab'],
+  l: CARDS,
+}
+export const cardOrder = (w: FolioWidth): readonly Card[] => ORDERS[w]
+export function nextCard(cur: Card | null, back: boolean, order: readonly Card[] = CARDS): Card {
+  const i = cur ? order.indexOf(cur) : back ? 0 : -1
+  return order[(i + (back ? -1 : 1) + order.length) % order.length]!
 }
 /** 資産推移の期間（記録・1M・3M・6M・1Y・全。Alt+1〜6） */
 export const HIST_PERIODS: { key: string; bars: number }[] = [
