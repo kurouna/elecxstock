@@ -1,6 +1,6 @@
 // 全体の CSS（app.css・コンポーネントの :global）が、よくある名前のクラスでほかのペインに漏れないこと（レビューの指摘。株価ボードの .foot の衝突）。
 // 漏れると、同じ名前のクラスを使ったペイン・ダイアログの見た目が、知らないうちに崩れる
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -86,5 +86,57 @@ describe('フォーカス・選択の枠は中身より上に重ねる（FR-KB3�
     expect(z).toBeGreaterThan(5)
     expect(z).toBeLessThan(30)
     expect(rs.filter((r) => /\.pane[^\s,]*::after/.test(r.sel)).map((r) => r.sel)).toEqual([])
+  })
+})
+
+describe('枠の重なりの順番（FR-KB3。レビューで見つけた不具合）', () => {
+  const rules = (css: string) =>
+    [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }))
+  const style = (file: string) => read(file).split('<style>')[1] ?? ''
+  const zOf = (body: string) => Number(body.match(/z-index:\s*(\d+)/)?.[1] ?? Number.NaN)
+  it('タイルの枠は、タイルの中の見出し・印（z-index を持つ子）より上', () => {
+    for (const file of [
+      'src/renderer/components/widgets/ChartGrid.svelte',
+      'src/renderer/components/widgets/MarketOverview.svelte',
+      'src/renderer/components/widgets/folio/AllocMap.svelte',
+    ]) {
+      const rs = rules(style(file))
+      const frame = zOf(rs.find((r) => /\.tile\.sel::before$/.test(r.sel))!.body)
+      // タイルそのもの（.tile・.tile:hover・.tile.sel）と枠の疑似要素を除いた、z-index を持つ子
+      const kids = rs.filter((r) => /z-index/.test(r.body) && !/\.tile(\.sel|:hover)?(::before)?$/.test(r.sel) && !/::before$/.test(r.sel))
+      for (const k of kids) expect(frame, `${file} ${k.sel}`).toBeGreaterThan(zOf(k.body))
+    }
+  })
+  it('ペインの中の z-index は、フォーカスの枠より下（中身）か、銘柄を落とす場所の表示（30）以上（説明・メニュー）', () => {
+    const frame = zOf(rules(read('src/renderer/app.css')).find((r) => r.sel === '.pane.focused::before')!.body)
+    const dir = (d: string): string[] =>
+      readdirSync(join(__dirname, '../../../', d), { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? dir(`${d}/${e.name}`) : e.name.endsWith('.svelte') ? [`${d}/${e.name}`] : [],
+      )
+    const bad = [...dir('src/renderer/components/widgets'), ...dir('src/renderer/news')].flatMap((f) =>
+      rules(style(f))
+        .filter((r) => /z-index/.test(r.body) && zOf(r.body) >= frame && zOf(r.body) < 30)
+        .map((r) => `${f} ${r.sel}`),
+    )
+    expect(bad).toEqual([])
+  })
+  it('チャートグリッド: マウスを載せた淡い枠は選んだタイルには掛けない（「枠を常に出す」のとき青い枠が灰色にならない）', () => {
+    const hover = rules(style('src/renderer/components/widgets/ChartGrid.svelte')).filter((r) => /\.tile[^\s]*:hover::before$/.test(r.sel))
+    expect(hover.length).toBeGreaterThan(0)
+    for (const r of hover) expect(r.sel).toContain(':not(.sel)')
+  })
+})
+
+describe('マウスで操作しているときは枠を出さない（FR-KB3。::before に移しても効く）', () => {
+  const rules = (css: string) =>
+    [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }))
+  it('ペインとチャートグリッドの選んだタイルの枠は、ポインタの操作で（枠を常に出す設定でなければ）消す', () => {
+    for (const [css, target] of [
+      [read('src/renderer/app.css'), '.pane.focused::before'],
+      [read('src/renderer/components/widgets/ChartGrid.svelte').split('<style>')[1] ?? '', '.tile.sel::before'],
+    ] as const) {
+      const off = rules(css).find((r) => r.sel.includes('data-input') && r.sel.includes('not([data-focus-always') && r.sel.endsWith(target))
+      expect(off?.body, target).toMatch(/box-shadow:\s*none/)
+    }
   })
 })

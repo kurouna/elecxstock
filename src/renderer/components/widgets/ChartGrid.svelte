@@ -717,7 +717,8 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
     content: '';
     position: absolute;
     inset: 0;
-    z-index: 1;
+    /* 見出し（.h）・印（.s）の z-index 1 より上 */
+    z-index: 2;
     pointer-events: none;
     box-shadow: inset 0 0 0 1px var(--focus);
   }
@@ -725,11 +726,12 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   :global(:root[data-input='pointer']:not([data-focus-always='true'])) .tile.sel::before {
     box-shadow: none;
   }
-  :global(:root[data-input='pointer']) .tile:hover::before {
+  /* 選んだタイルには掛けない（「枠を常に出す」のとき、載せると青い枠が灰色になっていた） */
+  :global(:root[data-input='pointer']) .tile:not(.sel):hover::before {
     content: '';
     position: absolute;
     inset: 0;
-    z-index: 1;
+    z-index: 2;
     pointer-events: none;
     box-shadow: inset 0 0 0 1px var(--line-strong);
   }
