@@ -1,5 +1,6 @@
 <script lang="ts">
 import { refocusPane } from '../../lib/commands'
+import { trapTab } from '../../lib/focusTrap'
 import { app, closeOverlay } from '../../stores/app.svelte'
 import AlertForm from './AlertForm.svelte'
 import AlertsPopup from './AlertsPopup.svelte'
@@ -29,11 +30,12 @@ function backdrop(e: MouseEvent) {
 
 {#if app.overlay}
   {#if app.overlay.kind === 'jump'}
+    <!-- 銘柄ジャンプはキーをすべて窓の capture で受ける（Tab も止める）ので、折り返しは要らない -->
     <Jump first={app.overlay.first} />
   {:else}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <!-- マイレイアウトのメニューはタブの下に出すので、画面を暗くしない -->
-    <div class="scrim" class:menu={app.overlay.kind === 'pageMenu'} onmousedown={backdrop}>
+    <div class="scrim" class:menu={app.overlay.kind === 'pageMenu'} onmousedown={backdrop} onkeydown={(e) => trapTab(e, e.currentTarget as HTMLElement)}>
       {#if app.overlay.kind === 'palette'}
         <Palette q={app.overlay.q ?? ''} title={app.overlay.title} />
       {:else if app.overlay.kind === 'help'}
@@ -155,17 +157,6 @@ function backdrop(e: MouseEvent) {
     border-top: 1px solid var(--line-strong);
     color: var(--text-3);
     font-size: var(--fs-1);
-  }
-  :global(.dialog input.search) {
-    width: 100%;
-    height: 40px;
-    background: var(--bg);
-    border: 0;
-    border-bottom: 1px solid var(--line-strong);
-    color: var(--text);
-    font-size: var(--fs-4);
-    padding: 0 12px;
-    outline: none;
   }
 
   /* ---- 探して選ぶダイアログの共通の骨格（コマンドバー・ショートカット一覧・ペインの種類・設定。docs/design-dialogs.md §2） */
@@ -341,6 +332,10 @@ function backdrop(e: MouseEvent) {
     border-top: 1px solid var(--line);
     font-size: var(--fs-1);
     color: var(--text-3);
+  }
+  /* 案内の 1 つ（キーと働き）は途中で折り返さない（狭い幅で kbd と言葉が分かれないように） */
+  :global(.dialog .lx-foot > span) {
+    white-space: nowrap;
   }
   :global(.dialog .lx-foot .r) {
     margin-left: auto;

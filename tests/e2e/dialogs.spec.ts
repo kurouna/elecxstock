@@ -113,8 +113,8 @@ test.describe('コマンドバー（FR-KB1, FR-KB9）', () => {
     const pal = page.locator('.dialog.palette')
     await keys(page, 'Control+k')
     await expect(pal).toBeVisible()
-    // 空のとき: このペインで（チャート）
-    await expect(pal.locator('.lx-grp').first()).toContainText('このペインで')
+    // 空のとき: このペインの操作（チャート）
+    await expect(pal.locator('.lx-grp').first()).toContainText('このペインの操作')
     // 語を分けても当たる
     await type(page, '保有 書き出')
     await expect(pal.locator('.it.sel')).toContainText('保有の記録を JSON に書き出す')

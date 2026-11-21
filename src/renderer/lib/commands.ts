@@ -118,6 +118,14 @@ export function focusedSymbol(): InstrumentId | null {
   return layout.doc.links[String(MAIN_LINK)] ?? null
 }
 
+/** 操作の対象の銘柄: フォーカス中のペインで選んだ銘柄（複数選択を含む）。選択が無い・空ならフォーカス中の銘柄 */
+export function selectedOrFocused(): InstrumentId[] {
+  const sel = paneApi(app.focus)?.selected?.()
+  if (sel?.length) return sel
+  const f = focusedSymbol()
+  return f ? [f] : []
+}
+
 /** フォーカス中のペインがウォッチリストなら、表示しているリスト（銘柄ジャンプ・コマンドバーの Ctrl+Enter で足す先） */
 export function focusedWatchlist(): Watchlist | null {
   const p = findPane(app.focus)
@@ -313,8 +321,7 @@ export async function startUpdate(force = false): Promise<void> {
 }
 /** 銘柄を指定した取り直し（FR-S7）: 選んだ銘柄（複数選択を含む） */
 export async function refetchSelected(): Promise<void> {
-  const sel = paneApi(app.focus)?.selected?.()
-  const ids = sel?.length ? sel : focusedSymbol() ? [focusedSymbol()!] : []
+  const ids = selectedOrFocused()
   if (!ids.length) return
   await rpc('jobs.refetch', { ids })
   toast(t('refetch.started', { n: ids.length }))
@@ -433,8 +440,7 @@ async function exportListCsv(): Promise<void> {
 }
 /** 選んだ銘柄の日足を CSV に書き出す（FR-S3） */
 async function exportBarsCsv(): Promise<void> {
-  const sel = paneApi(app.focus)?.selected?.()
-  const ids = (sel?.length ? sel : focusedSymbol() ? [focusedSymbol()!] : []).slice(0, 500)
+  const ids = selectedOrFocused().slice(0, 500)
   if (!ids.length) return
   const years = await promptDialog(t('csv.barsYears'), '1')
   if (years == null) return
@@ -545,7 +551,7 @@ const needRun = (action: string, reason: Key) => (): Key | null => (paneApi(app.
 /** フォーカス中のペインが一覧を持つか */
 const needList = (): Key | null => (paneApi(app.focus)?.columns?.() ? null : 'cmd.need.list')
 /** 選んだ銘柄（一覧の選択か、フォーカス中のペインの銘柄）があるか */
-const needSymbol = (): Key | null => (paneApi(app.focus)?.selected?.()?.length || focusedSymbol() ? null : 'cmd.need.symbol')
+const needSymbol = (): Key | null => (selectedOrFocused().length ? null : 'cmd.need.symbol')
 const paneRun = (action: string) => () => {
   if (!paneApi(app.focus)?.run?.(action)) toast(t('cmd.needList'))
 }
@@ -676,7 +682,8 @@ export const ACTIONS: Action[] = [
     label: () => t('act.addTo'),
     key: 'Ctrl+Shift+A',
     when: 'late',
-    run: () => addToListDialog(paneApi(app.focus)?.selected?.() ?? (focusedSymbol() ? [focusedSymbol()!] : [])),
+    enabled: needSymbol,
+    run: () => addToListDialog(selectedOrFocused()),
   },
   { id: 'newList', label: () => t('act.newList'), run: () => newList() },
   {
@@ -798,8 +805,7 @@ async function newWindowDialog(): Promise<void> {
 }
 /** 1 枚目の一覧で選んだ銘柄をフリー N へ送る（R4、Ctrl+Alt+Enter。ウィンドウをまたぐドラッグのキーの代わり） */
 async function sendToFree(): Promise<void> {
-  const sel = paneApi(app.focus)?.selected?.()
-  const ids = sel?.length ? sel : focusedSymbol() ? [focusedSymbol()!] : []
+  const ids = selectedOrFocused()
   if (!ids.length) return
   // 選択は Svelte の状態（Proxy）のことがある。main へは素の配列で渡す（構造化複製できない）
   const to = await window.elecxstock.sendToFree([...ids])

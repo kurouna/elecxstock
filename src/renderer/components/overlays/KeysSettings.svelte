@@ -80,6 +80,14 @@ function key(e: KeyboardEvent) {
     e.stopPropagation()
     return
   }
+  // 一覧のキーは一覧にフォーカスがあるときだけ（上の段のボタンの Enter・Space はボタンのまま。Delete・Backspace で行を変えない）
+  if (!box?.contains(e.target as Node)) {
+    if (e.key !== '/') return
+    search?.focus()
+    e.preventDefault()
+    e.stopPropagation()
+    return
+  }
   const a = rows[sel]?.a
   if (e.key === 'ArrowDown') sel = clampSel(sel + 1, rows.length)
   else if (e.key === 'ArrowUp') sel = Math.max(0, sel - 1)
@@ -133,7 +141,7 @@ onMount(() => () => {
         {#each g.items as r (r.a.id)}
           {@const on = r.i === sel}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <div class="krow" class:sel={on} id="key-{r.a.id}" role="option" aria-selected={on} tabindex="-1" onclick={() => ((sel = r.i), (recording = true), box?.focus())}>
+          <div class="krow" class:sel={on} id="key-{r.a.id}" role="option" aria-selected={on} tabindex="-1" onclick={() => ((sel = r.i), (clash = null), (recording = true), box?.focus())}>
             <span class="k">
               {#if recording && on}
                 <span class="rec">{clash ? clash.key : t('keys.pressing')}</span>
@@ -147,7 +155,7 @@ onMount(() => () => {
               {#if custom(r.a.id)}<span class="mod" aria-hidden="true"></span>{/if}<Hl text={r.a.label} ranges={r.ranges} />
               {#if custom(r.a.id)}<span class="def">{t('set.defaultIs', { v: r.a.def || '—' })}</span>{/if}
             </span>
-            <button type="button" class="rst" class:on={custom(r.a.id)} tabindex="-1" title={t('set.resetRow', { v: r.a.def || '—' })} aria-label={t('set.resetRow', { v: r.a.def || '—' })} onclick={(e) => (e.stopPropagation(), setKey(r.a.id, null))}>↺</button>
+            <button type="button" class="rst" class:on={custom(r.a.id)} tabindex="-1" title={t('set.resetRow', { v: r.a.def || '—' })} aria-label={t('set.resetRow', { v: r.a.def || '—' })} onclick={(e) => (e.stopPropagation(), stopRecording(), setKey(r.a.id, null))}>↺</button>
             {#if recording && on && clash}
               <span class="cf" role="alert">{t('keys.conflictInline', { key: clash.key, name: clash.others.map((c) => c.label).join('・') })}</span>
             {/if}

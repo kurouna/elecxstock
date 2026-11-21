@@ -82,7 +82,7 @@ r(['閉じる・戻す', 'Close or go back'], 'Esc')
 r(['アプリを終了', 'Quit'], A('quit'))
 r = sec('general', ['銘柄', 'Symbols'])
 r(['銘柄ジャンプ', 'Symbol jump'], '1–9', ['コードで開く'])
-r(['ジャンプの候補をお気に入りに', 'Jump: add to favorites'], 'Ctrl+D')
+r(['ジャンプの候補をお気に入りに追加', 'Jump: add to favorites'], 'Ctrl+D')
 r(['ジャンプの候補を見ているリストに足す', 'Jump: add to the focused list'], 'Ctrl+Enter')
 r(['お気に入り', 'Favorite'], A('fav'), ['★'])
 r(['ウォッチリストに追加', 'Add to watchlist'], A('addTo'))
@@ -114,15 +114,15 @@ r(['メニューの中: 削除（2 回押す）', 'In the menu: delete (press tw
 r(['消したページを元に戻す（10 秒間）', 'Restore a deleted page (10 s)'], 'Ctrl+Z')
 r = sec('general', ['ウィンドウ', 'Windows'])
 r(['全画面', 'Full screen'], A('fullscreen'))
-r(['新しいフリーのウィンドウ（2 枚目のモニタに）', 'New Free window (for a second monitor)'], A('newWindow'), ['マルチモニタ'])
-r(['次のウィンドウへ', 'Next window'], A('nextWindow'))
-r(['前のウィンドウへ', 'Previous window'], A('prevWindow'))
+r(['新しいフリーのウィンドウ（2 枚目のモニタ用）', 'New Free window (for a second monitor)'], A('newWindow'), ['マルチモニタ'])
+r(['次のウィンドウに移動', 'Next window'], A('nextWindow'))
+r(['前のウィンドウに移動', 'Previous window'], A('prevWindow'))
 r(['選んだ銘柄をフリーのウィンドウへ送る', 'Send selection to a Free window'], A('sendToFree'))
 r(['このウィンドウの文字を大きく', 'Larger text (this window)'], A('zoomIn'), ['倍率', 'ズーム', 'zoom'])
 r(['このウィンドウの文字を小さく', 'Smaller text (this window)'], A('zoomOut'), ['倍率', 'ズーム', 'zoom'])
 r(['このウィンドウの文字の大きさを戻す', 'Reset text size (this window)'], A('zoomReset'), ['倍率', 'ズーム', 'zoom'])
 r(['ウィンドウを閉じる', 'Close window'], 'Alt+F4')
-r(['別のモニタへ', 'Move to another monitor'], 'Win+Shift+← / Win+Shift+→')
+r(['別のモニタに移す', 'Move to another monitor'], 'Win+Shift+← / Win+Shift+→')
 r = sec('general', ['アラートと保有', 'Alerts and holdings'])
 r(['フォーカス中の銘柄でアラートを作る', 'Create an alert for the focused symbol'], A('alertNew'))
 r(['アラートの一覧と履歴', 'Alerts and history'], A('alerts'))
@@ -189,8 +189,8 @@ r(['並べ方', 'Arrangement'], 'V')
 r = sec('chart', ['トレンドライン', 'Trend lines'])
 r(['トレンドラインを引く', 'Draw a trend line'], 'Alt+T', ['描画'])
 r(['点を決める', 'Set a point'], 'Enter')
-r(['引く点を山・谷へ', 'Point: to swing'], 'Ctrl+← / Ctrl+→')
-r(['引く点を高値〜安値へ', 'Point: high–low'], '↑ ↓')
+r(['引く点を山・谷に動かす', 'Point: to swing'], 'Ctrl+← / Ctrl+→')
+r(['引く点を高値〜安値に動かす', 'Point: high–low'], '↑ ↓')
 r(['トレンドラインを選ぶ', 'Select trend line'], 'G')
 r(['動かす対象', 'Move target'], 'Space')
 r(['延長', 'Extend'], 'E')
@@ -229,7 +229,7 @@ r(['売買候補をリストに追加', 'Add candidates to a list'], A('addTo'))
 // ---- ヒートマップ・株価ボード
 r = sec('heatmap', ['ヒートマップ', 'Heatmap'])
 r(['移動', 'Move'], 'Arrows')
-r(['業種の中へ', 'Drill into a sector'], 'Enter')
+r(['業種の中に入る', 'Drill into a sector'], 'Enter')
 r(['業種から戻る', 'Back from a sector'], 'Esc')
 r(['期間', 'Period'], 'P')
 r(['ヒートマップ ⇔ 株価ボード', 'Heatmap ⇔ quote cards'], 'V')
@@ -253,7 +253,7 @@ r(['並べ替え', 'Sort'], '← → S')
 r(['列の選択', 'Columns'], 'Ctrl+Shift+C')
 r = sec('marketlists', ['騰落', 'Breadth'])
 r(['タブ', 'Tab'], 'G / Ctrl+PgDn')
-r(['中へ', 'Drill in'], 'Enter')
+r(['中に入る', 'Drill in'], 'Enter')
 r(['戻る', 'Back'], 'Esc')
 r = sec('marketlists', ['マーケット', 'Market'])
 r(['銘柄を足す', 'Add symbol'], '1–9')
@@ -296,7 +296,7 @@ r(['基準日', 'Base date'], 'Alt+1–4')
 r(['期間', 'Horizon'], 'Alt+5')
 r(['十字線・月', 'Crosshair and month'], '← →')
 r = sec('divsim', ['前提', 'Assumptions'])
-r(['前提へ', 'Notes'], 'N')
+r(['前提のカードに移る', 'Notes'], 'N')
 r(['出どころ', 'Source'], 'L')
 r(['元本', 'Principal'], 'A')
 r(['受取 ⇔ 再投資', 'Receive ⇔ reinvest'], 'R')
@@ -318,7 +318,7 @@ r(['左のドロワー', 'Left drawer'], A('drawer'))
 r(['右のドロワー', 'Right drawer'], A('drawerRight'))
 r(['ピン留め', 'Pin'], A('drawerPin'))
 r(['ドロワーのタブを切り替え', 'Switch drawer tab'], 'Ctrl+Tab / Ctrl+Shift+Tab')
-r(['ペインをドロワーへ（タイトルを帯に落としても）', 'Move pane to a drawer (or drop on its rail)'], A('toDrawer'))
+r(['ペインをドロワーに移す（タイトルを帯に落としても）', 'Move pane to a drawer (or drop on its rail)'], A('toDrawer'))
 r(['閉じる', 'Close'], 'Esc')
 
 // ---- ニュース（news/help.ts）
@@ -365,6 +365,22 @@ export const rowKeys = (row: ShortcutRow, keyOf: (id: string) => string, presetI
     : row.keys === PRESET_RANGE && presetIds.length
       ? presetKeysText(presetIds.map((p) => keyOf(`layout.${p}`)))
       : (row.keys ?? '')
+/** 割り当てを変えられる行か（アクションの行と、9 つの layout.* のアクションをまとめたプリセットの行。FR-KB6） */
+export const rebindable = (row: ShortcutRow): boolean => !!row.act || row.keys === PRESET_RANGE
+/** 割り当てを既定から変えた行の既定のキーの表記（変えていなければ null。外したアクションの既定が無ければ ''） */
+export function rowDefault(
+  row: ShortcutRow,
+  keyOf: (id: string) => string,
+  defaultOf: (id: string) => string,
+  presetIds: readonly string[] = [],
+): string | null {
+  if (!rebindable(row)) return null
+  const def = rowKeys(row, defaultOf, presetIds)
+  return rowKeys(row, keyOf, presetIds) === def ? null : def
+}
+/** 「文字で探す ⇔ キーで探す」を切り替えるキー（Tab・Shift+Tab だけ。Ctrl+Tab などは探すキーとして受ける） */
+export const isModeToggle = (e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'altKey' | 'metaKey'>): boolean =>
+  e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey
 
 /**
  * 絞り込み（並びは変えない）。文字で: 名前（言語ごと）・別名・小見出し・キーの表記で当てる。

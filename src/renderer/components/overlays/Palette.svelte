@@ -5,6 +5,7 @@
 import type { Instrument, InstrumentId } from '@shared/types'
 import { onMount } from 'svelte'
 import { type Action, focusedWatchlist, holdingsTabLocked, keyOf, paletteActions, sendSymbol } from '../../lib/commands'
+import { keepFocus } from '../../lib/focusTrap'
 import type { Key } from '../../lib/i18n'
 import { composing } from '../../lib/keys'
 import { pageCommands } from '../../lib/pages'
@@ -292,7 +293,9 @@ onMount(() => {
   <span class="code">{#if hit}<mark>{c.slice(0, hit)}</mark>{c.slice(hit)}{:else}{c}{/if}</span>
 {/snippet}
 
-<div class="dialog lx palette" role="dialog" aria-label={t('a11y.commandBar')}>
+<!-- 押しても探す欄からフォーカスを移さない（閉じない行・見出しを押したあとも打つ・Esc が効く） -->
+<!-- svelte-ignore a11y_interactive_supports_focus -->
+<div class="dialog lx palette" role="dialog" aria-label={t('a11y.commandBar')} onmousedown={keepFocus}>
   {#if title}<div class="ttl">{title}</div>{/if}
   <div class="lx-head">
     <label class="lx-search">
@@ -320,8 +323,7 @@ onMount(() => {
       <span class="r"><Keys keys="Tab" /> {t('cmd.scopeNext')}</span>
     </div>
   {/if}
-  <!-- 押しても検索欄からフォーカスを移さない（閉じない行・使えない行をクリックしたあともキーで続けられる） -->
-  <div class="lx-res list" id="pal-list" role="listbox" onmousedown={(e) => e.preventDefault()} aria-label={t('a11y.commandBar')} bind:this={res}>
+  <div class="lx-res list" id="pal-list" role="listbox" aria-label={t('a11y.commandBar')} bind:this={res}>
     {#each groups as g (g.id)}
       <div role="group" aria-labelledby="pal-g-{g.id}">
         <div class="lx-grp" id="pal-g-{g.id}">{g.title}{#if g.more}<span class="more">{t('cmd.more', { n: g.more })}</span>{/if}<span class="n">{g.chips ? '' : g.items.length}</span></div>
@@ -398,7 +400,7 @@ onMount(() => {
         {/if}
       </div>
     {/each}
-    {#if !groups.length && parsed.q}<div class="lx-empty">{t('cmd.none', { q: parsed.q })}</div>{:else if !parsed.q && parsed.scope === 'sym'}<div class="lx-empty">{t('cmd.symEmpty')}</div>{:else if !groups.length}<div class="lx-empty">{t('cmd.scopeEmpty')}</div>{/if}
+    {#if !groups.length && parsed.q}<div class="lx-empty">{t('cmd.none', { q: parsed.q })}</div>{:else if !parsed.q && (title || parsed.scope === 'sym')}<div class="lx-empty">{t('cmd.symEmpty')}</div>{:else if !groups.length}<div class="lx-empty">{t('cmd.scopeEmpty')}</div>{/if}
   </div>
   <span class="lx-sr" aria-live="polite">{t('dlg.count', { n: flat.length })}</span>
   <div class="lx-desc" aria-live="polite">

@@ -24,6 +24,7 @@ import {
   footHints,
   groupRows,
   isModified,
+  isRowPart,
   KIND,
   modifiedCount,
   RETENTION_YEARS,
@@ -85,15 +86,17 @@ function selectTab(x: SettingTab) {
 }
 // ---- 行の移動（本文）
 const rowsEl = () => [...(body?.querySelectorAll<HTMLElement>('[data-row]') ?? [])]
-/** 行の中の操作できる部品（見えているもの。↺ は除く） */
+/** 行の中の操作できる部品（見えているもの。↺・読むだけの欄は除く。判定は settingsSpec の isRowPart） */
 const partsOf = (row: Element) =>
-  [...row.querySelectorAll<HTMLElement>('button, input, [tabindex="0"]')].filter(
-    (el) =>
-      !el.classList.contains('rst') &&
-      el.getAttribute('aria-hidden') !== 'true' &&
-      !(el as HTMLButtonElement).disabled &&
-      el.offsetParent !== null &&
-      getComputedStyle(el).visibility !== 'hidden',
+  [...row.querySelectorAll<HTMLElement>('button, input, [tabindex="0"]')].filter((el) =>
+    isRowPart({
+      reset: el.classList.contains('rst'),
+      ariaHidden: el.getAttribute('aria-hidden') === 'true',
+      disabled: !!(el as HTMLButtonElement).disabled,
+      readOnly: !!(el as HTMLInputElement).readOnly,
+      tabIndex: el.tabIndex,
+      shown: el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden',
+    }),
   )
 /** 行へフォーカス: 主な部品（data-primary）か最初の部品。部品が無ければ行そのもの（使えない行・文だけの行にも止まる） */
 function focusRow(i: number) {
@@ -153,6 +156,11 @@ function bodyFocus(e: FocusEvent) {
   if (pend.uiScale != null && id !== 'scale') pend = omit(pend, 'uiScale')
   if (pend.retentionYears != null && id !== 'retention') pend = omit(pend, 'retentionYears')
 }
+/** 本文の外（探す欄・タブ）へ移ったら仮の値をやめる（下の段の「決める」を残さない） */
+function bodyFocusOut(e: FocusEvent) {
+  const to = e.relatedTarget as Node | null
+  if (to && !body?.contains(to) && Object.keys(pend).length) pend = {}
+}
 function resetRow(row: SettingRow) {
   if (!row.setting) return
   if (row.setting === 'uiScale') pend = omit(pend, 'uiScale')
@@ -170,7 +178,10 @@ const defText = (row: SettingRow) => (row.setting ? defaultText(row.setting, tr)
 function dialogKey(e: KeyboardEvent) {
   if (keyCapture.on) return
   const typing = (e.target as HTMLElement).tagName === 'INPUT'
-  if ((e.ctrlKey && e.code === 'KeyF') || (e.key === '/' && !typing && !(cur === 'keys' && body?.contains(e.target as Node)))) {
+  if (
+    (e.ctrlKey && e.code === 'KeyF') ||
+    (e.key === '/' && !typing && !(cur === 'keys' && !searching && body?.contains(e.target as Node)))
+  ) {
     e.preventDefault()
     e.stopPropagation()
     search?.focus()
@@ -510,7 +521,7 @@ const runAction = (id: string) => ACTIONS.find((a) => a.id === id)?.run()
       {#if searching}<h2>{t('set.searchTitle', { q: q.trim() })}</h2><span class="hsub">{t('set.searchSub')}</span>{:else}<h2>{t(`set.${cur}` as Key)}</h2><span class="hsub">{t(`set.sub.${cur}` as Key)}</span>{/if}
     </div>
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div class="sbody" id="set-body" role="tabpanel" tabindex="-1" bind:this={body} onkeydown={bodyKey} onfocusin={bodyFocus} data-esc-local>
+    <div class="sbody" id="set-body" role="tabpanel" tabindex="-1" bind:this={body} onkeydown={bodyKey} onfocusin={bodyFocus} onfocusout={bodyFocusOut} data-esc-local>
       {#if !searching && cur === 'keys'}
         <KeysSettings />
       {:else if !searching && cur === 'news'}

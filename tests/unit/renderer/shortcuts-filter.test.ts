@@ -88,3 +88,47 @@ describe('レイアウトのプリセットの行（FR-KB6, FR-KB7）', () => {
     expect(PANE_KEY_ROWS.every((r) => r.sec !== 'general' && !r.act)).toBe(true)
   })
 })
+
+describe('割り当てを変えられる行の印と既定のキー（FR-KB6, FR-KB7）', () => {
+  const PRE = ['market', 'screener', 'grid', 'mtf', 'triple', 'income', 'holdings', 'free', 'folio']
+  const defaultOf = (id: string) =>
+    id === 'changeWidget' ? 'Ctrl+Shift+N' : id.startsWith('layout.') ? `Ctrl+Shift+${PRE.indexOf(id.slice(7)) + 1}` : ''
+  it('アクションの行とプリセットの行（9 つの layout.* のアクション）は変えられる。ペインの中のキーは変えられない', async () => {
+    const { rebindable, PRESET_RANGE, SHORTCUTS } = await import('../../../src/renderer/lib/shortcuts')
+    expect(rebindable(rows[3]!)).toBe(true)
+    expect(rebindable(rows[0]!)).toBe(false)
+    const preset = SHORTCUTS.find((r) => r.keys === PRESET_RANGE)!
+    expect(rebindable(preset)).toBe(true)
+  })
+  it('既定から変えたときだけ既定のキーを返す（外したアクションは空）。プリセットの行は 9 つをまとめて比べる', async () => {
+    const { rowDefault, PRESET_RANGE, SHORTCUTS } = await import('../../../src/renderer/lib/shortcuts')
+    const preset = SHORTCUTS.find((r) => r.keys === PRESET_RANGE)!
+    expect(rowDefault(rows[3]!, defaultOf, defaultOf, PRE)).toBeNull()
+    expect(rowDefault(rows[3]!, () => 'Ctrl+Alt+N', defaultOf, PRE)).toBe('Ctrl+Shift+N')
+    expect(rowDefault(rows[0]!, defaultOf, defaultOf, PRE)).toBeNull()
+    expect(rowDefault(preset, defaultOf, defaultOf, PRE)).toBeNull()
+    const moved = (id: string) => (id === 'layout.grid' ? 'Ctrl+Alt+3' : defaultOf(id))
+    expect(rowDefault(preset, moved, defaultOf, PRE)).toBe(PRESET_RANGE)
+  })
+})
+
+describe('キーを押して探すとの切り替え（FR-KB7）', () => {
+  it('切り替えるのは Tab と Shift+Tab だけ。Ctrl+Tab などは探すキーとして受ける', async () => {
+    const { isModeToggle } = await import('../../../src/renderer/lib/shortcuts')
+    const e = (key: string, m: Partial<Record<'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey', boolean>> = {}) => ({
+      key,
+      ctrlKey: false,
+      altKey: false,
+      shiftKey: false,
+      metaKey: false,
+      ...m,
+    })
+    expect(isModeToggle(e('Tab'))).toBe(true)
+    expect(isModeToggle(e('Tab', { shiftKey: true }))).toBe(true)
+    expect(isModeToggle(e('Tab', { ctrlKey: true }))).toBe(false)
+    expect(isModeToggle(e('Tab', { ctrlKey: true, shiftKey: true }))).toBe(false)
+    expect(isModeToggle(e('Tab', { altKey: true }))).toBe(false)
+    expect(isModeToggle(e('Tab', { metaKey: true }))).toBe(false)
+    expect(isModeToggle(e('a'))).toBe(false)
+  })
+})

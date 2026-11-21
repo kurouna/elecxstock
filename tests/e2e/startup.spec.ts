@@ -11,7 +11,7 @@ test.describe('初回起動（FR-F1, FR-S1, FR-FR1）', () => {
     // 免責（投資助言ではない・非公式のデータ）を示してから同意を求める（FR-FR1）
     await expect(dlg).toContainText('投資助言を目的としたものではありません')
     await expect(dlg).toContainText('Yahoo Finance（非公式）')
-    await expect(dlg.getByRole('button', { name: '同意して次へ' })).toBeVisible()
+    await expect(dlg.getByRole('button', { name: '同意して進む' })).toBeVisible()
     await keys(page, 'Enter') // 同意
     await expect(dlg).toContainText('TradingView')
     // Lightweight Charts の NOTICE の 2 行（§10）

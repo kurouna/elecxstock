@@ -142,9 +142,9 @@ test.describe('条件の編集（FR-SC1, FR-SC8, FR-H6）', () => {
     await expect(conds).toHaveCount(3)
     const first = (await conds.nth(0).locator('.f').textContent())!
     // ↓ で 1 番目を下へ、↑ で戻す
-    await conds.nth(0).getByRole('button', { name: '下へ' }).click()
+    await conds.nth(0).getByRole('button', { name: '下に移す' }).click()
     await expect(conds.nth(1).locator('.f')).toHaveText(first)
-    await conds.nth(1).getByRole('button', { name: '上へ' }).click()
+    await conds.nth(1).getByRole('button', { name: '上に移す' }).click()
     await expect(conds.nth(0).locator('.f')).toHaveText(first)
     // 比較の記号は真ん中
     expect(

@@ -191,8 +191,8 @@ test.describe('状態の変化への追従: 保有（§8.1, FR-H4, FR-H6, FR-H7,
       dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [f] })) as typeof dialog.showOpenDialog
     }, file)
     await command(page, '保有の記録を JSON から取り込む')
-    await expect(page.locator('.dialog')).toContainText('次へ')
-    await keys(page, 'Enter') // 次へ
+    await expect(page.locator('.dialog')).toContainText('次に進む')
+    await keys(page, 'Enter') // 次に進む
     await expect(page.locator('.dialog')).toContainText('今の記録に合わせる')
     await keys(page, 'Enter') // 今の記録に合わせる（7203 は残る）
     await expect(page.locator('.toasts')).toContainText('元に戻す')

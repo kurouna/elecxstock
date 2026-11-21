@@ -5,6 +5,7 @@
 
 import type { SavedLayout } from '@shared/types'
 import { onMount } from 'svelte'
+import { keepFocus } from '../../lib/focusTrap'
 import { composing } from '../../lib/keys'
 import {
   copyTab,
@@ -136,6 +137,7 @@ const hint: Record<Act, string> = {
   tabindex="0"
   bind:this={box}
   onkeydown={key}
+  onmousedown={keepFocus}
 >
   {#each rows as r, i (r.kind === 'page' ? r.page.id : r.kind)}
     {#if r.kind !== 'page' && rows[i - 1]?.kind === 'page'}<div class="sep" role="separator"></div>{/if}

@@ -139,10 +139,10 @@ export function keyCombos(keys: string, hit: string): { keys: string[]; hit: boo
   )
 }
 
-/** キーの割り当ての表（設定 keymap）に 1 つ書く。既定と同じキーなら上書きを消す（変えた印・数に入れない）。null は既定に戻す、'' は割り当てなし */
+/** キーの割り当ての表（設定 keymap）に 1 つ書く。既定と同じキーなら上書きを消す（変えた印・数に入れない）。null は既定に戻す、'' は割り当てなし（既定が割り当てなしの操作では上書きを消す） */
 export function withKey(km: Readonly<Record<string, string>>, id: string, key: string | null, def: string): Record<string, string> {
   const out = { ...km }
-  if (key == null || (key !== '' && normalizeKey(key) === normalizeKey(def))) delete out[id]
+  if (key == null || normalizeKey(key) === normalizeKey(def)) delete out[id]
   else out[id] = key
   return out
 }

@@ -8,6 +8,7 @@ import { DEFAULT_RECENT_FIELDS, FIELD_BY_ID, FIELD_GROUPS, type FieldDef, MISSIN
 import { onMount, tick } from 'svelte'
 import { SvelteSet } from 'svelte/reactivity'
 import { fieldMatch, fieldUnit } from '../../lib/fieldPick'
+import { keepFocus } from '../../lib/focusTrap'
 import { hlRanges, normText as norm } from '../../lib/highlight'
 import { composing } from '../../lib/keys'
 import { rootZoom, tipBeside } from '../../lib/pointer'
@@ -66,10 +67,12 @@ $effect(() => {
     lastQ = q
     let best: FieldDef | undefined
     for (const f of flat) if (!best || match(f) > match(best)) best = f
-    if (best) sel = best.id
+    // 当たらなければ何も選ばない（見えない項目を Enter で足さない・下の段に説明を残さない）
+    sel = best?.id ?? ''
     return
   }
-  if (flat.length && !flat.some((f) => f.id === sel)) sel = flat[0]!.id
+  if (!flat.length) sel = ''
+  else if (!flat.some((f) => f.id === sel)) sel = flat[0]!.id
 })
 const cur = $derived(FIELD_BY_ID.get(hover ?? sel))
 const missing = $derived(
@@ -156,7 +159,8 @@ onMount(() => input?.focus())
 </script>
 
 <!-- 探して選ぶダイアログと同じ骨格（lx。docs/design-dialogs.md §2）: 見出しと探す欄・段の一覧・選んだ項目の説明・キー -->
-<div class="dialog lx picker" role="dialog" aria-label={title}>
+<!-- svelte-ignore a11y_interactive_supports_focus -->
+<div class="dialog lx picker" role="dialog" aria-label={title} onmousedown={keepFocus}>
   <div class="lx-head">
     <h3>{title}</h3>
     <label class="lx-search aux">
@@ -177,8 +181,7 @@ onMount(() => input?.focus())
     <button type="button" class="x" aria-label={t('cmd.hint.close')} onclick={close}>✕</button>
   </div>
   {#if !q && recent.length}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="recent" onmousedown={(e) => e.preventDefault()}>
+    <div class="recent">
       <span>{t('fp.recent')}</span>
       {#each recent as f (f.id)}
         <button type="button" class="lx-chip" class:sel={f.id === sel} onclick={(e) => pick(f.id, e.shiftKey)} onmouseenter={() => (hover = f.id)} onmouseleave={() => (hover = null)}>
@@ -187,8 +190,7 @@ onMount(() => input?.focus())
       {/each}
     </div>
   {/if}
-  <!-- 押しても検索欄からフォーカスを移さない（行をクリックしたあともキーで続けられる） -->
-  <div class="grid" id="fp-list" role="listbox" bind:this={grid} onmousedown={(e) => e.preventDefault()}>
+  <div class="grid" id="fp-list" role="listbox" bind:this={grid}>
     {#if flat.length}
       {#each cols as col, ci (ci)}
         <div class="col">
@@ -260,13 +262,13 @@ onMount(() => input?.focus())
     font-size: 14px;
     cursor: pointer;
   }
+  /* 下の線は一覧（.grid）の上の線が引く（重ねて 2px にしない） */
   .recent {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 4px 6px;
     padding: 0 12px 8px;
-    border-bottom: 1px solid var(--line);
     font-size: var(--fs-1);
     color: var(--text-3);
   }

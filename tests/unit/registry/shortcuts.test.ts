@@ -42,6 +42,15 @@ describe('ショートカット一覧の登録表（FR-KB7）', () => {
     expect(ACTIONS.filter((a) => a.key && !listed.has(a.id) && !ranged(a)).map((a) => a.id)).toEqual([])
     expect(SHORTCUTS.some((r) => r.keys === 'Ctrl+Shift+1–9')).toBe(true)
   })
+  it('日本語の名前は助詞（に・を・で・へ・から など）で終えない（名詞か動詞の形で終える。括弧の補足の前も）', () => {
+    // 「これから」は名詞（配当シミュレータのタブの名前）
+    const particle = /(?<!これ)(に|を|で|へ|が|から|まで|や)$/
+    for (const r of SHORTCUTS) {
+      const ja = r.label[0]
+      expect(ja, ja).not.toMatch(particle)
+      expect(ja.replace(/（[^（）]*）$/, ''), ja).not.toMatch(particle)
+    }
+  })
   it('すべてのペインの種類に、先頭に出す段がある（FR-KB7「いまのペインで効くキーを先に」）', () => {
     for (const w of WIDGETS) expect(SECTIONS, w).toContain(helpSection(w))
   })

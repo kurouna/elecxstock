@@ -111,7 +111,7 @@ test.describe('ニュースのペイン（FR-NW1, FR-NW7, FR-NW8, FR-NW9）', ()
     await keys(page, 'Tab', 'ArrowDown')
     await expect(page.locator('.keys .klist')).toBeFocused()
     await keys(page, 'Enter', 'Control+c')
-    await expect.poll(() => toastsSeen(page)).toContain('Ctrl+C はニュースのペインのコピーに使うので割り当てられません')
+    await expect.poll(() => toastsSeen(page)).toContain('Ctrl+C はペインの中の操作に使うので割り当てられません')
   })
 })
 

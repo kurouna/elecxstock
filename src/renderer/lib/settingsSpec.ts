@@ -254,7 +254,18 @@ export const KIND: Record<RowKind, { wide: boolean; valued: boolean }> = {
 /** バイトを MB で（区切りつき） */
 export const fmtMb = (bytes: number | undefined) => Math.round((bytes ?? 0) / 1048576).toLocaleString()
 const TOGGLE_KINDS: readonly RowKind[] = ['switch', 'login', 'loginHidden']
-const VALUE_KINDS: readonly RowKind[] = ['seg', 'theme', 'scale', 'density', 'candle', 'retention']
+const VALUE_KINDS = (Object.keys(KIND) as RowKind[]).filter((k) => KIND[k].valued)
+/** 行の中の部品の様子（DOM から読む。↺・隠れた部品・使えない部品・読むだけの欄・Tab で止まらない部品は除く） */
+export interface PartInfo {
+  reset: boolean
+  ariaHidden: boolean
+  disabled: boolean
+  readOnly: boolean
+  tabIndex: number
+  shown: boolean
+}
+/** ← → で巡る行の中の部品か（目標利回りの線がオフの欄は読むだけ・tabindex -1 なので部品にせず、行そのものに止まる） */
+export const isRowPart = (p: PartInfo) => !p.reset && !p.ariaHidden && !p.disabled && !p.readOnly && p.tabIndex >= 0 && p.shown
 /** 下の段に出す操作の案内（そのタブにある部品の操作だけ） */
 export function footHints(tab: SettingTab): { toggle: boolean; value: boolean; reset: boolean } {
   const rows = rowsOfTab(tab)

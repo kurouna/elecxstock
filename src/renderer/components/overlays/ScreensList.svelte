@@ -5,6 +5,7 @@
 import type { SavedScreen } from '@shared/types'
 import { onMount } from 'svelte'
 import { conditionsText } from '../../lib/conditionEdit'
+import { keepFocus } from '../../lib/focusTrap'
 import { composing } from '../../lib/keys'
 import { missingDefaults, newScreenId, openScreenAnywhere, removeScreen, screenRows } from '../../lib/screens'
 import { clampSel } from '../../lib/selection'
@@ -17,6 +18,7 @@ let query = $state('')
 let sel = $state(0)
 let pendingDel = $state<string | null>(null)
 let input = $state<HTMLInputElement>()
+let res = $state<HTMLDivElement>()
 let defs = $state<SavedScreen[]>([])
 const missing = $derived(missingDefaults(defs, app.screens))
 const openId = $derived(allPanes().find((p) => p.widget === 'screener')?.state.screenId as string | undefined)
@@ -87,6 +89,12 @@ function restoreDefaults() {
   saveScreens()
   toast(t('scr.restored', { n: add.length }))
 }
+// 選んだ行を見せる（キーで送ったとき・開いたとき。一覧は縦に流れる）
+$effect(() => {
+  void sel
+  void rows
+  queueMicrotask(() => res?.querySelector('.it.sel')?.scrollIntoView({ block: 'nearest' }))
+})
 onMount(() => {
   void rpc('user.defaultScreens', {})
     .then((d) => (defs = d))
@@ -100,7 +108,8 @@ onMount(() => {
 </script>
 
 <!-- 探して選ぶダイアログと同じ骨格（lx。docs/design-dialogs.md §2）: 見出しと探す欄・一覧・選んだ条件の中身・キー -->
-<div class="dialog lx scrlist" role="dialog" aria-label={t('scr.list')}>
+<!-- svelte-ignore a11y_interactive_supports_focus -->
+<div class="dialog lx scrlist" role="dialog" aria-label={t('scr.list')} onmousedown={keepFocus}>
   <div class="lx-head">
     <h3>{t('scr.list')}</h3>
     <label class="lx-search aux">
@@ -119,7 +128,7 @@ onMount(() => {
       />
     </label>
   </div>
-  <div class="lx-res list" id="scrlist-list" role="listbox" onmousedown={(e) => e.preventDefault()} aria-label={t('scr.list')}>
+  <div class="lx-res list" bind:this={res} id="scrlist-list" role="listbox" aria-label={t('scr.list')}>
     {#each rows as r, i (r.s.id)}
       <button
         type="button"
@@ -135,7 +144,8 @@ onMount(() => {
         }}
         onmousemove={() => (sel = i)}
       >
-        <span class="n"><Hl text={screenName(r.s)} ranges={r.ranges} />{#if pendingDel === r.s.id}<span class="tag del">{t('scr.deleteAgain')}</span>{/if}</span>
+        <span class="n"><Hl text={screenName(r.s)} ranges={r.ranges} /></span>
+        {#if pendingDel === r.s.id}<span class="tag del">{t('scr.deleteAgain')}</span>{/if}
         {#if r.s.id === openId}<span class="now">{t('scr.openNow')}</span>{/if}
         <span class="s num">{t('scr.conds', { n: r.s.conditions.length })}</span>
       </button>
@@ -157,7 +167,7 @@ onMount(() => {
     <span><Keys keys="Alt+↑ / Alt+↓" /> {t('dlg.reorder')}</span>
     <span><Keys keys="Delete" /> {t('scr.delete')}</span>
     <span><Keys keys="Esc" /> {query ? t('dlg.clearQuery') : t('dlg.closeKey')}</span>
-    {#if missing.length}<span class="r restore"><Keys keys="Ctrl+Shift+R" /> {t('scr.restoreDefaults', { n: missing.length })}</span>{/if}
+    {#if missing.length}<span class="restore"><Keys keys="Ctrl+Shift+R" /> {t('scr.restoreDefaults', { n: missing.length })}</span>{/if}
   </div>
 </div>
 
@@ -184,7 +194,15 @@ onMount(() => {
   .scrlist .lx-desc {
     height: 64px;
   }
+  /* 既定を戻す案内は右に寄せ、狭い幅でも隠さない（.r は 600px 以下で隠れる） */
+  .restore {
+    margin-left: auto;
+  }
+  .scrlist .tag {
+    flex: none;
+  }
   .scrlist .lx-desc .cond {
+    grid-column: 1 / -1;
     white-space: normal;
     display: -webkit-box;
     line-clamp: 2;

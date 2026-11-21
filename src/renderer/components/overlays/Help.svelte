@@ -11,8 +11,11 @@ import {
   blocks,
   filterShortcuts,
   helpSection,
+  isModeToggle,
   jumpSection,
   langIx,
+  rebindable,
+  rowDefault,
   rowKeys,
   SECTION_KEY,
   type SectionId,
@@ -65,6 +68,8 @@ $effect(() => {
 const cur = $derived(flat[sel])
 const secName = (s: SectionId) => t(SECTION_KEY[s])
 const defaultKey = (id: string) => ACTIONS.find((a) => a.id === id)?.key ?? ''
+/** 既定から変えた行の既定のキー（変えていなければ null） */
+const curDefault = $derived(cur ? rowDefault(cur.row, keyOfId, defaultKey, PRESET_IDS) : null)
 
 function setMode(m: 'text' | 'key') {
   mode = m
@@ -84,7 +89,7 @@ function scrollSel() {
 function key(e: KeyboardEvent) {
   if (composing(e)) return
   const plain = !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey
-  if (e.key === 'Tab') setMode(mode === 'key' ? 'text' : 'key')
+  if (isModeToggle(e)) setMode(mode === 'key' ? 'text' : 'key')
   else if (e.key === 'Escape') {
     // 押したキー → キーで探す → 打った語 → 閉じる（最後はアプリ全体の Esc が閉じる）
     if (combo) combo = ''
@@ -204,8 +209,8 @@ onMount(() => {
                         {#if k}<Keys keys={k} hit={mode === 'key' ? combo : ''} />{:else}<span class="nokey">{t('help.noKey')}</span>{/if}
                       </span>
                       <span class="nm"><Hl text={x.row.label[li]} ranges={x.ranges} /></span>
-                      <span class="b">
-                        {#if x.row.act}
+                      <span class="b" title={rebindable(x.row) ? t('help.rebindable') : undefined}>
+                        {#if rebindable(x.row)}
                           <svg class="lx-icon pen" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13 7 4 4" /></svg>
                           <span class="lx-sr">{t('help.rebindable')}</span>
                         {/if}
@@ -223,11 +228,10 @@ onMount(() => {
   </div>
   <div class="lx-desc" aria-live="polite">
     {#if cur}
-      {@const a = cur.row.act}
       <b>{cur.row.label[li]}</b>
       <span class="d">
-        {#if a}
-          {t('help.rebind')}{#if defaultKey(a) !== keyOf(a)}{' · '}{t('help.default', { key: defaultKey(a) || '—' })}{/if}
+        {#if rebindable(cur.row)}
+          {t('help.rebind')}{#if curDefault != null}{' · '}{t('help.default', { key: curDefault || '—' })}{/if}
         {:else}
           {cur.row.sec === 'general' ? t('help.fixedKey') : t('help.paneKey', { sec: secName(cur.row.sec) })}
         {/if}

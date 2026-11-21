@@ -106,7 +106,8 @@ function key(e: KeyboardEvent) {
     e.preventDefault()
     e.stopPropagation()
     cancel()
-  } else if (e.key === 'Enter') {
+  } else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+    // ボタンの上の Enter はそのボタンに任せる（キャンセルで保存しない）
     e.preventDefault()
     e.stopPropagation()
     save()

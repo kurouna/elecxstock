@@ -9,7 +9,7 @@ test.describe('ドロワー（FR-DR2, FR-DR3, FR-DR6）', () => {
     await tab(page, 'mtf')
     const wl = page.locator('[data-pane-id]').first()
     await wl.hover()
-    await wl.getByRole('button', { name: 'ペインを左のドロワーへ' }).click()
+    await wl.getByRole('button', { name: 'ペインを左のドロワーに移す' }).click()
     const rail = page.locator('[data-dock-rail="left"]')
     await expect(rail).toBeVisible()
     await page.mouse.move(1000, 400)
@@ -39,7 +39,7 @@ test.describe('ドロワー（FR-DR2, FR-DR3, FR-DR6）', () => {
     const wl = page.locator('[data-pane-id]').first()
     const before = (await wl.boundingBox())!
     await wl.hover()
-    await wl.getByRole('button', { name: 'ペインを左のドロワーへ' }).click()
+    await wl.getByRole('button', { name: 'ペインを左のドロワーに移す' }).click()
     await page.locator('[data-dock-rail="left"]').hover()
     await page.locator('.dock .pin').click()
     await page.locator('.dock [data-pane-id]').first().hover()
@@ -61,7 +61,7 @@ test.describe('ドロワーの幅と表示倍率（FR-DR5・FR-V10）', () => {
     await tab(page, 'mtf')
     const wl = page.locator('[data-pane-id]').first()
     await wl.hover()
-    await wl.getByRole('button', { name: 'ペインを左のドロワーへ' }).click()
+    await wl.getByRole('button', { name: 'ペインを左のドロワーに移す' }).click()
     const rail = page.locator('[data-dock-rail="left"]')
     const box = (await rail.boundingBox())!
     await page.mouse.move(box.x + 10, box.y + 300, { steps: 5 })

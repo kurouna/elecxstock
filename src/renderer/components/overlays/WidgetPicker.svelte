@@ -2,6 +2,7 @@
 // ペインの種類を選ぶ（Ctrl+Shift+N と、右・下に分割の続き。docs/design-dialogs.md §5・§6.5・FR-L7・FR-L11）。
 // 線画の図・名前・説明のカードを分類ごとの格子に並べる。打って絞り込み、矢印で動き、Enter で決める
 import { onMount, untrack } from 'svelte'
+import { keepFocus } from '../../lib/focusTrap'
 import type { Key } from '../../lib/i18n'
 import { composing } from '../../lib/keys'
 import { WIDGET_INFO } from '../../lib/widgetInfo'
@@ -72,10 +73,13 @@ function cols(): number {
   const g = res?.querySelector<HTMLElement>('.cards')
   return g ? getComputedStyle(g).gridTemplateColumns.split(' ').filter(Boolean).length || 4 : 4
 }
+/** 選んでいるカードを見せる（開いたとき・語を消したとき・キーで移ったとき） */
+const scrollSel = () => queueMicrotask(() => res?.querySelector('.sel')?.scrollIntoView({ block: 'nearest' }))
 function key(e: KeyboardEvent) {
   if (composing(e)) return
   if (e.key === 'Escape' && q) {
     q = ''
+    scrollSel() // 全件に戻ったら、選んでいるカードを見せる
     e.preventDefault()
     return
   }
@@ -110,12 +114,16 @@ function key(e: KeyboardEvent) {
   else if (e.key === 'Enter') choose()
   else return
   e.preventDefault()
-  queueMicrotask(() => res?.querySelector('.sel')?.scrollIntoView({ block: 'nearest' }))
+  scrollSel()
 }
-onMount(() => input?.focus())
+onMount(() => {
+  input?.focus()
+  scrollSel()
+})
 </script>
 
-<div class="dialog lx wpick" role="dialog" aria-label={title}>
+<!-- svelte-ignore a11y_interactive_supports_focus -->
+<div class="dialog lx wpick" role="dialog" aria-label={title} onmousedown={keepFocus}>
   <div class="lx-head">
     <h3>{title}</h3>
     {#if overlay.mode === 'change' && pane}
@@ -136,10 +144,10 @@ onMount(() => input?.focus())
       />
     </label>
   </div>
-  <div class="lx-res" id="wpick-list" role="listbox" onmousedown={(e) => e.preventDefault()} aria-label={title} bind:this={res}>
+  <div class="lx-res" id="wpick-list" role="listbox" aria-label={title} bind:this={res}>
     {#each groups as g (g.group)}
       <div class="wg" role="group" aria-label={t(`wgroup.${g.group}` as Key)}>
-        <div class="lx-grp">{t(`wgroup.${g.group}` as Key)}<span class="n">{g.cards.length}</span></div>
+        <div class="lx-grp" aria-hidden="true">{t(`wgroup.${g.group}` as Key)}<span class="n">{g.cards.length}</span></div>
         <div class="cards">
           {#each g.cards as c (c.id)}
             <button

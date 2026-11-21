@@ -1,6 +1,7 @@
 <script lang="ts">
 // 設定のスイッチ（docs/design-dialogs.md §6）: 今の 10px の四角の代わり。「オン／オフ」の文字つき。role="switch"。
 // 使えないときは disabled ではなく aria-disabled にする（フォーカスを受け、↑ ↓ で行を越えられ、理由を読める。押しても変えない）
+// tabindex: 一覧の行の中のスイッチは -1（一覧を Tab の 1 か所にし、Space は一覧が選んだ行に使う。ニュースのフィード）
 import { t } from '../../../stores/app.svelte'
 
 let {
@@ -8,8 +9,9 @@ let {
   label,
   disabled = false,
   describedby,
+  tabindex = 0,
   onchange,
-}: { on: boolean; label: string; disabled?: boolean; describedby?: string; onchange: () => void } = $props()
+}: { on: boolean; label: string; disabled?: boolean; describedby?: string; tabindex?: number; onchange: () => void } = $props()
 </script>
 
 <!-- 文字とつまみを 1 つの要素にまとめる（表の行の中で 2 つの欄に分かれないように） -->
@@ -25,6 +27,7 @@ let {
   aria-label={label}
   aria-disabled={disabled || undefined}
   aria-describedby={describedby}
+  {tabindex}
   data-primary
   onclick={() => !disabled && onchange()}
 ></button>

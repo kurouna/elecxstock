@@ -85,7 +85,13 @@ function key(e: KeyboardEvent) {
   const ctrl = e.ctrlKey || e.metaKey
   const a = tab === 'alerts' ? shown[sel] : undefined
   const f = tab === 'history' ? hist[sel] : undefined
-  // Esc は handleKey（capture）が閉じる
+  // Esc は handleKey（capture）が閉じる。ボタン・チェックボックスの上の Enter・Space・Delete はその部品に任せる（選んだ行を操作しない）
+  if (
+    e.target !== root &&
+    (e.target instanceof HTMLButtonElement || e.target instanceof HTMLInputElement) &&
+    (k === 'Enter' || k === ' ' || k === 'Delete')
+  )
+    return
   if (k === 'ArrowDown' || k === 'ArrowUp') sel = Math.max(0, Math.min(rows - 1, sel + (k === 'ArrowDown' ? 1 : -1)))
   else if (k === 'PageDown' || k === 'PageUp') sel = Math.max(0, Math.min(rows - 1, sel + (k === 'PageDown' ? 10 : -10)))
   else if (k === 'Home') sel = 0

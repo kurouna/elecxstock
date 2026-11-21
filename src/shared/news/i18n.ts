@@ -85,7 +85,7 @@ export const NEWS_JA = {
     'マーケットのタブに、日本銀行・日本取引所グループ・Bloomberg などの見出しを出します。各配信元に IP アドレスが伝わります。',
   'first.news.offHint': 'ニュースのための通信はしません。あとで設定から変えられます。',
   'help.news': 'ニュース',
-  'keys.reserved': '{key} はニュースのペインのコピーに使うので割り当てられません',
+  'keys.reserved': '{key} はペインの中の操作に使うので割り当てられません',
 } as const
 
 export const NEWS_EN: Record<keyof typeof NEWS_JA, string> = {
@@ -173,5 +173,5 @@ export const NEWS_EN: Record<keyof typeof NEWS_JA, string> = {
     'Shows headlines from the Bank of Japan, JPX, Bloomberg and others on the Market tab. Each source sees your IP address.',
   'first.news.offHint': 'No requests are made for news. You can change this in Settings later.',
   'help.news': 'News',
-  'keys.reserved': '{key} is used to copy in the News pane and cannot be assigned',
+  'keys.reserved': '{key} is used by keys inside panes and cannot be assigned',
 }

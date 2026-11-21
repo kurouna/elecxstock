@@ -165,3 +165,25 @@ describe('キーの割り当ての表（FR-KB6）', () => {
     expect(withKey({}, 'b', '', 'Ctrl+B')).toEqual({ b: '' })
   })
 })
+
+// レビューの指摘（2026-11-21）の再現
+describe('キーの割り当ての表: 既定が割り当てなしの操作（FR-KB6）', () => {
+  it('既定が割り当てなしの操作を外しても、上書きを残さない（変えた数に入れない）', async () => {
+    const { withKey } = await import('../../../src/renderer/lib/keys')
+    expect(withKey({}, 'x', '', '')).toEqual({})
+    expect(withKey({ x: 'Ctrl+Alt+X' }, 'x', '', '')).toEqual({})
+    // 既定のある操作を外すのは上書き（空）のまま
+    expect(withKey({}, 'b', '', 'Ctrl+B')).toEqual({ b: '' })
+  })
+  it('割り当てられないキーの文言は、ペインの中で使うキー全体のこと（ニュースのコピーだけではない。Alt+T・Ctrl+Y も入る）', async () => {
+    const { NEWS_EN, NEWS_JA } = await import('../../../src/shared/news/i18n')
+    const { PANE_RESERVED } = await import('../../../src/renderer/lib/keys')
+    expect(PANE_RESERVED).toContain('Alt+T')
+    expect(NEWS_JA['keys.reserved']).not.toContain('ニュース')
+    expect(NEWS_EN['keys.reserved']).not.toMatch(/news/i)
+    expect(NEWS_JA['keys.reserved']).toContain('{key}')
+    expect(NEWS_EN['keys.reserved']).toContain('{key}')
+    // 日本語は助詞で終えない
+    expect(NEWS_JA['keys.reserved']).not.toMatch(/[はがをにでとへもの]$/)
+  })
+})

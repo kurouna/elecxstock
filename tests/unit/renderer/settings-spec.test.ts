@@ -172,3 +172,31 @@ describe('下の段の案内（FR-KB11）', () => {
     expect(footHints('about')).toEqual({ toggle: false, value: false, reset: false })
   })
 })
+
+// レビューの指摘（2026-11-21）の再現
+describe('行の中の部品（FR-KB11）', () => {
+  const part = (o: Partial<import('../../../src/renderer/lib/settingsSpec').PartInfo> = {}) => ({
+    reset: false,
+    ariaHidden: false,
+    disabled: false,
+    readOnly: false,
+    tabIndex: 0,
+    shown: true,
+    ...o,
+  })
+  it('読むだけの欄・Tab で止まらない部品（目標利回りの線がオフの欄）は部品にしない。↺・隠れた部品も', async () => {
+    const { isRowPart } = await import('../../../src/renderer/lib/settingsSpec')
+    expect(isRowPart(part())).toBe(true)
+    expect(isRowPart(part({ readOnly: true, tabIndex: -1 }))).toBe(false)
+    expect(isRowPart(part({ readOnly: true }))).toBe(false)
+    expect(isRowPart(part({ tabIndex: -1 }))).toBe(false)
+    expect(isRowPart(part({ reset: true }))).toBe(false)
+    expect(isRowPart(part({ ariaHidden: true }))).toBe(false)
+    expect(isRowPart(part({ disabled: true }))).toBe(false)
+    expect(isRowPart(part({ shown: false }))).toBe(false)
+  })
+  it('下の段の ← → の案内は、行の種類の性質（valued）と同じ表から決める', async () => {
+    const { KIND, rowsOfTab, SETTING_TABS } = await import('../../../src/renderer/lib/settingsSpec')
+    for (const tab of SETTING_TABS) expect(footHints(tab).value, tab).toBe(rowsOfTab(tab).some((r) => KIND[r.kind].valued))
+  })
+})

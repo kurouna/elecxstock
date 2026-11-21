@@ -46,6 +46,30 @@ describe('今使えないアクション（FR-KB9）: 表示と実行が同じ�
     off2()
     app.focus = null
   })
+  it('リストに追加（addTo）: 銘柄が無ければ使えない。選択が空でもフォーカス中の銘柄で開く', async () => {
+    const { registerPane } = await import('../../../src/renderer/lib/panes')
+    const { layout } = await import('../../../src/renderer/stores/layout.svelte')
+    const addTo = ACTIONS.find((a) => a.id === 'addTo')!
+    const links = layout.doc.links
+    layout.doc.links = {}
+    app.focus = 'p-add'
+    const off = registerPane('p-add', { selected: () => [] })
+    expect(addTo.enabled?.() ?? null).toBe('cmd.need.symbol')
+    off()
+    // 一覧が空（選択 []）でも、フォーカス中の銘柄があれば足す先を選ぶダイアログを開く
+    const off2 = registerPane('p-add', { selected: () => [], current: () => 'JP:7203' })
+    expect(addTo.enabled?.() ?? null).toBeNull()
+    app.overlay = null
+    void addTo.run()
+    // 代入で null に絞られた型を、run のあとの値として読み直す
+    const opened = app.overlay as unknown as { kind: string; resolve: (v: string | null) => void } | null
+    expect(opened?.kind).toBe('choice')
+    opened?.resolve(null)
+    app.overlay = null
+    off2()
+    layout.doc.links = links
+    app.focus = null
+  })
   it('判定に使う理由の文言は日英にある', () => {
     for (const k of ['cmd.need.list', 'cmd.need.screener', 'cmd.need.watchlist', 'cmd.need.symbol', 'cmd.need.drawer'])
       for (const d of [ja, en] as Record<string, string>[]) expect(d[k], k).toBeTruthy()

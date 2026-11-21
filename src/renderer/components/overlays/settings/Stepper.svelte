@@ -28,6 +28,12 @@ let {
   onstep: (d: 1 | -1) => void
   oncommit: () => void
 } = $props()
+let commitEl = $state<HTMLButtonElement>()
+let valueEl = $state<HTMLButtonElement>()
+// 「決める」が隠れるとき（決めた・やめた）にフォーカスを持っていたら、値のボタンへ戻す（body へ落とさない）
+$effect.pre(() => {
+  if (!pending && commitEl && document.activeElement === commitEl) queueMicrotask(() => valueEl?.focus())
+})
 function key(e: KeyboardEvent) {
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') onstep(e.key === 'ArrowRight' ? 1 : -1)
   // Enter は仮の値があるときだけ（無ければ − ＋ のボタンの Enter のまま）
@@ -42,10 +48,10 @@ function key(e: KeyboardEvent) {
 <span class="stepper" onkeydown={key}>
   <span class="stp" class:pend={pending}>
     <button type="button" class="b" aria-label={downLabel} aria-disabled={!canDown || undefined} onclick={() => canDown && onstep(-1)}>−</button>
-    <button type="button" class="v" data-primary aria-label="{label} {text}">{text}</button>
+    <button type="button" class="v" bind:this={valueEl} data-primary aria-label="{label} {text}">{text}</button>
     <button type="button" class="b" aria-label={upLabel} aria-disabled={!canUp || undefined} onclick={() => canUp && onstep(1)}>＋</button>
   </span>
-  <button type="button" class="btn commit" class:dng={danger} class:hid={!pending} tabindex={pending ? 0 : -1} aria-hidden={!pending || undefined} onclick={oncommit}>
+  <button type="button" class="btn commit" bind:this={commitEl} class:dng={danger} class:hid={!pending} tabindex={pending ? 0 : -1} aria-hidden={!pending || undefined} onclick={oncommit}>
     {commitText} <Keys keys="Enter" />
   </button>
 </span>
