@@ -5,6 +5,7 @@
       "**",
       "!out",
       "!release",
+      "!release-*",
       "!docs/mock",
       "!node_modules",
       "!test-results",
@@ -27,7 +28,7 @@
   },
   "linter": {
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": {
         "noNonNullAssertion": "off",
         "noDescendingSpecificity": "off"

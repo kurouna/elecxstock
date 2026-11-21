@@ -345,7 +345,10 @@ await sleep(3500)
 await shot(page, 'quote-board')
 await caption(page, '矢印でカードを選ぶと、同じリンク色のチャートが追従します。S で騰落率の順に並べ替え')
 await restore()
-for (let i = 0; i < 3; i++) await press(page, 'ArrowRight'), await sleep(700)
+for (let i = 0; i < 3; i++) {
+  await press(page, 'ArrowRight')
+  await sleep(700)
+}
 await press(page, 'KeyS')
 await sleep(2200)
 await caption(page, 'G で一覧を切り替え（ウォッチリスト・保有・スクリーニング条件）。V でヒートマップに戻ります')
@@ -360,7 +363,10 @@ await sleep(1200)
 await press(page, 'Control+Shift+Digit4')
 await caption(page, 'ウォッチリストで銘柄を選ぶと、日足・週足・月足のチャートが切り替わります')
 await press(page, 'Alt+ArrowLeft', 'Alt+ArrowUp', 'Home')
-for (let i = 0; i < 3; i++) await press(page, 'ArrowDown'), await sleep(700)
+for (let i = 0; i < 3; i++) {
+  await press(page, 'ArrowDown')
+  await sleep(700)
+}
 await sleep(800)
 
 await shot(page, 'mtf')
@@ -402,7 +408,10 @@ await sleep(800)
 await press(page, 'Control+Shift+Digit2')
 await caption(page, 'スクリーナーでは、条件を変えるとすぐに結果を絞り直します')
 await sleep(1200)
-for (let i = 0; i < 3; i++) await press(page, 'ArrowDown'), await sleep(500)
+for (let i = 0; i < 3; i++) {
+  await press(page, 'ArrowDown')
+  await sleep(500)
+}
 await press(page, 'Tab')
 await sleep(500)
 await press(page, 'ArrowLeft') // 利回りの下限を 1 段下げる（グリッドの 1 ページが埋まる数にする）
@@ -522,7 +531,10 @@ await press(page, 'Control+Shift+Digit6')
 await caption(page, 'J-REIT の分配金・権利確定月・利回りを確認できます。5 桁の優先株にも対応しています')
 await press(page, 'Home')
 await sleep(1500)
-for (let i = 0; i < 4; i++) await press(page, 'ArrowDown'), await sleep(900) // J-REIT をめくり、優先株（94345）で止まる
+for (let i = 0; i < 4; i++) {
+  await press(page, 'ArrowDown')
+  await sleep(900)
+} // J-REIT をめくり、優先株（94345）で止まる
 await sleep(1200)
 
 await shot(page, 'income')
@@ -530,7 +542,10 @@ await shot(page, 'income')
 await press(page, 'Control+Shift+Digit7')
 await caption(page, '証券会社の CSV から保有を取り込み、評価額・損益・取得利回りを確認できます')
 await sleep(1200)
-for (let i = 0; i < 3; i++) await press(page, 'ArrowDown'), await sleep(800)
+for (let i = 0; i < 3; i++) {
+  await press(page, 'ArrowDown')
+  await sleep(800)
+}
 await sleep(600)
 
 await shot(page, 'holdings')
@@ -600,7 +615,10 @@ if (MULTI) {
   await page.bringToFront()
   await caption(page, '1 枚目で銘柄を選ぶと、2 枚目の窓のチャートも切り替わります')
   await press(page, 'Alt+ArrowLeft', 'Alt+ArrowUp', 'Home')
-  for (let i = 0; i < 5; i++) await press(page, 'ArrowDown'), await sleep(900)
+  for (let i = 0; i < 5; i++) {
+    await press(page, 'ArrowDown')
+    await sleep(900)
+  }
   await sleep(800)
   if (SHOTS) await w.screenshot({ path: join(SHOTS, 'free2.png') })
   await shot(page, 'multi-main')
@@ -649,7 +667,10 @@ await caption(page, '設定画面では、表示・データ・キーの割り�
 await press(page, 'Control+Comma')
 await sleep(1500)
 // 一般 → 表示 → チャート → データ → キー → ニュース（↓ 5 回）。次の ↓ で「このアプリについて」（帰属表示）
-for (let i = 0; i < 5; i++) await press(page, 'ArrowDown'), await sleep(1100)
+for (let i = 0; i < 5; i++) {
+  await press(page, 'ArrowDown')
+  await sleep(1100)
+}
 await caption(page, 'チャートには TradingView の Lightweight Charts™ を使っています')
 await press(page, 'ArrowDown')
 await sleep(2500)

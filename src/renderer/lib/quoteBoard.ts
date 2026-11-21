@@ -248,7 +248,7 @@ export const stepSize = (size: QbSize, d: 1 | -1): QbSize => Math.max(1, Math.mi
 /** 一覧の次の値（並べ替え・分類の S・B。一巡する。知らない値からは先頭の次） */
 export function nextOf<T>(list: readonly T[], cur: T): T {
   const i = list.indexOf(cur)
-  return list[((i < 0 ? 0 : i) + 1) % list.length]!
+  return list[(Math.max(i, 0) + 1) % list.length]!
 }
 
 /** 見えている行の数（PgUp / PgDn の 1 回分。少なくとも 1） */
