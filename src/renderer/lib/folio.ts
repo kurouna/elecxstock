@@ -35,7 +35,8 @@ import { type Placed, squarify } from './treemap'
 
 // ---------------- 状態とキー ----------------
 /** Tab で巡るカード（FR-PF6） */
-export const CARDS = ['hist', 'alloc', 'contrib', 'div', 'events', 'dshare', 'dtab'] as const
+/** L の並び（2 段目: 資産構成・損益寄与・予定、3 段目: 分類ごとの資産・配当見込み）の順 */
+export const CARDS = ['hist', 'alloc', 'contrib', 'events', 'ptab', 'div', 'dshare', 'dtab'] as const
 export type Card = (typeof CARDS)[number]
 export function nextCard(cur: Card | null, back: boolean): Card {
   const i = cur ? CARDS.indexOf(cur) : back ? 0 : -1
@@ -50,10 +51,16 @@ export const HIST_PERIODS: { key: string; bars: number }[] = [
   { key: '1Y', bars: 250 },
   { key: 'all', bars: Number.POSITIVE_INFINITY },
 ]
-export const ALLOC_GROUPS = ['sector', 'sector17', 'acct', 'kind', 'code'] as const
-export type AllocGroup = (typeof ALLOC_GROUPS)[number]
 export const DIV_GROUPS = ['code', 'sector', 'sector17', 'market', 'kind', 'acct'] as const
 export type DivGroup = (typeof DIV_GROUPS)[number]
+/** 資産構成と分類ごとの資産の分類（2 枚で共有する。並びは配当と同じ） */
+export const ALLOC_GROUPS = DIV_GROUPS
+export type AllocGroup = DivGroup
+/** 分類の並びを配当とそろえる前に保存した資産構成の分類（gv の無い保存を読み替える） */
+const ALLOC_GROUPS_V1 = ['sector', 'sector17', 'acct', 'kind', 'code'] as const
+/** 分類ごとの資産の並べ替え（S。Shift+S で逆順） */
+export const ASSET_SORTS = ['value', 'pnl', 'rate', 'day', 'yoc'] as const
+export type AssetSort = (typeof ASSET_SORTS)[number]
 /** 配当の表の並べ替え（code は銘柄コードの昇順。ほかは大きい順） */
 export const DIV_SORTS = ['code', 'annual', 'delta', 'yield', 'yoc', 'cagr'] as const
 export type DivSort = (typeof DIV_SORTS)[number]
@@ -72,28 +79,93 @@ export interface FolioView {
   contrib: number
   dgroup: number
   dsort: number
+  /** 分類ごとの資産の並べ替え（ASSET_SORTS の位置）と逆順 */
+  psort: number
+  pasc: boolean
+  /** 同じ銘柄をまとめる（カードごと。資産構成・分類ごとの資産・損益寄与・配当の表） */
+  amerge: boolean
+  pmerge: boolean
+  cmerge: boolean
+  dmerge: boolean
+  /** 保存の版（2: 資産構成の分類の並びを配当とそろえた） */
+  gv: 2
 }
-export const DEFAULT_VIEW: FolioView = { period: 0, pct: false, bench: 0, est: false, group: 0, heat: 0, contrib: 0, dgroup: 0, dsort: 0 }
+export const DEFAULT_VIEW: FolioView = {
+  period: 0,
+  pct: false,
+  bench: 0,
+  est: false,
+  group: 1,
+  heat: 0,
+  contrib: 0,
+  dgroup: 0,
+  dsort: 0,
+  psort: 0,
+  pasc: false,
+  amerge: true,
+  pmerge: true,
+  cmerge: true,
+  dmerge: true,
+  gv: 2,
+}
 export function viewOf(raw: unknown): FolioView {
-  const o = (raw && typeof raw === 'object' ? raw : {}) as Partial<FolioView>
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Partial<Omit<FolioView, 'gv'>> & { gv?: unknown }
   const int = (v: unknown, n: number, d: number) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) < n ? (v as number) : d)
+  // 版の無い保存の分類は前の並び（業種・17 業種・口座・種別・銘柄）の位置
+  const old = o.gv !== 2 && Number.isInteger(o.group) ? ALLOC_GROUPS_V1[o.group as number] : undefined
+  const no = (v: unknown) => v !== false
   return {
     period: int(o.period, HIST_PERIODS.length, 0),
     pct: o.pct === true,
     bench: int(o.bench, BENCHES.length, 0),
     est: o.est === true,
-    group: int(o.group, ALLOC_GROUPS.length, 0),
+    group: old ? ALLOC_GROUPS.indexOf(old) : int(o.group, ALLOC_GROUPS.length, DEFAULT_VIEW.group),
     heat: int(o.heat, 2, 0),
     contrib: int(o.contrib, CONTRIB_PERIODS.length, 0),
     dgroup: int(o.dgroup, DIV_GROUPS.length, 0),
     dsort: int(o.dsort, DIV_SORTS.length, 0),
+    psort: int(o.psort, ASSET_SORTS.length, 0),
+    pasc: o.pasc === true,
+    amerge: no(o.amerge),
+    pmerge: no(o.pmerge),
+    cmerge: no(o.cmerge),
+    dmerge: no(o.dmerge),
+    gv: 2,
   }
 }
+type MergeKey = 'amerge' | 'pmerge' | 'cmerge' | 'dmerge'
+/** A が切り替える「同じ銘柄をまとめる」（選んでいるカードの。カードを選んでいないときは分類ごとの資産。チェックの無いカードは null） */
+export function mergeKeyOf(card: Card | null): MergeKey | null {
+  return card === 'alloc'
+    ? 'amerge'
+    : card === 'contrib'
+      ? 'cmerge'
+      : card === 'dtab'
+        ? 'dmerge'
+        : card === 'ptab' || !card
+          ? 'pmerge'
+          : null
+}
+/** 分類が口座のときは口座ごとに出す（まとめるのチェックは使えない） */
+export function mergeLocked(v: FolioView, card: Card | null): boolean {
+  const k = mergeKeyOf(card)
+  if (!k) return true
+  if (k === 'cmerge') return false
+  if (k === 'dmerge') return DIV_GROUPS[v.dgroup] === 'acct'
+  return ALLOC_GROUPS[v.group] === 'acct'
+}
+/** そのカードで同じ銘柄を口座ごとに分けて出すか */
+export const splitOf = (v: FolioView, card: Card | null): boolean => {
+  const k = mergeKeyOf(card)
+  return !k || !v[k] || mergeLocked(v, card)
+}
+/** 分類ごとの資産の列名を押したとき: 今の列ならもう一度で逆順、別の列なら大きい順から */
+export const sortTo = (v: FolioView, i: number): FolioView => ({ ...v, psort: i, pasc: i === v.psort ? !v.pasc : false })
 /**
  * ペインの単キー（KeyboardEvent.code。FR-KB5）。ペインの中で単キーの意味はカードによって変えない
  * （G は選んでいるカードの分類、S は並べ替え）。返すのは変えた状態（変えなければ null）
  */
-export function viewKey(v: FolioView, code: string, card: Card | null): FolioView | null {
+export function viewKey(v: FolioView, code: string, card: Card | null, shift = false): FolioView | null {
   switch (code) {
     case 'KeyP':
       return { ...v, pct: !v.pct }
@@ -112,7 +184,13 @@ export function viewKey(v: FolioView, code: string, card: Card | null): FolioVie
     case 'KeyT':
       return { ...v, contrib: (v.contrib + 1) % CONTRIB_PERIODS.length }
     case 'KeyS':
+      if (card === 'ptab') return shift ? { ...v, pasc: !v.pasc } : { ...v, psort: (v.psort + 1) % ASSET_SORTS.length, pasc: false }
       return card === 'dtab' ? { ...v, dsort: (v.dsort + 1) % DIV_SORTS.length } : null
+    case 'KeyA': {
+      const k = mergeKeyOf(card)
+      if (!k || mergeLocked(v, card)) return null
+      return { ...v, [k]: !v[k] }
+    }
     default:
       return null
   }
@@ -448,9 +526,11 @@ export interface Tile extends Placed<{ key: string; rows: FRow[] }> {
   metric: number | null
   step: number
 }
-/** 2 段のツリーマップ（分類 → 銘柄）。色は含み損益率か前日比 */
-export function allocTiles(rows: FRow[], group: AllocGroup, heat: number, w: number, h: number): Tile[] {
-  const leaves = group === 'acct' ? rows : byCode(rows)
+/** 2 段のツリーマップ（分類 → 銘柄）。色は含み損益率か前日比。split なら同じ銘柄を口座ごとのタイルにする（分類が口座なら常に） */
+export function allocTiles(rows: FRow[], group: AllocGroup, heat: number, w: number, h: number, split = false): Tile[] {
+  const lot = split || group === 'acct'
+  const leaves = lot ? rows : byCode(rows)
+  const leafKey = (r: FRow) => (lot ? `${r.code}/${r.acct}` : r.code)
   const metric = (rs: FRow[]) => {
     if (heat) {
       const base = rs.reduce((s, r) => s + r.value - r.dayPnl, 0)
@@ -467,7 +547,7 @@ export function allocTiles(rows: FRow[], group: AllocGroup, heat: number, w: num
   const value = (x: { rows: FRow[] }) => x.rows.reduce((s, r) => s + r.value, 0)
   if (group === 'code')
     return squarify(
-      leaves.map((r) => ({ key: r.code, rows: [r] })),
+      leaves.map((r) => ({ key: leafKey(r), rows: [r] })),
       value,
       { x: 0, y: 0, w, h },
     ).map((p) => tile(p, false))
@@ -485,7 +565,7 @@ export function allocTiles(rows: FRow[], group: AllocGroup, heat: number, w: num
     const head = g.h > 44 && g.w > 64 ? 16 : 0
     out.push(tile(g, true, head))
     for (const p of squarify(
-      g.item.rows.map((r) => ({ key: group === 'acct' ? `${r.code}/${r.acct}` : r.code, rows: [r] })),
+      g.item.rows.map((r) => ({ key: leafKey(r), rows: [r] })),
       value,
       { x: g.x + 1, y: g.y + head + 1, w: g.w - 2, h: g.h - head - 2 },
     ))
@@ -541,6 +621,151 @@ export function allocStats(rows: FRow[]) {
   return { ...c, cyclical: cy.cyclical, defensive: cy.defensive, other: cy.other }
 }
 
+// ---------------- 分類ごとの資産（FR-PF9） ----------------
+/** 分類ごとの資産の行（保有のペインの列）。key は銘柄コードか、口座ごとに分けたとき「コード/口座」 */
+export interface PRow extends FRow {
+  key: string
+  /** 持っている口座（ACCT_ORDER の順。分けた行は自分の口座だけ） */
+  accts: AccountType[]
+  /** 取得利回り（直近 1 年の 1 株配当 ÷ 取得単価。保有のペインと同じ） */
+  yoc: number | null
+}
+const yocOf = (r: FRow) => (r.div12 != null && r.avgCost > 0 ? (r.div12 / r.avgCost) * 100 : null)
+/** 保有の行を、同じ銘柄をまとめた行（split = false）か口座ごとの行にする */
+export function posRows(rows: FRow[], split: boolean): PRow[] {
+  if (split) return rows.map((r) => ({ ...r, key: `${r.code}/${r.acct}`, accts: [r.acct], yoc: yocOf(r) }))
+  const accts = new Map<string, AccountType[]>()
+  for (const r of rows) accts.set(r.code, [...(accts.get(r.code) ?? []), r.acct])
+  return byCode(rows).map((r) => ({ ...r, key: r.code, accts: ACCT_ORDER.filter((a) => accts.get(r.code)!.includes(a)), yoc: yocOf(r) }))
+}
+/** 複数の口座で持つ銘柄（口座の印を出す） */
+export function multiAcct(rows: Pick<FRow, 'code' | 'acct'>[]): Set<string> {
+  const m = new Map<string, Set<string>>()
+  for (const r of rows) m.set(r.code, (m.get(r.code) ?? new Set()).add(r.acct))
+  return new Set([...m].filter(([, s]) => s.size > 1).map(([c]) => c))
+}
+export interface AssetGroup {
+  key: string
+  rows: PRow[]
+  value: number
+  cost: number
+  pnl: number
+  dayPnl: number
+  /** 損益率（%） */
+  rate: number | null
+  /** 取得利回り（年間の配当 ÷ 取得額。配当の分かる銘柄だけで数える） */
+  yoc: number | null
+}
+/** 損益率（%）・前日比率（%）・構成比（%） */
+export const rateOf = (x: { pnl: number; cost: number }) => (x.cost ? (x.pnl / x.cost) * 100 : null)
+export const dayRateOf = (x: { dayPnl: number; value: number }) => (x.value - x.dayPnl ? (x.dayPnl / (x.value - x.dayPnl)) * 100 : null)
+export const shareOf = (v: number, total: number) => (total ? (v / total) * 100 : 0)
+export function assetGroups(rows: PRow[], g: DivGroup): AssetGroup[] {
+  const by = new Map<string, PRow[]>()
+  for (const r of rows) {
+    const k = groupKey(g, r)
+    by.set(k, [...(by.get(k) ?? []), r])
+  }
+  return [...by].map(([key, xs]) => assetSum(xs, key))
+}
+/** 行をまとめた合計（分類の行と、表の合計の行） */
+export function assetSum(xs: PRow[], key = ''): AssetGroup {
+  const s = (f: (r: PRow) => number) => xs.reduce((a, r) => a + f(r), 0)
+  const cost = s((r) => r.cost)
+  const pnl = s((r) => r.pnl)
+  const withDiv = xs.filter((r) => r.div12 != null)
+  const dc = withDiv.reduce((a, r) => a + r.cost, 0)
+  return {
+    key,
+    rows: xs,
+    value: s((r) => r.value),
+    cost,
+    pnl,
+    dayPnl: s((r) => r.dayPnl),
+    rate: rateOf({ pnl, cost }),
+    yoc: dc ? (withDiv.reduce((a, r) => a + r.div12! * r.qty, 0) / dc) * 100 : null,
+  }
+}
+export type AssetRow = { type: 'g'; g: AssetGroup; open: boolean } | { type: 'm'; r: PRow; child: boolean; parent: AssetGroup | null }
+/** 開いた分類の鍵（分類ごとに覚える。業種で開いた分類は 17 業種には効かない） */
+export const openKey = (g: DivGroup, key: string) => `${g}:${key}`
+const assetVal = (s: AssetSort, x: { value: number; pnl: number; cost: number; dayPnl: number; yoc: number | null }): number | null =>
+  s === 'value' ? x.value : s === 'pnl' ? x.pnl : s === 'rate' ? rateOf(x) : s === 'day' ? x.dayPnl : x.yoc
+/** 表の行: 分類が銘柄以外ならアコーディオン（開いた分類だけ中の銘柄）。並べ替えは大きい順（asc で逆順） */
+export function assetTable(rows: PRow[], g: DivGroup, sort: number, asc: boolean, open: Set<string>): AssetRow[] {
+  const s = ASSET_SORTS[sort] ?? 'value'
+  // 値の無い行（損益率・取得利回りが出せない）は向きによらず最後
+  const by = (a: Parameters<typeof assetVal>[1], b: Parameters<typeof assetVal>[1]) => {
+    const x = assetVal(s, a)
+    const y = assetVal(s, b)
+    if (x == null || y == null) return (x == null ? 1 : 0) - (y == null ? 1 : 0)
+    return (asc ? -1 : 1) * (y - x)
+  }
+  if (g === 'code') return [...rows].sort(by).map((r) => ({ type: 'm', r, child: false, parent: null }))
+  const out: AssetRow[] = []
+  for (const x of assetGroups(rows, g).sort(by)) {
+    const on = open.has(openKey(g, x.key))
+    out.push({ type: 'g', g: x, open: on })
+    if (on) out.push(...[...x.rows].sort(by).map((r) => ({ type: 'm' as const, r, child: true, parent: x })))
+  }
+  return out
+}
+/** はじめて見る分類で開いておく分類（評価額の大きい上位 n） */
+export function firstOpen(rows: PRow[], g: DivGroup, n = 2): string[] {
+  if (g === 'code') return []
+  return assetGroups(rows, g)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, n)
+    .map((x) => openKey(g, x.key))
+}
+/** 分類ごとの資産の行の鍵 */
+export const assetRowKey = (r: AssetRow) => (r.type === 'g' ? `g:${r.g.key}` : `m:${r.r.key}`)
+/** → ←（all なら Shift。すべての分類）・Space で開け閉め。開いた分類は分類ごとに覚える（openKey） */
+export function toggleAsset(
+  rows: AssetRow[],
+  i: number,
+  open: Set<string>,
+  want: boolean | undefined,
+  g: DivGroup,
+  all = false,
+): { open: Set<string>; sel: number; key: string | null } {
+  return toggleGroups(rows, i, open, want, g, all, (k) => openKey(g, k), assetRowKey)
+}
+/** 表の棒の目盛り: 分類で分けたら分類の行、銘柄で分けたら銘柄の行に合わせる（開いた中の銘柄も同じ目盛り） */
+export function assetScale(rows: AssetRow[], g: DivGroup): { sc: { z: number; span: number }; maxValue: number } {
+  const xs = rows.flatMap((r): { pnl: number; value: number }[] =>
+    g === 'code' ? (r.type === 'm' ? [r.r] : []) : r.type === 'g' ? [r.g] : [],
+  )
+  return { sc: pnlScale(xs), maxValue: Math.max(1, ...xs.map((x) => x.value)) }
+}
+/** 棒の長さ（%。最大で 100） */
+export const barPct = (v: number, max: number) => Math.min(100, (v / (max || 1)) * 100)
+/** 構成の積み上げの段の濃さ（大きい順に薄く。最も薄くて 0.3） */
+export const compShade = (k: number) => Math.max(0.3, Math.round((1 - k * 0.18) * 100) / 100)
+/** 口座の分類の鍵（acct:…）の口座。ほかの分類は null */
+export const acctOfKey = (key: string): AccountType | null => (key.startsWith('acct:') ? (key.slice(5) as AccountType) : null)
+/** 銘柄の数（銘柄コードで数える）・行の数・口座の種類の数（口座ごとに分けて同じ銘柄が複数の行のとき「1 銘柄・2 口座」と出す） */
+export function lotCount(rows: { code: string; acct?: AccountType }[]): { n: number; lots: number; accts: number } {
+  return { n: new Set(rows.map((r) => r.code)).size, lots: rows.length, accts: new Set(rows.map((r) => r.acct)).size }
+}
+/** 閉じた分類の行の構成（中の銘柄の評価額の割合。大きい順） */
+export function compOf(g: AssetGroup): { key: string; code: string; name: string; share: number }[] {
+  return [...g.rows]
+    .sort((a, b) => b.value - a.value)
+    .map((r) => ({ key: r.key, code: r.code, name: r.name, share: g.value ? r.value / g.value : 0 }))
+}
+/** 評価損益の棒の目盛り: 0 の線（%）は損の最大と益の最大の比の位置 */
+export function pnlScale(xs: { pnl: number }[]): { z: number; span: number } {
+  const gain = Math.max(0, ...xs.map((x) => x.pnl))
+  const loss = Math.max(0, ...xs.map((x) => -x.pnl))
+  const span = gain + loss || 1
+  return { z: (loss / span) * 100, span }
+}
+export function pnlBar(v: number, sc: { z: number; span: number }): { left: number; width: number } {
+  const width = (Math.abs(v) / sc.span) * 100
+  return { left: v >= 0 ? sc.z : sc.z - width, width }
+}
+
 // ---------------- 損益寄与（FR-PF5） ----------------
 export interface ContribRow {
   code: string
@@ -549,25 +774,36 @@ export interface ContribRow {
   div: number
   v: number
   soldOn?: JstDate
+  /** 口座ごとに分けたときの口座（まとめた行には無い） */
+  acct?: AccountType
 }
+/** 損益寄与の行の鍵（選んでいる行を覚える。口座ごとに分けると同じ銘柄が複数の行になる） */
+export const contribKey = (r: Pick<ContribRow, 'code' | 'acct'>) => (r.acct ? `${r.code}/${r.acct}` : r.code)
+/** split なら同じ銘柄を口座ごとの行にする（今月・今年は Core の口座ごとの値。無ければ銘柄の行のまま） */
 export function contribRows(
   period: ContribPeriod,
   rows: FRow[],
   fromCore: FolioContrib | null,
   nameOf: (code: string) => string,
+  split = false,
 ): ContribRow[] {
-  const mk = (code: string, price: number, div: number, soldOn?: JstDate): ContribRow => ({
+  const mk = (code: string, price: number, div: number, soldOn?: JstDate, acct?: AccountType): ContribRow => ({
     code,
     name: nameOf(code),
     price,
     div,
     v: price + div,
     ...(soldOn ? { soldOn } : {}),
+    ...(acct ? { acct } : {}),
   })
+  const pos = split ? rows : byCode(rows)
   let out: ContribRow[]
-  if (period === 'day') out = byCode(rows).map((r) => mk(r.code, r.dayPnl, 0))
-  else if (period === 'all') out = byCode(rows).map((r) => mk(r.code, r.pnl, 0))
-  else out = (fromCore?.rows ?? []).map((r) => mk(r.code, r.price, r.div, r.soldOn))
+  if (period === 'day') out = pos.map((r) => mk(r.code, r.dayPnl, 0, undefined, split ? r.acct : undefined))
+  else if (period === 'all') out = pos.map((r) => mk(r.code, r.pnl, 0, undefined, split ? r.acct : undefined))
+  else
+    out = (fromCore?.rows ?? []).flatMap((r) =>
+      split && r.accts?.length ? r.accts.map((a) => mk(r.code, a.price, a.div, r.soldOn, a.acct)) : [mk(r.code, r.price, r.div, r.soldOn)],
+    )
   return out.sort((a, b) => b.v - a.v)
 }
 /** 棒の位置（0 を中心に左右。値動きの先に配当を続けて積む）。% は track の幅に対して */
@@ -616,26 +852,39 @@ export interface DivRow {
   /** 税引後の割合（口座の重み） */
   net: number
   sold: boolean
+  /** 持っている口座（ACCT_ORDER の順。口座ごとに分けた行は自分の口座だけ。口座の印に使う） */
+  accts: AccountType[]
+  /** 口座ごとに分けた行で、この口座では売ったがほかの口座でまだ持っている */
+  soldHere: boolean
 }
-/** Core の配当の材料と保有の行から、銘柄ごとの配当の行を作る（1 年前の記録が無ければ 1 年前の株数は今と同じとみなす） */
+/**
+ * Core の配当の材料と保有の行から、銘柄ごとの配当の行を作る（1 年前の記録が無ければ 1 年前の株数は今と同じとみなす）。
+ * split なら同じ銘柄を口座ごとの行にする（年間・前年・要因・評価額・取得利回りは口座ごと。足すと銘柄の行と一致する）
+ */
 export function divRows(
   d: FolioDividends,
   rows: FRow[],
   info: (code: string) => { name: string; ins?: Instrument; m?: MetricsRow },
+  split = false,
 ): DivRow[] {
   const cur = new Map(byCode(rows).map((r) => [r.code, r]))
-  return d.rows.map((x) => {
-    const r = cur.get(x.code)
+  const lot = new Map(rows.map((r) => [`${r.code}/${r.acct}`, r]))
+  const ordered = (as: AccountType[]) => ACCT_ORDER.filter((a) => as.includes(a))
+  const one = (
+    x: FolioDividends['rows'][number],
+    now: { acct: AccountType; qty: number }[],
+    ago: { acct: AccountType; qty: number }[],
+    r: FRow | undefined,
+    accts: AccountType[],
+    heldElsewhere = false,
+  ): DivRow => {
     const i = info(x.code)
     const dpsNow = x.dps.at(-1) ?? 0
     const dpsPrev = x.dps.at(-2) ?? dpsNow
-    const ago = x.yearAgo ?? x.now
-    const dc = decompose(x.now, ago, dpsNow, dpsPrev)
+    const dc = decompose(now, ago, dpsNow, dpsPrev)
     const st = dpsStreak(x.dps)
-    const q = x.now.reduce((s, y) => s + y.qty, 0)
-    const value = r?.value ?? 0
-    const cost = r?.cost ?? 0
-    const acct = (x.now[0] ?? ago[0])?.acct ?? 'tokutei'
+    const q = now.reduce((s, y) => s + y.qty, 0)
+    const acct = (now[0] ?? ago[0])?.acct ?? accts[0] ?? 'tokutei'
     return {
       code: x.code,
       name: i.name || x.code,
@@ -659,15 +908,32 @@ export function divRows(
       yld: r?.close ? (dpsNow / r.close) * 100 : null,
       yoc: r && r.avgCost > 0 ? (dpsNow / (r.cost / r.qty)) * 100 : null,
       payout: i.ins?.kind === 'stock' ? payoutRatio(r?.close ? (dpsNow / r.close) * 100 : null, i.m?.per ?? null) : null,
-      value,
-      cost,
+      value: r?.value ?? 0,
+      cost: r?.cost ?? 0,
       special: x.special,
       regimeChanged: x.regimeChanged,
       last: x.last,
       prevLast: x.prev,
-      net: q ? x.now.reduce((s, y) => s + y.qty * netRate(y.acct), 0) / q : netRate(acct),
+      net: q ? now.reduce((s, y) => s + y.qty * netRate(y.acct), 0) / q : netRate(acct),
       sold: q === 0,
+      accts,
+      soldHere: q === 0 && heldElsewhere,
     }
+  }
+  return d.rows.flatMap((x) => {
+    const ago = x.yearAgo ?? x.now
+    const all = ordered([...x.now, ...ago].map((y) => y.acct))
+    if (!split) return [one(x, x.now, ago, cur.get(x.code), x.now.length ? ordered(x.now.map((y) => y.acct)) : all)]
+    return all.map((a) =>
+      one(
+        x,
+        x.now.filter((y) => y.acct === a),
+        ago.filter((y) => y.acct === a),
+        lot.get(`${x.code}/${a}`),
+        [a],
+        x.now.some((y) => y.acct !== a && y.qty > 0),
+      ),
+    )
   })
 }
 export interface DivSummary {
@@ -831,23 +1097,49 @@ export function tableRows(rs: DivRow[], g: DivGroup, sort: DivSort, open: Set<st
   }
   return out
 }
-/** 表で → ← を押したとき: 開く・閉じる分類と、閉じたあとに選ぶ行 */
+/** 配当の表の行の鍵（選んでいる行を覚える。口座ごとに分けると同じ銘柄が複数の行になる） */
+export const divRowKey = (r: TableRow) => (r.type === 'g' ? `g:${r.g.key}` : `m:${r.r.code}/${r.r.accts.join(',')}`)
+/** 配当の表で → ←（all なら Shift。すべての分類）・Space を押したとき: 開く分類と、選ぶ行（key で選び直す） */
 export function toggleOpen(
   rows: TableRow[],
   i: number,
   open: Set<string>,
   want: boolean | undefined,
   g: DivGroup,
-): { open: Set<string>; sel: number } {
+  all = false,
+): { open: Set<string>; sel: number; key: string | null } {
+  return toggleGroups(rows, i, open, want, g, all, (k) => k, divRowKey)
+}
+/**
+ * アコーディオンの開け閉め（配当の表・分類ごとの資産で共通）。ns は開いた分類の鍵の作り方。
+ * 返す key は開け閉めのあとに選ぶ行の鍵（開いても選んでいた行のまま、閉じたら分類の行）。sel はその行の、分かる範囲での位置
+ */
+function toggleGroups<
+  R extends { type: 'g'; g: { key: string } } | { type: 'm'; r: Pick<FRow, 'code' | 'sector' | 'kind' | 'acct' | 'market'> },
+>(
+  rows: R[],
+  i: number,
+  open: Set<string>,
+  want: boolean | undefined,
+  g: DivGroup,
+  all: boolean,
+  ns: (key: string) => string,
+  rowKey: (r: R) => string,
+): { open: Set<string>; sel: number; key: string | null } {
   const r = rows[i]
-  if (!r || g === 'code') return { open, sel: i }
+  if (!r || g === 'code') return { open, sel: i, key: r ? rowKey(r) : null }
   const k = r.type === 'g' ? r.g.key : groupKey(g, r.r)
   const next = new Set(open)
-  const on = want ?? !open.has(k)
-  if (on) next.add(k)
-  else next.delete(k)
-  const sel = !on && r.type === 'm' ? rows.findIndex((x) => x.type === 'g' && x.g.key === k) : i
-  return { open: next, sel: Math.max(0, sel) }
+  const on = want ?? !open.has(ns(k))
+  const keys = all ? rows.flatMap((x) => (x.type === 'g' ? [x.g.key] : [])) : [k]
+  for (const x of keys) {
+    if (on) next.add(ns(x))
+    else next.delete(ns(x))
+  }
+  if (on) return { open: next, sel: i, key: rowKey(r) }
+  // 閉じたら選んでいた銘柄の分類の行（すべて閉じたら分類の行だけが残るので、その分類の順番）
+  const gi = all ? rows.slice(0, i + 1).filter((x) => x.type === 'g').length - 1 : rows.findIndex((x) => x.type === 'g' && x.g.key === k)
+  return { open: next, sel: Math.max(0, gi), key: `g:${k}` }
 }
 /** 資産推移の図: x（図の左端からの CSS の px）に近い点の位置。histGeom の左右の余白（左 2・右 56）と合わせる */
 export function histIndexAt(px: number, w: number, n: number): number {
@@ -904,16 +1196,18 @@ export function reselect<T>(list: T[], key: string | null, keyOf: (x: T) => stri
 /** 一覧が短くなったら、選んでいる位置を最後に寄せる */
 export const clampIndex = (i: number, n: number) => Math.max(0, Math.min(i, n - 1))
 /** 損益寄与の上の行（合計・うち配当・値上がりと値下がりの数） */
+/** 合計と、値上がり・値下がりの数（銘柄で数える。口座ごとに分けても同じ銘柄を 2 回数えない） */
 export function contribSummary(rs: ContribRow[]): { total: number; div: number; up: number; down: number } {
   let total = 0
   let div = 0
-  let up = 0
+  const by = new Map<string, number>()
   for (const r of rs) {
     total += r.v
     div += r.div
-    if (r.v > 0) up++
+    by.set(r.code, (by.get(r.code) ?? 0) + r.v)
   }
-  return { total, div, up, down: rs.length - up }
+  const up = [...by.values()].filter((v) => v > 0).length
+  return { total, div, up, down: by.size - up }
 }
 /** 保有の取り込みのあとの知らせ（記録だけの JSON なら記録の日数） */
 export const importedNote = (holdings: number, history: number): { key: 'hold.imported' | 'hold.importedHistory'; n: number } =>

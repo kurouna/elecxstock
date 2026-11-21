@@ -158,6 +158,81 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     await expect(f.locator('.nav button.on')).toHaveText(/概要/)
   })
 
+  test('分類ごとの資産: 資産構成と分類を共有し、A で同じ銘柄を口座ごとに分け、S・Shift+S で並べ替え、Shift+→ ← ですべて開け閉め（FR-PF9・PF6）', async ({
+    start,
+  }) => {
+    // トヨタを特定と NISA 成長の 2 口座で持つ
+    const hold = [...HOLD, ...holdings([{ code: '7203', account: 'nisa_growth', quantity: 50, avgCost: 16000 }])]
+    const { page } = await start({ user: { holdings: hold, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    const pt = f.locator('.c-ptab')
+    await expect(pt).toContainText('業種ごとの資産')
+    // 資産推移 → 資産構成 → 損益寄与 → 予定 → 分類ごとの資産（L の並び）
+    await keys(page, 'Tab', 'Tab', 'Tab', 'Tab', 'Tab')
+    await expect(pt).toHaveClass(/focus/)
+    // はじめて見る分類は大きい上位 2 つが開いている。Shift+→ ですべて開き、Shift+← ですべて閉じる
+    await expect(pt.locator('tr.g.open')).toHaveCount(2)
+    const groups = await pt.locator('tr.g').count()
+    await keys(page, 'Shift+ArrowRight')
+    await expect(pt.locator('tr.g.open')).toHaveCount(groups)
+    // まとめると 7203 は 1 行（口座の点が 2 つ）。A で口座ごとに分けると 2 行で、分類の行は「1 銘柄・2 口座」
+    const toyota = pt.locator('tbody tr', { hasText: '7203' })
+    await expect(toyota).toHaveCount(1)
+    await expect(toyota.locator('.adots i')).toHaveCount(2)
+    await keys(page, 'a')
+    await expect(toyota).toHaveCount(2)
+    await expect(pt.locator('tr.g', { hasText: '輸送用機器' })).toContainText('1 銘柄・2 口座')
+    await expect(pt.locator('input[type="checkbox"]')).not.toBeChecked()
+    // 資産構成のチェックは別（連動しない）
+    await expect(f.locator('.c-alloc input[type="checkbox"]')).toBeChecked()
+    await keys(page, 'a')
+    await expect(toyota).toHaveCount(1)
+    await keys(page, 'Shift+ArrowLeft')
+    await expect(pt.locator('tr.g.open')).toHaveCount(0)
+    // S で評価損益、Shift+S で逆順
+    await expect(pt.locator('th.on')).toHaveText(/評価額/)
+    await keys(page, 's')
+    await expect(pt.locator('th.on')).toHaveText(/評価損益/)
+    await keys(page, 'Shift+s')
+    await expect(pt.locator('th.on')).toHaveClass(/asc/)
+    // G で分類を替えると資産構成も替わる（共有）
+    await keys(page, 'g')
+    await expect(pt).toContainText('17 業種ごとの資産')
+    await expect(f.locator('.c-alloc .gseg button.on')).toHaveText('17 業種')
+    // 資産構成の見出しで替えても表が替わる
+    await f.locator('.c-alloc').getByRole('radio', { name: '市場区分' }).click()
+    await expect(pt).toContainText('市場区分ごとの資産')
+    // 口座で分けたときは口座ごと（チェックは見えなくなり、A は効かない）
+    await f.locator('.c-alloc').getByRole('radio', { name: '口座' }).click()
+    await expect(pt.locator('.mchk')).toHaveCSS('visibility', 'hidden')
+    await shot(page, 'folio-ptab')
+  })
+
+  test('損益寄与・配当の表の「同じ銘柄をまとめる」はカードごと。外すと 2 口座の銘柄が口座ごとの行になる（FR-PF6）', async ({ start }) => {
+    const hold = [...HOLD, ...holdings([{ code: '7203', account: 'nisa_growth', quantity: 50, avgCost: 16000 }])]
+    const { page } = await start({ user: { holdings: hold, portfolioHistory: history() } })
+    await tab(page, 'folio')
+    const f = page.locator('[data-widget="folio"]')
+    const c = f.locator('.c-contrib')
+    await keys(page, 'Tab', 'Tab', 'Tab')
+    await expect(c).toHaveClass(/focus/)
+    await expect(c.locator('.crow', { hasText: '7203' })).toHaveCount(1)
+    await keys(page, 'a')
+    await expect(c.locator('.crow', { hasText: '7203' })).toHaveCount(2)
+    // 取得来でも分かれる（今月・今年は記録の口座ごと。この記録の 7203 は特定だけ）
+    await keys(page, 't', 't', 't')
+    await expect(c.locator('.seg button.on')).toHaveText('取得来')
+    await expect(c.locator('.crow', { hasText: '7203' })).toHaveCount(2)
+    // 配当の表は別のチェック（まだまとめている）
+    const tb = f.locator('.c-dtab')
+    await expect(tb.locator('tbody tr', { hasText: '7203' })).toHaveCount(1)
+    await keys(page, 'Escape', 'Shift+Tab')
+    await expect(tb).toHaveClass(/focus/)
+    await keys(page, 'a')
+    await expect(tb.locator('tbody tr', { hasText: '7203' })).toHaveCount(2)
+  })
+
   test('配当の表: 銘柄を選んだあと、分類の行を押して開く・並べ替えると、選んでいる行は前の銘柄に戻らない（FR-PF7）', async ({ start }) => {
     const { page } = await start({ user: { holdings: HOLD, portfolioHistory: history() } })
     await tab(page, 'folio')
@@ -239,7 +314,7 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
         tiles: [...el.querySelectorAll('.c-alloc .tile')].map((t) => t.getAttribute('title')).join('|'),
       }))
     const base = await measure()
-    for (const name of ['hist', 'alloc', 'contrib', 'div', 'events']) {
+    for (const name of ['hist', 'alloc', 'contrib', 'events', 'ptab', 'div']) {
       await keys(page, 'Tab')
       await expect(f.locator(`.c-${name}`)).toHaveClass(/focus/)
       if (name !== 'events') await expect(f.locator(`.c-${name} .keys`)).toBeVisible()
@@ -466,6 +541,12 @@ test.describe('プライバシーモード（FR-H12）', () => {
     await expect(hero).not.toContainText(/\d/)
     // 損益率（%）は隠さない
     await expect(f.locator('.c-hero')).toContainText('%')
+    // 分類ごとの資産: 数量・評価額・評価損益は ****、損益率・構成比は残る（FR-PF9）
+    const foot = f.locator('.c-ptab tfoot td')
+    await expect(foot.nth(4)).toHaveText('****')
+    await expect(foot.nth(5)).toHaveText('****')
+    await expect(foot.nth(6)).toContainText('%')
+    await expect(f.locator('.c-ptab tbody tr:not(.g) td.c-qty').first()).toHaveText('****')
 
     // 保有のペイン: 数量・前日比の額・評価額・損益は ****、前日比率・損益率は残る
     await tab(page, 'holdings')

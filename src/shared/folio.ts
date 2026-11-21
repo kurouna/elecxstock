@@ -1,7 +1,18 @@
 // ポートフォリオの計算（docs/design-portfolio.md）。純粋な関数だけ（Core と画面が共有し、L1 のテストで確かめる）。
 import { addDays, addYears, isTradingDay, toJstDate } from './calendar'
 import { CYCLICALITY, type Cyclicality, sector17Of } from './sectors'
-import type { AccountType, Dividend, DpsBlocks, FolioPoint, FolioPos, FolioSeriesPoint, Holding, JstDate, Split } from './types'
+import type {
+  AccountType,
+  Dividend,
+  DpsBlocks,
+  FolioContribRow,
+  FolioPoint,
+  FolioPos,
+  FolioSeriesPoint,
+  Holding,
+  JstDate,
+  Split,
+} from './types'
 
 /** 配当にかかる税（所得税・住民税・復興特別所得税） */
 export const DIVIDEND_TAX = 0.20315
@@ -162,10 +173,11 @@ export interface ContribInput {
 }
 /**
  * 期間の値動き＋その期間に権利落ちした配当（権利落ちの前日に持っていた株数 × 1 株配当・税引後）。
- * 値動きは日ごとの「その日の株数 × 終値の差」の合計（途中で買った分は買った日から、売った分は売った日まで）
+ * 値動きは日ごとの「その日の株数 × 終値の差」の合計（途中で買った分は買った日から、売った分は売った日まで）。
+ * 口座ごとの値（accts。税引後は口座ごと）も返す。足すと銘柄の値と一致する
  */
 export function periodContrib(inp: ContribInput): {
-  rows: { code: string; price: number; div: number; soldOn?: JstDate }[]
+  rows: FolioContribRow[]
   beforeRecords: boolean
 } {
   const firstRec = inp.points[0]?.d
@@ -176,37 +188,46 @@ export function periodContrib(inp: ContribInput): {
   for (const x of pointOn(inp.points, inp.from)?.pos ?? []) codes.add(x.code)
   for (const p of inp.points) if (p.d > inp.from && p.d <= inp.to) for (const x of p.pos) codes.add(x.code)
   const held = new Set(inp.fallback.map((p) => p.code))
-  const rows: { code: string; price: number; div: number; soldOn?: JstDate }[] = []
+  const rows: FolioContribRow[] = []
   for (const code of codes) {
     const bars = inp.closes(code)
     const sp = inp.splits(code)
-    // その日の保有を、終値（今の基準）に合わせて換算した株数と、税引後の割合
+    // その日の保有を、終値（今の基準）に合わせて換算した口座ごとの株数（税引後は口座ごとの割合で掛ける）
     const at = (d: JstDate) => {
       const ps = posOn(d).filter((p) => p.code === code)
       const base = firstRec && d >= firstRec ? pointOn(inp.points, d)!.d : inp.to
       const f = splitFactor(sp, base)
-      return { qty: ps.reduce((s, p) => s + p.qty * f, 0), net: ps.reduce((s, p) => s + p.qty * f * netRate(p.acct), 0) }
+      const by = new Map<AccountType, number>()
+      for (const p of ps) by.set(p.acct, (by.get(p.acct) ?? 0) + p.qty * f)
+      return by
     }
-    let price = 0
+    const acc = new Map<AccountType, { price: number; div: number }>()
+    const add = (a: AccountType, k: 'price' | 'div', v: number) => {
+      const x = acc.get(a) ?? { price: 0, div: 0 }
+      x[k] += v
+      acc.set(a, x)
+    }
     let lastHeld: JstDate | undefined
     let prev = pointOn(bars, inp.from)
     for (const b of bars) {
       if (b.d <= inp.from || b.d > inp.to) continue
       const h = at(prev?.d ?? inp.from)
-      if (prev && h.qty) {
-        price += h.qty * (b.c - prev.c)
+      if (prev && [...h.values()].some((q) => q)) {
+        for (const [a, q] of h) add(a, 'price', q * (b.c - prev.c))
         lastHeld = b.d
       }
       prev = b
     }
-    let div = 0
     for (const x of inp.dividends(code)) {
       if (x.date <= inp.from || x.date > inp.to) continue
       const before = pointOn(bars, addDays(x.date, -1))
-      div += at(before?.d ?? addDays(x.date, -1)).net * x.amount
+      for (const [a, q] of at(before?.d ?? addDays(x.date, -1))) add(a, 'div', q * netRate(a) * x.amount)
     }
+    const accts = [...acc].map(([acct, v]) => ({ acct, price: v.price, div: v.div }))
+    const price = accts.reduce((s, x) => s + x.price, 0)
+    const div = accts.reduce((s, x) => s + x.div, 0)
     if (!price && !div && !held.has(code)) continue
-    rows.push({ code, price, div, ...(!held.has(code) && lastHeld ? { soldOn: lastHeld } : {}) })
+    rows.push({ code, price, div, ...(!held.has(code) && lastHeld ? { soldOn: lastHeld } : {}), ...(accts.length ? { accts } : {}) })
   }
   return { rows, beforeRecords }
 }

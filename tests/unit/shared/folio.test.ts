@@ -262,6 +262,28 @@ describe('損益寄与の期間（FR-PF5・§6.5）', () => {
     expect(a.div).toBeCloseTo(10 * 10 * (1 - 0.20315))
     expect(r.beforeRecords).toBe(false)
   })
+  it('同じ銘柄を複数の口座で持つと、口座ごとの値動きと配当（税引後は口座ごと）も返し、足すと銘柄の値と一致する', () => {
+    const r = periodContrib({
+      from: '2026-10-30',
+      to: '2026-11-05',
+      points: [{ d: '2026-10-30', pos: [pos('A', 10), { code: 'A', acct: 'nisa_growth', qty: 5, cost: 1 }] }],
+      fallback: [pos('A', 10), { code: 'A', acct: 'nisa_growth', qty: 5, cost: 1 }],
+      closes: (c) => closes[c] ?? [],
+      dividends: (c) => (c === 'A' ? [{ date: '2026-11-04', amount: 10 }] : []),
+      splits: () => [],
+    })
+    const a = r.rows.find((x) => x.code === 'A')!
+    expect(a.accts).toHaveLength(2)
+    const tk = a.accts!.find((x) => x.acct === 'tokutei')!
+    const ns = a.accts!.find((x) => x.acct === 'nisa_growth')!
+    // 10/30→11/05 は 100 → 115: 特定 10 株 × 15、NISA 5 株 × 15
+    expect(tk.price).toBe(150)
+    expect(ns.price).toBe(75)
+    expect(tk.div).toBeCloseTo(10 * 10 * (1 - 0.20315))
+    expect(ns.div).toBe(5 * 10)
+    expect(a.price).toBe(tk.price + ns.price)
+    expect(a.div).toBeCloseTo(tk.div + ns.div)
+  })
   it('記録の後に分割があれば、記録の株数を換算して今の基準の終値に合わせる', () => {
     const r = periodContrib({
       from: '2026-10-30',

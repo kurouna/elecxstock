@@ -1,14 +1,18 @@
 <script lang="ts">
 // 資産構成のツリーマップ（FR-PF5）: 面積は評価額、色は含み損益率か前日比の 5 段（控えめに混ぜる）。分類の見出しは中立の帯。
-// 小さいタイルは銘柄コードだけ。口座で分けたときは左の帯で口座を示す（面は塗らない）
+// 小さいタイルは銘柄コードだけ。口座で分けたときは左の帯で口座を示す（面は塗らない）。同じ銘柄を口座ごとのタイルにしたときは、
+// 複数の口座で持つ銘柄のタイルの右上に口座の点を付ける
 import { type AllocGroup, allocTiles, heatBg as bg, type FRow, signPct, type Tile, tileInk } from '../../../lib/folio'
 import { tileTip } from '../../../lib/folioTips'
+import { accountName } from '../../../lib/portfolio'
 import { app, t as tr } from '../../../stores/app.svelte'
 
 let {
   rows,
   group,
   heat,
+  split = false,
+  multi = new Set(),
   sel,
   focused,
   label,
@@ -18,6 +22,10 @@ let {
   rows: FRow[]
   group: AllocGroup
   heat: number
+  /** 同じ銘柄を口座ごとのタイルにする */
+  split?: boolean
+  /** 複数の口座で持つ銘柄（口座の点を付ける） */
+  multi?: Set<string>
   sel: number
   focused: boolean
   label: (key: string) => string
@@ -27,7 +35,7 @@ let {
 } = $props()
 let w = $state(0)
 let h = $state(0)
-const tiles = $derived(w > 10 && h > 10 ? allocTiles(rows, group, heat, w, h) : [])
+const tiles = $derived(w > 10 && h > 10 ? allocTiles(rows, group, heat, w, h, split) : [])
 const leaves = $derived(tiles.filter((x) => !x.group))
 $effect(() => ontiles(leaves))
 const light = $derived(app.settings.theme === 'light')
@@ -59,7 +67,7 @@ const share = (t: Tile) => t.item.rows.reduce((s, r) => s + r.value, 0) / (total
         tabindex="-1"
         onkeydown={() => {}}
       >
-        {#if group === 'acct'}<i class="stripe" style:background={`var(--acct-${r.acct})`}></i>{/if}
+        {#if group === 'acct'}<i class="stripe" style:background={`var(--acct-${r.acct})`}></i>{:else if split && multi.has(r.code)}<i class="adot" style:background={`var(--acct-${r.acct})`} title={accountName(r.acct)}></i>{/if}
         {#if t.w > 74 && t.h > 32}<b>{r.name}</b><span class="num">{signPct(t.metric)}</span>{:else if t.w > 34 && t.h > 16}<b class="num">{r.code}</b>{/if}
       </div>
     {/if}
@@ -120,6 +128,15 @@ const share = (t: Tile) => t.item.rows.reduce((s, r) => s + r.value, 0) / (total
   top: 0;
   bottom: 0;
   width: 3px;
+}
+.adot {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--panel);
 }
 .grp {
   pointer-events: none;

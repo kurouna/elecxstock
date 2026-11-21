@@ -2,15 +2,26 @@
 import type { FolioAt, FolioDividends, FolioSeriesPoint, Holding, Instrument, MetricsRow } from '@shared/types'
 import { describe, expect, it } from 'vitest'
 import {
+  ALLOC_GROUPS,
+  ASSET_SORTS,
+  acctOfKey,
   acctParts,
   allocStats,
   allocTiles,
+  assetGroups,
+  assetRowKey,
+  assetScale,
+  assetTable,
+  barPct,
   benchSeries,
   briefOf,
   byCode,
   CARDS,
   clampIndex,
+  compOf,
+  compShade,
   contribBars,
+  contribKey,
   contribRows,
   contribSummary,
   DEFAULT_VIEW,
@@ -24,6 +35,7 @@ import {
   divSummary,
   divYields,
   eventsOf,
+  firstOpen,
   groupKey,
   heatBg,
   heroNumbers,
@@ -33,19 +45,29 @@ import {
   importedAtText,
   importedNote,
   lastTone,
+  lotCount,
   manYen,
+  mergeLocked,
   monthTip,
   moveRow,
+  multiAcct,
   nextCard,
   niceTicks,
   nisaShare,
+  openKey,
+  pnlBar,
+  pnlScale,
+  posRows,
   reselect,
   rowsAtDay,
   rowsOf,
   signPct,
+  sortTo,
   spatialNext,
+  splitOf,
   tableRows,
   tileInk,
+  toggleAsset,
   toggleOpen,
   totalsOf,
   viewKey,
@@ -100,18 +122,24 @@ const rows = rowsOf(H, get)
 describe('表示の状態とキー（FR-PF6）', () => {
   it('壊れた状態は既定に直す', () => {
     expect(viewOf(undefined)).toEqual(DEFAULT_VIEW)
-    expect(viewOf({ period: 99, pct: 'x', group: 2 })).toEqual({ ...DEFAULT_VIEW, group: 2 })
+    // 分類の並びを配当とそろえる前（gv なし）の保存は読み替える: 旧 2 = 口座 → 5
+    expect(viewOf({ period: 99, pct: 'x', group: 2 })).toEqual({ ...DEFAULT_VIEW, group: 5 })
+    expect(viewOf({ gv: 2, group: 2 })).toEqual({ ...DEFAULT_VIEW, group: 2 })
   })
-  it('Tab で 7 枚のカードを巡る（Shift+Tab は逆）。選んでいないときは最初・最後から', () => {
+  it('Tab で 8 枚のカードを巡る（Shift+Tab は逆）。選んでいないときは最初・最後から。分類ごとの資産は予定の次', () => {
     expect(nextCard(null, false)).toBe('hist')
     expect(nextCard(null, true)).toBe('dtab')
     expect(nextCard('dtab', false)).toBe('hist')
-    expect(CARDS).toHaveLength(7)
+    expect(CARDS).toHaveLength(8)
+    expect(nextCard('events', false)).toBe('ptab')
+    expect(nextCard('ptab', false)).toBe('div')
   })
   it('単キーの意味はカードで変えない: G は選んでいるカードの分類、S は表の並べ替え、B はベンチマークで % にする', () => {
     const v = DEFAULT_VIEW
-    expect(viewKey(v, 'KeyG', 'alloc')!.group).toBe(1)
-    expect(viewKey(v, 'KeyG', null)!.group).toBe(1)
+    expect(viewKey(v, 'KeyG', 'alloc')!.group).toBe(v.group + 1)
+    expect(viewKey(v, 'KeyG', null)!.group).toBe(v.group + 1)
+    // 資産構成と分類ごとの資産は同じ分類（G でどちらからでも替わる）
+    expect(viewKey(v, 'KeyG', 'ptab')!.group).toBe(v.group + 1)
     expect(viewKey(v, 'KeyG', 'dtab')!.dgroup).toBe(1)
     expect(viewKey(v, 'KeyG', 'dshare')!.dgroup).toBe(1)
     expect(viewKey(v, 'KeyS', 'dtab')!.dsort).toBe(1)
@@ -426,6 +454,25 @@ describe('配当の分析（FR-PF7）', () => {
     expect(keys).toEqual([...keys].sort((a, b) => a.localeCompare(b, 'ja')))
     expect(keys).toHaveLength(3)
   })
+  it('口座ごとに分けると、同じ銘柄の行が口座ごとになり、年間・前年・要因は口座ごと（足すとまとめた行と一致）', () => {
+    const sp = divRows(D, rows, info, true)
+    const t = sp.filter((r) => r.code === '7203')
+    expect(t.map((r) => r.acct).sort()).toEqual(['nisa_growth', 'tokutei'])
+    const merged = dr.find((r) => r.code === '7203')!
+    expect(t.reduce((s, r) => s + r.annual, 0)).toBeCloseTo(merged.annual)
+    expect(t.reduce((s, r) => s + r.annualPrev, 0)).toBeCloseTo(merged.annualPrev)
+    // 特定は 1 年前から同じ株数（増配だけ）、NISA は今年の新規
+    expect(t.find((r) => r.acct === 'tokutei')!.factor).toBe('')
+    expect(t.find((r) => r.acct === 'nisa_growth')!.factor).toBe('new')
+    // 口座ごとの評価額・取得額（取得利回りは口座ごとの取得単価で割る）
+    expect(t.find((r) => r.acct === 'nisa_growth')!.cost).toBe(50 * 2800)
+    expect(t.find((r) => r.acct === 'nisa_growth')!.yoc).toBeCloseTo((60 / 2800) * 100)
+    // まとめた行は持っている口座をすべて持つ（口座の印に使う）。分けた行は自分の口座だけ
+    expect(merged.accts).toEqual(['nisa_growth', 'tokutei'])
+    expect(t.find((r) => r.acct === 'tokutei')!.accts).toEqual(['tokutei'])
+    // 売った銘柄は 1 年前の口座の行で残る
+    expect(sp.find((r) => r.code === '9433')).toMatchObject({ acct: 'tokutei', sold: true })
+  })
   it('1 株配当の最後の棒の色（増配 = 金・減配・据え置き）', () => {
     expect(lastTone([1, 2])).toBe('up')
     expect(lastTone([2, 1])).toBe('down')
@@ -617,5 +664,287 @@ describe('書式（▲▼ を使わない。§4.3）', () => {
     expect(yenFull(-1234)).toBe('−1,234')
     expect(signPct(0)).toBe('±0.0%')
     expect(signPct(null)).toBe('—')
+  })
+})
+
+describe('分類ごとの資産と、同じ銘柄をまとめる（FR-PF5・PF6・PF9）', () => {
+  it('同じ銘柄をまとめるはカードごと（A）。分類が口座のときは分ける（A は効かない）', () => {
+    const v = DEFAULT_VIEW
+    expect(v).toMatchObject({ amerge: true, pmerge: true, cmerge: true, dmerge: true, psort: 0, pasc: false })
+    expect(viewKey(v, 'KeyA', 'alloc')).toMatchObject({ amerge: false, pmerge: true })
+    expect(viewKey(v, 'KeyA', 'ptab')).toMatchObject({ pmerge: false, amerge: true })
+    expect(viewKey(v, 'KeyA', null)).toMatchObject({ pmerge: false })
+    expect(viewKey(v, 'KeyA', 'contrib')).toMatchObject({ cmerge: false })
+    expect(viewKey(v, 'KeyA', 'dtab')).toMatchObject({ dmerge: false })
+    const byAcct = { ...v, group: ALLOC_GROUPS.indexOf('acct'), dgroup: DIV_GROUPS.indexOf('acct') }
+    expect(viewKey(byAcct, 'KeyA', 'alloc')).toBeNull()
+    expect(viewKey(byAcct, 'KeyA', 'ptab')).toBeNull()
+    expect(viewKey(byAcct, 'KeyA', 'dtab')).toBeNull()
+    expect(viewKey(byAcct, 'KeyA', 'contrib')).toMatchObject({ cmerge: false })
+    expect(splitOf(byAcct, 'ptab')).toBe(true)
+    expect(splitOf(v, 'ptab')).toBe(false)
+    expect(splitOf({ ...v, cmerge: false }, 'contrib')).toBe(true)
+    expect(mergeLocked(byAcct, 'alloc')).toBe(true)
+    expect(mergeLocked(byAcct, 'contrib')).toBe(false)
+  })
+  it('並べ替えは S で評価額 → 評価損益 → 損益率 → 前日比 → 取得利回り。Shift+S で逆順', () => {
+    const v = DEFAULT_VIEW
+    expect(ASSET_SORTS).toEqual(['value', 'pnl', 'rate', 'day', 'yoc'])
+    expect(viewKey(v, 'KeyS', 'ptab')).toMatchObject({ psort: 1, pasc: false })
+    expect(viewKey({ ...v, psort: 4, pasc: true }, 'KeyS', 'ptab')).toMatchObject({ psort: 0, pasc: false })
+    expect(viewKey(v, 'KeyS', 'ptab', true)).toMatchObject({ psort: 0, pasc: true })
+    expect(viewKey(v, 'KeyS', 'dtab', true)!.dsort).toBe(1)
+  })
+  it('資産構成と配当の分類は同じ並び（銘柄・業種・17 業種・市場区分・種別・口座）。既定は業種', () => {
+    expect(ALLOC_GROUPS).toEqual(DIV_GROUPS)
+    expect(ALLOC_GROUPS[DEFAULT_VIEW.group]).toBe('sector')
+  })
+  it('まとめると同じ銘柄を 1 行に（数量・取得額・評価額を足し、取得単価は取得額 ÷ 数量）。分けると口座ごと', () => {
+    const m = posRows(rows, false)
+    const t = m.filter((r) => r.code === '7203')
+    expect(t).toHaveLength(1)
+    expect(t[0]).toMatchObject({ key: '7203', qty: 150, cost: 390_000, avgCost: 2600, value: 450_000, accts: ['nisa_growth', 'tokutei'] })
+    const s = posRows(rows, true).filter((r) => r.code === '7203')
+    expect(s.map((r) => r.key).sort()).toEqual(['7203/nisa_growth', '7203/tokutei'])
+    expect(s.find((r) => r.acct === 'nisa_growth')!.accts).toEqual(['nisa_growth'])
+    expect([...multiAcct(rows)]).toEqual(['7203'])
+  })
+  it('取得利回りは直近 1 年の 1 株配当 ÷ 取得単価（保有のペインと同じ）。配当が無ければ null', () => {
+    const rs = rowsOf(H, (id) => (id === 'JP:2914' ? { ...DB[id]!, m: M({ ...DB[id]!.m, div12: 225 }) } : get(id)))
+    expect(posRows(rs, false).find((r) => r.code === '2914')!.yoc).toBeCloseTo(5)
+    expect(posRows(rs, false).find((r) => r.code === '7203')!.yoc).toBeNull()
+  })
+  it('分類の行は中の合計。銘柄の数は銘柄コードで数え、口座で分けたときは口座の数も出す', () => {
+    const g = assetGroups(posRows(rows, true), 'sector').find((x) => x.key === '輸送用機器')!
+    expect(g).toMatchObject({ value: 450_000, cost: 390_000, pnl: 60_000 })
+    expect(g.rate).toBeCloseTo((60_000 / 390_000) * 100)
+    expect(lotCount(g.rows)).toEqual({ n: 1, lots: 2, accts: 2 })
+    expect(lotCount(posRows(rows, false).filter((r) => r.code === '7203'))).toEqual({ n: 1, lots: 1, accts: 1 })
+  })
+  it('表: 銘柄で分けると銘柄の行だけ（評価額の大きい順・逆順も）。分類で分けると開いた分類だけ中の銘柄', () => {
+    const pr = posRows(rows, false)
+    const codes = (xs: ReturnType<typeof assetTable>) => xs.map((r) => (r.type === 'm' ? r.r.code : `g:${r.g.key}`))
+    expect(codes(assetTable(pr, 'code', 0, false, new Set()))).toEqual(['7203', '2914', '8951', '9999'])
+    expect(codes(assetTable(pr, 'code', 0, true, new Set()))).toEqual(['9999', '8951', '2914', '7203'])
+    const open = new Set([openKey('sector', '輸送用機器')])
+    const t = assetTable(pr, 'sector', 0, false, open)
+    expect(t[0]).toMatchObject({ type: 'g', open: true })
+    expect(t[1]).toMatchObject({ type: 'm', child: true })
+    expect(t.filter((r) => r.type === 'm')).toHaveLength(1)
+    // 開いた状態は分類ごと（17 業種で同じ名前を開いても業種には効かない）
+    expect(assetTable(pr, 'sector17', 0, false, open).every((r) => r.type === 'g')).toBe(true)
+    // 損益率で並べる
+    const byRate = assetTable(pr, 'code', 2, false, new Set()).map((r) => (r.type === 'm' ? r.r.code : ''))
+    expect(byRate[0]).toBe('7203')
+    expect(byRate.at(-1)).toBe('2914')
+  })
+  it('はじめて見る分類は評価額の大きい上位 2 つを開く', () => {
+    expect(firstOpen(posRows(rows, false), 'sector', 2)).toEqual([openKey('sector', '輸送用機器'), openKey('sector', '食料品')])
+  })
+  it('→ ← で開け閉め。子の行で閉じると分類の行に戻る。Shift+→ ← ですべて', () => {
+    const pr = posRows(rows, false)
+    let open = new Set<string>()
+    let t = assetTable(pr, 'sector', 0, false, open)
+    let r = toggleAsset(t, 0, open, true, 'sector')
+    open = r.open
+    t = assetTable(pr, 'sector', 0, false, open)
+    expect(t[1]!.type).toBe('m')
+    r = toggleAsset(t, 1, open, false, 'sector')
+    expect(r.open.size).toBe(0)
+    expect(r.sel).toBe(0)
+    r = toggleAsset(t, 1, new Set(), true, 'sector', true)
+    expect(r.open.size).toBe(assetGroups(pr, 'sector').length)
+    r = toggleAsset(assetTable(pr, 'sector', 0, false, r.open), 1, r.open, false, 'sector', true)
+    expect(r.open.size).toBe(0)
+    expect(r.sel).toBe(0)
+    // 銘柄で分けたときは開け閉めしない
+    expect(toggleAsset(t, 0, open, true, 'code').open).toBe(open)
+  })
+  it('閉じた分類の行の構成: 中の銘柄の評価額の割合（大きい順・足すと 1）', () => {
+    const g = assetGroups(posRows(rows, true), 'sector').find((x) => x.key === '輸送用機器')!
+    const c = compOf(g)
+    expect(c).toHaveLength(2)
+    expect(c.reduce((s, x) => s + x.share, 0)).toBeCloseTo(1)
+    expect(c[0]!.share).toBeGreaterThanOrEqual(c[1]!.share)
+  })
+  it('評価損益の棒: 0 の線は損の最大と益の最大の比の位置（益だけなら左端）', () => {
+    const sc = pnlScale([{ pnl: 100 }, { pnl: -50 }])
+    expect(sc.z).toBeCloseTo(100 / 3)
+    expect(pnlBar(100, sc)).toEqual({ left: sc.z, width: (100 / 150) * 100 })
+    expect(pnlBar(-50, sc).left).toBeCloseTo(0)
+    expect(pnlScale([{ pnl: 10 }]).z).toBe(0)
+  })
+  it('資産構成のタイル: 分けると同じ銘柄が口座ごとのタイルになる（市場区分でも分けられる）', () => {
+    const m = allocTiles(rows, 'sector', 0, 400, 300).filter((x) => !x.group && x.item.rows[0]!.code === '7203')
+    expect(m).toHaveLength(1)
+    const s = allocTiles(rows, 'sector', 0, 400, 300, true).filter((x) => !x.group && x.item.rows[0]!.code === '7203')
+    expect(s.map((x) => x.item.key).sort()).toEqual(['7203/nisa_growth', '7203/tokutei'])
+    expect(
+      allocTiles(rows, 'market', 0, 400, 300)
+        .filter((x) => x.group)
+        .map((x) => x.item.key)
+        .sort(),
+    ).toEqual(['market:P', 'market:R', 'market:X'])
+  })
+  it('損益寄与を口座ごとに分ける: 今日・取得来は保有の行、今月・今年は Core の口座ごとの値（無ければ銘柄の行）', () => {
+    const name = (c: string) => `n${c}`
+    const d = contribRows('day', rows, null, name, true).filter((r) => r.code === '7203')
+    expect(d.map((r) => r.acct).sort()).toEqual(['nisa_growth', 'tokutei'])
+    expect(d.reduce((s, r) => s + r.v, 0)).toBe(150 * 30)
+    const core = {
+      from: '2025-12-31',
+      to: '2026-11-13',
+      beforeRecords: false,
+      rows: [
+        {
+          code: 'A',
+          price: 10,
+          div: 3,
+          accts: [
+            { acct: 'tokutei' as const, price: 6, div: 1 },
+            { acct: 'nisa_growth' as const, price: 4, div: 2 },
+          ],
+        },
+        { code: 'B', price: 5, div: 0 },
+      ],
+    }
+    const y = contribRows('year', rows, core, name, true)
+    expect(y.map((r) => [r.code, r.acct ?? null, r.v])).toEqual([
+      ['A', 'tokutei', 7],
+      ['A', 'nisa_growth', 6],
+      ['B', null, 5],
+    ])
+    expect(contribRows('year', rows, core, name, false).map((r) => r.code)).toEqual(['A', 'B'])
+    expect(contribKey(y[0]!)).toBe('A/tokutei')
+    expect(contribKey(y[2]!)).toBe('B')
+  })
+})
+
+// 回帰（2026-11-21 のレビューで見つけた不具合と直し）
+describe('分類ごとの資産のレビューの直し（FR-PF6・PF9）', () => {
+  it('Shift+→ ですべて開いても、選んでいた行（子の銘柄）のまま。閉じると分類の行', () => {
+    const pr = posRows(rows, false)
+    // 輸送用機器だけ開き、その子の行（トヨタ）を選ぶ。上に閉じた分類があっても、開いたあとはトヨタを選ぶ
+    const open = new Set([openKey('sector', '輸送用機器')])
+    const t = assetTable(pr, 'sector', 2, false, open) // 損益率の順: 輸送用機器が先頭とは限らない
+    const i = t.findIndex((r) => r.type === 'm' && r.r.code === '7203')
+    const r = toggleAsset(t, i, open, true, 'sector', true)
+    const after = assetTable(pr, 'sector', 2, false, r.open)
+    expect(r.key).toBe(assetRowKey(t[i]!))
+    expect(after[after.findIndex((x) => assetRowKey(x) === r.key)]).toMatchObject({ type: 'm', r: { code: '7203' } })
+    const c = toggleAsset(
+      after,
+      after.findIndex((x) => assetRowKey(x) === r.key),
+      r.open,
+      false,
+      'sector',
+      true,
+    )
+    expect(c.key).toBe('g:輸送用機器')
+  })
+  it('配当の表もすべて開け閉めでき（Shift+→ ←）、閉じると選んでいた銘柄の分類の行', () => {
+    const D: FolioDividends = {
+      yearAgoDate: null,
+      trend: [],
+      rows: ['7203', '2914', '8951'].map((code) => ({
+        code,
+        dps: [1, 1, 1, 1, 1],
+        perYear: 1,
+        regimeChanged: false,
+        special: false,
+        last: [],
+        prev: [],
+        now: [{ acct: 'tokutei' as const, qty: 1 }],
+        yearAgo: null,
+      })),
+    }
+    const dr = divRows(D, rows, (c) => ({ name: c, ins: DB[`JP:${c}`]?.ins }))
+    const t = tableRows(dr, 'sector', 'annual', new Set())
+    const all = toggleOpen(t, 0, new Set(), true, 'sector', true)
+    expect(all.open.size).toBe(divGroups(dr, 'sector').length)
+    const t2 = tableRows(dr, 'sector', 'annual', all.open)
+    const child = t2.findIndex((r) => r.type === 'm' && r.r.code === '2914')
+    const shut = toggleOpen(t2, child, all.open, false, 'sector', true)
+    expect(shut.open.size).toBe(0)
+    expect(shut.key).toBe('g:食料品')
+  })
+  it('Tab の順は L の並び（資産推移 → 資産構成 → 損益寄与 → 予定 → 分類ごとの資産 → 配当見込み）', () => {
+    expect(CARDS.slice(0, 6)).toEqual(['hist', 'alloc', 'contrib', 'events', 'ptab', 'div'])
+  })
+  it('A は 4 枚のカード（と、カードを選んでいないときの分類ごとの資産）だけ。ほかのカードでは何もしない', () => {
+    expect(viewKey(DEFAULT_VIEW, 'KeyA', 'hist')).toBeNull()
+    expect(viewKey(DEFAULT_VIEW, 'KeyA', 'events')).toBeNull()
+    expect(viewKey(DEFAULT_VIEW, 'KeyA', 'dshare')).toBeNull()
+    expect(viewKey(DEFAULT_VIEW, 'KeyA', null)).toMatchObject({ pmerge: false })
+  })
+  it('列名を押したとき: 今の列ならもう一度で逆順、別の列なら大きい順から', () => {
+    expect(sortTo({ ...DEFAULT_VIEW, psort: 1, pasc: false }, 1)).toMatchObject({ psort: 1, pasc: true })
+    expect(sortTo({ ...DEFAULT_VIEW, psort: 1, pasc: true }, 2)).toMatchObject({ psort: 2, pasc: false })
+  })
+  it('口座ごとの配当の行: その口座で売っても、ほかの口座でまだ持っていれば「この口座で売却」', () => {
+    const D: FolioDividends = {
+      yearAgoDate: '2025-11-13',
+      trend: [],
+      rows: [
+        {
+          code: '7203',
+          dps: [1, 1, 1, 1, 1],
+          perYear: 1,
+          regimeChanged: false,
+          special: false,
+          last: [],
+          prev: [],
+          now: [{ acct: 'nisa_growth', qty: 50 }],
+          yearAgo: [{ acct: 'tokutei', qty: 50 }],
+        },
+      ],
+    }
+    const sp = divRows(D, rows, (c) => ({ name: c }), true)
+    expect(sp.find((r) => r.acct === 'tokutei')).toMatchObject({ sold: true, soldHere: true })
+    expect(sp.find((r) => r.acct === 'nisa_growth')).toMatchObject({ sold: false, soldHere: false })
+    expect(divRows(D, rows, (c) => ({ name: c }))[0]).toMatchObject({ sold: false, soldHere: false })
+  })
+  it('表の棒の目盛り: 分類で分けたら分類の行、銘柄で分けたら銘柄の行。構成比の棒は最大の行を満たす', () => {
+    const pr = posRows(rows, false)
+    const s = assetScale(assetTable(pr, 'sector', 0, false, new Set([openKey('sector', '輸送用機器')])), 'sector')
+    expect(s.maxValue).toBe(450_000) // 分類の行の最大（輸送用機器）。開いた子の行は数えない
+    expect(barPct(225_000, s.maxValue)).toBe(50)
+    expect(barPct(900_000, s.maxValue)).toBe(100)
+    expect(assetScale(assetTable(pr, 'code', 0, false, new Set()), 'code').maxValue).toBe(450_000)
+  })
+  it('構成の段の濃さは大きい順に薄く（最も薄くて 0.3）。口座の分類の鍵から口座', () => {
+    expect(compShade(0)).toBe(1)
+    expect(compShade(10)).toBe(0.3)
+    expect(acctOfKey('acct:nisa_growth')).toBe('nisa_growth')
+    expect(acctOfKey('輸送用機器')).toBeNull()
+  })
+})
+
+describe('分類ごとの資産のレビューの直し 2（FR-PF5・PF9）', () => {
+  it('口座の数は口座の種類で数える（2 銘柄をそれぞれ 2 口座で持っても「2 口座」）', () => {
+    const xs = [
+      { code: 'A', acct: 'tokutei' as const },
+      { code: 'A', acct: 'nisa_growth' as const },
+      { code: 'B', acct: 'tokutei' as const },
+      { code: 'B', acct: 'nisa_growth' as const },
+    ]
+    expect(lotCount(xs)).toEqual({ n: 2, lots: 4, accts: 2 })
+  })
+  it('損益寄与の値上がり・値下がりの数は銘柄で数える（口座ごとに分けても同じ銘柄を 2 回数えない）', () => {
+    const rs = [
+      { code: 'A', name: '', price: 5, div: 0, v: 5, acct: 'tokutei' as const },
+      { code: 'A', name: '', price: -1, div: 0, v: -1, acct: 'nisa_growth' as const },
+      { code: 'B', name: '', price: -3, div: 0, v: -3 },
+    ]
+    expect(contribSummary(rs)).toEqual({ total: 1, div: 0, up: 1, down: 1 })
+  })
+  it('損益率・取得利回りの無い行は、並べ替えの向きによらず最後', () => {
+    const rs = rowsOf(H, (id) => (id === 'JP:2914' ? { ...DB[id]!, m: M({ ...DB[id]!.m, div12: 225 }) } : get(id)))
+    const pr = posRows(rs, false)
+    const yoc = ASSET_SORTS.indexOf('yoc')
+    const last = (asc: boolean) => assetTable(pr, 'code', yoc, asc, new Set()).map((r) => (r.type === 'm' ? r.r.yoc : 0))
+    expect(last(false)[0]).not.toBeNull()
+    expect(last(true)[0]).not.toBeNull()
+    expect(last(true).at(-1)).toBeNull()
   })
 })

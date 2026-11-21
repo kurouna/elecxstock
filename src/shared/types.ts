@@ -506,6 +506,8 @@ export interface FolioContribRow {
   div: number
   /** 期間の途中で売った銘柄: 最後に持っていた日 */
   soldOn?: JstDate
+  /** 口座ごとの値動きと配当（税引後は口座ごと）。足すと price・div と一致する（同じ銘柄をまとめない表示に使う） */
+  accts?: { acct: AccountType; price: number; div: number }[]
 }
 export interface FolioContrib {
   from: JstDate

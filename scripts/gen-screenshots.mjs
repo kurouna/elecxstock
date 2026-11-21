@@ -100,6 +100,13 @@ async function folioSession() {
   await page.keyboard.press('Control+Shift+Digit9')
   await folio.locator('.c-hist svg').first().waitFor()
   await snap('folio')
+  // 分類ごとの資産（FR-PF9）: ペインを最大化して L の並びにし、Tab で表を選ぶ（資産推移 → 資産構成 → 損益寄与 → 予定 → 分類ごとの資産）
+  await page.keyboard.press('Control+Shift+Enter')
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab')
+  await folio.locator('.c-ptab.focus').waitFor()
+  await snap('folio-assets')
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+Shift+Enter')
   await page.keyboard.press('PageDown')
   await folio.locator('.c-dwf').waitFor()
   await snap('folio-div')

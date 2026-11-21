@@ -4,12 +4,16 @@
 // 計算は lib/folio.ts（画面のロジック）と shared/folio.ts（純粋な関数）、記録と期間の計算は Core（folio.*）。キーは registerPane
 import { jstNow, lastClosedSession } from '@shared/calendar'
 import type { AlertView, FolioAt, FolioContrib, FolioDividends, FolioSeries, InstrumentId } from '@shared/types'
-import { onMount } from 'svelte'
+import { onMount, untrack } from 'svelte'
 import { condsText } from '../../lib/alertText'
 import {
   ALLOC_GROUPS,
+  type AssetRow,
   acctParts,
   allocStats,
+  assetRowKey,
+  assetSum,
+  assetTable,
   BENCHES,
   benchSeries,
   briefOf,
@@ -17,6 +21,7 @@ import {
   CONTRIB_PERIODS,
   clampIndex,
   contribBars,
+  contribKey,
   contribRows,
   contribSummary,
   DIV_GROUPS,
@@ -24,11 +29,13 @@ import {
   divBridgeSteps,
   divGroups,
   divMonths,
+  divRowKey,
   divRows,
   divSummary,
   divYields,
   eventsOf,
   type FolioView,
+  firstOpen,
   groupKey,
   HIST_PERIODS,
   heroNumbers,
@@ -36,17 +43,23 @@ import {
   histPoints,
   importedAtText,
   manYen,
+  mergeLocked,
   moveRow,
+  multiAcct,
   nextCard,
   nisaShare,
+  posRows,
   reselect,
   rowsAtDay,
   rowsOf,
   signPct,
+  sortTo,
   spatialNext,
+  splitOf,
   type TableRow,
   type Tile,
   tableRows,
+  toggleAsset,
   toggleOpen,
   toneOf,
   totalsOf,
@@ -55,7 +68,7 @@ import {
   viewOf,
   yenFull,
 } from '../../lib/folio'
-import { briefText, groupLabel } from '../../lib/folioText'
+import { briefText, groupLabel, lotText } from '../../lib/folioText'
 import { contribTip, divStepTip, eventTip, histStepTip, trendIndexAt, trendLabel } from '../../lib/folioTips'
 import type { Key } from '../../lib/i18n'
 import { registerPane } from '../../lib/panes'
@@ -66,13 +79,16 @@ import { privacy, secret } from '../../lib/privacy.svelte'
 import { app, ensureMetrics, inst, metric, nameOf, rpc, t } from '../../stores/app.svelte'
 import { type PaneNode, saveLayout, setLinkSymbol } from '../../stores/layout.svelte'
 import PaneHeader from '../PaneHeader.svelte'
+import AcctDots from './folio/AcctDots.svelte'
 import AcctRing from './folio/AcctRing.svelte'
 import AllocMap from './folio/AllocMap.svelte'
+import AssetTable from './folio/AssetTable.svelte'
 import DivBars from './folio/DivBars.svelte'
 import DivTable from './folio/DivTable.svelte'
 import Donut from './folio/Donut.svelte'
 import FlipNum from './folio/FlipNum.svelte'
 import HistChart from './folio/HistChart.svelte'
+import MergeChk from './folio/MergeChk.svelte'
 import Seg from './folio/Seg.svelte'
 import Waterfall from './folio/Waterfall.svelte'
 
@@ -96,6 +112,13 @@ let dm = $state(1)
 let srow = $state(0)
 let drow = $state(0)
 let open = $state(new Set<string>())
+let prow = $state(0)
+/** 分類ごとの資産で開いている分類（openKey。分類ごとに覚える） */
+let popen = $state(new Set<string>())
+/** 開く分類を決めた分類（はじめて見る分類だけ、大きい上位 2 つを開く） */
+const pseen = new Set<string>()
+/** 共有の分類を替えたとき、もう一方のカードの題を短く光らせる */
+let pulse = $state<Card | null>(null)
 let leaves = $state<Tile[]>([])
 
 // ---- 材料 ----
@@ -210,8 +233,27 @@ const accts = $derived.by(() => {
 const nisaCost = $derived(shown.filter((r) => r.acct === 'nisa_growth' || r.acct === 'nisa_tsumitate').reduce((s, r) => s + r.cost, 0))
 const benchS = $derived(view.bench ? benchSeries(hp, bench) : null)
 const stats = $derived(allocStats(shown))
+/** 資産構成と分類ごとの資産の分類（共有） */
+const aGroup = $derived(ALLOC_GROUPS[view.group]!)
+/** 複数の口座で持つ銘柄（口座の印を出す） */
+const multi = $derived(multiAcct(shown))
+const aSplit = $derived(splitOf(view, 'alloc'))
+const pSplit = $derived(splitOf(view, 'ptab'))
+const cSplit = $derived(splitOf(view, 'contrib'))
+const dSplit = $derived(splitOf(view, 'dtab'))
+const pRows = $derived(posRows(shown, pSplit))
+const pSum = $derived(assetSum(pRows))
+const ptRows = $derived<AssetRow[]>(assetTable(pRows, aGroup, view.psort, view.pasc, popen))
+$effect(() => {
+  // はじめて見る分類は評価額の大きい上位 2 つを開いておく（一度決めたら利用者の開け閉めを残す）
+  const g = aGroup
+  if (pseen.has(g) || !pRows.length) return
+  pseen.add(g)
+  const first = firstOpen(pRows, g)
+  untrack(() => (popen = new Set([...popen, ...first])))
+})
 const cPeriod = $derived(CONTRIB_PERIODS[view.contrib]!)
-const cRows = $derived(contribRows(cPeriod, shown, cPeriod === 'month' ? contribM : contribY, (c) => nameOf(`JP:${c}`)))
+const cRows = $derived(contribRows(cPeriod, shown, cPeriod === 'month' ? contribM : contribY, (c) => nameOf(`JP:${c}`), cSplit))
 const cBars = $derived(contribBars(cRows))
 const cSum = $derived(contribSummary(cRows))
 const zeroAt = $derived(cRows.findIndex((r) => r.v <= 0))
@@ -233,9 +275,11 @@ const today = $derived.by(() => {
 })
 const months = $derived(divMonths(dRows, Number(today.slice(5, 7))))
 const dGroup = $derived(DIV_GROUPS[view.dgroup]!)
-const dGroups = $derived(divGroups(dRows, dGroup))
+/** 配当の表の行（同じ銘柄をまとめないとき・分類が口座のときは口座ごと。合計・内訳・月の棒はまとめた行で数える） */
+const dRowsT = $derived(divs && dSplit ? divRows(divs, rows, (c) => get(`JP:${c}`), true) : dRows)
+const dGroups = $derived(divGroups(dGroup === 'acct' ? dRowsT : dRows, dGroup))
 const shareList = $derived(dGroups.filter((g) => g.annual > 0).sort((a, b) => b.annual - a.annual))
-const tRows = $derived<TableRow[]>(tableRows(dRows, dGroup, DIV_SORTS[view.dsort]!, open))
+const tRows = $derived<TableRow[]>(tableRows(dRowsT, dGroup, DIV_SORTS[view.dsort]!, open))
 const alertsMet = $derived(
   alerts
     .filter(
@@ -274,29 +318,32 @@ let drowKey: string | null = null
 let tileKey: string | null = null
 let srowKey: string | null = null
 const evKeyOf = (e: (typeof events)[number]) => `${e.type}:${e.code}:${e.date}`
-const dKeyOf = (r: TableRow) => (r.type === 'g' ? `g:${r.g.key}` : `m:${r.r.code}`)
+let prowKey: string | null = null
 $effect(() => {
-  const c = reselect(cRows, crowKey, (r) => r.code, crow)
+  const c = reselect(cRows, crowKey, contribKey, crow)
   if (c !== crow) crow = c
   const e = reselect(events, evKey, evKeyOf, ev)
   if (e !== ev) ev = e
-  const d = reselect(tRows, drowKey, dKeyOf, drow)
+  const d = reselect(tRows, drowKey, divRowKey, drow)
   if (d !== drow) drow = d
   const t0 = reselect(leaves, tileKey, (x) => x.item.key, tile)
   if (t0 !== tile) tile = t0
   const s0 = reselect(shareList, srowKey, (x) => x.key, srow)
   if (s0 !== srow) srow = s0
+  const p0 = reselect(ptRows, prowKey, assetRowKey, prow)
+  if (p0 !== prow) prow = p0
 })
 /**
  * 今選んでいる行の銘柄を覚える（行を動かした・押した・分類を開閉した・表示を切り替えたとき）。位置だけを変えて覚え直さないと、
  * 上の reselect が前に覚えた銘柄の行へ戻してしまう。一覧（tRows など）は $derived なので、状態を変えた直後に読めば新しい並び
  */
 function remember(): void {
-  crowKey = cRows[crow]?.code ?? null
+  crowKey = cRows[crow] ? contribKey(cRows[crow]!) : null
   evKey = events[ev] ? evKeyOf(events[ev]!) : null
-  drowKey = tRows[drow] ? dKeyOf(tRows[drow]!) : null
+  drowKey = tRows[drow] ? divRowKey(tRows[drow]!) : null
   tileKey = leaves[tile]?.item.key ?? null
   srowKey = shareList[srow]?.key ?? null
+  prowKey = ptRows[prow] ? assetRowKey(ptRows[prow]!) : null
 }
 // 保有を外した・予定が過ぎた・分類を変えたなどで一覧が短くなったら、選んでいる位置を最後に寄せる
 $effect(() => {
@@ -305,16 +352,20 @@ $effect(() => {
   if (srow >= shareList.length) srow = clampIndex(srow, shareList.length)
   if (drow >= tRows.length) drow = clampIndex(drow, tRows.length)
   if (tile >= leaves.length) tile = clampIndex(tile, leaves.length)
+  if (prow >= ptRows.length) prow = clampIndex(prow, ptRows.length)
 })
 /** 選んでいる分類・月の銘柄（他のカードでは、それ以外を薄くする） */
 const brushed = $derived.by((): Set<string> | null => {
   if (card === 'alloc') {
     const t0 = leaves[tile]
     if (!t0) return null
-    const g = ALLOC_GROUPS[view.group]!
-    if (g === 'code') return new Set([t0.item.rows[0]!.code])
-    const k = groupKey(g, t0.item.rows[0]!)
-    return new Set(shown.filter((r) => groupKey(g, r) === k).map((r) => r.code))
+    if (aGroup === 'code') return new Set([t0.item.rows[0]!.code])
+    const k = groupKey(aGroup, t0.item.rows[0]!)
+    return new Set(shown.filter((r) => groupKey(aGroup, r) === k).map((r) => r.code))
+  }
+  if (card === 'ptab') {
+    const r = ptRows[prow]
+    return r ? new Set(r.type === 'g' ? r.g.rows.map((x) => x.code) : [r.r.code]) : null
   }
   if (card === 'dshare') return shareList[srow] ? new Set(shareList[srow]!.rows.map((r) => r.code)) : null
   if (card === 'dtab') {
@@ -356,19 +407,24 @@ function current(): InstrumentId | null {
         ? cRows[crow]?.code
         : card === 'events'
           ? events[ev]?.code
-          : card === 'dtab'
+          : card === 'ptab'
             ? (() => {
-                const r = tRows[drow]
+                const r = ptRows[prow]
                 return r?.type === 'm' ? r.r.code : undefined
               })()
-            : card === 'div'
-              ? months[dm]?.codes[0]?.code
-              : card === 'dshare' && dGroup === 'code'
-                ? shareList[srow]?.key
-                : undefined
+            : card === 'dtab'
+              ? (() => {
+                  const r = tRows[drow]
+                  return r?.type === 'm' ? r.r.code : undefined
+                })()
+              : card === 'div'
+                ? months[dm]?.codes[0]?.code
+                : card === 'dshare' && dGroup === 'code'
+                  ? shareList[srow]?.key
+                  : undefined
   return code ? `JP:${code}` : null
 }
-const LIST_CARDS: Card[] = ['contrib', 'dshare', 'dtab']
+const LIST_CARDS: Card[] = ['contrib', 'ptab', 'dshare', 'dtab']
 /** 選んだ銘柄を同じリンク色のチャート・銘柄情報に出す（FR-PF6。一覧のペインと同じく、選ぶと追従する） */
 function follow(): void {
   remember()
@@ -383,6 +439,7 @@ function pick(c: Card, i: number): void {
   else if (c === 'events') ev = i
   else if (c === 'dshare') srow = i
   else if (c === 'dtab') drow = i
+  else if (c === 'ptab') prow = i
   else if (c === 'div') dm = i
   follow()
 }
@@ -428,31 +485,35 @@ function key(e: KeyboardEvent): boolean {
     dm = Math.max(0, Math.min(11, dm + (c === 'ArrowLeft' ? -1 : 1)))
     return true
   }
-  if (card === 'dtab' && (c === 'ArrowLeft' || c === 'ArrowRight')) {
-    const r = toggleOpen(tRows, drow, open, c === 'ArrowRight', dGroup)
-    open = r.open
-    drow = r.sel
-    remember()
+  const toggleKey = c === 'ArrowLeft' || c === 'ArrowRight' || (c === 'Space' && !e.shiftKey)
+  if (card === 'dtab' && toggleKey) {
+    toggleDtab(drow, c === 'Space' ? undefined : c === 'ArrowRight', e.shiftKey && c !== 'Space')
+    return true
+  }
+  if (card === 'ptab' && toggleKey) {
+    togglePtab(prow, c === 'Space' ? undefined : c === 'ArrowRight', e.shiftKey && c !== 'Space')
     return true
   }
   if (card && LIST_CARDS.includes(card)) {
-    const n = card === 'contrib' ? cRows.length : card === 'dshare' ? shareList.length : tRows.length
-    const cur = card === 'contrib' ? crow : card === 'dshare' ? srow : drow
+    const n = card === 'contrib' ? cRows.length : card === 'dshare' ? shareList.length : card === 'ptab' ? ptRows.length : tRows.length
+    const cur = card === 'contrib' ? crow : card === 'dshare' ? srow : card === 'ptab' ? prow : drow
     const next = moveRow(cur, n, e.key)
     if (next != null) {
       if (card === 'contrib') crow = next
       else if (card === 'dshare') srow = next
+      else if (card === 'ptab') prow = next
       else drow = next
       follow()
       return true
     }
   }
   if (c === 'Enter') {
+    if (card === 'ptab' && ptRows[prow]?.type === 'g') {
+      togglePtab(prow)
+      return true
+    }
     if (card === 'dtab' && tRows[drow]?.type === 'g') {
-      const r = toggleOpen(tRows, drow, open, undefined, dGroup)
-      open = r.open
-      drow = r.sel
-      remember()
+      toggleDtab(drow)
       return true
     }
     if (card === 'div') {
@@ -475,16 +536,89 @@ function key(e: KeyboardEvent): boolean {
     follow()
     return !!id
   }
-  const v = viewKey(view, c, card)
+  const v = viewKey(view, c, card, e.shiftKey)
   if (v) {
-    applyView(v)
+    applyView(v, card)
     return true
   }
   return false
 }
+/** 分類ごとの資産の開け閉め（want が undefined なら切り替え。all ならすべての分類） */
+function togglePtab(i: number, want?: boolean, all = false): void {
+  const r = toggleAsset(ptRows, i, popen, want, aGroup, all)
+  popen = r.open
+  // 開け閉めで並びが変わる（上の分類が開くと行が差し込まれる）ので、位置ではなく鍵で選び直す
+  prow = clampIndex(
+    ptRows.findIndex((x) => assetRowKey(x) === r.key),
+    ptRows.length,
+  )
+  remember()
+}
+/** 配当の表の開け閉め（同じ作り） */
+function toggleDtab(i: number, want?: boolean, all = false): void {
+  const r = toggleOpen(tRows, i, open, want, dGroup, all)
+  open = r.open
+  drow = clampIndex(
+    tRows.findIndex((x) => divRowKey(x) === r.key),
+    tRows.length,
+  )
+  remember()
+}
+/** 共有の分類を替えたら、もう一方のカードの題を短く光らせる（どちらで替えたか分かるように）。長さは --motion-pulse（動きを減らすと 0）。終わったら animationend で消す */
+function flash(c: Card): void {
+  pulse = null
+  queueMicrotask(() => (pulse = c))
+}
+/** まとめる・分けるを切り替えたあと、選んでいた銘柄の行を選び直す（行の鍵がコードとコード/口座で変わるため） */
+function keepCode(list: { code: string }[], code: string | undefined, cur: number): number {
+  const i = code ? list.findIndex((x) => x.code === code) : -1
+  return i >= 0 ? i : clampIndex(cur, list.length)
+}
 /** 表示の状態を変える（キーと、見出しの切り替え・列名を押したときで同じ。選んでいる行・タイル・十字線は戻す） */
-function applyView(v: FolioView): void {
-  if (v.group !== view.group) tile = 0
+function applyView(v: FolioView, from: Card | null = card): void {
+  if (v.group !== view.group) {
+    tile = 0
+    prow = 0
+    flash(from === 'ptab' ? 'alloc' : 'ptab')
+  }
+  if (v.psort !== view.psort || v.pasc !== view.pasc) prow = 0
+  // まとめる・分けるでは選んでいた銘柄から動かさない（並びが落ち着いてから同じ銘柄の行を選び直す）
+  const was = {
+    a: leaves[tile]?.item.rows[0]?.code,
+    p: (() => {
+      const x = ptRows[prow]
+      return x?.type === 'm' ? x.r.code : undefined
+    })(),
+    c: cRows[crow]?.code,
+    d: (() => {
+      const x = tRows[drow]
+      return x?.type === 'm' ? x.r.code : undefined
+    })(),
+  }
+  const merged = { a: v.amerge !== view.amerge, p: v.pmerge !== view.pmerge, c: v.cmerge !== view.cmerge, d: v.dmerge !== view.dmerge }
+  if (merged.a || merged.p || merged.c || merged.d)
+    queueMicrotask(() => {
+      if (merged.a)
+        tile = keepCode(
+          leaves.map((x) => x.item.rows[0]!),
+          was.a,
+          tile,
+        )
+      if (merged.p)
+        prow = keepCode(
+          ptRows.map((x) => (x.type === 'm' ? x.r : { code: '' })),
+          was.p,
+          prow,
+        )
+      if (merged.c) crow = keepCode(cRows, was.c, crow)
+      if (merged.d)
+        drow = keepCode(
+          tRows.map((x) => (x.type === 'm' ? x.r : { code: '' })),
+          was.d,
+          drow,
+        )
+      remember()
+    })
   if (v.dgroup !== view.dgroup) {
     srow = 0
     drow = 0
@@ -499,7 +633,7 @@ function applyView(v: FolioView): void {
 const segLabel = (k: Key) => t(k)
 onMount(() => registerPane(pane.id, { key, current, selected: () => (current() ? [current()!] : []) }))
 const pct = (a: number, b: number) => (b ? (a / b) * 100 : null)
-const kk = (k: string, s: Key) => ({ k, s: t(s) })
+const kk = (k: string, s: Key, na = false) => ({ k, s: t(s), na })
 const isLoading = $derived(!loaded)
 const empty = $derived(loaded && !rows.length && !recs.length)
 </script>
@@ -517,7 +651,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 <div class="folio" bind:this={scroller} onscroll={onScroll}>
   {#if isLoading}
     <div class="grid">
-      {#each ['hero', 'hist', 'alloc', 'contrib', 'div', 'events'] as c (c)}<section class={`card c-${c}`}><div class="sk w28"></div><div class="sk w45"></div><div class="sk fill"></div></section>{/each}
+      {#each ['hero', 'hist', 'alloc', 'contrib', 'events', 'ptab', 'div'] as c (c)}<section class={`card c-${c}`}><div class="sk w28"></div><div class="sk w45"></div><div class="sk fill"></div></section>{/each}
     </div>
   {:else if empty}
     <div class="empty"><div><b>{t('folio.emptyTitle')}</b>{t('folio.emptyBody')}</div></div>
@@ -597,11 +731,12 @@ const empty = $derived(loaded && !rows.length && !recs.length)
       </section>
 
       <!-- 資産構成 -->
-      <section class="card c-alloc" class:focus={card === 'alloc'} data-card="alloc">
+      <section class="card c-alloc" class:focus={card === 'alloc'} class:pulse={pulse === 'alloc'} data-card="alloc" onanimationend={() => pulse === 'alloc' && (pulse = null)}>
         <h3>
           {t('folio.alloc')}{#if crossDay}<span class="crossday">{t('folio.atDay', { d: crossDay.slice(5).replace('-', '/') })}</span>{/if}
           <span class="right">
-            <Seg items={ALLOC_GROUPS.map((g) => t(`folio.g.${g}` as Key))} on={view.group} label={segLabel('folio.k.group')} onpick={(i) => applyView({ ...view, group: i })} />
+            <MergeChk on={view.amerge} locked={mergeLocked(view, 'alloc')} onchange={(on) => applyView({ ...view, amerge: on }, 'alloc')} />
+            {@render groupSeg('alloc')}
             <Seg items={[t('folio.heatPnl'), t('folio.heatDay')]} on={view.heat} label={segLabel('folio.k.heat')} onpick={(i) => applyView({ ...view, heat: i })} />
           </span>
         </h3>
@@ -611,8 +746,8 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           <span>{t('folio.top5')}<b class="num">{(stats.top5 * 100).toFixed(0)}%</b></span>
           <span title={t('folio.effTip')}>{t('folio.eff')}<b class="num">{stats.effective.toFixed(1)}</b></span>
         </div>
-        <AllocMap rows={shown} group={ALLOC_GROUPS[view.group]!} heat={view.heat} sel={tile} focused={card === 'alloc'} label={groupLabel} ontiles={(l) => (leaves = l)} onpick={(i) => pick('alloc', i)} />
-        <div class="keys" class:off={card !== 'alloc'} aria-hidden={card !== 'alloc'}>{#each [kk('G', 'folio.k.group'), kk('H', 'folio.k.heat'), kk('← → ↑ ↓', 'folio.k.tile'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
+        <AllocMap rows={shown} group={aGroup} heat={view.heat} split={aSplit} {multi} sel={tile} focused={card === 'alloc'} label={groupLabel} ontiles={(l) => (leaves = l)} onpick={(i) => pick('alloc', i)} />
+        <div class="keys" class:off={card !== 'alloc'} aria-hidden={card !== 'alloc'}>{#each [kk('G', 'folio.k.groupShared'), kk('A', 'folio.k.merge'), kk('H', 'folio.k.heat'), kk('← → ↑ ↓', 'folio.k.tile'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
 
       <!-- 損益寄与 -->
@@ -626,19 +761,20 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           {#if cSum.div}<span>{t('folio.ofDiv')} <span class="num gold">{manYen(cSum.div, true)}</span></span>{/if}
           <span>{t('folio.upDown', { u: cSum.up, d: cSum.down })}</span>
           <span class="right">{t(`folio.cNote.${cPeriod}` as Key, { d: lastClosedSession().slice(5).replace('-', '/') })}{#if (cPeriod === 'month' ? contribM : contribY)?.beforeRecords && (cPeriod === 'month' || cPeriod === 'year')} · {t('folio.beforeRecords')}{/if}</span>
+          <span class="cmerge"><MergeChk on={view.cmerge} locked={false} onchange={(on) => applyView({ ...view, cmerge: on }, 'contrib')} /></span>
         </div>
         <div class="contrib">
-          {#each cRows as r, i (r.code)}
+          {#each cRows as r, i (contribKey(r))}
             {#if i === zeroAt && i > 0}<div class="zero">0</div>{/if}
             <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
             <div class="crow" class:sel={card === 'contrib' && i === crow} class:dim={dim(r.code)} class:sold={!!r.soldOn} title={contribTip(r, t)} onclick={() => pick('contrib', i)}>
-              <span class="nm"><span class="mute num">{r.code}</span> {r.name}{#if r.soldOn}<span class="tag">{t('folio.fx.sold')}</span>{/if}</span>
+              <span class="nm"><span class="mute num">{r.code}</span> {r.name}{#if r.acct && multi.has(r.code)}<AcctDots accts={[r.acct]} />{/if}{#if r.soldOn}<span class="tag">{t('folio.fx.sold')}</span>{/if}</span>
               <span class="track"><span class="b" class:upb={r.price >= 0} class:downb={r.price < 0} style:left={`${cBars[i]!.pl}%`} style:width={`${cBars[i]!.pw}%`}></span>{#if r.div}<span class="b goldb" style:left={`${cBars[i]!.dl}%`} style:width={`${cBars[i]!.dw}%`}></span>{/if}</span>
               <span class={`val num ${toneOf(r.v)}`}>{manYen(r.v, true)}</span>
             </div>
           {/each}
         </div>
-        <div class="keys" class:off={card !== 'contrib'} aria-hidden={card !== 'contrib'}>{#each [kk('T', 'folio.k.cperiod'), kk('↑ ↓ PgUp PgDn', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
+        <div class="keys" class:off={card !== 'contrib'} aria-hidden={card !== 'contrib'}>{#each [kk('T', 'folio.k.cperiod'), kk('A', 'folio.k.merge'), kk('↑ ↓ PgUp PgDn', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
 
       <!-- 配当見込み -->
@@ -654,6 +790,36 @@ const empty = $derived(loaded && !rows.length && !recs.length)
         <DivBars {months} sel={card === 'div' ? dm : -1} {brushed} onpick={(i) => pick('div', i)} />
         <div class="legend"><span><span class="dot" style:background="var(--f-bar)"></span>{t('folio.next12')}</span><span><span class="dot thin"></span>{t('folio.prevSame')}</span><span><span class="dot" style:background="var(--gold)"></span>{t('folio.nextMonth')}</span></div>
         <div class="keys" class:off={card !== 'div'} aria-hidden={card !== 'div'}>{#each [kk('← →', 'folio.k.month'), kk('Enter', 'folio.k.toTable')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
+      </section>
+
+      <!-- 分類ごとの資産（FR-PF9。分類は資産構成と共有） -->
+      <section class="card c-ptab" class:focus={card === 'ptab'} class:pulse={pulse === 'ptab'} data-card="ptab" onanimationend={() => pulse === 'ptab' && (pulse = null)}>
+        <h3>
+          {aGroup === 'code' ? t('folio.ptabCode') : t('folio.ptabGroup', { g: t(`folio.dg.${aGroup}` as Key) })}{#if crossDay}<span class="crossday">{t('folio.atDay', { d: crossDay.slice(5).replace('-', '/') })}</span>{/if}
+          <span class="right">
+            <MergeChk on={view.pmerge} locked={mergeLocked(view, 'ptab')} onchange={(on) => applyView({ ...view, pmerge: on }, 'ptab')} />
+            {@render groupSeg('ptab')}
+          </span>
+        </h3>
+        <AssetTable
+          rows={ptRows}
+          group={aGroup}
+          sort={view.psort}
+          asc={view.pasc}
+          sel={prow}
+          focused={card === 'ptab'}
+          brushed={card === 'ptab' ? null : brushed}
+          {multi}
+          total={{ value: pSum.value, cost: pSum.cost, pnl: pSum.pnl, day: pSum.dayPnl, yoc: pSum.yoc, label: lotText(pRows) }}
+          label={groupLabel}
+          onpick={(i) => pick('ptab', i)}
+          onsort={(i) => applyView(sortTo(view, i), 'ptab')}
+          ontoggle={(i) => {
+            card = 'ptab'
+            togglePtab(i)
+          }}
+        />
+        <div class="keys" class:off={card !== 'ptab'} aria-hidden={card !== 'ptab'}>{#each [kk('G', 'folio.k.groupShared'), kk('A', 'folio.k.merge'), kk('S / Shift+S', 'folio.k.sortRev'), kk('↑ ↓', 'folio.k.row'), kk('← → Space', 'folio.k.open', aGroup === 'code'), kk('Shift+← →', 'folio.k.openAll', aGroup === 'code'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span class:na={x.na}><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
       </section>
 
       <!-- 今後 30 日の予定 -->
@@ -736,7 +902,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
           <div class="note">{t('folio.dwfDef')}</div>
         </section>
         <section class="card c-dtab" class:focus={card === 'dtab'} data-card="dtab">
-          <h3>{dGroup === 'code' ? t('folio.dtabCode') : t('folio.dtabGroup', { g: t(`folio.dg.${dGroup}` as Key) })}<span class="right"><Seg items={DIV_GROUPS.map((g) => t(`folio.dg.${g}` as Key))} on={view.dgroup} label={segLabel('folio.k.group')} onpick={(i) => applyView({ ...view, dgroup: i })} /></span></h3>
+          <h3>{dGroup === 'code' ? t('folio.dtabCode') : t('folio.dtabGroup', { g: t(`folio.dg.${dGroup}` as Key) })}<span class="right"><MergeChk on={view.dmerge} locked={mergeLocked(view, 'dtab')} onchange={(on) => applyView({ ...view, dmerge: on }, 'dtab')} /><Seg items={DIV_GROUPS.map((g) => t(`folio.dg.${g}` as Key))} on={view.dgroup} label={segLabel('folio.k.group')} onpick={(i) => applyView({ ...view, dgroup: i })} /></span></h3>
           <DivTable
             rows={tRows}
             group={dGroup}
@@ -744,23 +910,26 @@ const empty = $derived(loaded && !rows.length && !recs.length)
             sel={drow}
             focused={card === 'dtab'}
             {brushed}
+            {multi}
             label={groupLabel}
             onpick={(i) => pick('dtab', i)}
             onsort={(i) => applyView({ ...view, dsort: i })}
             ontoggle={(i) => {
               card = 'dtab'
-              const r = toggleOpen(tRows, i, open, undefined, dGroup)
-              open = r.open
-              drow = r.sel
-              remember()
+              toggleDtab(i)
             }}
           />
-          <div class="keys" class:off={card !== 'dtab'} aria-hidden={card !== 'dtab'}>{#each [kk('G', 'folio.k.group'), kk('S', 'folio.k.sort'), kk('→ ←', 'folio.k.open'), kk('↑ ↓ PgUp PgDn Home End', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
+          <div class="keys" class:off={card !== 'dtab'} aria-hidden={card !== 'dtab'}>{#each [kk('G', 'folio.k.group'), kk('A', 'folio.k.merge'), kk('S', 'folio.k.sort'), kk('→ ← Space', 'folio.k.open', dGroup === 'code'), kk('Shift+→ ←', 'folio.k.openAll', dGroup === 'code'), kk('↑ ↓ PgUp PgDn Home End', 'folio.k.row'), kk('Enter', 'folio.k.chart')] as x (x.k)}<span class:na={x.na}><kbd>{x.k}</kbd> {x.s}</span>{/each}</div>
         </section>
       </div>
     </section>
   {/if}
 </div>
+
+{#snippet groupSeg(from: Card)}
+  <span class="gseg"><Seg items={ALLOC_GROUPS.map((g) => t(`folio.dg.${g}` as Key))} on={view.group} label={segLabel('folio.groupShared')} onpick={(i) => applyView({ ...view, group: i }, from)} /></span>
+  <button type="button" class="segmini" tabindex="-1" title={t('folio.groupNext')} onclick={() => applyView({ ...view, group: (view.group + 1) % ALLOC_GROUPS.length }, from)}>{t(`folio.dg.${aGroup}` as Key)} ▾</button>
+{/snippet}
 
 <style>
 .sub {
@@ -810,7 +979,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   grid-template-columns: 1fr;
 }
 .grid {
-  grid-template-areas: 'hero' 'hist' 'alloc' 'contrib' 'div' 'events';
+  grid-template-areas: 'hero' 'hist' 'alloc' 'ptab' 'contrib' 'div' 'events';
 }
 .dgrid {
   padding-top: 0;
@@ -819,7 +988,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 @container (min-width: 760px) {
   .grid {
     grid-template-columns: repeat(6, 1fr);
-    grid-template-areas: 'hero hero hist hist hist hist' 'alloc alloc alloc alloc contrib contrib' 'div div div events events events';
+    grid-template-areas: 'hero hero hist hist hist hist' 'alloc alloc alloc alloc contrib contrib' 'ptab ptab ptab ptab ptab ptab' 'div div div events events events';
   }
   .dgrid {
     grid-template-columns: repeat(6, 1fr);
@@ -827,14 +996,14 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   }
 }
 @container (min-width: 1180px) {
+  /* 上の 2 段（予定を含む）はペインの高さに収め、3 段目の分類ごとの資産と配当見込みはスクロールで見る */
   .grid {
-    min-height: 100%;
     grid-template-columns: repeat(12, 1fr);
-    grid-template-rows: minmax(300px, 1.2fr) minmax(220px, 1fr) auto;
+    grid-template-rows: minmax(300px, 370px) minmax(280px, 320px) auto;
     grid-template-areas:
       'hero hero hero hist hist hist hist hist hist hist hist hist'
-      'alloc alloc alloc alloc alloc contrib contrib contrib div div div div'
-      'events events events events events events events events events events events events';
+      'alloc alloc alloc alloc alloc contrib contrib contrib events events events events'
+      'ptab ptab ptab ptab ptab ptab ptab ptab div div div div';
   }
   .dgrid {
     grid-template-columns: repeat(12, 1fr);
@@ -859,6 +1028,9 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 }
 .c-events {
   grid-area: events;
+}
+.c-ptab {
+  grid-area: ptab;
 }
 .c-dshare {
   grid-area: dshare;
@@ -941,6 +1113,46 @@ const empty = $derived(loaded && !rows.length && !recs.length)
 .keys.off {
   visibility: hidden;
 }
+/* 今の分類では使えないキー（銘柄で分けたときの開け閉め） */
+.keys .na {
+  opacity: 0.4;
+}
+/* 共有の分類を替えたとき、もう一方のカードの題を短く光らせる */
+.card.pulse h3 {
+  animation: folio-pulse var(--motion-pulse) ease;
+  border-radius: var(--radius);
+}
+@keyframes folio-pulse {
+  from {
+    background: color-mix(in srgb, var(--focus) 35%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+/* 分類の切り替え: 狭いときは今の分類のボタン 1 つにたたむ（押すと次の分類） */
+.segmini {
+  display: none;
+  font: inherit;
+  font-size: var(--fs-1);
+  color: var(--text);
+  background: var(--panel-3);
+  border: 0;
+  border-radius: var(--radius);
+  padding: 0 6px;
+  line-height: 18px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+@container (max-width: 759px) {
+  .gseg {
+    display: none;
+  }
+  .segmini {
+    display: inline-block;
+  }
+}
+
 .mute {
   color: var(--text-3);
 }
@@ -1174,6 +1386,9 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   color: var(--text-3);
   flex-wrap: wrap;
 }
+.csum .cmerge {
+  flex-basis: 100%;
+}
 .csum b {
   font-size: var(--fs-3);
   font-weight: 600;
@@ -1378,6 +1593,18 @@ const empty = $derived(loaded && !rows.length && !recs.length)
   }
   .ev {
     flex: none !important;
+  }
+}
+@container (min-width: 1180px) {
+  .events {
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .ev {
+    flex: none !important;
+    padding: 3px 10px;
   }
 }
 .ev {

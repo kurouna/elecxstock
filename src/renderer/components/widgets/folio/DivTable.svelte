@@ -2,9 +2,11 @@
 // 分類ごとの配当（FR-PF7）: 分類が銘柄以外ならアコーディオン（→ で開き ← で閉じる）。前年比・要因（増配・減配・新規・買い増し・売却）・
 // 1 株配当の 5 年・増配率・連続増配・利回り・取得利回り・配当性向（概算）。見出しは固定し、本体は縦にスクロールする
 import { DIV_SORTS, type DivGroup, dimmed, divFactors, lastTone, manYen, signPct, type TableRow, toneOf, yenFull } from '../../../lib/folio'
+import { lotText } from '../../../lib/folioText'
 import { dpsTip, toneNames } from '../../../lib/folioTips'
 import type { Key } from '../../../lib/i18n'
 import { app, t } from '../../../stores/app.svelte'
+import AcctDots from './AcctDots.svelte'
 
 let {
   rows,
@@ -13,6 +15,7 @@ let {
   sel,
   focused,
   brushed,
+  multi = new Set(),
   label,
   ontoggle,
   onpick,
@@ -24,6 +27,8 @@ let {
   sel: number
   focused: boolean
   brushed: Set<string> | null
+  /** 複数の口座で持つ銘柄（口座の印を出す） */
+  multi?: Set<string>
   label: (key: string) => string
   ontoggle: (i: number) => void
   /** 銘柄の行を押した（リンク色に送る） */
@@ -67,11 +72,11 @@ const dpsW = $derived(Math.max(1, ...rows.map((r) => (r.type === 'g' ? 0 : dpsTe
       </tr>
     </thead>
     <tbody>
-      {#each rows as row, i (row.type === 'g' ? `g:${row.g.key}` : `m:${row.r.code}`)}
+      {#each rows as row, i (row.type === 'g' ? `g:${row.g.key}` : `m:${row.r.code}/${row.r.accts.join(',')}`)}
         {#if row.type === 'g'}
           {@const g = row.g}
           <tr class="g" class:open={row.open} class:sel={focused && i === sel} class:dim={dim(g.rows.map((r) => r.code))} onclick={() => ontoggle(i)}>
-            <td><span class="arrow">{row.open ? '▼' : '▶'}</span>{label(g.key)} <span class="mute n">{t('folio.nStocks', { n: g.rows.length })}</span></td>
+            <td><span class="arrow">{row.open ? '▼' : '▶'}</span>{label(g.key)} <span class="mute n">{lotText(g.rows)}</span></td>
             <td class="c-mo"></td>
             <td class="num">{@render share(g.annual)}</td>
             <td class={`num ${toneOf(g.annual - g.annualPrev)}`}>{@render delta(g.annual - g.annualPrev)}</td>
@@ -89,7 +94,7 @@ const dpsW = $derived(Math.max(1, ...rows.map((r) => (r.type === 'g' ? 0 : dpsTe
         {:else}
           {@const r = row.r}
           <tr class:child={row.child} class:sel={focused && i === sel} class:dim={dim([r.code])} class:sold={r.sold} class="pick" onclick={() => onpick(i)}>
-            <td><span class="mute num">{r.code}</span> <span class="nm">{r.name}</span>{#if r.sold}<span class="tag">{t('folio.fx.sold')}</span>{/if}{#if r.special}<span class="tag warn" title={t('folio.specialTip')}>{t('folio.special')}</span>{/if}</td>
+            <td><span class="mute num">{r.code}</span> <span class="nm">{r.name}</span>{#if group !== 'acct' && multi.has(r.code)}<AcctDots accts={r.accts} />{/if}{#if r.sold}<span class="tag">{t(r.soldHere ? 'folio.fx.soldHere' : 'folio.fx.sold')}</span>{/if}{#if r.special}<span class="tag warn" title={t('folio.specialTip')}>{t('folio.special')}</span>{/if}</td>
             <td class="c-mo num mute">{r.months.length ? t('folio.months', { m: r.months.join('・') }) : '—'}</td>
             <td class="num">{@render share(r.annual)}</td>
             <td class={`num ${toneOf(r.annual - r.annualPrev)}`}>{@render delta(r.annual - r.annualPrev)}</td>
