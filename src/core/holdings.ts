@@ -45,9 +45,14 @@ export function fromLots(lots: Lot[], splits: Split[] = []): { quantity: number;
  */
 export function normalize(h: Holding, splits: Split[] = []): Holding {
   if (h.lots?.length) {
-    // 取引から計算した数量は今の基準なので、取り込んだ日は外す（posOf で分割をもう一度掛けない）
+    // 取引から計算した数量は今の基準（すべての分割を掛けた後）。基準の日を最後の分割の日に寄せ、posOf が分割を二重に掛けず、
+    // 分割の前の日（分割の日の場中に記録する前の取引日）では戻せるようにする。分割が無ければ基準の日は持たない
     const { importedAt: _i, ...rest } = h
-    return { ...rest, ...fromLots(h.lots, splits) }
+    const last = splits
+      .map((x) => x.date)
+      .sort()
+      .at(-1)
+    return { ...rest, ...fromLots(h.lots, splits), ...(last ? { importedAt: `${last}T00:00:00+09:00` } : {}) }
   }
   const t = h.importedAt ? Date.parse(h.importedAt) : Number.NaN
   if (!Number.isFinite(t)) return h

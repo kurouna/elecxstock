@@ -89,7 +89,7 @@ describe('取り込んだあとの分割（FR-H7・FR-D3。レビューで見つ
 })
 
 describe('取引のある保有と取り込んだ日（FR-H5・FR-D3。全体のレビューで見つけた不具合）', () => {
-  it('取引から計算した数量は今の基準なので、取り込んだ日を外す（資産推移の記録で分割をもう一度掛けない）', () => {
+  it('取引から計算した数量は今の基準なので、基準の日を最後の分割の日に寄せる（資産推移の記録で分割を二重に掛けない・分割の前の日は戻す）', () => {
     const sp = [{ date: '2025-10-01', ratio: 2 }]
     const h: Holding = {
       code: '7203',
@@ -101,7 +101,11 @@ describe('取引のある保有と取り込んだ日（FR-H5・FR-D3。全体の
     }
     const n = normalize(h, sp)
     expect(n).toMatchObject({ quantity: 200, avgCost: 1500 })
-    expect(n.importedAt).toBeUndefined()
+    expect(n.importedAt).toBe('2025-10-01T00:00:00+09:00')
     expect(posOf([n], '2025-11-13', () => sp)[0]!.qty).toBe(200)
+    // 分割の日の場中に前の取引日を記録する（d が分割の前）: 分割の前の株数に戻す
+    expect(posOf([n], '2025-09-30', () => sp)[0]).toMatchObject({ qty: 100, cost: 3000 })
+    // 分割が無ければ基準の日は持たない（記録の日の株数のまま）
+    expect(normalize(h, []).importedAt).toBeUndefined()
   })
 })

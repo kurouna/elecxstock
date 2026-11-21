@@ -119,10 +119,14 @@ describe('枠の重なりの順番（FR-KB3。レビューで見つけた不具�
     )
     expect(bad).toEqual([])
   })
-  it('チャートグリッド: マウスを載せた淡い枠は選んだタイルには掛けない（「枠を常に出す」のとき青い枠が灰色にならない）', () => {
+  it('チャートグリッド: マウスを載せた淡い枠は、選んだタイルには青い枠を消しているときだけ掛ける（「枠を常に出す」のとき青い枠が灰色にならない）', () => {
     const hover = rules(style('src/renderer/components/widgets/ChartGrid.svelte')).filter((r) => /\.tile[^\s]*:hover::before$/.test(r.sel))
     expect(hover.length).toBeGreaterThan(0)
-    for (const r of hover) expect(r.sel).toContain(':not(.sel)')
+    for (const r of hover) expect(r.sel.includes(':not(.sel)') || r.sel.includes('not([data-focus-always'), r.sel).toBe(true)
+    // 選んだタイルにも、マウスで操作しているとき（青い枠を消しているとき）は淡い枠を出す
+    const sel = hover.find((r) => r.sel.includes('.tile.sel:hover::before'))
+    expect(sel?.sel).toContain('not([data-focus-always')
+    expect(sel?.body).toMatch(/box-shadow:\s*inset[^;]*var\(--line-strong\)/)
   })
 })
 

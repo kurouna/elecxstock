@@ -726,6 +726,10 @@ const SRC_OPTIONS = $derived(['own', 'live', ...app.screens.map((s) => `scr:${s.
   :global(:root[data-input='pointer']:not([data-focus-always='true'])) .tile.sel::before {
     box-shadow: none;
   }
+  /* 青い枠を消しているときは、選んだタイルにも載せた淡い枠を出す（ほかのタイルと同じ） */
+  :global(:root[data-input='pointer']:not([data-focus-always='true'])) .tile.sel:hover::before {
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+  }
   /* 選んだタイルには掛けない（「枠を常に出す」のとき、載せると青い枠が灰色になっていた） */
   :global(:root[data-input='pointer']) .tile:not(.sel):hover::before {
     content: '';

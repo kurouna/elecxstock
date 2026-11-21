@@ -2,11 +2,12 @@
 // 口座の印（色の点。複数の口座で持つ銘柄の行・タイルに付ける）。名前はツールチップ
 import type { AccountType } from '@shared/types'
 import { accountName } from '../../../lib/portfolio'
+import { t } from '../../../stores/app.svelte'
 
 let { accts }: { accts: AccountType[] } = $props()
 </script>
 
-<span class="adots" title={accts.map(accountName).join('・')}>{#each accts as a (a)}<i style:background={`var(--acct-${a})`}></i>{/each}</span>
+<span class="adots" title={accts.map(accountName).join(t('folio.acctSep'))}>{#each accts as a (a)}<i style:background={`var(--acct-${a})`}></i>{/each}</span>
 
 <style>
 .adots {
