@@ -38,6 +38,8 @@ describe('FR-PC4 足す先（addTarget）', () => {
     const t = C.focusedAddTarget()!
     expect(t.label).toBe('w1')
     expect(t.quiet).toBeFalsy()
+    // ウォッチリストの Enter は今までどおり表示（足すのは Ctrl+Enter）
+    expect(t.primary).toBeFalsy()
     expect(t.add('JP:8058')).toBe(true)
     expect(app.watchlists.find((w) => w.id === 'w1')!.items).toEqual(['JP:7203', 'JP:8058'])
     p.state = { list: 'favorites' }
@@ -59,6 +61,8 @@ describe('FR-PC4 足す先（addTarget）', () => {
   it('パフォーマンス比較: 足すと銘柄が増え、5 銘柄で full。full のときは足さずに知らせる', () => {
     const p = pane('perf', { pfIds: ['A', 'B', 'C', 'D'], pfSlots: { A: 1, B: 2, C: 3, D: 4 } })
     const t = perfTarget(p, null)
+    // 銘柄ジャンプ・コマンドバーの Enter でもこのペインに足す（リンク色のチャートへ送って MTF のタブへ移らない）
+    expect(t.primary).toBe(true)
     expect(t.full).toBe(false)
     expect(t.add('E')).toBe(true)
     expect(p.state.pfIds).toEqual(['A', 'B', 'C', 'D', 'E'])

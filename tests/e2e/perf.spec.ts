@@ -81,6 +81,8 @@ test.describe('パフォーマンス比較（FR-PC1・PC2・PC4・PC6・PC7・PC
     // チャート（Shift+Tab で基準日 → チャート）: Home で十字線。読み取りと一覧の値がその日の値になる（札は動かさない）
     await keys(page, 'Shift+Tab')
     await expect(p.locator('.pf-chartblk')).toHaveClass(/focus/)
+    // T で読み直すので、読み終わってから札を読む
+    await expect(p.locator('.pf-chartblk')).not.toHaveClass(/loading/)
     const label0 = await p.locator('text[data-label]').first().textContent()
     const v0 = await p.locator('.pf-rows [data-id] .pf-v').first().textContent()
     await keys(page, 'Home')
@@ -128,6 +130,45 @@ test.describe('パフォーマンス比較（FR-PC1・PC2・PC4・PC6・PC7・PC
     // 一覧にいても Esc で十字線を消す
     await keys(page, 'Escape')
     await expect(p.getByTestId('pf-readout')).not.toContainText('基準日から')
+  })
+  test('マイレイアウトでペインの種類を変えて置いたパフォーマンス比較: ＋（銘柄ジャンプ）でコードを打って Enter でこのペインに足す。MTF のタブへ移らない（不具合の再現）', async ({
+    start,
+  }) => {
+    const { page } = await start()
+    await tab(page, 'free')
+    await keys(page, 'Control+Shift+KeyN')
+    const dlg = page.getByRole('dialog', { name: 'ペインの種類を変える' })
+    await type(page, 'パフォーマンス')
+    await expect(dlg.locator('.card.sel')).toHaveAttribute('data-widget', 'perf')
+    await keys(page, 'Enter')
+    const p = perf(page)
+    await expect(p).toHaveCount(1)
+    await expect(p).toHaveClass(/focused/)
+    // ＋ を押す（利用者の操作）→ 候補の行と下の段は「Enter でこのペインに足す」
+    await p.getByRole('button', { name: '銘柄ジャンプで足す' }).click()
+    await expect(page.locator('.dialog.jump')).toBeVisible()
+    await typeJump(page, '8058')
+    await expect(page.locator('.dialog.jump .foot')).toContainText('Enter')
+    await keys(page, 'Enter')
+    await expect(page.locator('.dialog.jump')).toHaveCount(0)
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('マイレイアウト')
+    await expect(p.locator('.pf-rows [data-id="JP:8058"]')).toHaveCount(1)
+    // Insert・数字キーで開いても同じ
+    await keys(page, 'Insert')
+    await typeJump(page, '8001')
+    await keys(page, 'Enter')
+    await expect(p.locator('.pf-rows [data-id="JP:8001"]')).toHaveCount(1)
+    await typeJump(page, '8031')
+    await keys(page, 'Enter')
+    await expect(p.locator('.pf-rows [data-id="JP:8031"]')).toHaveCount(1)
+    // コマンドバー（Ctrl+K）の銘柄も Enter でこのペインに足す
+    await keys(page, 'Control+k')
+    await type(page, '8053')
+    await expect(page.locator('.dialog.palette .it.sel')).toContainText('8053')
+    await keys(page, 'Enter')
+    await expect(page.locator('.dialog.palette')).toHaveCount(0)
+    await expect(p.locator('.pf-rows [data-id="JP:8053"]')).toHaveCount(1)
+    await expect(page.locator('.presets [aria-current="true"]')).toContainText('マイレイアウト')
   })
   test('画像の保存: 設定がオンのときだけ見出しのボタンとチャートの S。ファイル名は基準日と終わりの日（FR-PC9）', async ({ start }) => {
     const { app, page, userData } = await start({ settings: { chartSave: true } })

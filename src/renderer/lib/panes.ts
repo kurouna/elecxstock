@@ -34,6 +34,8 @@ export interface AddTarget {
   full?: boolean
   /** 満杯のときの＋のツールチップ */
   fullTitle?: string
+  /** Enter でも足す（銘柄を送る先がこのペインの銘柄そのもの。パフォーマンス比較）。無ければ Enter は表示、足すのは Ctrl+Enter */
+  primary?: boolean
   /** ＋と案内を出さない（Ctrl+Enter は効く。★お気に入り・保有のタブ） */
   quiet?: boolean
 }

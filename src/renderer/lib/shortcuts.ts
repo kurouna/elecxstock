@@ -329,7 +329,10 @@ r(['価格のみ ⇔ 配当込み', 'Price only ⇔ total return'], 'T')
 r(['通常 ⇔ 対数', 'Linear ⇔ log'], 'L')
 r(['選んだ線だけ色', 'Color only the selected line'], 'H')
 r(['比べる相手', 'Benchmarks'], 'B')
-r(['銘柄を足す（銘柄ジャンプ。Ctrl+Enter でこのペインに足す）', 'Add a stock (symbol jump; Ctrl+Enter adds here)'], 'Insert / 1–9')
+r(
+  ['銘柄を足す（銘柄ジャンプ・コマンドバー。Enter でこのペインに足す）', 'Add a stock (symbol jump or command bar; Enter adds here)'],
+  'Insert / 1–9',
+)
 r(['取り込む', 'Import'], 'I')
 r(['比較の組を覚える', 'Remember this set'], 'K')
 r = sec('perf', ['基準日', 'Base date'])

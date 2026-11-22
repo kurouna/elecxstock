@@ -22,6 +22,7 @@ export function perfTarget(pane: PaneNode, seed: InstrumentId | null): AddTarget
   return {
     label: t('widget.perf'),
     title: t('pf.addTo'),
+    primary: true,
     full: v.ids.length >= PF_MAX,
     fullTitle: t('pf.fullHint'),
     add: (id) => {

@@ -4,6 +4,7 @@
 // 空のときは最近の銘柄（チップ）・最近使ったアクション・このペインで、を先に出す。範囲は検索欄の下のチップ（Tab）と接頭辞（> # @）
 import type { Instrument, InstrumentId } from '@shared/types'
 import { onMount } from 'svelte'
+import { addButton, enterAction } from '../../lib/addTarget'
 import { type Action, focusedAddTarget, keyOf, paletteActions, sendSymbol } from '../../lib/commands'
 import { keepFocus } from '../../lib/focusTrap'
 import type { Key } from '../../lib/i18n'
@@ -175,6 +176,7 @@ const cur = $derived(flat[sel])
 const heldCodes = $derived(new Set(app.holdings.map((h) => h.code)))
 /** フォーカス中のペインが足す先を持てば（ウォッチリスト・パフォーマンス比較）、そこに直接足せる（Ctrl+Enter） */
 const target = $derived(title ? null : focusedAddTarget())
+const plus = $derived(addButton(target))
 
 function remember(key: string) {
   saveSettings({ paletteRecent: pushRecent(app.settings.paletteRecent ?? [], key, 20) })
@@ -217,6 +219,8 @@ async function go(i = sel) {
     if (r) return void toast(t(r as Key))
   }
   if (x.kind === 'pane' && x.id === widget) return void toast(t('cmd.nowType'))
+  // 足す先が Enter でも足すペイン（パフォーマンス比較）なら、銘柄は表示せずにそのペインに足す
+  if ((x.kind === 'sym' || x.kind === 'add') && enterAction(target, false) === 'add') return void addTo(i)
   // 一覧に無いコードは、足してから閉じる（先に閉じると、待っている間に「閉じた＝やめた」と受け取られ、グリッドの C の差し替えが追加になる）
   if (x.kind === 'add') {
     const id = await idOf(x)
@@ -385,8 +389,8 @@ onMount(() => {
               </button>
               {#if !title && (it.kind === 'sym' || it.kind === 'add')}
                 {@const on = it.kind === 'sym' && isFav(it.id)}
-                {#if target && !target.quiet}
-                  <button type="button" class="side" class:full={target.full} aria-hidden="true" tabindex="-1" title={`${target.full ? (target.fullTitle ?? target.title) : target.title} (Ctrl+Enter)`} onclick={() => addTo(i)} onmousemove={() => (sel = i)}>＋ {target.label}</button>
+                {#if plus}
+                  <button type="button" class="side" class:full={plus.full} aria-hidden="true" tabindex="-1" title={`${plus.title} (Ctrl+Enter)`} onclick={() => addTo(i)} onmousemove={() => (sel = i)}>＋ {plus.label}</button>
                 {/if}
                 <button type="button" class="side star" class:fav={on} aria-hidden="true" tabindex="-1" title={`${t(on ? 'cmd.favOff' : 'cmd.favOn')} (Ctrl+D)`} onclick={() => fav(i)} onmousemove={() => (sel = i)}>{on ? '★' : '☆'}</button>
               {/if}
@@ -409,8 +413,8 @@ onMount(() => {
           {t('cmd.symDesc', { mkt: mkt(ins), sector: ins ? (app.settings.lang === 'en' ? ins.sectorEn : ins.sectorJa) : '' })}{#if m}{' · '}{m.yieldTrailing ? t('cmd.yield', { v: `${m.yieldTrailing.toFixed(2)}%` }) : t('cmd.noDiv')}{/if}{#if heldCodes.has(cdOf(it.id))}{' · '}{t('cmd.heldYes')}{/if}
         </span>
         <span class="r">
-          <span><Keys keys="Enter" /> {t('cmd.toChart')}</span>
-          {#if target && !target.quiet}<span><Keys keys="Ctrl+Enter" /> {target.title}</span>{/if}
+          <span><Keys keys="Enter" /> {enterAction(target, false) === 'add' ? target!.title : t('cmd.toChart')}</span>
+          {#if plus?.ctrlHint}<span><Keys keys="Ctrl+Enter" /> {plus.title}</span>{/if}
           {#if !title}<span><Keys keys="Ctrl+D" /> {t('cmd.favKey')}</span>{/if}
         </span>
       {:else if it.kind === 'add'}
