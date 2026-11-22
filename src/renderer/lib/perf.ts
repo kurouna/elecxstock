@@ -605,3 +605,23 @@ export function endsProvisional(
 ): boolean {
   return !end && bars.some((d) => !!d && d.provisional.includes(d.time.length - 1))
 }
+/** 札・小箱の文字の幅の目安（12px）: 名前の全角 12px・半角 6.6px、値（等幅・太字）1 文字 7.3px、間の空白 4px */
+const namePx = (s: string): number => [...s].reduce((w, ch) => w + (isHalf(ch) ? 6.6 : 12), 0)
+const isHalf = (ch: string): boolean => {
+  const code = ch.codePointAt(0) ?? 0
+  return code <= 0xff || (code >= 0xff61 && code <= 0xff9f)
+}
+/** 「名前 値」の幅の目安（px） */
+export const labelPx = (name: string, value: string): number => namePx(name) + (name ? 4 : 0) + value.length * 7.3
+/**
+ * 名前を、値（+1234.5% など）と間の空白を残した幅 px に収まるまで詰める（入らなければ空）。
+ * 右端の札は SVG の右の端、十字線の小箱は値の左で切れないように（画像に書き出すと SVG の幅で切れる）
+ */
+export function fitLabel(name: string, value: string, px: number): string {
+  let out = ''
+  for (const ch of name) {
+    if (labelPx(out + ch, value) > px) break
+    out += ch
+  }
+  return out.trim()
+}

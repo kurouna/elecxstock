@@ -16,10 +16,12 @@ import {
   disambiguate,
   divNote,
   endLimits,
+  fitLabel,
   fitWidth,
   importPatch,
   indexSeries,
   keepSpaced,
+  labelPx,
   labelWidth,
   layoutEndLabels,
   maxDrawdown,
@@ -499,5 +501,23 @@ describe('FR-PC2 FR-PC3 レビューの反映', () => {
     expect(labelWidth(1000)).toBe(168)
     expect(labelWidth(700)).toBe(124)
     expect(labelWidth(400)).toBe(0)
+  })
+})
+
+describe('FR-PC7 札と小箱の名前は値の幅を残して詰める（コードレビューの反映）', () => {
+  it('値が長い（+1234.5%）ときは名前を短くして、札の幅を超えない', () => {
+    // 中くらいの札（124px）の文字の幅は 111px。値 8 文字（約 58px）と空白を残す
+    const n = fitLabel('東京エレクトロン', '+1234.5%', 111)
+    expect(n).toBe('東京エレ')
+    expect(labelPx(n, '+1234.5%')).toBeLessThanOrEqual(111)
+    // 広い札（168px）でも、8 文字の名前と 4 桁の % は入りきらない
+    const w = fitLabel('東京エレクトロン', '+1234.5%', 155)
+    expect(labelPx(w, '+1234.5%')).toBeLessThanOrEqual(155)
+    expect(w.length).toBeLessThan(8)
+  })
+  it('ふつうの値なら名前はそのまま。入らなければ空', () => {
+    expect(fitLabel('三菱UFJ', '150.4', 111)).toBe('三菱UFJ')
+    expect(fitLabel('東京エレクトロン', '+49.4%', 155)).toBe('東京エレクトロン')
+    expect(fitLabel('東京エレクトロン', '+1234.5%', 50)).toBe('')
   })
 })

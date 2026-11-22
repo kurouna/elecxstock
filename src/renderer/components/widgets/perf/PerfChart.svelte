@@ -22,7 +22,7 @@ import { localX } from '../../../lib/pointer'
 import {
   crossBox,
   dayNum,
-  fitWidth,
+  fitLabel,
   keepSpaced,
   labelWidth,
   nearestDay,
@@ -87,9 +87,10 @@ $effect(() => {
   return () => ro.disconnect()
 })
 
-/** 右端の札の幅（狭いと札を出さない）と、札の名前の幅（半角の数） */
+/** 右端の札の幅（狭いと札を出さない） */
 const labelW = $derived(labelWidth(w))
-const nameUnits = $derived(labelW >= 168 ? 16 : 9)
+/** 札の文字を置ける幅（文字の始まり lx + 3 から SVG の右の端まで。2px あける） */
+const labelTextW = $derived(labelW - 13)
 const pad = $derived({ l: 50, r: 10 + labelW, t: 10, b: 24 })
 const iw = $derived(Math.max(1, w - pad.l - pad.r))
 const ih = $derived(Math.max(1, h - pad.t - pad.b))
@@ -196,7 +197,7 @@ function onmove(e: MouseEvent) {
         {@const lx = w - pad.r + 18}
         <path d={`M${x.ex + 3} ${x.y0} L${lx - 8} ${x.y}`} stroke={x.l.color} stroke-width="1" fill="none" opacity={s.opacity < 1 ? 0.3 : 0.7} />
         <circle cx={lx - 4} cy={x.y} r="3.5" fill={s.opacity < 1 ? 'var(--line-strong)' : x.l.color} />
-        <text class="lbl" data-label={x.l.id} x={lx + 3} y={x.y + 4} opacity={s.opacity < 1 ? 0.5 : 1}>{fitWidth(x.l.label, nameUnits)} <tspan class="lv">{pfValue(x.v, mode)}</tspan></text>
+        <text class="lbl" data-label={x.l.id} x={lx + 3} y={x.y + 4} opacity={s.opacity < 1 ? 0.5 : 1}>{fitLabel(x.l.label, pfValue(x.v, mode), labelTextW)} <tspan class="lv">{pfValue(x.v, mode)}</tspan></text>
       {/each}
       {#if cross}
         <g data-noimg>
@@ -208,7 +209,7 @@ function onmove(e: MouseEvent) {
           {#each crossItems as x, j (x.l.id)}
             {@const yy = pad.t + 38 + j * 16}
             <circle cx={boxLeft + 10} cy={yy - 4} r="3.5" fill={strokeOf(x.l).color} />
-            <text class="lbl sm" x={boxLeft + 19} y={yy}>{x.l.label}</text>
+            <text class="lbl sm" x={boxLeft + 19} y={yy}>{fitLabel(x.l.label, pfValue(x.v, mode), boxW - 27)}</text>
             <text class="ax val" data-cross={x.l.id} x={boxLeft + boxW - 8} y={yy} text-anchor="end">{pfValue(x.v, mode)}</text>
           {/each}
           <rect fill="var(--panel)" opacity="0.92" x={cx - 38} y={h - pad.b + 3} width="76" height="16" rx="2" />

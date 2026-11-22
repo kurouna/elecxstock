@@ -64,6 +64,15 @@ test.describe('パフォーマンス比較（FR-PC1・PC2・PC4・PC6・PC7・PC
     await keys(page, 'Enter')
     const cal = p.getByTestId('pf-cal')
     await expect(cal).toBeVisible()
+    // 格子は曜日の 7 つと 42 日のボタンだけ（余計な文字のノードが無く、7 列にそろう）
+    const grid = await cal.locator('.pf-calg').evaluate((g) => ({
+      elements: g.children.length,
+      text: [...g.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim()).length,
+      cols: getComputedStyle(g).gridTemplateColumns.split(' ').length,
+      row2: [...g.querySelectorAll('.pf-dd')].slice(0, 7).map((b) => Math.round(b.getBoundingClientRect().top)),
+    }))
+    expect(grid).toMatchObject({ elements: 49, text: 0, cols: 7 })
+    expect(new Set(grid.row2).size).toBe(1)
     const ym0 = await p.getByTestId('pf-cal-ym').textContent()
     await keys(page, 'PageUp')
     await expect(p.getByTestId('pf-cal-ym')).not.toHaveText(ym0 ?? '')

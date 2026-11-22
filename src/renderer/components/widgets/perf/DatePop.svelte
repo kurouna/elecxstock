@@ -113,8 +113,10 @@ onMount(() => {
         disabled={dis(d)}
         title={off ? t('pf.calOff') : ''}
         tabindex="-1"
-        onclick={() => pick(d)}>{Number(d.slice(8))}</button
+        onclick={() => pick(d)}
       >
+        {Number(d.slice(8))}
+      </button>
     {/each}
   </div>
   <div class="pf-calf">
