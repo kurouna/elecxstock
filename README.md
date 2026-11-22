@@ -52,13 +52,14 @@
 - **保有**: 保有タブ（Ctrl+Shift+7）で銘柄・口座区分（NISA 成長投資枠・つみたて投資枠・旧 NISA・特定・一般）・数量・平均取得単価を足す・直す・外すか、楽天証券の保有商品の CSV を取り込みます（取り込むと CSV の内容に置き換わります。国内株式）。評価額・評価損益・前日比・年間配当の見込み・取得利回りを口座区分ごと・合計で見られます。JSON で書き出し・取り込み（[形式](docs/holdings-format.md)）。
 - **ポートフォリオのダッシュボード**: ポートフォリオのタブ（Ctrl+Shift+9）で、評価額・資産推移（評価額と取得額の間を含み損益の色で塗る）・資産構成（銘柄・業種・17 業種・市場区分・種別・口座のツリーマップ、景気敏感とディフェンシブ）・分類ごとの資産（保有のペインの列を資産構成と同じ分類でまとめた表。数量・取得単価・現在値・評価額・評価損益・損益率・構成比など）・損益寄与（今日・今月・今年・取得来）・配当見込み・今後 30 日の予定を 1 枚で見られます。複数の口座で持つ銘柄は、カードごとに「同じ銘柄をまとめる」か口座ごとに分けるかを選べます（A）。資産推移は % 表示で時間加重の収益率を出し、日経平均・TOPIX 連動 ETF（1306）と比べられます。← → で日を動かすと、評価額・資産構成・損益寄与がその日の値になります。項目を選ぶと、同じリンク色のチャートと銘柄情報に出ます。下の段は配当の分析（年間配当と前年比、増配・買い増し・新規・売却に分けた増減要因、分類ごとのドーナツと表）。資産の推移は日々の更新のたびに自動で記録します（[設計](docs/design-portfolio.md)）。
 - **配当シミュレータ**: スクリーナーの結果・保存したスクリーニング条件・ウォッチリスト・保有の銘柄を、N 年前（1・3・5・10 年、または日付）に買っていたら今いくらか（受取 ／ 再投資・税・積立・利回りに比例した配分）と、これから N 年の配当の見込み（横ばい・伸びを見込む・直線トレンド試算、減配シナリオ、10〜90% の帯）を出します。TOPIX（1306 NEXT FUNDS TOPIX 連動型上場投信）と同業種の均等の群と比べ、超過分を規模・業種・銘柄選びに分けます。値はすべて試算で、前提をペインの中に出します。データの更新が終わると、ほかのペインと同じく読み込み中を出さずに結果が差し替わります（[設計](docs/design-simulator.md)）。
+- **パフォーマンス比較**: 基準日を 100 として、5 銘柄までのその後の値動きを 1 枚のチャートに重ねます（テレビや動画でよく見る「○月○日 = 100」の比較チャート）。基準日は日付を押すかキーで開くカレンダーから選び、年初・1・3・5・10・20 年前の札もあります。銘柄は「＋」・Insert・数字キーの銘柄ジャンプで足し、行の「−」・Delete で外します。ウォッチリスト・保有・スクリーニング条件の結果からまとめて取り込めます。TOPIX（1306）・東証REIT指数（1343）の連動 ETF と比べられ、100 ⇔ 騰落率 %・価格のみ ⇔ 配当込み・通常 ⇔ 対数を切り替えます。線の右端に名前と値の札を並べ、十字線の日の値は脇の小箱と一覧に出します。日足の保存期間より前を基準日にすると、その前は月末の終値（月次）で継ぎます（20 年前まで）。線の色は騰落の赤・青を避け、色覚の違いでも見分けやすい 5 色です。マイレイアウトの新しいページ・フリーのウィンドウの初めの形「比較」で、右に日足のチャートを添えて開けます。チャートの画像の保存（設定で ON）にも対応しています（[設計](docs/design-perf.md)）。
 - **アラート**: 銘柄に条件（終値 ≤ 17,500、実績利回り ≥ 5%、終値 ≤ 75 日移動平均、保有の損益率など。最大 3 つの「かつ」）を付けるか、保存したスクリーニング条件に新しく入った銘柄を知らせます。取得のジョブの終わりに判定し、トースト・Windows の通知・トップバーのベルで知らせます。分割があってもしきい値を換算して比べ、チャートにしきい値の点線を引きます。Ctrl+Alt+A で作り、Ctrl+Alt+L の一覧と履歴から銘柄を開けます。外部への送信（メールなど）はしません。
 - **マーケット**: 日本・米国・アジアの指数、為替・米国債10年利回り、原油・金・銀、ビットコインの値を 1 枚の表で見るマーケット一覧（区分のタブで絞り込み、ウォッチリストと同じ列とキー）、騰落（プライム・J-REIT の値上がり・値下がり・新高値・新安値・売買代金と、33 業種の騰落率。Enter で業種の中の銘柄へ。[設計](docs/design-breadth.md)）、33 業種のヒートマップ（面積 = 時価総額、色 = 騰落率）と、V で切り替える株価ボード（東証のマーケットセンターのように、時価総額の上位・ウォッチリスト・保有・スクリーニング条件の銘柄の終値と前日比をカードで並べ、日経平均・TOPIX・東証REIT のカードと上昇・下落の数の帯を添える。値は日足の終値。[設計](docs/design-quote-board.md)）、ランキング、指数・指数連動 ETF の小さなチャート（[設計](docs/design-market-board.md)）。
   **TOPIX・JPX日経400・グロース250・東証REIT指数は Yahoo で取れないため、連動 ETF の値で代えています**（指数そのものの値ではありません）: TOPIX → NEXT FUNDS TOPIX連動型上場投信（1306）、JPX日経400 → NEXT FUNDS JPX日経インデックス400連動型上場投信（1591）、グロース250 → 東証グロース250ETF（2516）、東証REIT指数 → NEXT FUNDS 東証REIT指数連動型上場投信（1343）。一覧には「連動ETF」と ETF の名前を出します。値は日足の終値（取得したときの最後の足）で、リアルタイムではありません。
 - **ニュース**（取るかは初回起動で選べ、設定でいつでも切れます）: マーケットのタブの左下に、日本銀行・日本取引所グループ・Bloomberg などの見出しを時刻順に並べます。見出しとリンクだけを同梱の一覧（[docs/news-feeds.md](docs/news-feeds.md)）から取り、本文・画像は取りません。分類のタブ・絞り込み（/）・Enter でブラウザで開く。Ctrl+C で選んだ見出し、Ctrl+Alt+C で表示中の見出し（100 件まで）を文字でコピーでき、別のアプリで訳したりメモしたりできます（アプリは翻訳しません）。間隔は既定 10 分（下限 5 分、0 は起動時だけ）で、ペインが見えている間だけ取ります。切るとニュースのための通信はしません。管理者はレジストリ（`HKLM\Software\Policies\elecxstock` の `News`=0）か環境変数 `ELECXSTOCK_NEWS=off` で止められます（[設計](docs/design-news.md)）。
   見出しは各配信元のものです。記事の利用は各配信元の規約に従ってください（Bloomberg などは**個人の非商用の利用**に限られます。業務の PC で読むと「非商用」から外れることがあります）。同梱のフィードと既定でオンのものは [docs/news-feeds.md](docs/news-feeds.md)、各配信元の規約を確かめた結果と判断は [docs/news-feeds-terms.md](docs/news-feeds-terms.md) にあります。ニュースの選択はこの PC に保存し、データの書き出しには入りません（PC を移すと選び直しになります）。
-- **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、9 つのプリセット（マーケット・スクリーナー・グリッド・MTF・トリプル・インカム・保有・マイレイアウト・ポートフォリオ）、名前を付けたページを何枚も持てるマイレイアウト（タブの ▾ で切り替え）、サイズのリセット、レイアウトを初期状態に戻す（このタブ・すべてのタブ）。ペインの種類は Ctrl+Shift+N で変えられます（チャートをスクリーナーや銘柄情報にする など）。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。ペインを最大化・戻すとき（Ctrl+Shift+Enter・Esc）は元の場所との間を短く動き、タブを替えると下線が選んだタブへ滑って中身が少し滑って入るので、どこが広がった・どこへ戻った・どちらのタブへ移ったかを目で追えます（設定の「動きを減らす」か Windows のアニメーションの設定で止まります）。F11 で窓を全画面にします。
-- **マルチモニタ**: Ctrl+Alt+N（またはタイトルバーのボタン）でタブなしの「フリー」のウィンドウを最大 3 枚開き（チャートグリッド・4 分割・MTF + 銘柄情報）、2 枚目のモニタにチャートを並べられます。銘柄は 1 枚目の一覧からのドラッグか Ctrl+Alt+Enter で送ります。リンク色を付けたチャートは 1 枚目で選んだ銘柄を追います。並び・位置・文字の大きさは窓ごとに覚え、次の起動で開き直します。
+- **レイアウト**: ペインの分割・入れ替え（タイトルのドラッグでも）・最大化、左右の自動で隠れるドロワー、9 つのプリセット（マーケット・スクリーナー・グリッド・MTF・トリプル・インカム・保有・マイレイアウト・ポートフォリオ）、名前を付けたページを何枚も持てるマイレイアウト（タブの ▾ で切り替え。新しいページは初めの形を選べ、「比較」ならパフォーマンス比較と日足のチャート）、サイズのリセット、レイアウトを初期状態に戻す（このタブ・すべてのタブ）。ペインの種類は Ctrl+Shift+N で変えられます（チャートをスクリーナーや銘柄情報にする など）。グリッドの銘柄も含めて保存されます。一覧の行をグリッドのタイルやチャートにドラッグすると、その銘柄を表示します。ペインを最大化・戻すとき（Ctrl+Shift+Enter・Esc）は元の場所との間を短く動き、タブを替えると下線が選んだタブへ滑って中身が少し滑って入るので、どこが広がった・どこへ戻った・どちらのタブへ移ったかを目で追えます（設定の「動きを減らす」か Windows のアニメーションの設定で止まります）。F11 で窓を全画面にします。
+- **マルチモニタ**: Ctrl+Alt+N（またはタイトルバーのボタン）でタブなしの「フリー」のウィンドウを最大 3 枚開き（チャートグリッド・4 分割・MTF + 銘柄情報・パフォーマンス比較）、2 枚目のモニタにチャートを並べられます。銘柄は 1 枚目の一覧からのドラッグか Ctrl+Alt+Enter で送ります。リンク色を付けたチャートは 1 枚目で選んだ銘柄を追います。並び・位置・文字の大きさは窓ごとに覚え、次の起動で開き直します。
 - **配当カレンダー**、取得ジョブの進捗と一時停止。
 - **日本語／英語**の表示、ダーク／ライトのテーマ、陽線・陰線の色（日本式／欧米式）、キーの割り当ての変更。
 - **日々の更新**: 大引け後に自動で更新します。銘柄ごとに取らず一括気配でまとめて取り、日足の取得は分割の疑い・取りこぼし・定期の照合に絞ります。ウォッチリストと保有の銘柄を先に更新し、最後に取りこぼしを 1 回だけ確かめます。
@@ -83,6 +84,10 @@
 | フリーのウィンドウ（2 枚目のモニタ）                         | スクリーナーの条件を選ぶ（Insert）                     |
 | ![Pane type](docs/screenshots/widget.png)                    | ![Triple](docs/screenshots/triple.png)                 |
 | ペインの種類を変える（Ctrl+Shift+N）                         | トリプル（日足・週足・月足と銘柄情報）                 |
+
+![Performance comparison](docs/screenshots/perf.png)
+
+パフォーマンス比較（マイレイアウトの「比較」のページ。3 年前を 100 にした 5 銘柄と、比べる相手の TOPIX・東証REIT指数の連動 ETF。十字線の日の値は脇の小箱と左の一覧に）
 
 ![Trend lines](docs/screenshots/trendline.png)
 
@@ -112,29 +117,30 @@
 
 ### 主なキー
 
-| 操作                                                      | キー                                         |
-| --------------------------------------------------------- | -------------------------------------------- |
-| コマンドバー（銘柄・スクリーニング条件・操作を探す）      | Ctrl+K                                       |
-| 銘柄ジャンプ                                              | 数字キー（証券コード）→ Enter                |
-| ジャンプの候補をお気に入りに / リストに足す               | Ctrl+D / Ctrl+Enter                          |
-| ペイン間の移動                                            | Alt+← → ↑ ↓                                  |
-| ペインの最大化 / 戻す                                     | Ctrl+Shift+Enter / Esc                       |
-| 窓の全画面                                                | F11                                          |
-| レイアウトの切り替え / マイレイアウトのページ             | Ctrl+Shift+1〜9 / Ctrl+Shift+L               |
-| 左 / 右のドロワー                                         | Ctrl+B / Ctrl+Shift+B（ピン留め Ctrl+Alt+B） |
-| お気に入り / リストに追加                                 | Ctrl+D / Ctrl+Shift+A                        |
-| 日足 / 週足 / 月足・チャートの指標                        | D / W / M・I                                 |
-| トレンドライン: 引く / 山・谷へ / 選ぶ / 延長 / 消す      | Alt+T / Ctrl+← → / G / E / Delete            |
-| 列の選択（一覧）                                          | Ctrl+Shift+C                                 |
-| ペインの種類を変える                                      | Ctrl+Shift+N                                 |
-| ニュース: 開く / タブ / 絞り込み / コピー（1 件・表示中） | Enter / G / / / Ctrl+C・Ctrl+Alt+C           |
-| チャート / グリッドのタイルの銘柄を変える                 | C                                            |
-| データの更新                                              | F5                                           |
-| アラートを作る / 一覧と履歴                               | Ctrl+Alt+A / Ctrl+Alt+L                      |
-| フリーのウィンドウを開く / 窓を移る                       | Ctrl+Alt+N / Ctrl+F6                         |
-| 選んだ銘柄をフリーのウィンドウへ送る                      | Ctrl+Alt+Enter                               |
-| ショートカット一覧                                        | F1                                           |
-| アプリを終了                                              | Ctrl+Shift+Q                                 |
+| 操作                                                         | キー                                         |
+| ------------------------------------------------------------ | -------------------------------------------- |
+| コマンドバー（銘柄・スクリーニング条件・操作を探す）         | Ctrl+K                                       |
+| 銘柄ジャンプ                                                 | 数字キー（証券コード）→ Enter                |
+| ジャンプの候補をお気に入りに / リストに足す                  | Ctrl+D / Ctrl+Enter                          |
+| ペイン間の移動                                               | Alt+← → ↑ ↓                                  |
+| ペインの最大化 / 戻す                                        | Ctrl+Shift+Enter / Esc                       |
+| 窓の全画面                                                   | F11                                          |
+| レイアウトの切り替え / マイレイアウトのページ                | Ctrl+Shift+1〜9 / Ctrl+Shift+L               |
+| 左 / 右のドロワー                                            | Ctrl+B / Ctrl+Shift+B（ピン留め Ctrl+Alt+B） |
+| お気に入り / リストに追加                                    | Ctrl+D / Ctrl+Shift+A                        |
+| 日足 / 週足 / 月足・チャートの指標                           | D / W / M・I                                 |
+| トレンドライン: 引く / 山・谷へ / 選ぶ / 延長 / 消す         | Alt+T / Ctrl+← → / G / E / Delete            |
+| パフォーマンス比較: 銘柄を足す / 基準日 / 100 ⇔ % / 配当込み | Insert か数字キー → Enter / Alt+1〜6 / P / T |
+| 列の選択（一覧）                                             | Ctrl+Shift+C                                 |
+| ペインの種類を変える                                         | Ctrl+Shift+N                                 |
+| ニュース: 開く / タブ / 絞り込み / コピー（1 件・表示中）    | Enter / G / / / Ctrl+C・Ctrl+Alt+C           |
+| チャート / グリッドのタイルの銘柄を変える                    | C                                            |
+| データの更新                                                 | F5                                           |
+| アラートを作る / 一覧と履歴                                  | Ctrl+Alt+A / Ctrl+Alt+L                      |
+| フリーのウィンドウを開く / 窓を移る                          | Ctrl+Alt+N / Ctrl+F6                         |
+| 選んだ銘柄をフリーのウィンドウへ送る                         | Ctrl+Alt+Enter                               |
+| ショートカット一覧                                           | F1                                           |
+| アプリを終了                                                 | Ctrl+Shift+Q                                 |
 
 すべてのキーは F1 の一覧と [docs/requirements.md](docs/requirements.md) §6.5 にあります。アプリ全体のキーは「設定 > キー」で変えられます。
 
@@ -211,12 +217,13 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 - **Watchlists**: multiple lists, favorites (★), sorting, duplicate, multi-select, columns, CSV export and code-list import, JSON export/import.
 - **Holdings**: on the Holdings tab (Ctrl+Shift+7), add, edit or remove holdings by symbol, account type (NISA growth / tsumitate / old NISA, specified, general), quantity and average cost, or import the Rakuten Securities holdings CSV (domestic stocks; the import replaces the holdings). See value, P/L, day change, expected annual dividends and yield on cost by account and in total; JSON export/import ([format](docs/holdings-format.md)).
 - **Portfolio dashboard**: the Portfolio tab (Ctrl+Shift+9) shows market value, the asset history (filled between value and cost in the color of unrealized P/L), allocation (a treemap by stock, sector, TOPIX-17 sector, market, kind or account, with cyclical vs defensive), an asset table grouped the same way as the treemap (the Holdings columns: quantity, average cost, price, value, unrealized P/L, P/L %, weight and more), contribution (today, this month, this year, since purchase), the dividend outlook and the next 30 days of events on one page. The history is recorded automatically with every daily update; switch it to % for an approximate time-weighted return and compare it with the Nikkei 225 or the TOPIX ETF (1306), and move the day with ← → to see that day's allocation and contribution. The lower section analyzes dividends: annual amount and year-on-year change, a waterfall of raises, cuts, new, added and sold, and a breakdown donut and table. A stock held in several accounts can be combined into one row or split by account, separately on each card (A). Selecting an item shows it on the chart and symbol info with the same link color ([design, Japanese](docs/design-portfolio.md)).
+- **Performance comparison**: overlay up to five stocks rebased to 100 on a base date (the "X = 100" comparison chart often seen on TV). Pick the base date from a calendar (click the date or use the keys) or with the YTD / 1 / 3 / 5 / 10 / 20-year chips. Add stocks with the symbol jump (＋, Insert or digit keys) and remove them with − or Delete, or import from a watchlist, holdings or a saved screen. Compare with the TOPIX (1306) and TSE REIT Index (1343) ETFs, and switch 100 ⇔ %, price ⇔ with dividends and linear ⇔ log. Name and value labels sit at the line ends; the crosshair day's values appear in a box and in the list. Base dates before the daily range are joined with month-end closes (up to 20 years back). The five line colors avoid the up/down red and blue and stay distinguishable for color-vision differences. Open it with the "Compare" shape for a new page or a free window (with a daily chart next to it). Chart image saving (Settings) works here too ([design, Japanese](docs/design-perf.md)).
 - **Alerts**: put conditions on a symbol (close ≤ 17,500, trailing yield ≥ 5%, close ≤ 75-day MA, P/L of a holding and so on; up to three, all must hold), or get notified of symbols that newly match a saved screen. Alerts are evaluated when a fetch job ends and shown as a toast, a Windows notification and a badge on the bell. Price thresholds are converted across stock splits, and drawn as dashed lines on charts. Create with Ctrl+Alt+A; open the list and history with Ctrl+Alt+L. Nothing is sent outside the app (no e-mail).
 - **Market**: a market board with Japanese, US and Asian indices, FX and the US 10-year yield, oil, gold, silver and Bitcoin in one table (filter by group with tabs; same columns and keys as watchlists), market breadth (advancers, decliners, new highs and lows and turnover for Prime and J-REITs, and returns by TSE 33 sector; press Enter to list a sector's stocks), a sector heatmap with a quote-card view toggled by V (closing prices and day change of top market-cap stocks, a watchlist, holdings or a saved screen laid out as cards, with Nikkei 225 / TOPIX / TSE REIT cards and an advancers-vs-decliners bar; values are daily closes), rankings and index mini-charts.
   **TOPIX, JPX-Nikkei 400, Growth 250 and the TSE REIT Index are not available from Yahoo, so the board shows tracking ETFs instead** (not the index values): NEXT FUNDS TOPIX ETF (1306), NEXT FUNDS JPX-Nikkei Index 400 ETF (1591), TSE Growth 250 ETF (2516) and NEXT FUNDS REIT INDEX ETF (1343), labeled as ETFs. Values are daily closes (the latest bar at fetch time), not real-time.
 - **News** (you choose at first run; can be turned off any time in Settings): headlines from the Bank of Japan, JPX, Bloomberg and other built-in sources ([list](docs/news-feeds.md)) in time order at the bottom left of the Market tab. Only headlines and links are fetched, no article bodies or images. Category tabs, filter (/), Enter opens the article in your browser. Ctrl+C copies the selected headline and Ctrl+Alt+C the shown headlines (up to 100) as text, so you can translate or note them in another app (the app does not translate). Checked every 10 minutes by default (minimum 5, 0 = at startup only), only while the pane is visible. When off, no requests are made for news. Administrators can turn it off with the registry (`News`=0 under `HKLM\Software\Policies\elecxstock`) or `ELECXSTOCK_NEWS=off`. Headlines belong to each source; use articles under each source's terms (Bloomberg and others allow personal, non-commercial use only). The built-in feeds are listed in [docs/news-feeds.md](docs/news-feeds.md); how each source's terms were checked is in [docs/news-feeds-terms.md](docs/news-feeds-terms.md) (Japanese).
-- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, nine presets (Market, Screener, Grid, MTF, Triple, Income, Holdings, Pages, where each unlinked chart keeps its own symbol, and Portfolio), any number of named pages in the Pages tab (switch with the ▾ next to the tab), size reset, and resetting the layout of this tab or all tabs. Change a pane into another kind with Ctrl+Shift+N (e.g. a chart into a screener or symbol info). Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol. Maximizing and restoring a pane (Ctrl+Shift+Enter, Esc) moves briefly between the pane and its place, and switching tabs slides the underline to the new tab and the content in slightly, so you can follow what grew, where it went back and which tab you moved to (turned off by "Reduce motion" in Settings or the Windows animation setting). F11 makes the window full screen.
-- **Multiple monitors**: open up to three tabless Free windows with Ctrl+Alt+N or the title-bar button (chart grid, four charts, or MTF + symbol info) to line up charts on a second monitor. Drag symbols from the main window's lists or send them with Ctrl+Alt+Enter; linked charts follow the symbol picked in the main window. Layout, position and text size are remembered per window and reopened at the next start.
+- **Layouts**: split, swap (or drag titles) and maximize panes, left and right auto-hiding drawers, nine presets (Market, Screener, Grid, MTF, Triple, Income, Holdings, Pages, where each unlinked chart keeps its own symbol, and Portfolio), any number of named pages in the Pages tab (switch with the ▾ next to the tab; a new page can start from a shape such as "Compare", the performance pane with a daily chart), size reset, and resetting the layout of this tab or all tabs. Change a pane into another kind with Ctrl+Shift+N (e.g. a chart into a screener or symbol info). Grid symbols are saved with the layout. Drag a row from a list onto a grid tile or chart to show that symbol. Maximizing and restoring a pane (Ctrl+Shift+Enter, Esc) moves briefly between the pane and its place, and switching tabs slides the underline to the new tab and the content in slightly, so you can follow what grew, where it went back and which tab you moved to (turned off by "Reduce motion" in Settings or the Windows animation setting). F11 makes the window full screen.
+- **Multiple monitors**: open up to three tabless Free windows with Ctrl+Alt+N or the title-bar button (chart grid, four charts, MTF + symbol info, or the performance comparison) to line up charts on a second monitor. Drag symbols from the main window's lists or send them with Ctrl+Alt+Enter; linked charts follow the symbol picked in the main window. Layout, position and text size are remembered per window and reopened at the next start.
 - **Dividend calendar**, fetch jobs with progress and pause.
 - **Japanese / English** UI, dark / light themes, candle colors (Japanese or Western) and remappable keys.
 - **Daily update** after the close: quotes are fetched in bulk instead of per symbol, and daily bars are fetched only for suspected splits, missed days and a rotating check. Symbols in your watchlists and holdings are updated first, and one final pass re-fetches anything missed.
@@ -224,6 +231,10 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 - New-version notice, database backup, daily-bar CSV export.
 
 ![Grid (English)](docs/screenshots/grid-en.png)
+
+![Performance comparison](docs/screenshots/perf.png)
+
+Performance comparison (Japanese UI): five stocks rebased to 100 three years ago, with the TOPIX and TSE REIT Index ETFs as benchmarks; the crosshair day's values in the box and the list.
 
 ![Trend lines](docs/screenshots/trendline.png)
 

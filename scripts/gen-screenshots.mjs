@@ -1,5 +1,5 @@
 // README 用のスクリーンショット（docs/screenshots/）。スタブのプロバイダ（架空の値）で起動し、キー操作で各画面を開いて撮る。
-// 使い方: npm run build && node scripts/gen-screenshots.mjs [folio|trendline]（名前を付けるとその分だけ撮る）
+// 使い方: npm run build && node scripts/gen-screenshots.mjs [folio|trendline|market|perf]（名前を付けるとその分だけ撮る）
 import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -214,7 +214,66 @@ async function marketSession() {
   ])
 }
 
+/**
+ * パフォーマンス比較（FR-PC1〜PC12）: マイレイアウトに「比較」の形のページを作り、銘柄ジャンプで 5 銘柄を足して、3 年前を 100 にした線と
+ * 比べる相手（1306・1343）を出し、十字線を少し戻した状態で撮る（shot mtf
+shot widget
+shot grid
+shot grid-drawer
+shot screener
+shot fields
+shot income
+shot triple
+shot palette
+shot help
+shot settings
+shot alert-line
+shot alerts
+shot free
+shot multi
+shot light
+shot market
+shot grid-en
+shot folio
+shot folio-assets
+shot folio-div でこれだけ撮れる）
+ */
+async function perfSession() {
+  await session('ja', [
+    [
+      'perf',
+      async ({ k, type, page }) => {
+        // リンク 2 の銘柄（ページの種になる）をトヨタにしておく
+        await type('7203')
+        await k('Enter')
+        await k('Control+Shift+Digit8', 'Control+Shift+Digit8', 'Insert')
+        await page.getByRole('dialog', { name: '新しいページの初めの形' }).waitFor()
+        await k('ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'Enter')
+        await page.keyboard.type('比較')
+        await k('Enter')
+        const p = page.locator('[data-widget="perf"]')
+        await p.waitFor()
+        for (const c of ['8306', '8058', '8035', '7974']) {
+          await type(c)
+          await page.locator('.dialog.jump .it.sel').waitFor()
+          await k('Enter')
+        }
+        await k('KeyB', 'Alt+Digit3')
+        await page.waitForFunction(
+          () => !document.querySelector('[data-widget="perf"] .pf-v.why, [data-widget="perf"] .pf-chartblk.loading'),
+        )
+        await k('ArrowLeft', 'Shift+ArrowLeft', 'Shift+ArrowLeft', 'Shift+ArrowLeft', 'Shift+ArrowLeft')
+        await page.mouse.move(0, 0)
+      },
+    ],
+  ])
+}
+
 const only = process.argv.slice(2)
+if (only.includes('perf')) {
+  await perfSession()
+  process.exit(0)
+}
 if (only.includes('market')) {
   await marketSession()
   process.exit(0)
@@ -370,5 +429,6 @@ await session('ja', [
   ],
 ])
 await marketSession()
+await perfSession()
 await session('en', [['grid-en', async ({ k }) => k('Control+Shift+Digit3', 'n', 'Alt+Digit3')]])
 await folioSession()
