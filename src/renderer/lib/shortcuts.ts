@@ -18,6 +18,7 @@ export const SECTIONS = [
   'folio',
   'info',
   'divsim',
+  'perf',
   'drawer',
   'news',
 ] as const
@@ -34,6 +35,7 @@ export const SECTION_KEY = {
   folio: 'help.folio',
   info: 'help.info',
   divsim: 'help.divsim',
+  perf: 'help.perf',
   drawer: 'help.drawer',
   news: 'help.news',
 } as const satisfies Record<SectionId, string>
@@ -318,6 +320,36 @@ r(['当時の条件で選び直す', 'Re-screen with past data'], 'H')
 r(['シナリオ', 'Scenarios'], 'K')
 r(['並べ替え', 'Sort'], 'S')
 
+// ---- パフォーマンス比較（docs/design-perf.md §5）
+r = sec('perf', ['見方', 'View'])
+r(['基準日 → 銘柄 → チャート', 'Base date → stocks → chart'], 'Tab')
+r(['年初・1・3・5・10・20 年前', 'YTD, 1, 3, 5, 10, 20 years ago'], 'Alt+1–6')
+r(['100 ⇔ %', '100 ⇔ %'], 'P')
+r(['価格のみ ⇔ 配当込み', 'Price only ⇔ total return'], 'T')
+r(['通常 ⇔ 対数', 'Linear ⇔ log'], 'L')
+r(['選んだ線だけ色', 'Color only the selected line'], 'H')
+r(['比べる相手', 'Benchmarks'], 'B')
+r(['銘柄を足す（銘柄ジャンプ。Ctrl+Enter でこのペインに足す）', 'Add a stock (symbol jump; Ctrl+Enter adds here)'], 'Insert / 1–9')
+r(['取り込む', 'Import'], 'I')
+r(['比較の組を覚える', 'Remember this set'], 'K')
+r = sec('perf', ['基準日', 'Base date'])
+r(['日付を動かす（営業日・月・年）', 'Move date (day, month, year)'], '← → ↑ ↓ PgUp PgDn')
+r(['基準日 ⇔ 終わりの日', 'Base date ⇔ end date'], 'Home End')
+r(['終わりの日を今日にする', 'End at today'], 'Backspace')
+r(['カレンダー', 'Calendar'], 'Enter / Space')
+r(['カレンダーの中: 日・週・月・年', 'In the calendar: day, week, month, year'], '← → ↑ ↓ PgUp PgDn Shift+PgUp Shift+PgDn')
+r(['カレンダーの中: 月の初め・終わり', 'In the calendar: start or end of month'], 'Home End')
+r(['カレンダーの中: 日付を打つ（yyyymmdd の 8 桁）', 'In the calendar: type a date (yyyymmdd)'], '0–9')
+r = sec('perf', ['銘柄', 'Stocks'])
+r(['表示 ⇔ 非表示', 'Show or hide'], 'Space')
+r(['外す', 'Remove'], 'Delete')
+r(['並べ替え', 'Sort'], 'S')
+r(['リンク色のチャートに出す', 'Show in the linked chart'], 'Enter')
+r = sec('perf', ['チャート', 'Chart'])
+r(['十字線', 'Crosshair'], '← → Shift+← Shift+→ Home End')
+r(['十字線を消す', 'Clear crosshair'], 'Esc')
+r(['画像を保存（設定でオンのとき）', 'Save image (when enabled in settings)'], 'S')
+
 // ---- ドロワー
 r = sec('drawer', ['ドロワー', 'Drawers'])
 r(['左のドロワー', 'Left drawer'], A('drawer'))
@@ -355,6 +387,7 @@ const HELP_SECTION: Record<WidgetId, SectionId> = {
   portfolio: 'folio',
   folio: 'folio',
   divsim: 'divsim',
+  perf: 'perf',
   news: 'news',
 }
 export function helpSection(widget: WidgetId | string | undefined): SectionId | '' {

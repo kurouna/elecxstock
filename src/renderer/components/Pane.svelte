@@ -18,6 +18,7 @@ import MarketBoard from './widgets/MarketBoard.svelte'
 import MarketBreadth from './widgets/MarketBreadth.svelte'
 import MarketOverview from './widgets/MarketOverview.svelte'
 import MtfChart from './widgets/MtfChart.svelte'
+import PerfPane from './widgets/PerfPane.svelte'
 import Portfolio from './widgets/Portfolio.svelte'
 import Ranking from './widgets/Ranking.svelte'
 import Screener from './widgets/Screener.svelte'
@@ -86,6 +87,8 @@ function onerror(e: unknown) {
       <Folio {pane} />
     {:else if pane.widget === 'divsim'}
       <DivSim {pane} />
+    {:else if pane.widget === 'perf'}
+      <PerfPane {pane} />
     {:else if pane.widget === 'portfolio'}
       <Portfolio {pane} />
     {:else if pane.widget === 'heatmap'}

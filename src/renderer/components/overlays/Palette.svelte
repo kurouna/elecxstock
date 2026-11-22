@@ -4,7 +4,7 @@
 // 空のときは最近の銘柄（チップ）・最近使ったアクション・このペインで、を先に出す。範囲は検索欄の下のチップ（Tab）と接頭辞（> # @）
 import type { Instrument, InstrumentId } from '@shared/types'
 import { onMount } from 'svelte'
-import { type Action, focusedWatchlist, holdingsTabLocked, keyOf, paletteActions, sendSymbol } from '../../lib/commands'
+import { type Action, focusedAddTarget, keyOf, paletteActions, sendSymbol } from '../../lib/commands'
 import { keepFocus } from '../../lib/focusTrap'
 import type { Key } from '../../lib/i18n'
 import { composing } from '../../lib/keys'
@@ -33,14 +33,12 @@ import { WIDGET_INFO } from '../../lib/widgetInfo'
 import { outcomeText, paneCounts, pickOutcome } from '../../lib/widgetPicker'
 import { FREE_WIDGETS, IS_FREE } from '../../lib/windowSlot'
 import {
-  addToList,
   app,
   bridge,
   codeOf,
   ensureMetrics,
   inst,
   isFav,
-  listName,
   metric,
   nameOf,
   rpc,
@@ -175,8 +173,8 @@ $effect(() => {
 })
 const cur = $derived(flat[sel])
 const heldCodes = $derived(new Set(app.holdings.map((h) => h.code)))
-/** フォーカス中のペインがウォッチリストなら、そのリストに直接足せる（Ctrl+Enter） */
-const target = $derived(title ? null : focusedWatchlist())
+/** フォーカス中のペインが足す先を持てば（ウォッチリスト・パフォーマンス比較）、そこに直接足せる（Ctrl+Enter） */
+const target = $derived(title ? null : focusedAddTarget())
 
 function remember(key: string) {
   saveSettings({ paletteRecent: pushRecent(app.settings.paletteRecent ?? [], key, 20) })
@@ -202,16 +200,14 @@ async function fav(i = sel) {
     sendSymbol(id)
   }
 }
-/** フォーカス中のウォッチリストに足して、その銘柄を表示する */
+/** フォーカス中のペインの足す先に足す（ウォッチリストは足してから表示する）。足せなければ足す先が理由を知らせ、閉じない */
 async function addTo(i = sel) {
-  if (!target) return void holdingsTabLocked()
-  const list = target.id
+  const to = target
+  if (!to) return
   const id = await idOf(flat[i]?.it)
-  if (!id) return
+  if (!id || !to.add(id)) return
   app.overlay = null
   remember(`sym:${id}`)
-  addToList(list, [id])
-  sendSymbol(id)
 }
 async function go(i = sel) {
   const x = flat[i]?.it
@@ -263,7 +259,6 @@ function key(e: KeyboardEvent) {
     query = stripPrefix(query)
     sel = 0
   } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-    if (!target) return void holdingsTabLocked()
     void addTo()
   } else if (e.key === 'Enter') void go()
   else if (e.code === 'KeyD' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && !title) void fav()
@@ -390,8 +385,8 @@ onMount(() => {
               </button>
               {#if !title && (it.kind === 'sym' || it.kind === 'add')}
                 {@const on = it.kind === 'sym' && isFav(it.id)}
-                {#if target && target.id !== 'favorites'}
-                  <button type="button" class="side" aria-hidden="true" tabindex="-1" title={`${t('cmd.addToList', { list: listName(target) })} (Ctrl+Enter)`} onclick={() => addTo(i)} onmousemove={() => (sel = i)}>＋ {listName(target)}</button>
+                {#if target && !target.quiet}
+                  <button type="button" class="side" class:full={target.full} aria-hidden="true" tabindex="-1" title={`${target.full ? (target.fullTitle ?? target.title) : target.title} (Ctrl+Enter)`} onclick={() => addTo(i)} onmousemove={() => (sel = i)}>＋ {target.label}</button>
                 {/if}
                 <button type="button" class="side star" class:fav={on} aria-hidden="true" tabindex="-1" title={`${t(on ? 'cmd.favOff' : 'cmd.favOn')} (Ctrl+D)`} onclick={() => fav(i)} onmousemove={() => (sel = i)}>{on ? '★' : '☆'}</button>
               {/if}
@@ -415,7 +410,7 @@ onMount(() => {
         </span>
         <span class="r">
           <span><Keys keys="Enter" /> {t('cmd.toChart')}</span>
-          {#if target && target.id !== 'favorites'}<span><Keys keys="Ctrl+Enter" /> {t('cmd.addToList', { list: listName(target) })}</span>{/if}
+          {#if target && !target.quiet}<span><Keys keys="Ctrl+Enter" /> {target.title}</span>{/if}
           {#if !title}<span><Keys keys="Ctrl+D" /> {t('cmd.favKey')}</span>{/if}
         </span>
       {:else if it.kind === 'add'}
@@ -563,6 +558,9 @@ onMount(() => {
   .side:hover {
     color: var(--text);
     background: var(--hover);
+  }
+  .side.full {
+    opacity: 0.45;
   }
   .star {
     font-size: var(--fs-3);

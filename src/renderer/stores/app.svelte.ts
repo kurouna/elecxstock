@@ -157,6 +157,15 @@ export const app = new AppState()
  * ★・ウォッチリストの入れ外しは items を書き換えるだけ（配列は同じ）なので、中身まで読む（読まないと走り直さない）
  */
 export const SCREEN_INPUTS = ['dataVersion', 'watchlists', 'holdings'] as const
+/** 条件で今の銘柄を絞り込んだ ID（★・ウォッチリストの条件も今の中身で。パフォーマンス比較の取り込み） */
+export async function screenIds(conditions: Condition[]): Promise<InstrumentId[]> {
+  const r = await bridge.call('screener.run', {
+    conditions,
+    favorites: app.watchlists.find((w) => w.builtin === 'favorites')?.items ?? [],
+    watchlists: Object.fromEntries(app.watchlists.map((w) => [w.id, w.items])),
+  })
+  return r.ids
+}
 export function screenInputs(): unknown[] {
   return SCREEN_INPUTS.map((k) => (k === 'watchlists' ? app.watchlists.map((w) => `${w.id}:${w.items.join(',')}`).join('|') : app[k]))
 }

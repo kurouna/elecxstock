@@ -50,6 +50,17 @@ export const WIDGET_INFO: Record<WidgetId, WidgetInfo> = {
     icon: `${C(12, 12, 8)}M12 11v5M12 8v.01`,
     fig: [FRAME, ['M6 8h20M6 13h12'], ['M36 30V22M41 30V19M46 30V16M51 30V13'], ['M6 21h20M6 25h16M6 29h18', 'th']],
   },
+  perf: {
+    group: 'view',
+    icon: 'M4 14h16M4 14l5-4 4 2 7-7M4 14l5 2 4-1 7 3',
+    fig: [
+      FRAME,
+      [R(0.5, 0.5, 15, 35)],
+      ['M3 8h10M3 14h8M3 20h10M3 26h7', 'th'],
+      ['M18 20h34', 'th'],
+      ['M18 20l8-5 8 2 8-8 9-4M18 20l8 3 8-2 8 2 9 1M18 20l8 5 8 4 8-1 9 5'],
+    ],
+  },
   watchlist: {
     group: 'compare',
     icon: 'M9 6h11M9 12h11M9 18h11M4.5 4.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.8-1.6.8.3-1.7L2 6.3l1.7-.2z',

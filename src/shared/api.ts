@@ -25,6 +25,7 @@ import type {
   Instrument,
   InstrumentId,
   JobProgress,
+  JstDate,
   MetricsRow,
   PortfolioMeta,
   Quote,
@@ -336,7 +337,15 @@ export interface Results extends NewsResults, DrawingsResults {
   'instruments.all': Instrument[]
   'instruments.addUser': Instrument | null
   'instruments.removeUser': undefined
-  'bars.get': Bars & { dividends: Dividend[]; splits: Split[]; adjustment: Adjustment }
+  'bars.get': Bars & {
+    dividends: Dividend[]
+    splits: Split[]
+    adjustment: Adjustment
+    /** 配当の記録の始まり（これより前は配当込みでも価格のみ。docs/design-perf.md §3.4） */
+    divFrom: JstDate
+    /** 月次系列を取った（または取れない銘柄）か。基準日が日足より前で月次が無いとき、取得中か上場前かを見分ける */
+    monthlyFetched: boolean
+  }
   'bars.many': Record<InstrumentId, Bars>
   'dividends.get': Dividend[]
   'info.extra': InfoExtra

@@ -21,6 +21,13 @@
   --danger: #ff8a8d;
   --ok: #2fae74;
   --gold: #e3b341;
+  /* パフォーマンス比較の線（docs/design-perf.md §4。赤・青を避けた 5 色。全部の組を色覚の型ごとに確かめた）と比べる相手 */
+  --pf-1: #5a60e6;
+  --pf-2: #b4561a;
+  --pf-3: #0da2c6;
+  --pf-4: #b736a0;
+  --pf-5: #929b1c;
+  --pf-bench: #a3adb9;
   /* 目標利回りの線（FR-C12） */
   --yield-line: #5c9ead;
   /* チャートの描画（トレンドライン。docs/design-drawings.md）。--draw-1 が既定の色 */
@@ -153,6 +160,12 @@
   --danger: #c4282f;
   --ok: #18804f;
   --gold: #8f6700;
+  --pf-1: #4b4cd1;
+  --pf-2: #9c470d;
+  --pf-3: #1794b5;
+  --pf-4: #950681;
+  --pf-5: #929b1c;
+  --pf-bench: #4a5562;
   --yield-line: #2f6f8f;
   --draw-1: #b8690a;
   --draw-2: #1f7fb0;

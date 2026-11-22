@@ -137,17 +137,31 @@ export interface ChartSnapshot {
 /** 保存の結果: 保存した・取りやめた（ダイアログの取り消しと、保存中の 2 回目）・まだ描けていない・失敗した */
 export type SaveResult = 'saved' | 'cancelled' | 'notReady' | 'failed'
 
-/** 保存中か（連打・ボタンの 2 回押しで保存ダイアログを重ねて出さない） */
+/** 保存中か（連打・ボタンの 2 回押しで保存ダイアログを重ねて出さない。チャートとパフォーマンス比較で共有） */
 let saving = false
+/** 保存を 1 つずつ行う。保存中に呼ばれたら取りやめる（'cancelled'） */
+export async function exclusive<T>(f: () => Promise<T>): Promise<T | 'cancelled'> {
+  if (saving) return 'cancelled'
+  saving = true
+  try {
+    return await f()
+  } finally {
+    saving = false
+  }
+}
 
 /** 今のチャートを PNG にして保存ダイアログを出す。名前と見出しの時間軸は、描いている足の時間軸（snap.tf） */
 export async function saveChartImage(
   snap: ChartSnapshot | null,
   o: { code: string; name: string; tfLabel: (tf: string) => string; date: string },
 ): Promise<SaveResult> {
-  if (saving) return 'cancelled'
-  if (!snap) return 'notReady'
-  saving = true
+  if (!snap) return saving ? 'cancelled' : 'notReady'
+  return exclusive(() => saveSnap(snap, o))
+}
+async function saveSnap(
+  snap: ChartSnapshot,
+  o: { code: string; name: string; tfLabel: (tf: string) => string; date: string },
+): Promise<SaveResult> {
   try {
     const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
     const img = composeChartImage(snap.canvas, chartImageTitle(o.code, o.name, o.tfLabel(snap.tf)), chartImageRange(snap.from, snap.to), {
@@ -164,9 +178,109 @@ export async function saveChartImage(
     return await window.elecxstock.savePng(chartImageName(o.code, snap.tf, o.date), png)
   } catch {
     return 'failed'
-  } finally {
-    saving = false
   }
+}
+
+// ---------------------------------------------------------------- パフォーマンス比較（SVG。docs/design-perf.md §7）
+/** 保存の既定のファイル名。例: elecxstock-perf-2024-08-05-2026-11-13.png */
+export function perfImageName(base: string, end: string): string {
+  return `elecxstock-perf-${base}-${end}.png`.replace(/[\\/:*?"<>|\s]/g, '_')
+}
+/** SVG の中の var(--x[, 既定]) を実際の値に直す（画像にした SVG には CSS が効かないため） */
+export function inlineCssVars(svg: string, resolve: (name: string) => string): string {
+  return svg.replace(/var\((--[\w-]+)\s*(?:,\s*([^)]+))?\)/g, (_, n: string, d?: string) => resolve(n).trim() || (d ?? '').trim())
+}
+export interface PerfImageText {
+  /** 上の 1 行の左（基準日 = 100 〜 終わりの日） */
+  title: string
+  /** 上の 1 行の右（価格の種類・日足／月次の精度・分割調整済み） */
+  sub: string
+  /** 下の 1 行の左（出典と注意） */
+  source: string
+}
+/** SVG を画像（キャンバス）にし、上に見出し、下に出典と「elecxstock」を描き足す */
+export async function svgToCanvas(svg: SVGSVGElement, text: PerfImageText, scale: number): Promise<HTMLCanvasElement | null> {
+  const rootCss = getComputedStyle(svg)
+  const css = (n: string) => rootCss.getPropertyValue(n)
+  const w = svg.clientWidth
+  const h = svg.clientHeight
+  if (!w || !h) return null
+  const clone = svg.cloneNode(true) as SVGSVGElement
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  clone.setAttribute('width', String(w))
+  clone.setAttribute('height', String(h))
+  // 文字の見た目はコンポーネントの CSS（画像にすると効かない）なので、計算した値を属性に写す
+  const src = svg.querySelectorAll('text, tspan')
+  const dst = clone.querySelectorAll('text, tspan')
+  src.forEach((el, i) => {
+    const cs = getComputedStyle(el)
+    const d = dst[i]
+    if (!d) return
+    d.setAttribute('fill', cs.fill)
+    d.setAttribute('font-family', cs.fontFamily)
+    d.setAttribute('font-size', cs.fontSize)
+    d.setAttribute('font-weight', cs.fontWeight)
+  })
+  for (const el of clone.querySelectorAll('[data-noimg]')) el.remove()
+  const xml = inlineCssVars(new XMLSerializer().serializeToString(clone), css)
+  const img = new Image()
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`
+  await img.decode()
+  const head = Math.round(HEADER_PX * scale)
+  const foot = Math.round(22 * scale)
+  const out = document.createElement('canvas')
+  out.width = Math.round(w * scale)
+  out.height = Math.round(h * scale) + head + foot
+  const g = out.getContext('2d')
+  if (!g) return null
+  const font = css('--font').trim() || 'sans-serif'
+  g.fillStyle = css('--panel').trim() || '#fff'
+  g.fillRect(0, 0, out.width, out.height)
+  g.textBaseline = 'middle'
+  const pad = Math.round(8 * scale)
+  const bold = `600 ${Math.round(13 * scale)}px ${font}`
+  const thin = `${Math.round(11 * scale)}px ${font}`
+  const fit = fitHeader(text.title, text.sub, out.width - pad * 2, Math.round(16 * scale), (x, b) => {
+    g.font = b ? bold : thin
+    return g.measureText(x).width
+  })
+  g.font = bold
+  g.fillStyle = css('--text').trim() || '#000'
+  g.fillText(fit.title, pad, head / 2)
+  g.font = thin
+  g.fillStyle = css('--text-3').trim() || '#666'
+  if (fit.range) {
+    g.textAlign = 'right'
+    g.fillText(fit.range, out.width - pad, head / 2)
+  }
+  g.drawImage(img, 0, head, out.width, Math.round(h * scale))
+  const fy = out.height - foot / 2
+  g.textAlign = 'left'
+  g.fillText(text.source, pad, fy)
+  g.textAlign = 'right'
+  g.font = bold
+  g.fillText('elecxstock', out.width - pad, fy)
+  return out
+}
+/** パフォーマンス比較のチャートを PNG にして保存ダイアログを出す */
+export function savePerfImage(
+  svg: SVGSVGElement | null | undefined,
+  text: PerfImageText,
+  name: string,
+  scale: number,
+): Promise<SaveResult> {
+  if (!svg) return Promise.resolve(saving ? 'cancelled' : 'notReady')
+  return exclusive(async (): Promise<SaveResult> => {
+    try {
+      const c = await svgToCanvas(svg, text, scale)
+      if (!c) return 'notReady'
+      const png = await canvasPng(c)
+      if (!png) return 'failed'
+      return await window.elecxstock.savePng(name, png)
+    } catch {
+      return 'failed'
+    }
+  })
 }
 
 /** 保存の結果ごとのトーストの文言のキー（取りやめたときは出さない） */

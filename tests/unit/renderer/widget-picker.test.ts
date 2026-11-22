@@ -27,7 +27,7 @@ describe('ペインの種類の一覧（§6.5, FR-L7）', () => {
   it('5 つの分類の順に、すべての種類を出す（ニュースは「その他」）', () => {
     const gs = pickerGroups(base)
     expect(gs.map((g) => g.group)).toEqual(['view', 'compare', 'market', 'folio', 'other'])
-    expect(ids(gs)).toHaveLength(17)
+    expect(ids(gs)).toHaveLength(18)
     expect(gs.find((g) => g.group === 'other')!.cards.map((c) => c.id)).toEqual(['news', 'jobs'])
     expect(gs.every((g) => g.cards.length <= 4)).toBe(true)
   })
@@ -52,16 +52,16 @@ describe('ペインの種類の一覧（§6.5, FR-L7）', () => {
     const sp = pickerGroups({ ...base, current: null, counts: { chart: 2 } })
     expect(sp.flatMap((g) => g.cards).find((x) => x.id === 'chart')!).toMatchObject({ current: false, inTab: 2 })
   })
-  it('フリー N では 5 種類だけ選べ、ほかは消さずに選べない印を付ける（FR-L7）', () => {
+  it('フリー N では 6 種類だけ選べ、ほかは消さずに選べない印を付ける（FR-L7）', () => {
     const gs = pickerGroups({ ...base, free: true })
     const cards = gs.flatMap((g) => g.cards)
-    expect(cards).toHaveLength(17)
+    expect(cards).toHaveLength(18)
     expect(
       cards
         .filter((c) => !c.disabled)
         .map((c) => c.id)
         .sort(),
-    ).toEqual(['chart', 'divsim', 'grid', 'info', 'mtf'])
+    ).toEqual(['chart', 'divsim', 'grid', 'info', 'mtf', 'perf'])
   })
 })
 

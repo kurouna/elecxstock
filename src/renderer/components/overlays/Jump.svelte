@@ -1,14 +1,14 @@
 <script lang="ts">
 // 銘柄ジャンプ（FR-O1）: 1〜9 で始まるコードを 5 桁まで打ち、Enter でリンクグループに送る。
-// Ctrl+D（☆）でお気に入りに入れる・外す。閉じずにコードを空にして、続けて次のコードを打てるようにする。ウォッチリストにフォーカスがあれば Ctrl+Enter（＋）でそのリストに足す。
+// Ctrl+D（☆）でお気に入りに入れる・外す。閉じずにコードを空にして、続けて次のコードを打てるようにする。フォーカス中のペインが足す先を持てば（ウォッチリスト・パフォーマンス比較。PaneApi.addTarget）、Ctrl+Enter（＋）でそこに足す。
 
 import type { Instrument } from '@shared/types'
 import { onMount } from 'svelte'
-import { focusedWatchlist, holdingsTabLocked, sendSymbol } from '../../lib/commands'
+import { focusedAddTarget, sendSymbol } from '../../lib/commands'
 import type { Key } from '../../lib/i18n'
 import { composing } from '../../lib/keys'
 import { clampSel } from '../../lib/selection'
-import { addToList, app, bridge, closeOverlay, isFav, listName, t, toggleFav } from '../../stores/app.svelte'
+import { app, bridge, closeOverlay, isFav, t, toggleFav } from '../../stores/app.svelte'
 
 let { first }: { first: string } = $props()
 let buf = $state('')
@@ -16,20 +16,18 @@ let sel = $state(0)
 let cand = $state<Instrument[]>([])
 let token = 0
 let box = $state<HTMLDivElement>()
-// 開いたときのフォーカス先（ジャンプ中もフォーカスは動かない）
-const target = focusedWatchlist()
+// 開いたときのフォーカス先の足す先（ジャンプ中もフォーカスは動かない）
+const target = focusedAddTarget()
 function show(i = sel) {
   const x = cand[i]
   app.overlay = null
   if (x) sendSymbol(x.id)
 }
+/** 足す先に足して閉じる（足せなければ足す先が理由を知らせ、閉じない） */
 function add(i = sel) {
   const x = cand[i]
-  if (!x) return
-  if (!target) return void holdingsTabLocked()
-  app.overlay = null
-  addToList(target.id, [x.id])
-  sendSymbol(x.id)
+  if (!x || !target) return
+  if (target.add(x.id)) app.overlay = null
 }
 function fav(i = sel) {
   const x = cand[i]
@@ -93,8 +91,8 @@ onMount(() => {
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
       <div class="it" class:sel={i === sel} onclick={() => show(i)} onmousemove={() => (sel = i)}>
         <span class="c">{x.code}</span><span class="n">{app.settings.lang === 'en' && x.nameEn ? x.nameEn : x.nameJa}</span><span class="s">{t(`mkt.${x.market}` as Key)}</span>
-        {#if target && target.id !== 'favorites'}
-          <button type="button" class="side" title={`${t('cmd.addToList', { list: listName(target) })} (Ctrl+Enter)`} onclick={(e) => { e.stopPropagation(); add(i) }}>＋ {listName(target)}</button>
+        {#if target && !target.quiet}
+          <button type="button" class="side" class:full={target.full} aria-disabled={target.full} title={`${target.full ? (target.fullTitle ?? target.title) : target.title} (Ctrl+Enter)`} onclick={(e) => { e.stopPropagation(); add(i) }}>＋ {target.label}</button>
         {/if}
         <button type="button" class="side star" class:fav={on} aria-pressed={on} title={`${t(on ? 'cmd.favOff' : 'cmd.favOn')} (Ctrl+D)`} aria-label={t(on ? 'cmd.favOff' : 'cmd.favOn')} onclick={(e) => { e.stopPropagation(); fav(i) }}>{on ? '★' : '☆'}</button>
       </div>
@@ -102,7 +100,7 @@ onMount(() => {
       <div class="it muted">{buf ? t('jump.none') : t('jump.next')}</div>
     {/each}
   </div>
-  <div class="foot"><span>{t('jump.hint')}</span><span>{t('cmd.hint.fav')}</span>{#if target && target.id !== 'favorites'}<span>{t('cmd.hint.addTo', { list: listName(target) })}</span>{/if}</div>
+  <div class="foot"><span>{t('jump.hint')}</span><span>{t('cmd.hint.fav')}</span>{#if target && !target.quiet}<span>{t('cmd.hint.addTo', { list: target.label })}</span>{/if}</div>
 </div>
 
 <style>
@@ -126,6 +124,9 @@ onMount(() => {
   }
   .side:hover {
     color: var(--text);
+  }
+  .side.full {
+    opacity: 0.45;
   }
   .star {
     font-size: var(--fs-3);

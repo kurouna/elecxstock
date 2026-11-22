@@ -12,7 +12,7 @@ export const SHAPE = q.get('shape')
 /** フリー N の番号（2〜4） */
 export const freeNo = (s: string) => Number(s.replace('free', ''))
 /** フリー N に置けるペイン: チャートを並べるものだけ（一覧を置かず、利用者のデータを編集しない） */
-export const FREE_WIDGETS: WidgetId[] = ['chart', 'mtf', 'grid', 'info', 'divsim']
+export const FREE_WIDGETS: WidgetId[] = ['chart', 'mtf', 'grid', 'info', 'divsim', 'perf']
 /** フリー N では使わないアクション（タブ・ドロワー・設定・利用者のデータの編集は 1 枚目で） */
 export function blockedInFree(id: string): boolean {
   return (

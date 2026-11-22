@@ -26,7 +26,7 @@ test.describe('ペインの種類を選ぶ（§6.5, FR-KB10, FR-L11）', () => {
     // Esc は語を消すだけ（閉じない）
     await keys(page, 'Escape')
     await expect(dlg).toBeVisible()
-    await expect(dlg.locator('.card')).toHaveCount(17)
+    await expect(dlg.locator('.card')).toHaveCount(18)
     // 打っている間の ↓ は読む順に 1 枚ずつ（同じ行の 2 枚目へ）
     await type(page, 'マーケット')
     await expect(dlg.locator('.card')).toHaveCount(2)
@@ -297,7 +297,7 @@ test.describe('ペインの種類の回帰（FR-KB10）', () => {
     await expect(dlg.locator('.card')).toHaveCount(0)
     await keys(page, 'Escape')
     await expect(dlg.locator('input')).toHaveValue('')
-    await expect(dlg.locator('.card')).toHaveCount(17)
+    await expect(dlg.locator('.card')).toHaveCount(18)
   })
 })
 
@@ -417,8 +417,8 @@ test.describe('選ぶダイアログ（FR-KB2, FR-L14）', () => {
     await expect(dlg).toBeVisible()
     await expect(dlg).toHaveClass(/\blx\b/)
     const opts = dlg.getByRole('option')
-    await expect(opts).toHaveCount(5)
-    await expect(dlg.locator('svg.lx-fig')).toHaveCount(5)
+    await expect(opts).toHaveCount(6)
+    await expect(dlg.locator('svg.lx-fig')).toHaveCount(6)
     await expect(opts.first()).toHaveAttribute('aria-selected', 'true')
     // 説明は切らずに名前の下に
     await expect(opts.nth(3)).toContainText('格子・期間・並べ替えは今のグリッドと同じ')

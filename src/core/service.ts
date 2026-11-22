@@ -44,7 +44,7 @@ import type { Provider } from './providers/types'
 import { idOf, Repo } from './repo'
 import { runScreen, type ScreenInput, screenable } from './screener'
 import { adjust, adjustMonthly, aggregate, mergeMonthly, toBars } from './series'
-import { DIV10_SINCE, type RescreenInput, SimData } from './sim'
+import { DIV10_SINCE, divCoverFrom, type RescreenInput, SimData } from './sim'
 import { defaultScreens, UserStore } from './userstore'
 
 /**
@@ -372,15 +372,20 @@ export class CoreService {
     const splits = repo.splits(id)
     const dividends = repo.dividends(id)
     const adjusted = adjust(daily, adj, splits, dividends)
+    const years = this.user.load('settings').retentionYears
+    const lastMonthly = repo.fetchState(id).lastMonthly
+    const divFrom = divCoverFrom(lastMonthly, today, retentionStart(today, years), this.div10Since)
+    // 月次系列を取った（または取れない銘柄）か。取ったのに月次が無い銘柄を「取得中」のままにしないため（design-perf.md §2.6）
+    const monthlyFetched = !!lastMonthly || !repo.yahooOf(id)
     if (tf === 'M') {
       let monthly = repo.monthly(id)
-      if (!monthly.length && !repo.fetchState(id).lastMonthly && repo.yahooOf(id)) this.jobs.enqueue('monthly', [`M:${id}`])
+      if (!monthly.length && !lastMonthly && repo.yahooOf(id)) this.jobs.enqueue('monthly', [`M:${id}`])
       // 日足の期間より前の月足も、日足と同じ基準（未調整・配当込み）にそろえる
       monthly = adjustMonthly(monthly, adj, splits, dividends, daily, adjusted)
       const { bars, monthlyUntil } = mergeMonthly(monthly, adjusted)
-      return { ...toBars(id, 'M', bars, today, monthlyUntil), dividends, splits, adjustment: adj }
+      return { ...toBars(id, 'M', bars, today, monthlyUntil), dividends, splits, adjustment: adj, divFrom, monthlyFetched }
     }
-    return { ...toBars(id, tf, aggregate(adjusted, tf), today), dividends, splits, adjustment: adj }
+    return { ...toBars(id, tf, aggregate(adjusted, tf), today), dividends, splits, adjustment: adj, divFrom, monthlyFetched }
   }
 
   /** メソッドの実行。エラーは CoreError（コード + 引数）で返す（FR-N5） */

@@ -107,6 +107,7 @@ export const PAGE_SHAPES: readonly [shape: string, label: Key, hint: Key][] = [
   ['free:quad', 'win.shape.quad', 'win.shape.quadHint'],
   ['free:grid', 'win.shape.grid', 'win.shape.gridHint'],
   ['free:detail', 'win.shape.detail', 'win.shape.detailHint'],
+  ['free:perf', 'win.shape.perf', 'win.shape.perfHint'],
 ]
 
 export const nameOfPage = (p: SavedLayout): string => pageName(p, app.settings.lang)

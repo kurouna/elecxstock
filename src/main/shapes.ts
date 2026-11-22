@@ -1,5 +1,5 @@
 // フリー N を開くときの初期の形の許可リスト（マルチモニタ・FR-L14）。renderer から届いた値をそのまま URL に載せないための純関数
-const SHAPES = ['grid', 'quad', 'detail', 'empty']
+const SHAPES = ['grid', 'quad', 'detail', 'empty', 'perf']
 /** マイレイアウトのページの写し（`page:<ページの ID>`） */
 const PAGE = /^page:[\w-]{1,40}$/
 

@@ -6,8 +6,11 @@ import {
   chartImageName,
   chartImageRange,
   chartImageTitle,
+  exclusive,
   fitHeader,
+  inlineCssVars,
   isSaveKey,
+  perfImageName,
   SAVE_TOAST,
   saveChartImage,
   visibleSpan,
@@ -159,5 +162,26 @@ describe('チャートの画像の保存の流れ（FR-C11）', () => {
     expect(r).toBe('failed')
     const ok = stub(save)
     expect(await saveChartImage({ canvas: ok, tf: 'D', scale: 1 }, opts)).toBe('saved')
+  })
+})
+
+describe('FR-PC9 パフォーマンス比較の画像', () => {
+  it('ファイル名は elecxstock-perf-<基準日>-<終わりの日>.png', () => {
+    expect(perfImageName('2024-08-05', '2026-11-13')).toBe('elecxstock-perf-2024-08-05-2026-11-13.png')
+  })
+  it('SVG の CSS 変数を実際の色に直す（画像にすると CSS が効かないため）。知らない変数は既定の値か空', () => {
+    const vars: Record<string, string> = { '--pf-1': '#5a60e6', '--text': ' #eee ' }
+    const r = (n: string) => vars[n] ?? ''
+    expect(inlineCssVars('<path stroke="var(--pf-1)" style="fill:var(--text)"/>', r)).toBe('<path stroke="#5a60e6" style="fill:#eee"/>')
+    expect(inlineCssVars('<text fill="var(--nope, #123)"/>', r)).toBe('<text fill="#123"/>')
+    expect(inlineCssVars('<text fill="var(--nope)"/>', r)).toBe('<text fill=""/>')
+  })
+  it('保存中の 2 回目は取りやめる（チャートと共有）', async () => {
+    let release!: () => void
+    const first = exclusive(() => new Promise<'saved'>((r) => (release = () => r('saved'))))
+    expect(await exclusive(async () => 'saved' as const)).toBe('cancelled')
+    release()
+    expect(await first).toBe('saved')
+    expect(await exclusive(async () => 'saved' as const)).toBe('saved')
   })
 })

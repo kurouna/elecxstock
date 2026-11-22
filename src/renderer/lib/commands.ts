@@ -7,6 +7,7 @@ import { isUpToDate } from '@shared/freshness'
 import type { InstrumentId, Watchlist } from '@shared/types'
 import { flushSync } from 'svelte'
 import {
+  addToList,
   app,
   applySettingsToDom,
   type Choice,
@@ -75,7 +76,7 @@ import type { Key } from './i18n'
 import { composing, matches, normalizeKey, reservedKey } from './keys'
 import { currentPageName, freeResetTarget, openPageMenu, pageShapeChoices, undoRemove } from './pages'
 import { clearMaximized, setMaximized, setTabHint } from './paneMax'
-import { paneApi, paneSelector } from './panes'
+import { type AddTarget, paneApi, paneSelector } from './panes'
 import { exportHoldings, importBrokerCsv, importHoldings, undoHoldingsImport } from './portfolio'
 import { condsOf, confirmCloseScreen } from './screens'
 import { blockedInFree, FREE_WIDGETS, freeNo, IS_FREE } from './windowSlot'
@@ -126,11 +127,38 @@ export function selectedOrFocused(): InstrumentId[] {
   return f ? [f] : []
 }
 
-/** フォーカス中のペインがウォッチリストなら、表示しているリスト（銘柄ジャンプ・コマンドバーの Ctrl+Enter で足す先） */
-export function focusedWatchlist(): Watchlist | null {
-  const p = findPane(app.focus)
-  if (p?.widget !== 'watchlist') return null
-  return app.watchlists.find((w) => w.id === ((p.state.list as string) ?? 'favorites')) ?? null
+/** 銘柄ジャンプ・コマンドバーの Ctrl+Enter（＋）で足す先: フォーカス中のペインに聞く（docs/design-perf.md §5.1） */
+export function focusedAddTarget(): AddTarget | null {
+  return paneApi(app.focus)?.addTarget?.() ?? null
+}
+/**
+ * ウォッチリストの足す先: 表示しているリストに足して表示する。★お気に入りは＋を出さずに Ctrl+Enter で足す。
+ * 「保有」のタブ（FR-W10）は中身を変えられないので、理由を知らせて足さない
+ */
+export function watchlistTarget(p: PaneNode): AddTarget | null {
+  const id = (p.state.list as string) ?? 'favorites'
+  if (id === 'holdings')
+    return {
+      label: '',
+      title: '',
+      quiet: true,
+      add: () => {
+        toast(t('list.holdingsLocked'))
+        return false
+      },
+    }
+  const w: Watchlist | undefined = app.watchlists.find((x) => x.id === id)
+  if (!w) return null
+  return {
+    label: listName(w),
+    title: t('cmd.addToList', { list: listName(w) }),
+    quiet: w.id === 'favorites',
+    add: (sym) => {
+      addToList(w.id, [sym])
+      sendSymbol(sym)
+      return true
+    },
+  }
 }
 
 export function setFocus(id: string | null): void {
@@ -147,13 +175,6 @@ export function setFocus(id: string | null): void {
   })
 }
 
-/** フォーカス中のウォッチリストが「保有」のタブ（中身を変えられない。FR-W10）なら、そう知らせて true */
-export function holdingsTabLocked(): boolean {
-  const p = findPane(app.focus)
-  if (p?.widget !== 'watchlist' || p.state.list !== 'holdings') return false
-  toast(t('list.holdingsLocked'))
-  return true
-}
 /** C キーで表示する銘柄を変えられるペイン（チャートは各ペインのキーで扱う） */
 const C_PANES = new Set<WidgetId>(['watchlist', 'screener', 'ranking', 'portfolio', 'info', 'divcal'])
 /** リンク色が無いとき、自分の銘柄を持つペイン */
@@ -780,6 +801,15 @@ for (const a of ACTIONS) {
 export function paletteActions(): Action[] {
   return ACTIONS.filter((a) => allowedHere(a.id))
 }
+/** フリー N の初めの形（決まった形。ページの写し・前回の配置は別に足す） */
+export function freeWindowShapes(): Choice[] {
+  return (['grid', 'quad', 'detail', 'perf', 'empty'] as const).map((id) => ({
+    id,
+    label: t(`win.shape.${id}`),
+    hint: t(`win.shape.${id}Hint`),
+    fig: id,
+  }))
+}
 /** 新しいフリー N を開く（Ctrl+Alt+N）: 初期の形を選ぶ。前に閉じた番号の配置が残っていれば「前回の配置」も選べる */
 async function newWindowDialog(): Promise<void> {
   const info = await window.elecxstock.windowInfo()
@@ -793,10 +823,7 @@ async function newWindowDialog(): Promise<void> {
     ...(raw?.windows?.[next]
       ? [{ id: 'last', label: t('win.shape.last', { n: freeNo(next) }), hint: t('win.shape.lastHint'), fig: 'last' as const }]
       : []),
-    { id: 'grid', label: t('win.shape.grid'), hint: t('win.shape.gridHint'), fig: 'grid' },
-    { id: 'quad', label: t('win.shape.quad'), hint: t('win.shape.quadHint'), fig: 'quad' },
-    { id: 'detail', label: t('win.shape.detail'), hint: t('win.shape.detailHint'), fig: 'detail' },
-    { id: 'empty', label: t('win.shape.empty'), hint: t('win.shape.emptyHint'), fig: 'empty' },
+    ...freeWindowShapes(),
     ...pageShapeChoices(u.layouts),
   ]
   const c = await choiceDialog(t('win.newTitle', { n: freeNo(next) }), choices)

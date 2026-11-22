@@ -23,12 +23,14 @@ export type WidgetId =
   | 'folio'
   | 'news'
   | 'divsim'
+  | 'perf'
 export const WIDGETS: WidgetId[] = [
   'chart',
   'mtf',
   'watchlist',
   'screener',
   'info',
+  'perf',
   'grid',
   'divcal',
   'portfolio',
@@ -391,6 +393,7 @@ async function writeLayout(): Promise<void> {
  * フリー N の初期の形。どれもリンク色なし（それぞれ自分の銘柄）。あとからフリーと同じ操作で自由に組み替えられる
  * - grid: チャートグリッド 1 枚（このグリッドの銘柄、空から）。1 枚目から銘柄をドラッグして並べる
  * - quad: チャート 4 枚（2×2）・detail: マルチ時間軸 + 銘柄情報・empty: チャート 1 枚
+ * - perf: パフォーマンス比較 + 日足のチャート（これだけリンク 2。一覧の Enter で右のチャートに出す。窓をまたぐリンクのバスで 1 枚目ともつながる。docs/design-perf.md §2.7）
  */
 export function freeShape(shape: string | null): LayoutEntry {
   switch (shape) {
@@ -407,6 +410,8 @@ export function freeShape(shape: string | null): LayoutEntry {
       return { root: R([62, 38], P('mtf', 0, { sym: 'JP:7203' }), P('info', 0, { sym: 'JP:7203' })), docks: {} }
     case 'empty':
       return { root: P('chart', 0, { tf: 'D', sym: 'JP:7203' }), docks: {} }
+    case 'perf':
+      return { root: R([62, 38], P('perf', MAIN_LINK), P('chart', MAIN_LINK, { tf: 'D' })), docks: {} }
     default:
       return { root: P('grid', 0, { src: 'own', own: [], tf: 'D' }), docks: {} }
   }
@@ -534,7 +539,7 @@ export function cloneEntry(e: LayoutEntry): LayoutEntry {
 /** ページの初期の形（§3.4）。初期状態に戻す（FR-L10）ときの戻す先。形が無い・知らない形はフリーのプリセット */
 export function shapeEntry(shape: string | undefined): LayoutEntry {
   const m = /^(preset|free):(\w+)$/.exec(shape ?? '')
-  if (m?.[1] === 'free' && ['empty', 'quad', 'grid', 'detail'].includes(m[2]!)) return freeShape(m[2]!)
+  if (m?.[1] === 'free' && ['empty', 'quad', 'grid', 'detail', 'perf'].includes(m[2]!)) return freeShape(m[2]!)
   if (m?.[1] === 'preset' && (PRESET_IDS as string[]).includes(m[2]!)) return presetEntry(m[2] as PresetId)
   return presetEntry('free')
 }

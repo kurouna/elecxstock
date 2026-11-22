@@ -61,7 +61,7 @@ test.describe('ペインの種類（FR-KB10）', () => {
     await type(page, 'ジョブ')
     await expect(dlg.locator('.card.sel')).toHaveAttribute('data-widget', 'jobs')
     await keys(page, 'Escape')
-    await expect(dlg.locator('.card')).toHaveCount(17)
+    await expect(dlg.locator('.card')).toHaveCount(18)
     await expect(dlg.locator('.card.sel')).toBeInViewport({ ratio: 1 })
   })
 })

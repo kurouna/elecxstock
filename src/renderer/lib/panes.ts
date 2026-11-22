@@ -17,6 +17,25 @@ export interface PaneApi {
   runs?: readonly string[]
   /** ペインの中の取り消し・やり直し（チャートの描画。Ctrl+Z / Ctrl+Y）。戻すものが無ければ false（全体の取り消しに回す） */
   undo?: (redo: boolean) => boolean
+  /**
+   * 銘柄ジャンプ・コマンドバーの Ctrl+Enter（＋）で銘柄を足す先（ウォッチリスト・パフォーマンス比較。docs/design-perf.md §5.1）。
+   * 開いたときに 1 回読む。足す先が無ければ null
+   */
+  addTarget?: () => AddTarget | null
+}
+export interface AddTarget {
+  /** 「＋ label」の label（リスト名・ペインの名前） */
+  label: string
+  /** ＋のツールチップ・コマンドバーの案内 */
+  title: string
+  /** 足す（足せなければ理由を知らせて false。ダイアログは閉じない） */
+  add: (id: InstrumentId) => boolean
+  /** 足せない（満杯）。＋を薄くする */
+  full?: boolean
+  /** 満杯のときの＋のツールチップ */
+  fullTitle?: string
+  /** ＋と案内を出さない（Ctrl+Enter は効く。★お気に入り・保有のタブ） */
+  quiet?: boolean
 }
 const apis = new Map<string, PaneApi>()
 export function registerPane(id: string, api: PaneApi): () => void {

@@ -97,6 +97,7 @@ export const CONTEXT_ACTIONS: Partial<Record<WidgetId, string[]>> = {
   folio: ['folioGoal', 'privacy', 'portfolio'],
   divcal: ['addTo', 'exportCsv'],
   divsim: ['sendToFree', 'max'],
+  perf: ['sendToFree', 'max'],
   heatmap: ['addTo', 'max'],
   board: ['columns', 'exportCsv'],
   breadth: ['max'],

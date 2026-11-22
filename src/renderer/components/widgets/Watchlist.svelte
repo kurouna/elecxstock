@@ -6,6 +6,7 @@ import type { InstrumentId, Watchlist } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { prefetch } from '../../lib/barsCache'
 import { COLUMN_BY_ID, chooseColumns, DEFAULT_COLUMNS, fitColumns, resolveColumns, sortIds } from '../../lib/columns'
+import { watchlistTarget } from '../../lib/commands'
 import { hscroll } from '../../lib/hscroll'
 import { registerPane } from '../../lib/panes'
 import { LinkFollow, listCurrent, SelectionFollow } from '../../lib/selection'
@@ -216,6 +217,7 @@ onMount(() => {
   const ro = new ResizeObserver(() => (width = scroller?.clientWidth ?? 600))
   if (scroller) ro.observe(scroller)
   const off = registerPane(pane.id, {
+    addTarget: () => watchlistTarget(pane),
     // 「いまの銘柄」はリンク先のチャートが表示している銘柄（銘柄ジャンプのあとに Ctrl+D が前の行に効かないように）
     current: () => {
       const link = pane.link ? linkSymbol(pane.link) : null
