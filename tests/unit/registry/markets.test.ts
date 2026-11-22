@@ -16,7 +16,7 @@ describe('マーケット一覧の登録表（FR-U6, FR-MB1）', () => {
       if (r.id.startsWith('JP:')) expect(r.yahoo).toBe(`${r.id.slice(3)}.T`)
       else expect(r.id.startsWith('IDX:')).toBe(true)
     }
-    expect(REF_ETF_IDS).toEqual(['JP:1306', 'JP:1591', 'JP:2516', 'JP:1343'])
+    expect(REF_ETF_IDS).toEqual(['JP:1308', 'JP:1591', 'JP:2516', 'JP:1343'])
     expect(REF_INDEX_ROWS.length + REF_ETF_IDS.length).toBe(MARKET_REFS.length)
     expect(MARKET_REFS.filter((r) => isExternal(r.id)).length).toBe(REF_INDEX_ROWS.length - 1)
   })

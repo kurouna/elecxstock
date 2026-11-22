@@ -16,7 +16,7 @@ export function writePerf(pane: PaneNode, seed: InstrumentId | null, patch: Reco
   }
   patchState(pane, patch)
 }
-/** 足す先（5 銘柄で full。比べる相手 1306・1343 は色の枠を使わないので満杯でも足せる） */
+/** 足す先（5 銘柄で full。比べる相手（TOPIX・東証REIT の連動 ETF） は色の枠を使わないので満杯でも足せる） */
 export function perfTarget(pane: PaneNode, seed: InstrumentId | null): AddTarget {
   const v = pfView(pane.state, seed)
   return {

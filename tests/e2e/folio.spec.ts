@@ -18,7 +18,7 @@ const HOLD = holdings([
   { code: '8058', quantity: 200, avgCost: 11000 },
   { code: '2914', quantity: 100, avgCost: 14000 },
   { code: '8951', account: 'nisa_growth', quantity: 2, avgCost: 95000 },
-  { code: '1306', account: 'nisa_tsumitate', quantity: 300, avgCost: 2600 },
+  { code: '1308', account: 'nisa_tsumitate', quantity: 300, avgCost: 2600 },
 ])
 /** 架空の記録（約 1 年半。8306 は 1 年前は 200 株＝買い増し、2914 は今年の新規） */
 /** カードの見出しで分類を選ぶ。見出しが狭くて 1 つのボタンにたたまれていれば、その名前になるまで押す */
@@ -44,7 +44,7 @@ function history(): FolioPoint[] {
         { code: '8058', acct: 'tokutei' as const, qty: 200, cost: 11000 },
         ...(later ? [{ code: '2914', acct: 'tokutei' as const, qty: 100, cost: 14000 }] : []),
         { code: '8951', acct: 'nisa_growth' as const, qty: 2, cost: 95000 },
-        { code: '1306', acct: 'nisa_tsumitate' as const, qty: 300, cost: 2600 },
+        { code: '1308', acct: 'nisa_tsumitate' as const, qty: 300, cost: 2600 },
       ]
       const cost = pos.reduce((s, p) => s + p.qty * p.cost, 0)
       out.push({ d, src: i % 13 === 5 ? 'fill' : 'rec', final: true, value: Math.round(v + cost - 9_000_000), cost, pos, at: 1 })
@@ -62,7 +62,7 @@ test.describe('ポートフォリオ（FR-PF1）', () => {
     const f = page.locator('[data-widget="folio"]')
     await expect(f).toHaveClass(/focused/)
     await expect(f.locator('.c-hero')).toContainText('評価額')
-    // TOPIX そのものは取れないので、比べているのは TOPIX 連動 ETF（1306）と分かるように出す（FR-U6）
+    // TOPIX そのものは取れないので、比べているのは TOPIX 連動 ETF（1308）と分かるように出す（FR-U6）
     await expect(f.locator('.c-hero')).toContainText('TOPIX ETF')
     await expect(f.locator('.c-hist .chart svg')).toBeVisible()
     // 円の資産推移は 0 円から: 取得額から 0 円までを塗る面がある

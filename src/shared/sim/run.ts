@@ -59,7 +59,7 @@ export interface SimInput {
   stocks: SimStock[]
   /** 出どころの全体の数 */
   total: number
-  /** 1306（無ければ比べない） */
+  /** TOPIX 連動 ETF（無ければ比べない） */
   etf: SimStock | null
   /** 業種（key・粒度）と市場区分の全銘柄（選んだ銘柄を含んでよい） */
   members: (key: string, level: SimSector, market: string) => SimStock[]
@@ -293,7 +293,7 @@ function pastOf(inp: SimInput, net: number): { past: SimPast | null; excluded: S
   const allEq = allC.length
     ? Array.from({ length: n }, (_, k) => (st.amount * allC.reduce((x, c) => x + (c.path[k] ?? c.ratio), 0)) / allC.length)
     : null
-  // 1306 は同じ積立で回すので、入れた合計で割る（同業種・全銘柄の均等は積立のときは出さない）
+  // TOPIX 連動 ETF は同じ積立で回すので、入れた合計で割る（同業種・全銘柄の均等は積立のときは出さない）
   const etfPct = etf ? etf[n - 1]! / invested - 1 : null
   const peerPct = peer ? peer[n - 1]! / st.amount - 1 : null
   const allEqPct = allEq ? allEq[n - 1]! / st.amount - 1 : null

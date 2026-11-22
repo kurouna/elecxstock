@@ -16,6 +16,7 @@ import {
   payoutRatio,
   twr,
 } from '@shared/folio'
+import { TOPIX_ETF } from '@shared/markets'
 import { sector17Of } from '@shared/sectors'
 import type {
   AccountType,
@@ -83,7 +84,7 @@ export function contribNoteDay(period: ContribPeriod, crossDay: JstDate | null, 
   const at = !!crossDay && (period === 'day' || period === 'all')
   return { d: (at ? crossDay! : lastClosed).slice(5).replace('-', '/'), at }
 }
-export const BENCHES = ['', 'IDX:N225', 'JP:1306'] as const
+export const BENCHES = ['', 'IDX:N225', TOPIX_ETF] as const
 
 /** ペインに保存する表示の状態（pane.state.folio） */
 export interface FolioView {

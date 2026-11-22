@@ -22,7 +22,7 @@ describe('FR-SIM2 FR-SIM4 sim.run（スタブ）', () => {
     expect(p.port[0]).toBeCloseTo(S.amount)
     expect(p.hero.wealth).toBeCloseTo(p.port.at(-1)!)
     expect(p.hero.received).toBeGreaterThan(0)
-    // 1306 も同じルールで回す
+    // 1308 も同じルールで回す
     expect(p.etf?.length ?? p.dates.length).toBe(p.dates.length)
     expect(r.fwd.rows.length).toBe(IDS.length)
     expect(r.fwd.y1).toBeGreaterThan(0)
@@ -228,7 +228,7 @@ describe('FR-SIM8 10 年分の配当を入れる前の版で取った銘柄（�
       (id) => asked.push(id),
     )
     sd.run(['JP:8058', 'JP:8001', 'JP:8031'], S)
-    // 比べる 1306 も同じ（スタブの取得の日付は版より前）
+    // 比べる 1308 も同じ（スタブの取得の日付は版より前）
     expect(asked).toContain('JP:8058')
     expect(asked).not.toContain('JP:8001')
     expect(asked).not.toContain('JP:8031')

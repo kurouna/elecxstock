@@ -1,12 +1,13 @@
 // パフォーマンス比較のペインの計算（docs/design-perf.md §3.5）。系列の継ぎ合わせ・基準日の解決・指数化・札の配置・目盛り・
 // 色の枠・カレンダー・ペインの状態の読み書き。コンポーネント（widgets/PerfPane.svelte ほか）は描くだけ
 import { addDays, addYears, dayOfWeek, isTradingDay, prevTradingDay, tradingDaysBetween } from '@shared/calendar'
+import { TOPIX_ETF } from '@shared/markets'
 import type { InstrumentId, JstDate } from '@shared/types'
 
 /** 比べる銘柄の数の上限（§4。全部の組の見分けやすさを通った色の数） */
 export const PF_MAX = 5
-/** 比べる相手（色の枠を使わない。1306 は実線・1343 は破線） */
-export const PF_BENCH: readonly InstrumentId[] = ['JP:1306', 'JP:1343']
+/** 比べる相手（色の枠を使わない。TOPIX 連動 ETF は実線・1343 は破線） */
+export const PF_BENCH: readonly InstrumentId[] = [TOPIX_ETF, 'JP:1343']
 export const isBench = (id: InstrumentId) => PF_BENCH.includes(id)
 /** カレンダーで選べる最初の日（月次系列の始まり。FR-D7） */
 export const PF_MIN_DATE = '1999-01-01'
@@ -420,7 +421,9 @@ export function pfView(state: Record<string, unknown>, seed: InstrumentId | null
     if (typeof n === 'number' && n >= 1 && n <= PF_MAX && !Object.values(slots).includes(n)) slots[id] = n
   }
   for (const id of ids) if (!slots[id]) slots[id] = assignColor(slots) ?? PF_MAX
-  const bench = (strs(state.pfBench) ?? ['JP:1306']).filter(isBench)
+  // 比べる相手でない ID（前の版の TOPIX 連動 ETF など）は今の TOPIX 連動 ETF にする。pfBench には比べる相手しか書かないので、
+  // 知らない ID は TOPIX の代わりを替えたあとの古い値と見なす
+  const bench = [...new Set((strs(state.pfBench) ?? [TOPIX_ETF]).map((x) => (isBench(x) ? x : TOPIX_ETF)))]
   const sort = state.pfSort === 1 || state.pfSort === 2 ? state.pfSort : 0
   return {
     base: date(state.pfBase),
@@ -464,9 +467,9 @@ export function sortIds(ids: readonly InstrumentId[], sort: 0 | 1 | 2, endValue:
   if (sort === 2) return [...ids].sort((a, b) => a.localeCompare(b))
   return [...ids].sort((a, b) => (endValue[b] ?? -Infinity) - (endValue[a] ?? -Infinity))
 }
-/** B: 比べる相手を巡る（なし → 1306 → 1306 と 1343 → 1343 → なし） */
+/** B: 比べる相手を巡る（なし → TOPIX → TOPIX と 1343 → 1343 → なし） */
 export function cycleBench(b: readonly InstrumentId[]): InstrumentId[] {
-  const C: InstrumentId[][] = [[], ['JP:1306'], ['JP:1306', 'JP:1343'], ['JP:1343']]
+  const C: InstrumentId[][] = [[], [TOPIX_ETF], [TOPIX_ETF, 'JP:1343'], ['JP:1343']]
   const i = C.findIndex((x) => x.join() === b.join())
   return [...C[(i + 1) % C.length]!]
 }

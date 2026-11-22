@@ -1,8 +1,8 @@
 <script lang="ts">
 // market-overview（§6.3, FR-U6）: 指数・指数連動 ETF の小さなチャート群。
-// 既定は日経平均・TOPIX 連動 ETF（1306。TOPIX そのものは Yahoo で取れない）・NYダウ・ドル/円（マーケット一覧の行。FR-U6）。
+// 既定は日経平均・TOPIX 連動 ETF（TOPIX_ETF。TOPIX そのものは Yahoo で取れない）・NYダウ・ドル/円（マーケット一覧の行。FR-U6）。
 // 1〜9 で銘柄を足し、Delete で外す。D/W/M で時間軸、Alt+1〜6 で表示期間（チャートと同じ）、矢印で選び、Enter でリンクグループへ。
-import { priceDigits } from '@shared/markets'
+import { priceDigits, TOPIX_ETF } from '@shared/markets'
 import type { Bars, InstrumentId, Timeframe } from '@shared/types'
 import { onMount } from 'svelte'
 import { cls, px, sgn } from '../../lib/format'
@@ -18,7 +18,7 @@ import PeriodPicker from '../PeriodPicker.svelte'
 import { drawTile, tileLookKey } from './gridDraw'
 
 let { pane }: { pane: PaneNode } = $props()
-const DEFAULT = ['IDX:N225', 'JP:1306', 'IDX:DJI', 'IDX:USDJPY']
+const DEFAULT = ['IDX:N225', TOPIX_ETF, 'IDX:DJI', 'IDX:USDJPY']
 /** 小さなチャートの上限 */
 const MAX = 12
 const ids = $derived((pane.state.ids as InstrumentId[] | undefined) ?? DEFAULT)
@@ -72,7 +72,7 @@ const ret = (id: InstrumentId) => {
 const send = () => ids[sel] && setLinkSymbol(pane.link, ids[sel]!)
 
 onMount(() => {
-  // 連動 ETF（1306 など）は Core が取得の対象に入れる（FR-U6）。利用者の追加にはしない
+  // 連動 ETF（TOPIX_ETF など）は Core が取得の対象に入れる（FR-U6）。利用者の追加にはしない
   const ro = new ResizeObserver(() => draw())
   if (host) ro.observe(host)
   const off = registerPane(pane.id, {

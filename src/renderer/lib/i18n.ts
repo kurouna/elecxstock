@@ -1213,7 +1213,7 @@ export const ja = {
   'pf.readEnd': '価格のみの終値 · 一覧と右端は {d} の値',
   'pf.readEndTotal': '配当込みの終値 · 一覧と右端は {d} の値',
   'pf.failed': '読めませんでした（F5 で取り直し）',
-  'pf.fullHint': '5 銘柄までです（比べる相手の 1306・1343 は足せます）',
+  'pf.fullHint': '5 銘柄までです（比べる相手の 1308・1343 は足せます）',
   'pf.baseLabel': '基準 {d} = {v}',
   'pf.stitch': 'ここから日足',
   'pf.chartLabel': '{d} を 100 にした {n} 本の線',
@@ -1463,7 +1463,7 @@ export const ja = {
   'sim.n.etfMissing': 'TOPIX のデータが基準日まで無いので、TOPIX とは比べていません',
   'sim.n.reit': 'TOPIX には J-REIT がほとんど入っていません',
   'sim.n.topix':
-    'TOPIX は、TOPIX に連動する ETF「1306 NEXT FUNDS TOPIX 連動型上場投信」の値動きと分配金で、選んだ銘柄と同じルールで回しています（指数そのものではありません）',
+    'TOPIX は、TOPIX に連動する ETF「1308 上場インデックスファンドTOPIX」の値動きと分配金で、選んだ銘柄と同じルールで回しています（指数そのものではありません）',
   'sim.n.glitch': 'データの誤りと見られる値（前後とかけ離れた短い区間）を {n} 銘柄・{m} 本飛ばし、前の終値で計算しています',
   'sim.n.estimate': '過去の実績の機械的な延長で、予想ではありません。会社の予想配当は使っていません',
   'sim.n.stress':
@@ -2798,7 +2798,7 @@ export const en: Record<Key, string> = {
   'pf.readEnd': 'Price closes · list and labels at {d}',
   'pf.readEndTotal': 'Closes with dividends · list and labels at {d}',
   'pf.failed': 'Could not load (F5 to refetch)',
-  'pf.fullHint': 'Up to 5 stocks (benchmarks 1306 and 1343 can still be added)',
+  'pf.fullHint': 'Up to 5 stocks (benchmarks 1308 and 1343 can still be added)',
   'pf.baseLabel': 'Base {d} = {v}',
   'pf.stitch': 'Daily from here',
   'pf.chartLabel': '{n} lines rebased to 100 on {d}',
@@ -3048,7 +3048,7 @@ export const en: Record<Key, string> = {
   'sim.n.etfMissing': 'TOPIX has no data back to the base date; not compared',
   'sim.n.reit': 'TOPIX contains almost no J-REITs',
   'sim.n.topix':
-    'TOPIX means the ETF "1306 NEXT FUNDS TOPIX Exchange Traded Fund" (price and distributions), run with the same rules as your stocks (not the index itself)',
+    'TOPIX means the ETF "1308 Listed Index Fund TOPIX" (price and distributions), run with the same rules as your stocks (not the index itself)',
   'sim.n.glitch':
     'Skipped {m} price points in {n} stocks that look like data errors (short runs far from the surrounding prices) and used the previous close',
   'sim.n.estimate': 'A mechanical extension of past data, not a forecast. Company guidance is not used',

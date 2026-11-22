@@ -132,8 +132,8 @@ await sleep(1500)
 await shot(page, 'added')
 
 // 3. 比べる相手
-await caption(page, 'B で比べる相手: TOPIX と東証REIT指数の連動 ETF（1306・1343）を灰色の線で')
-// 既定は 1306。B を 1 回で 1306 と 1343
+await caption(page, 'B で比べる相手: TOPIX と東証REIT指数の連動 ETF（1308・1343）を灰色の線で')
+// 既定は 1308。B を 1 回で 1308 と 1343
 await press(page, 'KeyB')
 await settled()
 await sleep(2500)

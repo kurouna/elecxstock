@@ -103,7 +103,7 @@ export interface SimPast {
   /** 全銘柄の均等の群（選んだ銘柄の市場区分。§4.3）の推移とトータルリターン */
   allEq: number[] | null
   allEqPct: number | null
-  /** 超過分の分解（§4.3）: 1306 → 規模（全銘柄の均等 − 1306）→ 業種の配分（同業種 − 全銘柄の均等）→ 銘柄選び（選んだ群 − 同業種。参考）。足すと選んだ群 */
+  /** 超過分の分解（§4.3）: TOPIX 連動 ETF → 規模（全銘柄の均等 − TOPIX）→ 業種の配分（同業種 − 全銘柄の均等）→ 銘柄選び（選んだ群 − 同業種。参考）。足すと選んだ群 */
   decomp: { etf: number; size: number; sector: number; pick: number } | null
   /** 偶然との比較（§4.4） */
   luck: Luck | null
@@ -197,8 +197,8 @@ export interface SimResult {
   fwd: SimFwd
   /** J-REIT の割合（銘柄数で） */
   reitShare: number
-  /** 1306 を比べられなかった（基準日に価格が無いなど） */
+  /** TOPIX 連動 ETF を比べられなかった（基準日に価格が無いなど） */
   etfMissing: boolean
-  /** データの誤りと見られる値を飛ばした銘柄（選んだ銘柄と 1306）の数と点の数。無ければ null */
+  /** データの誤りと見られる値を飛ばした銘柄（選んだ銘柄と TOPIX 連動 ETF）の数と点の数。無ければ null */
   glitch: { stocks: number; points: number } | null
 }

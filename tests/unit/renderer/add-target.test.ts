@@ -74,7 +74,7 @@ describe('FR-PC4 足す先（addTarget）', () => {
     expect(app.toasts.at(-1)!.msg).toMatch(/5 銘柄まで/)
     // 比べる相手は満杯でも足せる（色の枠を使わない）
     expect(t2.add('JP:1343')).toBe(true)
-    expect(p.state.pfBench).toEqual(['JP:1306', 'JP:1343'])
+    expect(p.state.pfBench).toEqual(['JP:1308', 'JP:1343'])
   })
   it('パフォーマンス比較: 足した銘柄は知らせる・同じ銘柄は足さない', () => {
     const p = pane('perf', { pfIds: ['A'], pfSlots: { A: 1 } })

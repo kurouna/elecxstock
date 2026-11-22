@@ -2,6 +2,7 @@
 // 取得の完了（data.updated）で clear() する。Electron を import しない（NFR-A1）。
 import { addYears } from '@shared/calendar'
 import { METRIC_COLUMNS } from '@shared/fields'
+import { TOPIX_ETF } from '@shared/markets'
 import { baseDate, buildPx, type Px, priceAt, tradingOnOrBefore } from '@shared/sim/backtest'
 import type { StressItem } from '@shared/sim/forecast'
 import { groupKey } from '@shared/sim/peers'
@@ -30,7 +31,7 @@ export function divCoverFrom(
 }
 /** 月次系列の取得で 10 年分の配当を持つようにした版の日付（これより前に取った銘柄は、取り直すまで日足の保存期間の分しか配当が無い） */
 export const DIV10_SINCE = '2026-11-14'
-const ETF_ID: InstrumentId = 'JP:1306'
+const ETF_ID: InstrumentId = TOPIX_ETF
 /** 比べる母集団の銘柄（株式・J-REIT。優先株と社債型種類株式（5 桁）・ETF・廃止銘柄は入れない） */
 const poolable = (i: Instrument) => i.status === 'active' && (i.kind === 'stock' || i.kind === 'reit') && i.code.length === 4
 
@@ -42,7 +43,7 @@ export interface RescreenInput {
 }
 
 export class SimData {
-  /** 選んだ銘柄と 1306（日足 + それより前は月末の終値） */
+  /** 選んだ銘柄と TOPIX 連動 ETF（日足 + それより前は月末の終値） */
   private full = new Map<InstrumentId, SimStock | null>()
   /** 同業種の相手（月末の終値だけ。計算の量のため） */
   private lite = new Map<InstrumentId, SimStock | null>()

@@ -76,7 +76,7 @@ const U: Seed[] = [
   ['3269', 'アドバンス・レジデンス投資法人', 'Advance Residence Investment Corporation', 'R', 'reit', '', '', 58000, 4.6, [3, 9]],
   ['8963', 'インヴィンシブル投資法人', 'Invincible Investment Corporation', 'R', 'reit', '', '', 150000, 4.3, [3, 9]],
   ['3281', 'GLP投資法人', 'GLP J-REIT', 'R', 'reit', '', '', 148000, 5.4, [5, 11]],
-  ['1306', 'NEXT FUNDS TOPIX連動型上場投信', 'NEXT FUNDS TOPIX Exchange Traded Fund', 'E', 'etf', '', '', 3107, 2.6, [3]],
+  ['1308', '上場インデックスファンドTOPIX', 'Listed Index Fund TOPIX', 'E', 'etf', '', '', 3107, 2.6, [3]],
   // マーケットのペインの既定（東証 REIT 指数の ETF）。値は架空
   ['1343', 'NEXT FUNDS 東証REIT指数連動型上場投信', 'NEXT FUNDS REIT INDEX ETF', 'E', 'etf', '', '', 2010, 3.9, [2, 5, 8, 11]],
   // マーケット一覧の連動 ETF（FR-U6）。値は架空

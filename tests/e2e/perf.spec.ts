@@ -45,7 +45,7 @@ test.describe('パフォーマンス比較（FR-PC1・PC2・PC4・PC6・PC7・PC
     await typeJump(page, '8001')
     await keys(page, 'Control+Enter')
     await expect.poll(() => rowIds(p)).toEqual(expect.arrayContaining([...before, 'JP:8058', 'JP:8001']))
-    await expect(p.getByTestId('pf-count')).toHaveText(`${before.filter((x) => x !== 'JP:1306').length + 2} / 5`)
+    await expect(p.getByTestId('pf-count')).toHaveText(`${before.filter((x) => x !== 'JP:1308').length + 2} / 5`)
     await expect(p.locator('svg[data-lines]')).toHaveAttribute('data-lines', String((await rowIds(p)).length))
     // 一覧へ（Tab: チャート → 基準日 → 銘柄）。Delete で選んだ行を外す
     await keys(page, 'Tab', 'Tab')
@@ -126,15 +126,15 @@ test.describe('パフォーマンス比較（FR-PC1・PC2・PC4・PC6・PC7・PC
   test('比べる相手も Space で非表示にでき（一覧に残る）、Esc で十字線を消す（FR-PC4・PC7）', async ({ start }) => {
     const { page } = await start()
     const p = await openCompare(page)
-    const bench = p.locator('.pf-rows [data-id="JP:1306"]')
-    await expect(p.locator('path[data-id="JP:1306"]')).toHaveCount(1)
+    const bench = p.locator('.pf-rows [data-id="JP:1308"]')
+    await expect(p.locator('path[data-id="JP:1308"]')).toHaveCount(1)
     await keys(page, 'ArrowLeft')
     await expect(p.getByTestId('pf-readout')).toContainText('基準日から')
     await keys(page, 'Tab', 'Tab')
     for (let i = 0; i < 6; i++) await keys(page, 'ArrowDown')
     await expect(bench).toHaveClass(/sel/)
     await keys(page, 'Space')
-    await expect(p.locator('path[data-id="JP:1306"]')).toHaveCount(0)
+    await expect(p.locator('path[data-id="JP:1308"]')).toHaveCount(0)
     await expect(bench).toContainText('非表示')
     // 一覧にいても Esc で十字線を消す
     await keys(page, 'Escape')

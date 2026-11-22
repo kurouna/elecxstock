@@ -2,6 +2,7 @@
 // 画面（QuoteBoard.svelte）は描くだけで、状態の読み取り・出どころ・並べ替え・分類・騰落の数・基準日・カードの移動はここで決める。
 // ヒートマップ（Heatmap.svelte）の状態（period・sector・starOnly）は読まない。株価ボードの状態のキーはすべて qb で始める
 import { dayOfWeek, prevTradingDay } from '@shared/calendar'
+import { TOPIX_ETF } from '@shared/markets'
 import type { Holding, InstrumentId, JstDate, MetricsRow, SavedScreen, Watchlist } from '@shared/types'
 
 export type QbView = 'map' | 'board'
@@ -27,7 +28,7 @@ export const QB_GROUPS: readonly QbGroup[] = ['none', 'sector', 'kind']
 /** 時価総額の上位（プライムの株式と J-REIT を分けて取る。J-REIT はプライムの上位にほぼ入らないため） */
 export const QB_TOP = { stock: 90, reit: 10 } as const
 /** 1 行目の指数のカード（src/shared/markets.ts の MARKET_REFS の東証の行） */
-export const QB_INDEX_IDS: readonly InstrumentId[] = ['IDX:N225', 'JP:1306', 'JP:1343']
+export const QB_INDEX_IDS: readonly InstrumentId[] = ['IDX:N225', TOPIX_ETF, 'JP:1343']
 
 const DEFAULT: QbState = { view: 'map', src: 'cap', sort: 'reg', group: 'none', size: 2, idx: true, star: false }
 

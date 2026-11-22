@@ -123,13 +123,13 @@ test.describe('マーケット一覧（FR-MB1, FR-MB2, FR-MB4, FR-MB5）', () =>
     await expect(rows).toHaveCount(20)
     await expect(board.getByRole('tab', { selected: true })).toContainText('全て')
     // 連動 ETF は表示名に「連動ETF」と ETF の名前を出す（FR-U6）
-    await expect(board.locator('tr[data-id="JP:1306"] td.name')).toContainText('TOPIX 連動ETF')
-    await expect(board.locator('tr[data-id="JP:1306"] td.name .sub')).toContainText('NEXT FUNDS')
+    await expect(board.locator('tr[data-id="JP:1308"] td.name')).toContainText('TOPIX 連動ETF')
+    await expect(board.locator('tr[data-id="JP:1308"] td.name .sub')).toContainText('上場インデックスファンド')
     await focusPane(page, board)
     // ↓ でめくると、同じリンク色のチャートがその行になる（FR-MB4）
     await keys(page, 'Home', 'ArrowDown')
     const chart = page.locator('[data-widget="chart"]').first()
-    await expect(chart.locator('.sym .code')).toHaveText('1306')
+    await expect(chart.locator('.sym .code')).toHaveText('1308')
     // G で区分を次へ（日本）、Ctrl+PageDown でも次へ（米国）、Shift+G で戻る
     await keys(page, 'KeyG')
     await expect(board.getByRole('tab', { selected: true })).toContainText('日本')

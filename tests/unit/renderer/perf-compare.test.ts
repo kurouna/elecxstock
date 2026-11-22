@@ -1,6 +1,7 @@
 // パフォーマンス比較のペインの計算（docs/design-perf.md §3・§4・§2.3。L1）。値はすべて架空
 import { createStubProvider } from '@core/providers/stub'
 import { addDays, isTradingDay } from '@shared/calendar'
+import { TOPIX_ETF } from '@shared/markets'
 import { describe, expect, it } from 'vitest'
 import {
   addPatch,
@@ -360,7 +361,7 @@ describe('FR-PC4 FR-PC8 ペインの状態（足す・外す・取り込む・�
     const v = pfView({}, 'JP:7203')
     expect(v.ids).toEqual(['JP:7203'])
     expect(v.slots).toEqual({ 'JP:7203': 1 })
-    expect(v.bench).toEqual(['JP:1306'])
+    expect(v.bench).toEqual(['JP:1308'])
     expect(v).toMatchObject({ base: undefined, end: undefined, mode: 'idx', total: false, log: false, sort: 0, off: [] })
     expect(pfView({}, null).ids).toEqual([])
     // 書いたあとは種を使わない
@@ -372,16 +373,16 @@ describe('FR-PC4 FR-PC8 ペインの状態（足す・外す・取り込む・�
     expect(addPatch(v, 'A')).toEqual({ refused: 'dup' })
     const full = pfView({ pfIds: ['A', 'B', 'C', 'D', 'E'], pfSlots: { A: 1, B: 2, C: 3, D: 4, E: 5 } }, null)
     expect(addPatch(full, 'F')).toEqual({ refused: 'full' })
-    expect(addPatch(full, 'JP:1343')).toEqual({ patch: { pfBench: ['JP:1306', 'JP:1343'] } })
-    expect(addPatch(full, 'JP:1306')).toEqual({ refused: 'dup' })
+    expect(addPatch(full, 'JP:1343')).toEqual({ patch: { pfBench: ['JP:1308', 'JP:1343'] } })
+    expect(addPatch(full, 'JP:1308')).toEqual({ refused: 'dup' })
   })
   it('外す: 色の枠を空ける（ほかの色は変えない）。比べる相手も外せる', () => {
     const v = pfView({ pfIds: ['A', 'B', 'C'], pfSlots: { A: 1, B: 2, C: 3 }, pfOff: ['B'] }, null)
     expect(removePatch(v, 'B')).toEqual({ pfIds: ['A', 'C'], pfSlots: { A: 1, C: 3 }, pfOff: [] })
-    expect(removePatch(v, 'JP:1306')).toEqual({ pfBench: [], pfOff: ['B'] })
+    expect(removePatch(v, 'JP:1308')).toEqual({ pfBench: [], pfOff: ['B'] })
   })
   it('取り込む: 先頭の 5 銘柄で置き換える（比べる相手・重複は除く）', () => {
-    const p = importPatch(['A', 'JP:1306', 'B', 'A', 'C', 'D', 'E', 'F'])
+    const p = importPatch(['A', 'JP:1308', 'B', 'A', 'C', 'D', 'E', 'F'])
     expect(p.pfIds).toEqual(['A', 'B', 'C', 'D', 'E'])
     expect(p.pfSlots).toEqual({ A: 1, B: 2, C: 3, D: 4, E: 5 })
     expect(p.pfOff).toEqual([])
@@ -398,7 +399,7 @@ describe('FR-PC4 FR-PC8 ペインの状態（足す・外す・取り込む・�
 describe('FR-PC10 比較の組（メモリだけ）', () => {
   it('名前で覚え、同じ名前は置き換え、消せる。ディスクに書く口は持たない', () => {
     const s = new PerfSetStore()
-    s.save({ name: 'A', base: '2024-08-05', end: null, ids: ['JP:7203'], bench: ['JP:1306'], mode: 'idx', total: false, log: false })
+    s.save({ name: 'A', base: '2024-08-05', end: null, ids: ['JP:7203'], bench: ['JP:1308'], mode: 'idx', total: false, log: false })
     s.save({ name: 'B', base: '2023-01-04', end: null, ids: [], bench: [], mode: 'pct', total: true, log: false })
     s.save({ name: 'A', base: '2020-01-06', end: null, ids: [], bench: [], mode: 'idx', total: false, log: true })
     expect(s.list().map((x) => x.name)).toEqual(['A', 'B'])
@@ -413,10 +414,10 @@ describe('FR-PC10 比較の組（メモリだけ）', () => {
 })
 
 describe('FR-PC4 FR-PC7 比べる相手・縦の範囲・間引き・十字線', () => {
-  it('B で比べる相手を巡る: なし → 1306 → 1306 と 1343 → 1343 → なし', () => {
-    expect(cycleBench([])).toEqual(['JP:1306'])
-    expect(cycleBench(['JP:1306'])).toEqual(['JP:1306', 'JP:1343'])
-    expect(cycleBench(['JP:1306', 'JP:1343'])).toEqual(['JP:1343'])
+  it('B で比べる相手を巡る: なし → 1308 → 1308 と 1343 → 1343 → なし', () => {
+    expect(cycleBench([])).toEqual(['JP:1308'])
+    expect(cycleBench(['JP:1308'])).toEqual(['JP:1308', 'JP:1343'])
+    expect(cycleBench(['JP:1308', 'JP:1343'])).toEqual(['JP:1343'])
     expect(cycleBench(['JP:1343'])).toEqual([])
   })
   it('縦の範囲は 100 を含み、上下に余白。対数でも正', () => {
@@ -479,7 +480,18 @@ describe('FR-PC2 FR-PC3 レビューの反映', () => {
     expect(sinceBase('2006-11-13', '2026-11-13', null).n).toBeGreaterThan(4800)
   })
   it('比べる相手も非表示にできる（外さない）', () => {
-    expect(pfView({ pfOff: ['JP:1306'], pfBench: ['JP:1306'] }, null).off).toEqual(['JP:1306'])
+    expect(pfView({ pfOff: ['JP:1308'], pfBench: ['JP:1308'] }, null).off).toEqual(['JP:1308'])
+  })
+  it('保存した比べる相手のうち、今の比べる相手でない ID（前の版の TOPIX 連動 ETF）は今の TOPIX 連動 ETF として読む', () => {
+    expect(pfView({ pfBench: ['JP:1306'] }, null).bench).toEqual([TOPIX_ETF])
+    expect(pfView({ pfBench: ['JP:1306', 'JP:1343'] }, null).bench).toEqual([TOPIX_ETF, 'JP:1343'])
+    // 重なったら 1 つ（巡る順の組と同じ形になる）
+    expect(pfView({ pfBench: ['JP:1306', TOPIX_ETF] }, null).bench).toEqual([TOPIX_ETF])
+    // 「なし」を選んだ人はなしのまま
+    expect(pfView({ pfBench: [] }, null).bench).toEqual([])
+    // 古い ID で隠していた線は捨てる（今の TOPIX 連動 ETF は出す）
+    expect(pfView({ pfBench: ['JP:1306'], pfOff: ['JP:1306'] }, null).off).toEqual([])
+    expect(cycleBench(pfView({ pfBench: ['JP:1306'] }, null).bench)).toEqual([TOPIX_ETF, 'JP:1343'])
   })
   it('短い名前が重なるときはコードを添える', () => {
     expect(

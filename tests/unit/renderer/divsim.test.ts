@@ -71,7 +71,7 @@ describe('FR-SIM1 設定の読み取りと切り替え', () => {
     })
     expect(simViewOf({})).toEqual({ tab: 'past', cmp: 'both', pct: false, receipt: true, scope: 'one' })
   })
-  it('B は 1306 と同業種 → 1306 → 同業種 → なし → 最初', () => {
+  it('B は 1308 と同業種 → 1308 → 同業種 → なし → 最初', () => {
     expect(cycle(SIM_COMPARES, 'both')).toBe('etf')
     expect(cycle(SIM_COMPARES, 'none')).toBe('both')
     expect(cycle(SIM_COMPARES, 'both', -1)).toBe('none')
@@ -479,7 +479,7 @@ describe('FR-SIM12 表の「試算の伸び」の列', () => {
 })
 
 describe('FR-SIM8 超過分の分解の段（滝）', () => {
-  it('1306 から順に足していき、最後は選んだ群（合計）', async () => {
+  it('1308 から順に足していき、最後は選んだ群（合計）', async () => {
     const { decompSteps } = await import('../../../src/renderer/lib/divsim')
     const s = decompSteps({ etf: 0.1, size: 0.05, sector: -0.02, pick: 0.07 })
     expect(s.map((x) => x.k)).toEqual(['etf', 'size', 'sector', 'pick', 'total'])
@@ -634,20 +634,20 @@ describe('FR-SIM6 FR-SIM8 FR-SIM10 効かない設定・方式の表示・フリ
 })
 
 describe('FR-SIM5 FR-SIM7 TOPIX の名前・データの誤り・取得の後の計算し直し（設計 §21.14）', () => {
-  it('過去の前提に、TOPIX が 1306 NEXT FUNDS TOPIX 連動型上場投信であることを出す（1306 と比べるとき）', () => {
+  it('過去の前提に、TOPIX が 1308 上場インデックスファンドTOPIXであることを出す（1308 と比べるとき）', () => {
     const r = result()
     r.past!.etf = [1, 1]
     expect(basisNotes(r, 'past', true).map((n) => n.k)).toContain('sim.n.topix')
     r.past!.etf = null
     expect(basisNotes(r, 'past', true).map((n) => n.k)).not.toContain('sim.n.topix')
   })
-  it('画面の文言は「1306」ではなく「TOPIX」と言う（番号は前提の文だけ）', async () => {
+  it('画面の文言は「1308」ではなく「TOPIX」と言う（番号は前提の文だけ）', async () => {
     const { ja, en } = await import('../../../src/renderer/lib/i18n')
     for (const dict of [ja, en] as Record<string, string>[]) {
-      const bad = Object.entries(dict).filter(([k, v]) => k.startsWith('sim.') && k !== 'sim.n.topix' && v.includes('1306'))
+      const bad = Object.entries(dict).filter(([k, v]) => k.startsWith('sim.') && k !== 'sim.n.topix' && v.includes('1308'))
       expect(bad.map(([k]) => k)).toEqual([])
     }
-    expect(ja['sim.n.topix']).toContain('1306 NEXT FUNDS TOPIX 連動型上場投信')
+    expect(ja['sim.n.topix']).toContain('1308 上場インデックスファンドTOPIX')
   })
   it('データの誤りと見られる値を飛ばしたら前提に出す（警告）', () => {
     const r = result()

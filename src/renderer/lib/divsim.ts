@@ -22,7 +22,7 @@ import { niceTicks } from './folio'
 import type { Key } from './i18n'
 
 export type SimTab = 'past' | 'fwd'
-/** 比べる相手（B: 1306 と同業種 → 1306 → 同業種 → なし） */
+/** 比べる相手（B: TOPIX と同業種 → TOPIX → 同業種 → なし。TOPIX は連動 ETF の TOPIX_ETF） */
 export const SIM_COMPARES = ['both', 'etf', 'peer', 'none'] as const
 export type SimCompare = (typeof SIM_COMPARES)[number]
 export const SIM_TAXES: SimTax[] = ['taxed', 'gross', 'nisa']
@@ -647,7 +647,7 @@ export function goalOf(monthly: number, y1: number, amount: number): { annual: n
   return { annual, need: y1 > 0 && amount > 0 ? (annual * amount) / y1 : null, pct: y1 / annual }
 }
 
-/** 超過分の分解の段（滝。§4.3）: 1306 から規模・業種の配分・銘柄選びを順に足し、最後に合計（選んだ群） */
+/** 超過分の分解の段（滝。§4.3）: TOPIX から規模・業種の配分・銘柄選びを順に足し、最後に合計（選んだ群） */
 export function decompSteps(d: { etf: number; size: number; sector: number; pick: number }) {
   const out: { k: 'etf' | 'size' | 'sector' | 'pick' | 'total'; from: number; to: number; v: number }[] = []
   let at = 0

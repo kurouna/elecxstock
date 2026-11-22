@@ -41,7 +41,7 @@ test.describe('配当シミュレータ（FR-SIM1・SIM2・SIM5・SIM7・SIM9）
     await expect(s.locator('.link')).toHaveText('2')
     await expect(s.getByTestId('sim-wealth')).toHaveText(/\d/)
     await expect(s.getByTestId('sim-basis')).toContainText('今上場している銘柄だけです')
-    await expect(s.getByTestId('sim-basis')).toContainText('1306 NEXT FUNDS TOPIX 連動型上場投信')
+    await expect(s.getByTestId('sim-basis')).toContainText('1308 上場インデックスファンドTOPIX')
     await expect(s.getByTestId('sim-disclaimer')).toContainText('投資助言ではありません。')
     // 超過分の分解と偶然との比較（群のとき）
     await expect(s.getByTestId('sim-wf')).toContainText('業種の配分')
@@ -80,7 +80,7 @@ async function countLoads(page: Page, name = '__simLoads') {
 test.describe('表示の切り替えでは計算し直さない（FR-SIM7）', () => {
   test('B・P・V・PgDn・PgUp・S では読み込み中を一度も出さず、選んだ銘柄も動かない', async ({ start }) => {
     const { page } = await start()
-    // 開く前から数える。最初の計算で月次系列の無い銘柄（1306 など）の取得を頼むと、その取得の完了で 1 回だけ計算し直す（正しい動き）。
+    // 開く前から数える。最初の計算で月次系列の無い銘柄（1308 など）の取得を頼むと、その取得の完了で 1 回だけ計算し直す（正しい動き）。
     // 取得の完了での計算し直しは読み込み中を出さず、前の結果を出したまま差し替える（FR-SIM7）
     const loads = await countLoads(page)
     const s = await openSim(page, 'one')

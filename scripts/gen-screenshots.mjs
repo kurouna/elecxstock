@@ -216,7 +216,7 @@ async function marketSession() {
 
 /**
  * パフォーマンス比較（FR-PC1〜PC12）: マイレイアウトに「比較」の形のページを作り、銘柄ジャンプで 5 銘柄を足して、3 年前を 100 にした線と
- * 比べる相手（1306・1343）を出し、十字線を少し戻した状態で撮る（shot mtf
+ * 比べる相手（1308・1343）を出し、十字線を少し戻した状態で撮る（shot mtf
 shot widget
 shot grid
 shot grid-drawer

@@ -12,7 +12,7 @@ export const HOLD = [
   { code: '8766', account: 'nisa_growth', quantity: 100, avgCost: 13000 },
   { code: '8951', account: 'nisa_growth', quantity: 2, avgCost: 95000 },
   { code: '3462', account: 'nisa_growth', quantity: 3, avgCost: 120000 },
-  { code: '1306', account: 'nisa_tsumitate', quantity: 300, avgCost: 2600 },
+  { code: '1308', account: 'nisa_tsumitate', quantity: 300, avgCost: 2600 },
 ]
 
 /**

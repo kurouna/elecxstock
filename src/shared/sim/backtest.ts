@@ -1,5 +1,5 @@
 // 配当シミュレータの過去（バックテスト。docs/design-simulator.md §5.1）。純粋関数。
-// 選んだ群・1306・同業種の群が同じ関数（hold）を通る。
+// 選んだ群・TOPIX 連動 ETF・同業種の群が同じ関数（hold）を通る。
 import { addDays, addYears, isTradingDay } from '../calendar'
 import { dpsBlocks } from '../folio'
 import type { Dividend, JstDate } from '../types'

@@ -3,6 +3,7 @@
 // 上の段（概要）: 評価額・資産推移・資産構成・損益寄与・配当見込み・今後 30 日の予定。下の段: 配当の分析。
 // 計算は lib/folio.ts（画面のロジック）と shared/folio.ts（純粋な関数）、記録と期間の計算は Core（folio.*）。キーは registerPane
 import { jstNow, lastClosedSession } from '@shared/calendar'
+import { TOPIX_ETF } from '@shared/markets'
 import type { AlertView, FolioAt, FolioContrib, FolioDividends, FolioSeries, InstrumentId } from '@shared/types'
 import { onMount, untrack } from 'svelte'
 import { condsText } from '../../lib/alertText'
@@ -140,7 +141,7 @@ let bench = $state<{ d: string; c: number }[]>([])
 let alerts = $state<AlertView[]>([])
 let loaded = $state(false)
 onMount(() => void loadHoldings())
-const ids = $derived([...new Set(app.holdings.map((h) => `JP:${h.code}`)), 'IDX:N225', 'JP:1306'])
+const ids = $derived([...new Set(app.holdings.map((h) => `JP:${h.code}`)), 'IDX:N225', TOPIX_ETF])
 $effect(() => ensureMetrics(ids))
 let gen = 0
 async function loadAll() {
@@ -682,7 +683,7 @@ const empty = $derived(loaded && !rows.length && !recs.length)
         <div class="hero-sub">
           <span class={`num ${toneOf(tot.day)}`}>{yenFull(tot.day, true)}（{signPct(pct(tot.day, tot.value - tot.day), 2)}）</span>
           <span class="mute">{crossDay ? t('folio.prevDay') : t('folio.today')}</span>
-          <span class="mute" class:off={!!crossDay} aria-hidden={!!crossDay}>{t('folio.n225')} <span class={`num ${toneOf(metric('IDX:N225')?.chgPct)}`}>{signPct(metric('IDX:N225')?.chgPct, 2)}</span> · <span title="1306">{t('folio.topixEtf')}</span> <span class={`num ${toneOf(metric('JP:1306')?.chgPct)}`}>{signPct(metric('JP:1306')?.chgPct, 2)}</span></span>
+          <span class="mute" class:off={!!crossDay} aria-hidden={!!crossDay}>{t('folio.n225')} <span class={`num ${toneOf(metric('IDX:N225')?.chgPct)}`}>{signPct(metric('IDX:N225')?.chgPct, 2)}</span> · <span title={TOPIX_ETF.slice(3)}>{t('folio.topixEtf')}</span> <span class={`num ${toneOf(metric(TOPIX_ETF)?.chgPct)}`}>{signPct(metric(TOPIX_ETF)?.chgPct, 2)}</span></span>
         </div>
         <!-- 今日の値（指数の前日比・要約の文）は十字線の日には見せないが、場所を取ったまま（上の段の高さを変えない。M では下のカードがずれた） -->
         {#if brief}<div class="brief" class:off={!!crossDay} aria-hidden={!!crossDay}>{briefText(brief)}</div>{/if}

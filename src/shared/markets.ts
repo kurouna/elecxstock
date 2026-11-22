@@ -30,7 +30,7 @@ const R = (id: string, yahoo: string, group: BoardGroup, ja: string, en: string,
 
 export const MARKET_REFS: MarketRef[] = [
   R('IDX:N225', '^N225', 'jp', '日経平均', 'Nikkei 225', 2),
-  R('JP:1306', '1306.T', 'jp', 'TOPIX 連動ETF', 'TOPIX (ETF)'),
+  R('JP:1308', '1308.T', 'jp', 'TOPIX 連動ETF', 'TOPIX (ETF)'),
   R('JP:1591', '1591.T', 'jp', 'JPX日経400 連動ETF', 'JPX-Nikkei 400 (ETF)'),
   R('JP:2516', '2516.T', 'jp', 'グロース250 連動ETF', 'Growth 250 (ETF)'),
   R('JP:1343', '1343.T', 'jp', '東証REIT 連動ETF', 'TSE REIT (ETF)'),
@@ -50,6 +50,11 @@ export const MARKET_REFS: MarketRef[] = [
   R('IDX:SI', 'SI=F', 'cmd', '銀', 'Silver', 3),
   R('IDX:BTCJPY', 'BTC-JPY', 'crypto', 'ビットコイン/円', 'Bitcoin/JPY', 0),
 ]
+/**
+ * TOPIX の代わりに使う連動 ETF（マーケット・ポートフォリオと比べる相手・株価ボード・配当シミュレータ）。
+ * 1306 は Yahoo の日足に分割の前後を二重に調整した誤り（2026-03-30・31）があるため、分割の無い 1308 を使う（docs/decisions.md）
+ */
+export const TOPIX_ETF: InstrumentId = 'JP:1308'
 export const MARKET_REF_IDS: InstrumentId[] = MARKET_REFS.map((r) => r.id)
 const BY_ID = new Map(MARKET_REFS.map((r) => [r.id, r]))
 export const refOf = (id: InstrumentId): MarketRef | undefined => BY_ID.get(id)
