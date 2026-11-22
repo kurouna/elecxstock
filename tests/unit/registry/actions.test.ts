@@ -5,6 +5,7 @@ import { stubWindow } from '../../support/window'
 stubWindow()
 const { ACTIONS, conflicts, keyOf } = await import('../../../src/renderer/lib/commands')
 const { app } = await import('../../../src/renderer/stores/app.svelte')
+const { DICTS } = await import('../../../src/renderer/lib/i18n')
 
 describe('アクションの登録表（FR-KB4〜KB6）', () => {
   it('ID が重ならず、日英の名前がある', () => {
@@ -15,6 +16,14 @@ describe('アクションの登録表（FR-KB4〜KB6）', () => {
       for (const a of ACTIONS) expect(a.label().length, `${lang} ${a.id}`).toBeGreaterThan(0)
     }
     app.settings.lang = 'ja'
+  })
+  it('コマンドバーの別名（actAlias.<id>）は、どれも登録表のアクションのもの（FR-KB9。打ち間違いで効かない別名を作らない）', () => {
+    const ids = new Set(ACTIONS.map((a) => a.id))
+    for (const lang of ['ja', 'en'] as const) {
+      const keys = Object.keys(DICTS[lang]).filter((k) => k.startsWith('actAlias.'))
+      expect(keys.length, lang).toBeGreaterThan(0)
+      for (const k of keys) expect(ids.has(k.slice('actAlias.'.length)), `${lang} ${k}`).toBe(true)
+    }
   })
   it('既定のキーはほかのアクションと重ならない', () => {
     for (const a of ACTIONS.filter((x) => x.key))

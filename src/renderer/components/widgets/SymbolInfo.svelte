@@ -11,7 +11,7 @@ import type { Dividend, InfoExtra } from '@shared/types'
 import { onMount } from 'svelte'
 import { condsText, distanceText } from '../../lib/alertText'
 import { changeSymbol } from '../../lib/chartMenu'
-import { keyOf } from '../../lib/commands'
+import { anomalyHint, keyOf } from '../../lib/commands'
 import { annualDividends, eventYoy, nextRightsDates, recordDayOf, yearsThatFit } from '../../lib/dividends'
 import { chgDigits, cls, date, fmt, money, px, retCls, retText, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
@@ -296,7 +296,7 @@ onMount(() =>
     {#if m?.gapSuspect || m?.anomaly || ins?.status === 'delisted'}
       <div class="notes">
         {#if m?.gapSuspect}<div class="warn">{t('info.gap')}</div>{/if}
-        {#if m?.anomaly}<div class="warn">{t('list.anomalyHint')}</div>{/if}
+        {#if m?.anomaly}<div class="warn">{anomalyHint()}</div>{/if}
         {#if ins?.status === 'delisted'}<div class="warn">{t('list.delistedHint')}</div>{/if}
       </div>
     {/if}

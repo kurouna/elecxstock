@@ -6,6 +6,7 @@
 import { LWC_NOTICE, LWC_NOTICE_PARTS, splitToken, TRADINGVIEW_URL, yahooUrl } from '@shared/attribution'
 import { type LoginState, loginView } from '@shared/background'
 import { CODE_RE } from '@shared/code'
+import { fetchMinutes } from '@shared/pace'
 import type { Settings as S } from '@shared/types'
 import { targetsFromInputs, targetTexts, YIELD_TARGETS_UI } from '@shared/yieldLines'
 import { onMount } from 'svelte'
@@ -270,7 +271,11 @@ async function reset() {
   const st = app.status
   const r = await confirmDialog({
     title: t('reset.title'),
-    items: t('reset.items', { mb: Math.round((st?.dbBytes ?? 0) / 1048576), n: (st?.instruments ?? 0).toLocaleString() }).split('|'),
+    items: t('reset.items', {
+      mb: Math.round((st?.dbBytes ?? 0) / 1048576),
+      n: (st?.instruments ?? 0).toLocaleString(),
+      min: fetchMinutes(st?.instruments ?? 0),
+    }).split('|'),
     body: t('set.dataNote'),
     check: t('reset.keepDelisted'),
     ok: t('reset.do'),

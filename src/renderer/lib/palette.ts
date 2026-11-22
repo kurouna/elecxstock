@@ -133,6 +133,8 @@ export interface PalAction {
   group: ActionGroup
   /** 今使えない理由（i18n のキー）。使えれば null */
   reason: string | null
+  /** 探すときの別名（「取り直し」で「選択銘柄を取り直す」が見つかるように。i18n の actAlias.<id>） */
+  alias?: readonly string[]
 }
 export interface PalSym {
   id: InstrumentId
@@ -242,7 +244,7 @@ export function buildPalette(o: {
         q,
         o.actions,
         (a) => a.label,
-        (a) => [a.id, o.tr(`agroup.${a.group}`), a.key],
+        (a) => [a.id, o.tr(`agroup.${a.group}`), a.key, ...(a.alias ?? [])],
       ).map(({ item, m }) => ({ kind: 'act', id: item.id, ranges: m.ranges })),
     })
   if (on('pane'))

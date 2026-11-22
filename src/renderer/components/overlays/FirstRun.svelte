@@ -1,6 +1,7 @@
 <script lang="ts">
 // 初回起動（§6.13 FR-FR1〜FR4）: 免責の同意 → 取得の確認（対象・保存期間・リクエスト数と時間の見積もり。ニュースを取るか〔FR-NW3。答えていないときだけ〕）→ 取得の開始。
 import { LWC_NOTICE, LWC_NOTICE_PARTS, TRADINGVIEW_URL } from '@shared/attribution'
+import { firstRunEstimate } from '@shared/pace'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { onMount } from 'svelte'
 import { noticeOpen } from '../../lib/fileNotice'
@@ -64,7 +65,7 @@ async function importJpx() {
     </div>
   {:else}
     <h3>{t('first.fetchTitle')}</h3>
-    <p>{t('first.fetchBody')}</p>
+    <p>{t('first.fetchBody', firstRunEstimate())}</p>
     <div class="field">
       <span>{t('first.retention')}</span>
       <span class="seg">

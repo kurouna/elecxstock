@@ -72,7 +72,7 @@ import { canUndoRemoveAlert, createAlert, toggleAlerts, undoRemoveAlert } from '
 import { toCsv } from './columns'
 import { noticeOpen, noticeSave } from './fileNotice'
 import { dateTime } from './format'
-import type { Key } from './i18n'
+import { DICTS, type Key } from './i18n'
 import { composing, matches, normalizeKey, reservedKey } from './keys'
 import { currentPageName, freeResetTarget, openPageMenu, pageShapeChoices, undoRemove } from './pages'
 import { clearMaximized, setMaximized, setTabHint } from './paneMax'
@@ -96,6 +96,20 @@ export interface Action {
   run: () => void | Promise<void>
 }
 
+/** コマンドバーで探す別名（i18n の actAlias.<id>。カンマ区切り。無ければ空） */
+export function actionAliases(id: string): string[] {
+  const dict = DICTS[app.settings.lang] as Record<string, string | undefined>
+  return (dict[`actAlias.${id}`] ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+}
+/** 異常値の「！」の説明（取り直しの実際のキーとコマンドの名前を出す。キーを外していればコマンドバーだけ） */
+export function anomalyHint(): string {
+  const key = keyOf('refetch')
+  const label = t('act.updateSel')
+  return key ? t('list.anomalyHint', { key, label }) : t('list.anomalyHintNoKey', { label })
+}
 /** 今のキー（設定の上書き → 既定）。'' は割り当てなし */
 export function keyOf(a: Action | string): string {
   const act = typeof a === 'string' ? ACTIONS.find((x) => x.id === a) : a

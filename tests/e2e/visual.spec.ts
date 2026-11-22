@@ -14,7 +14,8 @@ test.describe('見た目（NFR-Q10, FR-V8）', () => {
     await expect(dlg).toHaveScreenshot('firstrun.png', opts)
     await keys(page, 'Enter')
     await expect(dlg).toContainText('TradingView')
-    await expect(dlg).toHaveScreenshot('firstrun-fetch.png', opts)
+    // 所要時間の見積もりの段落は Yahoo の間隔の定数（src/shared/pace.ts）から作るので隠す（定数だけを変えれば前の速さに戻せるように。文は L1 で確かめる）
+    await expect(dlg).toHaveScreenshot('firstrun-fetch.png', { ...opts, mask: [dlg.locator('p', { hasText: /Yahoo/ })] })
   })
 
   test('ショートカット一覧・設定（ダーク・ライト）', async ({ start }) => {

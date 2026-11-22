@@ -62,6 +62,21 @@ interface JobRow {
  */
 /** 参照の行（指数・為替など。市場 I）。気配の取り直し・日足の取りこぼしの確認の対象にしない */
 const isIndex = (id: InstrumentId) => id.startsWith('IDX:')
+/** 遅い間隔を使う長さの既定（プロバイダが slowForMs を持たないとき。24 時間） */
+const DEFAULT_SLOW_FOR_MS = 24 * 60 * 60 * 1000
+
+/**
+ * リクエストの間隔と揺らぎ（FR-F2）。slowed（429 を受けた）なら遅い間隔を使う。
+ * 遅い間隔が無い・最小間隔より短いプロバイダは、遅くしない（速くもしない）
+ */
+export function paceOf(
+  p: Pick<Provider, 'minIntervalMs' | 'jitterMs' | 'slowIntervalMs' | 'slowJitterMs'>,
+  slowed: boolean,
+): { intervalMs: number; jitterMs: number } {
+  if (slowed && p.slowIntervalMs != null && p.slowIntervalMs > p.minIntervalMs)
+    return { intervalMs: p.slowIntervalMs, jitterMs: p.slowJitterMs ?? p.jitterMs }
+  return { intervalMs: p.minIntervalMs, jitterMs: p.jitterMs }
+}
 
 export class JobRunner {
   private running = false
@@ -71,6 +86,12 @@ export class JobRunner {
   /** 実行中のジョブの ID（止めるのはこのジョブだけ） */
   private currentId: number | null = null
   private lastCall = 0
+  /** 429 を受けて遅い間隔にした時刻（ms。0 は遅くしていない。FR-F2） */
+  private slowedAt = 0
+  /** 429 を受けて遅い間隔にしているか。24 時間たったら元の間隔から試し直す（常駐で Core が長く動き続けても戻るように） */
+  get slowed(): boolean {
+    return this.slowedAt > 0 && Date.now() - this.slowedAt < (this.h.provider.slowForMs ?? DEFAULT_SLOW_FOR_MS)
+  }
   private priority = new Set<InstrumentId>()
   /** 実行中のジョブを作った時刻（取りこぼしの確認で、このジョブで取った気配かを見分ける） */
   private jobSince = ''
@@ -277,6 +298,18 @@ export class JobRunner {
             continue
           }
           if (pe.scope === 'provider') {
+            // 回数の制限（429）を受けたら、24 時間は遅い間隔に落とす（FR-F2。再起動しても元の間隔から試し直す）
+            if (pe.status === 429) {
+              const slow = paceOf(this.h.provider, true)
+              if (slow.intervalMs > this.h.provider.minIntervalMs) {
+                // 遅くしている間にまた 429 を受けたら、その時刻から数え直す（ログは遅くしたときに 1 回だけ。NFR-R3）
+                if (!this.slowed)
+                  this.h.log(
+                    `rate limited: interval ${slow.intervalMs}+${slow.jitterMs}ms for ${Math.round((this.h.provider.slowForMs ?? DEFAULT_SLOW_FOR_MS) / 3_600_000)}h`,
+                  )
+                this.slowedAt = Date.now()
+              }
+            }
             this.consecutiveProviderErrors++
             this.h.log(`provider error ${item} (${this.consecutiveProviderErrors}): ${pe.message}`) // NFR-R3
             if (this.consecutiveProviderErrors >= 5) {
@@ -349,10 +382,10 @@ export class JobRunner {
     }
   }
 
-  /** 1 リクエストの前に呼ぶ: 最小間隔 + 揺らぎ（FR-F2） */
+  /** 1 リクエストの前に呼ぶ: 最小間隔 + 揺らぎ（FR-F2）。429 を受けたあとは遅い間隔 */
   private async throttle(signal: AbortSignal): Promise<void> {
-    const p = this.h.provider
-    const wait = this.lastCall + p.minIntervalMs + Math.random() * p.jitterMs - Date.now()
+    const { intervalMs, jitterMs } = paceOf(this.h.provider, this.slowed)
+    const wait = this.lastCall + intervalMs + Math.random() * jitterMs - Date.now()
     if (wait > 0) await sleep(wait, signal)
     this.lastCall = Date.now()
   }

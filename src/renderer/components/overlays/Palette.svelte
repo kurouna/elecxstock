@@ -5,7 +5,7 @@
 import type { Instrument, InstrumentId } from '@shared/types'
 import { onMount } from 'svelte'
 import { addButton, enterAction } from '../../lib/addTarget'
-import { type Action, focusedAddTarget, keyOf, paletteActions, sendSymbol } from '../../lib/commands'
+import { type Action, actionAliases, focusedAddTarget, keyOf, paletteActions, sendSymbol } from '../../lib/commands'
 import { keepFocus } from '../../lib/focusTrap'
 import type { Key } from '../../lib/i18n'
 import { composing } from '../../lib/keys'
@@ -87,7 +87,16 @@ const acts = $derived.by((): (Action & { group: ReturnType<typeof groupOf> })[] 
   return [...paletteActions(), ...pages].map((a) => ({ ...a, group: groupOf(a.id) }))
 })
 const palActs = $derived(
-  acts.map((a): PalAction => ({ id: a.id, label: a.label(), key: keyOf(a), group: a.group, reason: a.enabled?.() ?? null })),
+  acts.map(
+    (a): PalAction => ({
+      id: a.id,
+      label: a.label(),
+      key: keyOf(a),
+      group: a.group,
+      reason: a.enabled?.() ?? null,
+      alias: actionAliases(a.id),
+    }),
+  ),
 )
 const actById = $derived(new Map(acts.map((a) => [a.id, a])))
 const palById = $derived(new Map(palActs.map((a) => [a.id, a])))

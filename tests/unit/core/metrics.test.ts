@@ -119,6 +119,24 @@ describe('P2 の指標（増配年数・クロス・2 期の年換算・異常�
     expect(anomalous([...ok, { d: '2026-02-02', o: 100, h: 90, l: 110, c: 100, v: 1 }])).toBe(true)
     expect(anomalous([...ok, { d: '2026-02-02', o: 100, h: 100, l: 0, c: 0, v: 1 }])).toBe(true)
   })
+  it('海外の行（為替・暗号資産など）は、終値が高値・安値の外・高値 < 安値を異常値にしない（Yahoo の 24 時間の市場の日足はこの形になる）', () => {
+    const ok = days('2026-01-05', '2026-01-30', () => 100)
+    // ドル円の形: 終値が高値をわずかに超える（架空の値）
+    const outside = [...ok, { d: '2026-02-02', o: 158.509, h: 158.514, l: 157.841, c: 158.52, v: 0 }]
+    expect(anomalous(outside)).toBe(true)
+    expect(anomalous(outside, true)).toBe(false)
+    expect(anomalous([...ok, { d: '2026-02-02', o: 100, h: 90, l: 110, c: 100, v: 0 }], true)).toBe(false)
+    // 終値 0 以下・出来高が負は、海外の行でも異常値
+    expect(anomalous([...ok, { d: '2026-02-02', o: 100, h: 100, l: 0, c: 0, v: 0 }], true)).toBe(true)
+    expect(anomalous([...ok, { d: '2026-02-02', o: 100, h: 100, l: 100, c: 100, v: -1 }], true)).toBe(true)
+  })
+  it('指標の行の異常値は、海外の行（為替）だけ高値・安値の検査を外す（日経平均・株式は今までどおり）', () => {
+    const ok = days('2026-01-05', '2026-01-30', () => 100)
+    const outside = [...ok, { d: '2026-02-02', o: 158.509, h: 158.514, l: 157.841, c: 158.52, v: 0 }]
+    expect(computeMetrics('IDX:USDJPY', outside, [], [], null, '2026-02-02').anomaly).toBe(false)
+    expect(computeMetrics('IDX:N225', outside, [], [], null, '2026-02-02').anomaly).toBe(true)
+    expect(computeMetrics('JP:7203', outside, [], [], null, '2026-02-02').anomaly).toBe(true)
+  })
 })
 
 describe('直近の日足だけで指標を作る（METRIC_BARS）', () => {

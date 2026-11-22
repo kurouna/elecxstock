@@ -3,6 +3,7 @@
 import { refOf } from '@shared/markets'
 import type { InstrumentId } from '@shared/types'
 import { kindTag, type ListCol } from '../../lib/columns'
+import { anomalyHint } from '../../lib/commands'
 import { app, codeOf, inst, isFav, metric, nameOf, t, toggleFav } from '../../stores/app.svelte'
 
 /** refName: マーケット一覧の表示名を出す（連動 ETF は ETF の名前を添える。FR-U6） */
@@ -34,7 +35,7 @@ $effect(() => {
     <td class="l name" title={ref && id.startsWith('JP:') ? `${ref.name[app.settings.lang]} ${nameOf(id)}` : undefined}>
       {#if ref}{ref.name[app.settings.lang]}{#if id.startsWith('JP:')}<span class="sub">{nameOf(id)}</span>{/if}{:else}{nameOf(id)}{#if kind}<span class="tag">{kind}</span>{/if}{/if}
       {#if ins?.status === 'delisted'}<span class="tag warn" title={t('list.delistedHint')}>{t('list.delisted')}</span>{/if}
-      {#if m?.anomaly || m?.gapSuspect}<span class="tag warn" title={t('list.anomalyHint')}>!</span>{/if}
+      {#if m?.anomaly || m?.gapSuspect}<span class="tag warn" title={anomalyHint()}>!</span>{/if}
     </td>
   {:else}
     {@const v = c.cell(id)}

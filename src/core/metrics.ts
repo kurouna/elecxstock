@@ -1,5 +1,5 @@
 // 銘柄ごとの指標の計算（FR-S10, FR-I1〜I4, FR-D9）。純粋関数。足りない期間の指標は null（欠損）にする。
-import { isStale } from '@shared/markets'
+import { isExternal, isStale } from '@shared/markets'
 import { epochDay, nextRightsDates, recordDayOf } from '@shared/rights'
 import type { Dividend, InstrumentId, InstrumentKind, JstDate, MetricsRow, Quote, Split } from '@shared/types'
 import { addDays, addYears, isTradingDay } from './calendar'
@@ -193,16 +193,22 @@ export function computeMetrics(
     ...moreMetrics(bars, dividends, asOf, firstBar ?? bars[0]!.d, quote, opt, { lo: lo52, ma200, months }),
     recordMonths: [...months].sort((a, b) => a - b),
     gapSuspect,
-    anomaly: anomalous(bars),
+    anomaly: anomalous(bars, isExternal(id)),
   }
 }
 
-/** 異常値（FR-D5 の残り）: 高値 < 安値、終値 0 以下、終値が高値・安値の外、出来高が負（直近 300 本） */
-export function anomalous(bars: DayBar[]): boolean {
+/**
+ * 異常値（FR-D5 の残り）: 高値 < 安値、終値 0 以下、終値が高値・安値の外、出来高が負（直近 300 本）。
+ * 海外の行（external。為替・暗号資産・海外の指数など、FR-MB3）は、終値 0 以下と出来高が負だけを見る。Yahoo の 24 時間の市場の日足は、
+ * 終値と高値・安値の区切りが違い、終値が高値・安値の外（為替で数銭）や高値 < 安値（暗号資産）になることがあり、取り直しても直らないため
+ */
+export function anomalous(bars: DayBar[], external = false): boolean {
   for (let i = Math.max(0, bars.length - 300); i < bars.length; i++) {
     const b = bars[i]!
+    if (!(b.c > 0) || b.v < 0) return true
+    if (external) continue
     const eps = Math.max(1e-9, b.c * 1e-6)
-    if (!(b.c > 0) || b.h + eps < b.l || b.c > b.h + eps || b.c < b.l - eps || b.v < 0) return true
+    if (b.h + eps < b.l || b.c > b.h + eps || b.c < b.l - eps) return true
   }
   return false
 }

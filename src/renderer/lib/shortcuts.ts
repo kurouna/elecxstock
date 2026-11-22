@@ -89,7 +89,7 @@ r(['ジャンプの候補を見ているリストに足す', 'Jump: add to the f
 r(['お気に入り', 'Favorite'], A('fav'), ['★'])
 r(['ウォッチリストに追加', 'Add to watchlist'], A('addTo'))
 r(['データ更新', 'Update data'], A('update'))
-r(['選んだ銘柄の取り直し', 'Refetch selection'], A('refetch'))
+r(['選択銘柄を取り直す', 'Refetch the selected symbol'], A('refetch'), ['取り直し', '再取得', 'refetch'])
 r = sec('general', ['ペインとレイアウト', 'Panes and layout'])
 r(['ペイン間の移動', 'Move between panes'], 'Alt+← / Alt+→ / Alt+↑ / Alt+↓')
 r(['ペインを順に巡る', 'Cycle panes'], 'F6 / Shift+F6')

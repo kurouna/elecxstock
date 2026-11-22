@@ -191,7 +191,7 @@
     R('general', '銘柄', 'お気に入り', 'Ctrl+D', 'fav', ['★']),
     R('general', '銘柄', 'ウォッチリストに追加', 'Ctrl+Shift+A', 'addTo'),
     R('general', '銘柄', 'データ更新', 'F5', 'update'),
-    R('general', '銘柄', '選んだ銘柄の取り直し', 'Shift+F5', 'refetch'),
+    R('general', '銘柄', '選択銘柄を取り直す', 'Shift+F5', 'refetch'),
     R('general', 'ペインとレイアウト', 'ペイン間の移動', 'Alt+← → ↑ ↓'),
     R('general', 'ペインとレイアウト', 'ペインを順に巡る', 'F6 / Shift+F6'),
     R('general', 'ペインとレイアウト', '最大化・戻す（切り替え）', 'Ctrl+Shift+Enter', 'max'),

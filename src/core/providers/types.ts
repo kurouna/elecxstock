@@ -62,6 +62,13 @@ export interface Provider {
   /** 1 リクエストの最小間隔（ms）と揺らぎ（FR-F2） */
   minIntervalMs: number
   jitterMs: number
+  /**
+   * 429（回数の制限）を受けたあと、slowForMs の間だけ使う間隔と揺らぎ（ms）。無いか、最小間隔より短ければ遅くしない
+   */
+  slowIntervalMs?: number
+  slowJitterMs?: number
+  /** 遅い間隔を使う長さ（ms。そのあと元の間隔から試し直す） */
+  slowForMs?: number
   toSymbol(code: string, kind: InstrumentKind): string
   fetchHistory(symbol: string, opt: { from: JstDate; interval: '1d' | '1mo'; signal: AbortSignal }): Promise<HistoryResult>
   fetchQuotes(symbols: string[], opt: { signal: AbortSignal }): Promise<ProviderQuote[]>

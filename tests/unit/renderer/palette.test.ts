@@ -130,3 +130,14 @@ describe('↑ ↓ の移動（最近の銘柄のチップは 1 段。FR-KB1）',
     expect(moveRow([true, true], 0, 1)).toBe(0)
   })
 })
+
+describe('アクションの別名で探す（FR-KB9）', () => {
+  it('「取り直し」で「選択銘柄を取り直す」が見つかる（別名に当たる）', () => {
+    const refetch = { ...act('refetch', '選択銘柄を取り直す', 'data', 'Shift+F5'), alias: ['取り直し', '再取得'] }
+    const gs = buildPalette({ ...base, actions: [...ACTS, refetch], q: '取り直し' })
+    expect(gs.find((g) => g.id === 'acts')!.items).toMatchObject([{ kind: 'act', id: 'refetch' }])
+    // 別名が無ければ見つからない（ラベルの「取り直す」と「取り直し」は文字が違う）
+    const none = buildPalette({ ...base, actions: [...ACTS, act('refetch', '選択銘柄を取り直す', 'data')], q: '取り直し' })
+    expect(none.find((g) => g.id === 'acts')?.items ?? []).toEqual([])
+  })
+})

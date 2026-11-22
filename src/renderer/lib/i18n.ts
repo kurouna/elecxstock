@@ -350,7 +350,7 @@ export const ja = {
   'ret.extended': '保存期間を {n} 年に延ばしました。足りない期間を取得します。',
   'reset.title': '全データを削除して取り直しますか？',
   'reset.items':
-    '日足・月次系列・配当・分割・指標（約 {mb} MB）を削除します|{n} 銘柄を初回と同じく取り直します（約 35〜40 分）|取り直し中も、取得済みの銘柄から順に使えます',
+    '日足・月次系列・配当・分割・指標（約 {mb} MB）を削除します|{n} 銘柄を初回と同じく取り直します（約 {min} 分）|取り直し中も、取得済みの銘柄から順に使えます',
   'reset.keepDelisted': '上場廃止銘柄のデータは残す（Yahoo から取り直せません）',
   'reset.do': '削除して取り直す',
   'reset.started': '全データを削除しました。取り直しを開始します',
@@ -378,7 +378,7 @@ export const ja = {
   'first.agree': '同意して進む',
   'first.fetchTitle': 'データの取得',
   'first.fetchBody':
-    '東証プライムの全銘柄と J-REIT（約 1,600 銘柄）の日足・配当・分割・指標を取得します。Yahoo へ約 3,300 回のリクエストを 1 秒間隔で送り、約 35〜40 分かかります（月足の長期系列はそのあと、さらに約 30 分）。取得中も、取得済みの銘柄から使えます。',
+    '東証プライムの全銘柄と J-REIT（約 {n} 銘柄）の日足・配当・分割・指標を取得します。Yahoo へ約 {req} 回のリクエストを約 {sec} 秒の間隔で送り、約 {min} 分かかります（月足の長期系列はそのあと、さらに約 {monthlyMin} 分）。取得中も、取得済みの銘柄から使えます。',
   'first.retention': '日足の保存期間',
   'first.retentionNote': '保存期間（年）は、あとから設定の「データ」でいつでも変更できます。',
   'first.start': '取得を始める',
@@ -401,6 +401,7 @@ export const ja = {
   'act.fav': 'お気に入りの切り替え',
   'act.update': 'データを更新',
   'act.updateSel': '選択銘柄を取り直す',
+  'actAlias.refetch': '取り直し,再取得,更新',
   'act.universe': '銘柄一覧を更新',
   'act.settings': '設定を開く',
   'act.data': '設定: データの削除と取り直し',
@@ -603,7 +604,10 @@ export const ja = {
   'dlg.reorder': '並べ替え',
   'list.delisted': '廃止',
   'list.delistedHint': '上場廃止になった銘柄（リストには残します）',
-  'list.anomalyHint': '異常値の疑い（高値 < 安値・終値 0・分割の無い ±50% 超の動きなど）。「選んだ銘柄の取り直し」で取り直せます',
+  'list.anomalyHint':
+    '異常値の疑い（高値 < 安値・終値 0・分割の無い ±50% 超の動きなど）。{key} か、コマンドバー（Ctrl+K）の「{label}」で取り直せます',
+  'list.anomalyHintNoKey':
+    '異常値の疑い（高値 < 安値・終値 0・分割の無い ±50% 超の動きなど）。コマンドバー（Ctrl+K）の「{label}」で取り直せます',
   'list.duplicate': 'リストを複製',
   'scr.or': 'または',
   'scr.refTitle': '「{name}」と比べる指標',
@@ -628,6 +632,7 @@ export const ja = {
   'act.openLogs': 'ログのフォルダを開く',
   'act.portfolio': '保有を開く',
   'act.refetchList': '一覧の銘柄をすべて取り直す',
+  'actAlias.refetchList': '取り直し,再取得,更新',
   'act.theme': 'テーマの切り替え（ダーク / ライト）',
   'act.privacy': 'プライバシーモードの切り替え（保有の金額と数量を隠す）',
   'top.privacyOff': 'プライバシーモード: オフ（押すと保有の金額と数量を隠す）',
@@ -1937,7 +1942,7 @@ export const en: Record<Key, string> = {
   'ret.extended': 'Daily history extended to {n} years. Fetching the missing range.',
   'reset.title': 'Delete all market data and refetch?',
   'reset.items':
-    'Deletes daily, monthly, dividends, splits and metrics (about {mb} MB)|Refetches {n} symbols like the first run (about 35–40 min)|Symbols become usable as soon as each is fetched',
+    'Deletes daily, monthly, dividends, splits and metrics (about {mb} MB)|Refetches {n} symbols like the first run (about {min} min)|Symbols become usable as soon as each is fetched',
   'reset.keepDelisted': 'Keep data of delisted symbols (Yahoo no longer has it)',
   'reset.do': 'Delete and refetch',
   'reset.started': 'All data deleted. Refetching…',
@@ -1965,7 +1970,7 @@ export const en: Record<Key, string> = {
   'first.agree': 'Agree and continue',
   'first.fetchTitle': 'Fetching data',
   'first.fetchBody':
-    'Fetches daily bars, dividends, splits and metrics for all TSE Prime stocks and J-REITs (about 1,600 symbols). It sends about 3,300 requests to Yahoo at one-second intervals and takes about 35–40 minutes (the long monthly series follows, about 30 more minutes). Fetched symbols are usable right away.',
+    'Fetches daily bars, dividends, splits and metrics for all TSE Prime stocks and J-REITs (about {n} symbols). It sends about {req} requests to Yahoo at intervals of about {sec} s and takes about {min} minutes (the long monthly series follows, about {monthlyMin} more minutes). Fetched symbols are usable right away.',
   'first.retention': 'Daily history',
   'first.retentionNote': 'You can change the history length (years) at any time in Settings > Data.',
   'first.start': 'Start fetching',
@@ -1987,6 +1992,7 @@ export const en: Record<Key, string> = {
   'act.fav': 'Toggle favorite',
   'act.update': 'Update data',
   'act.updateSel': 'Refetch the selected symbol',
+  'actAlias.refetch': 'reload,redownload,re-fetch,update,取り直し',
   'act.universe': 'Update the universe',
   'act.settings': 'Open settings',
   'act.data': 'Settings: delete & refetch data',
@@ -2189,7 +2195,10 @@ export const en: Record<Key, string> = {
   'dlg.reorder': 'reorder',
   'list.delisted': 'Delisted',
   'list.delistedHint': 'Delisted (kept in the list)',
-  'list.anomalyHint': 'Suspected bad data (high < low, zero close, ±50% gap without a split). Use "Refetch selected" to refetch',
+  'list.anomalyHint':
+    'Suspected bad data (high < low, zero close, ±50% gap without a split). Refetch it with {key} or "{label}" in the command bar (Ctrl+K)',
+  'list.anomalyHintNoKey':
+    'Suspected bad data (high < low, zero close, ±50% gap without a split). Refetch it with "{label}" in the command bar (Ctrl+K)',
   'list.duplicate': 'Duplicate list',
   'scr.or': 'or',
   'scr.refTitle': 'Compare {name} with',
@@ -2214,6 +2223,7 @@ export const en: Record<Key, string> = {
   'act.openLogs': 'Open the log folder',
   'act.portfolio': 'Open holdings',
   'act.refetchList': 'Refetch every symbol in the list',
+  'actAlias.refetchList': 'reload,redownload,re-fetch,update,取り直し',
   'act.theme': 'Toggle theme (dark / light)',
   'act.privacy': 'Toggle privacy mode (hide holding amounts and quantities)',
   'top.privacyOff': 'Privacy mode: off (click to hide holding amounts and quantities)',

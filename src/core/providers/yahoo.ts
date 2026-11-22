@@ -1,5 +1,6 @@
 // Yahoo Finance（yahoo-finance2）プロバイダ（§3.1）。非公式 API なので、失敗を分類して上に返す（FR-F3）。
 
+import { YAHOO_INTERVAL_MS, YAHOO_JITTER_MS, YAHOO_SLOW_FOR_MS, YAHOO_SLOW_INTERVAL_MS, YAHOO_SLOW_JITTER_MS } from '@shared/pace'
 import type { InstrumentKind } from '@shared/types'
 import YahooFinance from 'yahoo-finance2'
 import { toJstDate } from '../calendar'
@@ -23,7 +24,13 @@ export function classifyError(e: unknown): ProviderError {
   const code = String(err?.cause?.code ?? err?.code ?? '')
   if (err?.name === 'AbortError') return new ProviderError('provider', 'aborted')
   if (OFFLINE_CODES.has(code) || /fetch failed|network|getaddrinfo/i.test(msg)) return new ProviderError('offline', msg)
-  if (/Too Many Requests|429/.test(msg) || code === '429') return new ProviderError('provider', msg, 429)
+  // 回数の制限（429）: yahoo-finance2 の HTTPError は code に HTTP の状態を入れる（本文が message）。JSON の誤りは
+  // 「TooManyRequestsError」などの名前、クランブの取得は「status 429」の文で来る。本文の中の数字の 429 だけでは当てない
+  // （429 だと 24 時間は遅い間隔になるため。FR-F2）
+  const status = /^\d{3}$/.test(String(err?.code ?? '')) ? Number(err?.code) : null
+  if (status === 429 || err?.name === 'TooManyRequestsError' || /Too Many Requests|status 429|rate.?limit/i.test(msg))
+    return new ProviderError('provider', msg, 429)
+  if (status != null && status >= 500) return new ProviderError('provider', msg, status)
   if (/No data found|Not Found|delisted|Quote not found|404/i.test(msg)) return new ProviderError('symbol', msg, 404)
   if (/5\d\d|Internal Server Error|Bad Gateway|Service Unavailable/.test(msg)) return new ProviderError('provider', msg, 500)
   return new ProviderError('symbol', msg)
@@ -47,8 +54,11 @@ export function createYahooProvider(): Provider {
     id: 'yahoo',
     priceBasis: 'split-adjusted',
     quoteBatchSize: 50,
-    minIntervalMs: 1000,
-    jitterMs: 300,
+    minIntervalMs: YAHOO_INTERVAL_MS,
+    jitterMs: YAHOO_JITTER_MS,
+    slowIntervalMs: YAHOO_SLOW_INTERVAL_MS,
+    slowJitterMs: YAHOO_SLOW_JITTER_MS,
+    slowForMs: YAHOO_SLOW_FOR_MS,
     toSymbol: (code: string, kind: InstrumentKind) => (kind === 'index' ? `^${code}` : `${code}.T`),
     async fetchHistory(symbol, { from, interval, signal }): Promise<HistoryResult> {
       try {
