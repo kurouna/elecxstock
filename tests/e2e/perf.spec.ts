@@ -179,6 +179,24 @@ test.describe('パフォーマンス比較（FR-PC1・PC2・PC4・PC6・PC7・PC
     await expect(p.locator('.pf-rows [data-id="JP:8053"]')).toHaveCount(1)
     await expect(page.locator('.presets [aria-current="true"]')).toContainText('マイレイアウト')
   })
+  test('20 年前（Alt+6）: 日足より前は月末の終値で継ぎ、線を描く（「ここから日足」）。価格のみでも配当込みでも（FR-PC3）', async ({
+    start,
+  }) => {
+    const { page } = await start()
+    const p = await openCompare(page)
+    const row = p.locator('.pf-rows [data-id]').first()
+    for (const total of [false, true]) {
+      if (total) await keys(page, 't')
+      await keys(page, 'Alt+Digit6')
+      await expect(p.locator('svg[data-base]')).toHaveAttribute('data-monthly', '1', { timeout: 20_000 })
+      await expect(row).not.toContainText('データなし')
+      await expect(p.locator('svg[data-stitch]')).not.toHaveAttribute('data-stitch', '')
+      await expect(p.getByTestId('pf-gran')).toContainText('月次の精度')
+      // 年初に戻して、もう一度 20 年前へ（月次を読み直さなくても線が出る）
+      await keys(page, 'Alt+Digit1')
+      await expect(p.locator('svg[data-base]')).toHaveAttribute('data-monthly', '0')
+    }
+  })
   test('画像の保存: 設定がオンのときだけ見出しのボタンとチャートの S。ファイル名は基準日と終わりの日（FR-PC9）', async ({ start }) => {
     const { app, page, userData } = await start({ settings: { chartSave: true } })
     const file = join(userData, 'perf-shot.png')

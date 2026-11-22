@@ -122,10 +122,14 @@ async function load() {
 }
 /** 月次がまだ要る銘柄（基準日がその日足より前で、月次を読んでいない）。基準日を動かすたびに全部を読み直さない */
 const needM = $derived(allIds.filter((id) => (bars[id]?.d?.time[0] ?? '') > typedBase && !bars[id]?.m).join())
+/** 最後に読んだ銘柄と価格の種類（月次が届いて needM が空に戻ったときに読み直さない） */
+let loadedKey = ''
 $effect(() => {
-  void idsKey
-  void adj
-  void needM
+  const key = `${idsKey}|${adj}`
+  // needM は条件の前に読む（後ろに置くと、初めの実行で依存に入らず、基準日を日足より前へ動かしても月次を読まない）
+  const need = needM
+  if (key === loadedKey && !need) return
+  loadedKey = key
   untrack(() => void load())
 })
 // 取得の知らせ: 表示中の銘柄を含むときだけ取り直す（届いてから置き換える）

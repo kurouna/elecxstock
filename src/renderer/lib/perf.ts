@@ -592,10 +592,10 @@ export function nearestDay(axis: readonly JstDate[], day: number): JstDate | nul
   return Math.abs(dayNum(a) - day) <= Math.abs(dayNum(b) - day) ? a : b
 }
 /**
- * 右端の札の幅（px）: 広いと 168、中くらいで 124、狭いと札を出さない。名前は全角 8 文字まで出すので、
+ * 右端の札の幅（px）: 760px より広いと 168、520px より広いと 124、狭いと札を出さない。名前は全角 8 文字まで出すので、
  * 設計の 132／112 では値が切れる（実装で広げた。design-perf.md §2.5）
  */
-export const labelWidth = (w: number): number => (w > 900 ? 168 : w > 560 ? 124 : 0)
+export const labelWidth = (w: number): number => (w > 760 ? 168 : w > 520 ? 124 : 0)
 /** 次の並び（S） */
 export const nextSort = (s: 0 | 1 | 2): 0 | 1 | 2 => ((s + 1) % 3) as 0 | 1 | 2
 /** 終点が仮の足（FR-D8）か: 終わりの日の指定が無く、どれかの銘柄の最後の足が仮 */
