@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<title>elecxstock — イベントスタディのペイン（モック）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* アプリの app.css と同じトークン（ダーク・ライト）。このペインで足すのは --ev-* だけ */
+:root {
+  --bg: #0b0d10; --panel: #101318; --panel-2: #151920; --panel-3: #1b2029;
+  --line: #20262f; --line-soft: #161a20; --line-strong: #2d3540;
+  --text: #dfe4ea; --text-2: #a3adb9; --text-3: #8b95a2; --focus: #7aa7ff;
+  --up: #ff6b70; --down: #5aa2ee; --flat: #a3adb9; --warn: #d9a400; --ok: #2fae74; --gold: #e3b341;
+  --ind1: #4fb3d9; --ind2: #d97a4f;
+  --chart-grid: #161a20; --chart-cross: #55606d;
+  --fs-0: 10px; --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 16px; --fs-5: 20px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --radius: 2px; --motion: 150ms;
+  --font: "Noto Sans JP", system-ui, sans-serif; --mono: "Noto Sans Mono", ui-monospace, monospace;
+  /* ペインで足すトークン: 研究の印・中央値の線・帯の濃さ・偶然の線 */
+  --ev-lab: #36b5a8; --ev-line: #7aa7ff; --ev-band: 0.22; --ev-band-wide: 0.09; --ev-rand: #8b95a2;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #e9ecf0; --panel: #ffffff; --panel-2: #f5f7fa; --panel-3: #eceff3;
+  --line: #d6dbe1; --line-soft: #e6e9ee; --line-strong: #c3cad3;
+  --text: #1a1f26; --text-2: #4a5562; --text-3: #5d6875; --focus: #2f6fe0;
+  --up: #c62f37; --down: #1a62b0; --flat: #4a5562; --warn: #9a6b00; --ok: #18804f; --gold: #8f6700;
+  --ind1: #1f8fbf; --ind2: #c25f2a; --chart-grid: #eef1f4; --chart-cross: #8a95a3;
+  --ev-lab: #13807a; --ev-line: #2f6fe0; --ev-band: 0.18; --ev-band-wide: 0.08; --ev-rand: #6b7684;
+  color-scheme: light;
+}
+:root[data-candle="us"] { --up: #3cc488; --down: #ff6b70; }
+:root[data-theme="light"][data-candle="us"] { --up: #18804f; --down: #d9363e; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 400 var(--fs-2)/1.5 var(--font); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--flat); }
+.mute { color: var(--text-3); }
+kbd { font: 500 var(--fs-0) var(--mono); color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 0 4px; line-height: 14px; white-space: nowrap; }
+.ii { display: inline-grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 8px; color: var(--text-3); cursor: help; font-style: normal; flex: none; }
+
+/* モックの操作の帯（アプリには無い） */
+.bar { display: flex; gap: var(--s-2); align-items: center; padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.bar b { font-weight: 600; margin-right: var(--s-2); }
+.bar button { background: var(--panel-2); color: var(--text-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 8px; font: inherit; font-size: var(--fs-2); cursor: pointer; }
+.bar button[aria-pressed="true"] { color: var(--text); border-color: var(--focus); }
+.bar .sep { width: 1px; height: 18px; background: var(--line); margin: 0 var(--s-1); }
+.bar .fict { margin-left: auto; color: var(--warn); font-size: var(--fs-1); }
+.stage { padding: var(--s-4); display: flex; justify-content: center; }
+
+/* ペインの枠 */
+.pane { container-type: inline-size; container-name: pane; width: var(--w, 1560px); height: var(--h, 960px); background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.ph { height: 28px; display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-2); border-bottom: 1px solid var(--line); background: var(--panel-2); color: var(--text-2); flex: none; white-space: nowrap; overflow: hidden; }
+.ph .link { width: 14px; height: 14px; border-radius: 3px; background: #2fae74; color: #000; font-size: 9px; display: grid; place-items: center; font-weight: 700; flex: none; }
+.ph .title { color: var(--text); font-weight: 500; flex: none; }
+.lab { font-size: var(--fs-0); color: var(--ev-lab); border: 1px solid color-mix(in srgb, var(--ev-lab) 55%, transparent); border-radius: var(--radius); padding: 0 5px; line-height: 15px; letter-spacing: .04em; flex: none; }
+.ph .asof { margin-left: auto; color: var(--text-3); font-size: var(--fs-1); }
+.ph .tools { display: inline-flex; gap: 2px; flex: none; opacity: .45; }
+.ph .tools i { font-style: normal; width: 20px; height: 20px; display: grid; place-items: center; color: var(--text-3); font-size: 12px; border-radius: var(--radius); }
+.ph:hover .tools { opacity: 1; }
+.badge { display: inline-flex; gap: 6px; flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.badge span { font-size: var(--fs-1); line-height: 17px; padding: 0 7px; border-radius: 9px; border: 1px solid var(--line-strong); color: var(--text-3); cursor: pointer; white-space: nowrap; }
+.badge span.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+@container pane (max-width: 1099px) { .badge span.opt { display: none; } }
+@container pane (max-width: 699px) { .ph .asof, .badge { display: none; } .ph .tools { margin-left: auto; } }
+
+/* 定義を文で読む帯（狭いときだけ。広いときは左の定義の列） */
+.say { display: none; align-items: baseline; gap: 6px 10px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: var(--fs-2); color: var(--text-2); line-height: 1.8; flex: none; flex-wrap: wrap; }
+.say b { color: var(--text); font-weight: 500; }
+@container pane (max-width: 899px) { .say { display: flex; } }
+
+.main { flex: 1; min-height: 0; display: flex; position: relative; }
+
+/* 左の定義の列 */
+.def { width: 300px; flex: none; border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; outline: none; }
+.def.focus { box-shadow: inset 0 0 0 1px var(--focus); }
+@container pane (max-width: 1299px) { .def { width: 268px; } }
+@container pane (max-width: 899px) {
+  .def { position: absolute; left: 0; top: 0; bottom: 0; z-index: 8; width: min(320px, 92%); transform: translateX(-102%); transition: transform var(--motion); box-shadow: 8px 0 30px rgb(0 0 0 / .35); }
+  .def.open { transform: none; }
+}
+:root[data-reduce-motion="true"] .def { transition: none; }
+.def .scroll { flex: 1; overflow: auto; scrollbar-width: thin; }
+.dh { display: flex; align-items: center; gap: 6px; padding: 10px 12px 4px; font-size: var(--fs-0); color: var(--text-3); letter-spacing: .06em; }
+.dh .r { margin-left: auto; letter-spacing: 0; display: inline-flex; gap: 4px; }
+.conds { padding: 2px 8px 6px; display: flex; flex-direction: column; gap: 0; }
+.cj { font-size: var(--fs-0); color: var(--text-3); padding: 1px 6px 1px 10px; letter-spacing: .04em; }
+.cj.or { color: var(--ind2); }
+.cr { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 5px 6px 5px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); font-size: var(--fs-2); }
+.cr .f { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr .op { font-family: var(--mono); color: var(--text-2); }
+.cr .v { font-family: var(--mono); color: var(--text); min-width: 54px; text-align: right; border-bottom: 1px dashed var(--line-strong); }
+.cr.sel, .srow.sel { border-color: var(--focus); box-shadow: inset 2px 0 0 var(--focus); }
+.cr .pit { grid-column: 1 / -1; font-size: var(--fs-0); color: var(--ok); }
+.srows { padding: 0 8px; display: flex; flex-direction: column; gap: 3px; }
+.srow { display: grid; grid-template-columns: 74px 1fr auto; gap: 8px; align-items: center; padding: 4px 8px; border: 1px solid transparent; border-radius: var(--radius); font-size: var(--fs-2); }
+.srow .k { color: var(--text-3); font-size: var(--fs-1); }
+.srow .v { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .v.warn { color: var(--warn); }
+.srow kbd { opacity: .8; }
+.run { margin: 10px 8px 6px; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--panel-2); cursor: pointer; font-size: var(--fs-2); color: var(--text-2); }
+.run b { color: var(--text); font-weight: 500; }
+.run .r { margin-left: auto; }
+.run.dirty { border-color: var(--focus); color: var(--text); background: color-mix(in srgb, var(--focus) 12%, var(--panel-2)); }
+.run .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+.run.dirty .dot { background: var(--focus); }
+.trials { padding: 0 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.tr { display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 6px; padding: 4px 6px; border-radius: var(--radius); font-size: var(--fs-1); border: 1px solid transparent; cursor: pointer; }
+.tr .no { color: var(--text-3); font-family: var(--mono); }
+.tr .d { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr .m { grid-column: 2 / -1; color: var(--text-3); font-family: var(--mono); font-size: var(--fs-0); }
+.tr.cur { background: var(--panel-3); }
+.tr.sel { border-color: var(--focus); }
+.mt { margin: 2px 8px 10px; padding: 6px 8px; border-left: 2px solid var(--warn); font-size: var(--fs-1); color: var(--text-2); line-height: 1.6; background: color-mix(in srgb, var(--warn) 6%, transparent); }
+.mt b { color: var(--warn); font-weight: 500; font-family: var(--mono); }
+.dkeys { border-top: 1px solid var(--line); padding: 6px 10px; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: var(--fs-1); color: var(--text-3); visibility: hidden; flex: none; }
+.def.focus .dkeys { visibility: visible; }
+
+/* 本体 */
+.body { flex: 1; min-width: 0; overflow: auto; container-type: inline-size; container-name: body; background: var(--bg); position: relative; scroll-behavior: smooth; }
+:root[data-reduce-motion="true"] .body { scroll-behavior: auto; }
+.grid { display: grid; gap: 6px; padding: 6px; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; position: relative; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 8px; grid-column: span 12; }
+.card.focus { border-color: var(--focus); }
+.card h3 { margin: 0; font-size: var(--fs-2); font-weight: 500; color: var(--text-2); display: flex; align-items: center; gap: 4px 8px; min-height: 20px; flex-wrap: wrap; }
+.card h3 .sub { font-weight: 400; color: var(--text-3); font-size: var(--fs-1); }
+.card h3 .right { margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.keys { display: flex; visibility: hidden; gap: 4px 10px; font-size: var(--fs-1); color: var(--text-3); flex-wrap: wrap; }
+.card.focus .keys { visibility: visible; }
+.p2tag, .p3tag { font-size: 9px; color: var(--ev-lab); border: 1px solid color-mix(in srgb, var(--ev-lab) 50%, transparent); border-radius: var(--radius); padding: 0 4px; line-height: 13px; }
+:root.p1 .p2only { display: none !important; }
+
+/* 並び: 本体の幅で 12 列 → 6 列 → 1 列 */
+@container body (min-width: 1100px) {
+  .c-car { grid-column: span 7; } .c-hz { grid-column: span 5; }
+  .c-dist, .c-brk, .c-dens { grid-column: span 4; }
+  .c-ev { grid-column: span 8; } .c-basis { grid-column: span 4; }
+  :root.p1 .c-dens { grid-column: span 8; }
+}
+@container body (min-width: 720px) and (max-width: 1099px) {
+  .c-car { grid-column: span 12; } .c-hz { grid-column: span 12; }
+  .c-dist, .c-brk { grid-column: span 6; } .c-dens { grid-column: span 12; }
+  :root.p1 .c-dist { grid-column: span 12; }
+}
+.c-car { min-height: 380px; } .c-dist, .c-brk, .c-dens { min-height: 268px; } .c-ev { min-height: 330px; }
+
+/* 要約の帯 */
+.kpi { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; padding: 0; }
+:root.p1 .kpi { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@container body (max-width: 1099px) { .kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); } :root.p1 .kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container body (max-width: 539px) { .kpi, :root.p1 .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kt { padding: 10px 14px 11px; border-left: 1px solid var(--line-soft); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kt:first-child { border-left: 0; }
+.kt .k { font-size: var(--fs-1); color: var(--text-3); display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.kt .v { font: 600 clamp(20px, 2.1cqi, 28px)/1.15 var(--mono); letter-spacing: -0.01em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.kt .v small { font-size: .5em; font-weight: 500; color: var(--text-2); margin-left: 4px; }
+.kt .s { font-size: var(--fs-1); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kt .gauge { height: 4px; background: var(--panel-3); border-radius: 1px; position: relative; margin-top: 4px; }
+.kt .gauge i { position: absolute; top: -2px; width: 2px; height: 8px; background: var(--text); }
+.kt .gauge b { position: absolute; top: 0; bottom: 0; left: 95%; right: 0; background: color-mix(in srgb, var(--ev-lab) 40%, transparent); }
+.c-kpi { padding: 0; gap: 0; }
+.c-kpi .brief { padding: 8px 14px; border-top: 1px solid var(--line-soft); font-size: var(--fs-2); color: var(--text-2); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.c-kpi .brief b { color: var(--text); font-weight: 500; font-family: var(--mono); }
+.c-kpi .brief .lead { border-left: 2px solid var(--ev-lab); padding-left: 8px; }
+
+/* 図 */
+.chart { flex: 1 1 0; min-height: 150px; position: relative; }
+.chart svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.chart svg text { font-family: var(--mono); font-size: 10px; fill: var(--text-3); }
+.legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: var(--fs-1); color: var(--text-2); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ln { width: 14px; height: 0; border-top: 2px solid; display: inline-block; }
+.ln.dash { border-top-style: dashed; } .ln.dot { border-top-style: dotted; }
+.sw { width: 10px; height: 9px; border-radius: 2px; display: inline-block; flex: none; }
+.readout { display: flex; gap: 4px 14px; flex-wrap: wrap; font-size: var(--fs-1); color: var(--text-3); padding: 4px 8px; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: var(--radius); }
+.readout b { color: var(--text); font-weight: 500; font-family: var(--mono); }
+.readout .day { color: var(--focus); font-family: var(--mono); }
+.seg { display: inline-flex; gap: 1px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 1px; }
+.seg span { padding: 0 7px; font-size: var(--fs-1); color: var(--text-3); line-height: 17px; border-radius: 2px; cursor: pointer; white-space: nowrap; }
+.seg span.on { background: var(--panel-3); color: var(--text); box-shadow: inset 0 -1px 0 var(--focus); }
+.note { font-size: var(--fs-1); color: var(--text-3); }
+.pill { fill: var(--panel); opacity: .9; }
+
+/* 表（期間ごと・出来事の一覧） */
+.dt { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin; }
+.c-ev .dt { max-height: 420px; }
+.dt table { width: 100%; border-collapse: collapse; font-size: var(--fs-1); }
+.dt th { position: sticky; top: 0; background: var(--panel); color: var(--text-3); font-weight: 400; text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; z-index: 1; }
+.dt th.on { color: var(--text); } .dt th.on::after { content: " ▼"; font-size: 9px; }
+.dt td { padding: 2px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line-soft); height: 23px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.dt th.l, .dt td.l { text-align: left; font-family: var(--font); }
+.dt tr.sel td { background: var(--panel-3); }
+.dt tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--focus); }
+.dt tr.thin td { color: var(--text-3); }
+.dt .nm { display: inline-block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.dt .code { color: var(--text-3); margin-right: 6px; font-family: var(--mono); }
+.dt .spark { width: 84px; height: 16px; vertical-align: middle; }
+.hz td { height: 30px; font-size: var(--fs-2); }
+.hz .iq { display: inline-block; width: 92px; height: 10px; position: relative; vertical-align: middle; }
+.hz .iq::before { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line-strong); }
+.hz .iq i { position: absolute; top: 2px; bottom: 2px; background: color-mix(in srgb, var(--ev-line) 35%, transparent); border-radius: 1px; }
+.hz .iq b { position: absolute; top: -1px; bottom: -1px; width: 2px; background: var(--text); }
+.pctl { display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.pctl .rb { width: 40px; height: 5px; background: var(--panel-3); position: relative; border-radius: 1px; }
+.pctl .rb::after { content: ""; position: absolute; left: 95%; right: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--ev-lab) 45%, transparent); }
+.pctl .rb i { position: absolute; top: -2px; width: 3px; height: 9px; border-radius: 1px; background: var(--text); }
+.flag { font-size: var(--fs-0); border: 1px solid var(--line-strong); color: var(--text-3); border-radius: var(--radius); padding: 0 3px; margin-left: 4px; font-family: var(--font); }
+.flag.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+
+/* 分けて見る */
+.brk { display: flex; flex-direction: column; gap: 2px; overflow: auto; scrollbar-width: thin; flex: 1 1 0; min-height: 0; }
+.br { display: grid; grid-template-columns: 96px 1fr 58px 44px; gap: 8px; align-items: center; font-size: var(--fs-1); padding: 1px 0; }
+.br .l { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.br .b { height: 9px; position: relative; background: var(--panel-2); }
+.br .b::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line-strong); }
+.br .b i { position: absolute; top: 0; bottom: 0; border-radius: 1px; }
+.br .b u { position: absolute; top: 3px; height: 3px; background: var(--text-3); opacity: .7; text-decoration: none; }
+.br .v { text-align: right; font-family: var(--mono); }
+.br .n { text-align: right; font-family: var(--mono); color: var(--text-3); }
+.br.thin { opacity: .45; }
+
+/* 前提のカード */
+.basis { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; scrollbar-width: thin; min-height: 0; flex: 1 1 0; }
+.bi { display: grid; grid-template-columns: 78px 1fr; gap: 8px; font-size: var(--fs-1); line-height: 1.55; padding: 3px 0; border-top: 1px solid var(--line-soft); }
+.bi:first-child { border-top: 0; }
+.bi .t { color: var(--text-2); display: inline-flex; gap: 5px; align-items: flex-start; }
+.bi .t::before { content: ""; width: 3px; align-self: stretch; border-radius: 1px; background: var(--line-strong); flex: none; }
+.bi.warn .t::before { background: var(--warn); } .bi.warn .t { color: var(--warn); }
+.bi.info .t::before { background: var(--focus); }
+.bi .d { color: var(--text-2); } .bi .d b { color: var(--text); font-weight: 500; }
+.bi.hit { background: color-mix(in srgb, var(--focus) 10%, transparent); }
+.disclaim { flex: none; min-height: 22px; display: flex; align-items: baseline; line-height: 1.5; gap: 8px; padding: 3px 10px; font-size: var(--fs-1); color: var(--text-3); border-top: 1px solid var(--line); background: var(--panel-2); }
+.disclaim::before { content: "ⓘ"; flex: none; }
+.disclaim b { font-weight: 500; color: var(--text-2); }
+
+/* 定義が変わって未計算のとき */
+.stale .grid { opacity: .5; filter: saturate(.4); }
+.staleBar { display: none; position: sticky; top: 0; z-index: 4; margin: 6px 6px 0; padding: 6px 10px; border: 1px solid var(--focus); background: color-mix(in srgb, var(--focus) 14%, var(--panel)); border-radius: var(--radius); font-size: var(--fs-2); color: var(--text); align-items: center; gap: 10px; }
+.stale .staleBar { display: flex; }
+
+/* 計算中 */
+.calc .card > * { visibility: hidden; }
+.calc .card { background: linear-gradient(100deg, var(--panel) 30%, var(--panel-2) 50%, var(--panel) 70%); background-size: 300% 100%; animation: sk 1.6s linear infinite; }
+@keyframes sk { to { background-position: -200% 0; } }
+.loader { display: none; position: sticky; top: 34%; height: 0; z-index: 5; justify-content: center; align-items: flex-start; overflow: visible; }
+.calc .loader { display: flex; }
+.loader .box { transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 26px 16px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: 0 10px 40px rgb(0 0 0 / .35); min-width: min(320px, calc(100cqi - 24px)); text-align: center; }
+/* 0 日目から線が扇のように開く印（このペインの読み込み中の印） */
+.loader svg { width: 120px; height: 40px; }
+.loader svg path { fill: none; stroke: var(--ev-line); stroke-width: 1.5; stroke-dasharray: 120; stroke-dashoffset: 120; animation: fan 1.4s ease-in-out infinite; }
+.loader svg path:nth-child(2) { animation-delay: .12s; opacity: .7; } .loader svg path:nth-child(3) { animation-delay: .24s; opacity: .5; } .loader svg path:nth-child(4) { animation-delay: .36s; opacity: .35; }
+@keyframes fan { 0% { stroke-dashoffset: 120; } 60%, 100% { stroke-dashoffset: 0; } }
+.loader .ttl { font-size: var(--fs-3); color: var(--text); font-weight: 500; }
+.loader .what { font-size: var(--fs-1); color: var(--text-3); line-height: 1.7; font-family: var(--mono); }
+.loader .prog { width: 240px; height: 2px; background: var(--panel-3); border-radius: 1px; overflow: hidden; position: relative; }
+.loader .prog i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--focus); width: 0; transition: width 120ms linear; }
+:root[data-reduce-motion="true"] .calc .card, :root[data-reduce-motion="true"] .loader svg path { animation: none; stroke-dashoffset: 0; }
+
+/* 0 件 */
+.none { display: none; flex-direction: column; gap: 8px; align-items: center; text-align: center; padding: 70px 20px; color: var(--text-2); }
+.none .ttl { font-size: var(--fs-4); color: var(--text); }
+.isnone .none { display: flex; } .isnone .grid { display: none; }
+
+/* ダイアログ（指標を選ぶ・保存した条件） */
+.dlg { position: absolute; inset: 0; background: rgb(0 0 0 / .35); display: none; align-items: flex-start; justify-content: center; padding-top: 70px; z-index: 10; }
+.dlg.open { display: flex; }
+.dlg .box { width: 460px; max-width: calc(100% - 24px); background: var(--panel); border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: 0 10px 40px rgb(0 0 0 / .4); max-height: 80%; display: flex; flex-direction: column; }
+.dlg .box h4 { margin: 0; padding: 8px 12px; font-size: var(--fs-2); font-weight: 500; border-bottom: 1px solid var(--line); display: flex; gap: 6px; }
+.dlg .box h4 span { margin-left: auto; }
+.dlg .lst { overflow: auto; scrollbar-width: thin; padding-bottom: 6px; }
+.dlg .grp { padding: 8px 12px 2px; font-size: var(--fs-0); color: var(--text-3); letter-spacing: .05em; }
+.dlg .it { padding: 4px 12px; display: grid; grid-template-columns: 1fr auto; gap: 0 8px; font-size: var(--fs-2); cursor: pointer; }
+.dlg .it .n { color: var(--text-3); font-size: var(--fs-1); }
+.dlg .it .why { grid-column: 1 / -1; font-size: var(--fs-0); color: var(--text-3); }
+.dlg .it.sel { background: var(--panel-3); box-shadow: inset 2px 0 0 var(--focus); }
+.dlg .it.dis { opacity: .5; }
+.dlg .it.dis .why { color: var(--warn); }
+.toast { position: absolute; right: 14px; bottom: 34px; background: var(--panel-3); border: 1px solid var(--line-strong); border-radius: 3px; padding: 6px 12px; font-size: var(--fs-1); opacity: 0; transition: opacity var(--motion); pointer-events: none; z-index: 11; max-width: 60%; }
+.toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="bar" id="mockbar">
+  <b>イベントスタディ（モック）</b>
+  <span class="mute">幅</span><button data-size="S">S</button><button data-size="M">M</button><button data-size="L" aria-pressed="true">L</button>
+  <span class="sep"></span><span class="mute">テーマ</span><button data-theme="dark" aria-pressed="true">ダーク</button><button data-theme="light">ライト</button>
+  <span class="sep"></span><span class="mute">色</span><button data-candle="jp" aria-pressed="true">日本式</button><button data-candle="us">米国式</button>
+  <span class="sep"></span><span class="mute">範囲</span><button data-scope="all" aria-pressed="true">P2 まで（構想）</button><button data-scope="p1">P1 だけ</button>
+  <span class="sep"></span><span class="mute">状態</span><button data-state="ok" aria-pressed="true">通常</button><button data-state="loading">計算中</button><button data-state="none">0 件</button><button data-state="short">保存期間 3 年</button>
+  <span class="sep"></span><span class="mute">条件</span><span id="presetBtns"></span>
+  <span class="sep"></span><button data-motion>動きを減らす</button>
+  <span class="fict">値はすべて架空（銘柄名とコードだけ実在）</span>
+</div>
+<div class="stage">
+  <div class="pane" id="pane">
+    <div class="ph">
+      <span class="link" title="リンク 1">1</span>
+      <span class="title">イベントスタディ</span>
+      <span class="lab" title="過去の値の分布を数える研究の道具。売買の判定はしない">研究</span>
+      <span class="badge" id="badge" title="前提（N）"></span>
+      <span class="asof num" id="asof"></span>
+      <span class="tools" aria-hidden="true" title="アプリの PaneHeader の操作のボタン（モックでは飾り）"><i>⋯</i><i>◫</i><i>⊟</i><i>▾</i><i>⇤</i><i>⤢</i><i>✕</i></span>
+    </div>
+    <div class="say" id="say"></div>
+    <div class="main">
+      <aside class="def" id="def" tabindex="-1">
+        <div class="scroll">
+          <div class="dh">出来事の条件 <span class="r"><kbd>F</kbd><kbd>Ins</kbd><kbd>Del</kbd></span></div>
+          <div class="conds" id="conds"></div>
+          <div class="dh">測り方</div>
+          <div class="srows" id="srows"></div>
+          <div class="run" id="run"><span class="dot"></span><span id="runText"></span><span class="r"><kbd>Ctrl+Enter</kbd></span></div>
+          <div class="dh">試行の記録 <span class="p2tag p2only">P2</span><span class="r mute" id="trialCount"></span></div>
+          <div class="mt" id="mt"></div>
+          <div class="trials p2only" id="trials"></div>
+        </div>
+        <div class="dkeys"><span><kbd>↑</kbd><kbd>↓</kbd> 行</span><span><kbd>←</kbd><kbd>→</kbd> 値</span><span><kbd>O</kbd> ≥ ⇔ ≤</span><span><kbd>A</kbd> かつ ⇔ または</span><span><kbd>F</kbd> 指標</span><span><kbd>Ctrl+O</kbd> 保存した条件</span></div>
+      </aside>
+      <div class="body" id="body">
+        <div class="loader" role="status" aria-live="polite"><div class="box">
+          <svg viewBox="0 0 120 40"><path d="M4 20 L116 6" /><path d="M4 20 L116 16" /><path d="M4 20 L116 26" /><path d="M4 20 L116 36" /></svg>
+          <div class="ttl">出来事を数えています</div><div class="what" id="loaderWhat"></div><div class="prog"><i id="prog"></i></div></div></div>
+        <div class="staleBar">定義が変わりました。下は前の結果です。<span style="margin-left:auto"><kbd>Ctrl+Enter</kbd> 計算</span></div>
+        <div class="none"><div class="ttl">条件に合う出来事が 0 件です</div><div id="noneWhy"></div></div>
+        <div class="grid" id="grid">
+          <div class="card c-kpi" data-card="kpi"><div class="kpi" id="kpi"></div><div class="brief" id="brief"></div></div>
+          <div class="card c-car" data-card="car">
+            <h3>出来事のあとの超過リターン <span class="sub" id="carSub"></span><span class="ii" title="BHAR: 約定の日から k 日後までの銘柄の騰落率 − 比べる相手の騰落率（どちらも配当込みの価格）">i</span>
+              <span class="right"><span class="seg" id="segStat"></span></span></h3>
+            <div class="legend" id="carLegend"></div>
+            <div class="chart" id="carChart"></div>
+            <div class="readout" id="carRead"></div>
+            <div class="keys"><span><kbd>←</kbd><kbd>→</kbd> 日（Shift で 10 日）</span><span><kbd>Alt+1〜5</kbd> 何日後</span><span><kbd>M</kbd> 中央値 ⇔ 平均</span><span><kbd>Home</kbd><kbd>End</kbd> 端</span></div>
+          </div>
+          <div class="card c-hz" data-card="hz">
+            <h3>何日後ごと <span class="sub">超過リターン</span><span class="right mute" style="font-size:var(--fs-1)">t 値は同じ日をまとめて数える</span></h3>
+            <div class="dt hz" id="hzTable"></div>
+            <div class="note" id="hzNote"></div>
+            <div class="keys"><span><kbd>↑</kbd><kbd>↓</kbd> 何日後（図と連動）</span></div>
+          </div>
+          <div class="card c-dist" data-card="dist">
+            <h3>分布 <span class="sub" id="distSub"></span><span class="right legend"><span><i class="sw" style="background:color-mix(in srgb,var(--ev-line) 55%,transparent)"></i>出来事</span><span class="p2only"><i class="ln dot" style="border-color:var(--ev-rand)"></i>無作為</span></span></h3>
+            <div class="chart" id="distChart"></div>
+            <div class="note" id="distNote"></div>
+          </div>
+          <div class="card c-brk p2only" data-card="brk">
+            <h3>分けて見る <span class="p2tag">P2</span><span class="sub" id="brkSub"></span><span class="right"><span class="seg" id="segG"></span></span></h3>
+            <div class="brk" id="brk"></div>
+            <div class="keys"><span><kbd>G</kbd> 年 ⇔ 業種 ⇔ 規模</span><span><kbd>↑</kbd><kbd>↓</kbd> 行</span><span><kbd>Enter</kbd> 一覧をその行で絞る</span></div>
+          </div>
+          <div class="card c-dens" data-card="dens">
+            <h3>出来事の集中 <span class="sub">月ごとの件数と比べる相手の値動き</span><span class="right mute" style="font-size:var(--fs-1)" id="densSub"></span></h3>
+            <div class="chart" id="densChart"></div>
+            <div class="note" id="densNote"></div>
+          </div>
+          <div class="card c-ev" data-card="ev">
+            <h3>出来事の一覧 <span class="sub" id="evSub"></span><span class="right keys"><span><kbd>↑</kbd><kbd>↓</kbd> 行</span><span><kbd>S</kbd> 並べ替え</span><span><kbd>Enter</kbd> リンク 1 のチャートをその日へ</span><span><kbd>Esc</kbd> 絞りを外す</span></span></h3>
+            <div class="dt" id="evTable"></div>
+          </div>
+          <div class="card c-basis" data-card="basis"><h3>前提 <span class="right mute" style="font-size:var(--fs-1)">この結果に効いているもの</span></h3><div class="basis" id="basis"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="disclaim" role="note"><span><b>過去の値動きの分布を数えた結果です。</b>将来の値動きや売買の判断を示すものではありません。投資の判断はご自身の責任で行ってください。</span></div>
+    <div class="dlg" id="dlg"><div class="box"><h4 id="dlgTitle"></h4><div class="lst" id="dlgList"></div></div></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+<script>
+// ============================================================ 架空のデータ（種つきの乱数。銘柄名とコードだけ実在）
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 } }
+const R = rng(20261113)
+const gauss = (r) => { let u = 0, v = 0; while (!u) u = r(); while (!v) v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) }
+
+// 営業日（モックは土日だけ除く）。2016-11-14 〜 2026-11-13
+const DATES = []
+for (let d = new Date(Date.UTC(2016, 10, 14)); d <= new Date(Date.UTC(2026, 10, 13)); d.setUTCDate(d.getUTCDate() + 1)) {
+  const w = d.getUTCDay(); if (w && w < 6) DATES.push(d.toISOString().slice(0, 10))
+}
+const D = DATES.length
+const YDAYS = 261
+const idxOn = (s) => { let i = DATES.findIndex((x) => x >= s); return i < 0 ? D - 1 : i }
+
+const STOCKS = [
+  ['7203', 'トヨタ自動車', '輸送用機器'], ['6758', 'ソニーグループ', '電気機器'], ['8306', '三菱UFJフィナンシャル・グループ', '銀行業'], ['9984', 'ソフトバンクグループ', '情報・通信業'],
+  ['6861', 'キーエンス', '電気機器'], ['9432', '日本電信電話', '情報・通信業'], ['8035', '東京エレクトロン', '電気機器'], ['4063', '信越化学工業', '化学'],
+  ['9433', 'KDDI', '情報・通信業'], ['8058', '三菱商事', '卸売業'], ['8001', '伊藤忠商事', '卸売業'], ['8031', '三井物産', '卸売業'],
+  ['6501', '日立製作所', '電気機器'], ['7974', '任天堂', 'その他製品'], ['4502', '武田薬品工業', '医薬品'], ['4568', '第一三共', '医薬品'],
+  ['6098', 'リクルートホールディングス', 'サービス業'], ['8316', '三井住友フィナンシャルグループ', '銀行業'], ['8411', 'みずほフィナンシャルグループ', '銀行業'], ['8766', '東京海上ホールディングス', '保険業'],
+  ['9983', 'ファーストリテイリング', '小売業'], ['6367', 'ダイキン工業', '機械'], ['6954', 'ファナック', '電気機器'], ['7267', '本田技研工業', '輸送用機器'],
+  ['6902', 'デンソー', '輸送用機器'], ['4519', '中外製薬', '医薬品'], ['6981', '村田製作所', '電気機器'], ['6594', 'ニデック', '電気機器'],
+  ['4661', 'オリエンタルランド', 'サービス業'], ['2914', '日本たばこ産業', '食料品'], ['3382', 'セブン&アイ・ホールディングス', '小売業'], ['8802', '三菱地所', '不動産業'],
+  ['8801', '三井不動産', '不動産業'], ['9020', '東日本旅客鉄道', '陸運業'], ['9022', '東海旅客鉄道', '陸運業'], ['5108', 'ブリヂストン', 'ゴム製品'],
+  ['5401', '日本製鉄', '鉄鋼'], ['7011', '三菱重工業', '機械'], ['6301', '小松製作所', '機械'], ['6273', 'SMC', '機械'],
+  ['4543', 'テルモ', '精密機器'], ['7741', 'HOYA', '精密機器'], ['4901', '富士フイルムホールディングス', '化学'], ['6702', '富士通', '電気機器'],
+  ['6752', 'パナソニック ホールディングス', '電気機器'], ['8591', 'オリックス', 'その他金融業'], ['8604', '野村ホールディングス', '証券、商品先物取引業'], ['8725', 'MS&ADインシュアランスグループホールディングス', '保険業'],
+  ['1605', 'INPEX', '鉱業'], ['5020', 'ENEOSホールディングス', '石油・石炭製品'], ['9501', '東京電力ホールディングス', '電気・ガス業'], ['9531', '東京瓦斯', '電気・ガス業'],
+  ['9101', '日本郵船', '海運業'], ['9104', '商船三井', '海運業'], ['9201', '日本航空', '空運業'], ['9202', 'ANAホールディングス', '空運業'],
+  ['2502', 'アサヒグループホールディングス', '食料品'], ['2802', '味の素', '食料品'], ['4452', '花王', '化学'], ['4911', '資生堂', '化学'],
+  ['3402', '東レ', '繊維製品'], ['5802', '住友電気工業', '非鉄金属'], ['5713', '住友金属鉱山', '非鉄金属'], ['1925', '大和ハウス工業', '建設業'],
+  ['1928', '積水ハウス', '建設業'], ['1801', '大成建設', '建設業'], ['5201', 'AGC', 'ガラス・土石製品'], ['3861', '王子ホールディングス', 'パルプ・紙'],
+  ['1332', 'ニッスイ', '水産・農林業'], ['9064', 'ヤマトホールディングス', '陸運業'], ['9301', '三菱倉庫', '倉庫・運輸関連業'], ['5938', 'LIXIL', '金属製品'],
+  ['7751', 'キヤノン', '電気機器'], ['2413', 'エムスリー', 'サービス業'], ['4755', '楽天グループ', 'サービス業'], ['8267', 'イオン', '小売業'],
+]
+const REITS = [
+  ['8951', '日本ビルファンド投資法人'], ['8952', 'ジャパンリアルエステイト投資法人'], ['3283', '日本プロロジスリート投資法人'], ['8953', '日本都市ファンド投資法人'],
+  ['3462', '野村不動産マスターファンド投資法人'], ['8960', 'ユナイテッド・アーバン投資法人'], ['3269', 'アドバンス・レジデンス投資法人'], ['8972', 'KDX不動産投資法人'],
+  ['3281', 'GLP投資法人'], ['8985', 'ジャパン・ホテル・リート投資法人'], ['8964', 'フロンティア不動産投資法人'], ['3249', '産業ファンド投資法人'],
+  ['8954', 'オリックス不動産投資法人'], ['8963', 'インヴィンシブル投資法人'],
+]
+const WATCH = ['7203', '8306', '9432', '8058', '4502', '2914', '8766', '1605', '9101', '5401', '8951', '3283']
+
+// 市場（1306 の代わり）と REIT 指数（1343 の代わり）。下げの局面の形だけ実際に似せ、大きさは架空
+const EPIS = [
+  ['2018-10-02', '2018-12-25', -0.19], ['2020-02-21', '2020-03-16', -0.29], ['2020-03-17', '2020-06-08', 0.24],
+  ['2022-01-05', '2022-03-08', -0.11], ['2024-07-31', '2024-08-05', -0.17], ['2024-08-06', '2024-08-23', 0.13],
+]
+const mret = new Float64Array(D), rret = new Float64Array(D)
+for (let t = 1; t < D; t++) { const z = gauss(R); mret[t] = 0.00028 + 0.0095 * z; rret[t] = 0.00012 + 0.004 * z + 0.0072 * gauss(R) }
+for (const [a, b, tot] of EPIS) { const i = idxOn(a), j = idxOn(b), n = j - i + 1; for (let t = i; t <= j; t++) { mret[t] += tot / n + 0.012 * gauss(R) * (tot < 0 ? 1 : 0.5); rret[t] += (tot * 0.8) / n } }
+const cumOf = (r) => { const c = new Float64Array(D); c[0] = 1; for (let t = 1; t < D; t++) c[t] = c[t - 1] * Math.exp(r[t]); return c }
+const MKT = cumOf(mret), RIX = cumOf(rret)
+
+// 銘柄: β・業種の動き・ゆっくり戻る固有の動き（平均への回帰）。一部は上場が新しい
+const SECTORS = [...new Set(STOCKS.map((s) => s[2]))]
+const secRet = {}
+for (const s of [...SECTORS, 'REIT']) { const a = new Float64Array(D); for (let t = 1; t < D; t++) a[t] = 0.0055 * gauss(R); secRet[s] = a }
+const U = []
+const mk = (code, name, sector, kind) => {
+  const late = R() < 0.09 ? Math.floor(300 + R() * 1400) : 0
+  const beta = kind === 'reit' ? 0.5 + R() * 0.4 : 0.6 + R() * 0.8
+  const sd = kind === 'reit' ? 0.006 + R() * 0.004 : 0.009 + R() * 0.012
+  const alpha = (R() - 0.5) * 0.0004
+  const C = new Float64Array(D).fill(NaN), V = new Float64Array(D).fill(NaN), RT = new Float64Array(D).fill(NaN)
+  let lp = Math.log(500 + R() * 8000), dev = 0, vb = Math.log(2e5 + R() * 5e6)
+  for (let t = late; t < D; t++) {
+    if (t > late) {
+      const e = sd * gauss(R), nd = 0.985 * dev + e * 0.5
+      const r = beta * (kind === 'reit' ? rret[t] : mret[t]) + secRet[kind === 'reit' ? 'REIT' : sector][t] + alpha + 0.85 * sd * gauss(R) + (nd - dev)
+      dev = nd; lp += r; RT[t] = Math.exp(r) - 1
+      V[t] = Math.exp(vb + 0.35 * gauss(R) + Math.min(3, Math.abs(r) * 40) + (R() < 0.006 ? 1.4 : 0))
+    } else V[t] = Math.exp(vb)
+    C[t] = Math.exp(lp)
+  }
+  U.push({ code, name, sector, kind, start: late, C, V, RT, mcap: Math.exp(25 + 1.6 * gauss(R)) })
+}
+for (const [c, n, s] of STOCKS) mk(c, n, s, 'stock')
+for (const [c, n] of REITS) mk(c, n, 'REIT', 'reit')
+
+// 指標を過去の各日で作り直す（アプリでは Core の派生の表。ここでは起動時に一度）
+function ind(u) {
+  const { C, V, start } = u, f = (n) => new Float64Array(D).fill(NaN)
+  const rsi = f(), ma25 = f(), ma75 = f(), ma200 = f(), dev25 = f(), dev75 = f(), dev200 = f(), fromHi = f(), newHi = f(), newLo = f(), r1m = f(), r3m = f(), vr = f(), vol = f(), gc = f(), dc = f()
+  let ag = 0, al = 0
+  for (let t = start + 1; t < D; t++) {
+    const ch = C[t] - C[t - 1], k = t - start
+    if (k <= 14) { ag += Math.max(ch, 0) / 14; al += Math.max(-ch, 0) / 14 } else { ag = (ag * 13 + Math.max(ch, 0)) / 14; al = (al * 13 + Math.max(-ch, 0)) / 14 }
+    if (k >= 14) rsi[t] = al === 0 ? 100 : 100 - 100 / (1 + ag / al)
+  }
+  const roll = (n, out) => { let s = 0; for (let t = start; t < D; t++) { s += C[t]; if (t - start >= n) s -= C[t - n]; if (t - start >= n - 1) out[t] = s / n } }
+  roll(25, ma25); roll(75, ma75); roll(200, ma200)
+  for (let t = start; t < D; t++) {
+    const k = t - start
+    dev25[t] = (C[t] / ma25[t] - 1) * 100; dev75[t] = (C[t] / ma75[t] - 1) * 100; dev200[t] = (C[t] / ma200[t] - 1) * 100
+    if (k >= 20) r1m[t] = (C[t] / C[t - 20] - 1) * 100
+    if (k >= 60) r3m[t] = (C[t] / C[t - 60] - 1) * 100
+    if (k >= 244) { let hi = -Infinity, lo = Infinity; for (let j = t - 244; j < t; j++) { if (C[j] > hi) hi = C[j]; if (C[j] < lo) lo = C[j] } newHi[t] = C[t] > hi ? 1 : 0; newLo[t] = C[t] < lo ? 1 : 0; fromHi[t] = (C[t] / Math.max(hi, C[t]) - 1) * 100 }
+    if (k >= 21) { let s = 0; for (let j = t - 20; j < t; j++) s += V[j]; vr[t] = V[t] / (s / 20) }
+    if (k >= 61) { let s = 0, s2 = 0; for (let j = t - 59; j <= t; j++) { const r = Math.log(C[j] / C[j - 1]); s += r; s2 += r * r } const m = s / 60; vol[t] = Math.sqrt(Math.max(0, s2 / 60 - m * m)) * Math.sqrt(245) * 100 }
+    if (k >= 76) { gc[t] = ma25[t] > ma75[t] && ma25[t - 1] <= ma75[t - 1] ? 1 : 0; dc[t] = ma25[t] < ma75[t] && ma25[t - 1] >= ma75[t - 1] ? 1 : 0 }
+  }
+  u.f = { rsi14: rsi, dev25, dev75, dev200, fromHi52: fromHi, newHi52: newHi, newLo52: newLo, ret1m: r1m, ret3m: r3m, volRatio: vr, vol60: vol, gc, dc }
+}
+U.forEach(ind)
+
+// 同業種の均等の群（自分を除く）の累積
+const secSum = {}, secN = {}
+for (const u of U) { const k = u.kind === 'reit' ? 'REIT' : u.sector; if (!secSum[k]) { secSum[k] = new Float64Array(D); secN[k] = new Float64Array(D) } for (let t = 1; t < D; t++) if (Number.isFinite(u.RT[t])) { secSum[k][t] += u.RT[t]; secN[k][t]++ } }
+for (const u of U) {
+  const k = u.kind === 'reit' ? 'REIT' : u.sector, c = new Float64Array(D); c[0] = 1
+  for (let t = 1; t < D; t++) { const n = secN[k][t] - (Number.isFinite(u.RT[t]) ? 1 : 0); const r = n > 0 ? (secSum[k][t] - (Number.isFinite(u.RT[t]) ? u.RT[t] : 0)) / n : Math.exp(mret[t]) - 1; c[t] = c[t - 1] * (1 + r) }
+  u.SEC = c
+}
+
+// ============================================================ 指標の登録（アプリでは fields.ts。pit = 過去の日に作り直せる）
+const FIELDS = [
+  { id: 'rsi14', label: 'RSI（14 日）', unit: '', step: 1, grp: '価格（過去の日に作り直せる）' },
+  { id: 'dev25', label: '25 日移動平均乖離率', unit: '%', step: 1, grp: '価格（過去の日に作り直せる）' },
+  { id: 'dev75', label: '75 日移動平均乖離率', unit: '%', step: 1, grp: '価格（過去の日に作り直せる）' },
+  { id: 'dev200', label: '終値と 200 日移動平均', unit: '%', step: 1, ref: '200 日移動平均', grp: '価格（過去の日に作り直せる）' },
+  { id: 'fromHi52', label: '52 週高値からの下落率', unit: '%', step: 1, grp: '価格（過去の日に作り直せる）' },
+  { id: 'ret1m', label: '1 か月騰落率', unit: '%', step: 1, grp: '価格（過去の日に作り直せる）' },
+  { id: 'ret3m', label: '3 か月騰落率', unit: '%', step: 1, grp: '価格（過去の日に作り直せる）' },
+  { id: 'vol60', label: 'ボラティリティ（60 日・年率）', unit: '%', step: 2, grp: '価格（過去の日に作り直せる）' },
+  { id: 'volRatio', label: '出来高倍率（20 日平均比）', unit: '倍', step: 0.5, grp: '出来高' },
+  { id: 'newHi52', label: '52 週高値を更新', bool: true, grp: '形（その日に起きたこと）' },
+  { id: 'newLo52', label: '52 週安値を更新', bool: true, grp: '形（その日に起きたこと）' },
+  { id: 'gc', label: 'ゴールデンクロス（25 / 75 日）', bool: true, grp: '形（その日に起きたこと）' },
+  { id: 'dc', label: 'デッドクロス（25 / 75 日）', bool: true, grp: '形（その日に起きたこと）' },
+  { id: 'per', label: 'PER', lock: '過去の値を持たない（今の値だけ）。使うと後知恵になる', grp: '使えない' },
+  { id: 'pbr', label: 'PBR', lock: '過去の値を持たない（今の値だけ）', grp: '使えない' },
+  { id: 'roe', label: 'ROE', lock: '過去の決算を持たない', grp: '使えない' },
+  { id: 'mcap', label: '時価総額', lock: '発行済株式数が今の値だけ。規模で分けるときは「今の値」と明記して使う', grp: '使えない' },
+  { id: 'earn', label: '決算発表までの日数', lock: '過去の発表日を持たない', grp: '使えない' },
+]
+const FD = Object.fromEntries(FIELDS.map((f) => [f.id, f]))
+const PRESETS = [
+  { name: 'RSI 30 以下（200 日線の上）', conds: [{ field: 'rsi14', op: '<=', value: 30 }, { field: 'dev200', op: '>=', value: 0 }] },
+  { name: '52 週高値の更新', conds: [{ field: 'newHi52', op: '=', value: true }] },
+  { name: '25 日線から −15% 以下', conds: [{ field: 'dev25', op: '<=', value: -15 }] },
+  { name: '出来高の急増（3 倍以上・上げ）', conds: [{ field: 'volRatio', op: '>=', value: 3 }, { field: 'ret1m', op: '>=', value: 0 }] },
+  { name: 'ゴールデンクロス', conds: [{ field: 'gc', op: '=', value: true }] },
+]
+
+// ============================================================ 状態
+const HZ = [5, 20, 60, 120, 250], PRE = 20, POST = 250
+const UNIS = [{ id: 'prime', label: 'プライム（株式）' }, { id: 'reit', label: 'J-REIT' }, { id: 'sector', label: '業種: 電気機器' }, { id: 'watch', label: '★ ウォッチリスト' }]
+const BENCH = [{ id: '1306', label: '1306（TOPIX 連動）' }, { id: '1343', label: '1343（東証REIT 連動）' }, { id: 'sec', label: '同業種の均等の群', p2: true }, { id: 'none', label: 'なし（騰落率そのまま）' }]
+const LAGS = [{ id: 1, label: '翌日の終値' }, { id: 0, label: '当日の終値', warn: true }]
+const GAPS = [0, 5, 20, 60]
+const YEARS = [3, 5, 10]
+const st = {
+  conds: structuredClone(PRESETS[0].conds), uni: 0, bench: 0, lag: 0, gap: 2, years: 2, maxYears: 10,
+  h: 2, stat: 'med', brk: 0, cross: null, focus: 'car', defRow: 0, evSel: 0, evSort: 0, brkSel: 0, evFilter: null,
+  dirty: false, res: null, trials: [], trialSel: -1, state: 'ok', scope: 'all', presetIx: 0,
+}
+const pane = document.getElementById('pane'), body = document.getElementById('body'), def = document.getElementById('def')
+const $ = (id) => document.getElementById(id)
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const fmtP = (v, d = 1) => (Number.isFinite(v) ? `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(d)}%` : '—')
+const tone = (v) => (v > 0 ? 'up' : v < 0 ? 'down' : 'flat')
+const nf = (n) => n.toLocaleString('ja-JP')
+const opTxt = (op) => (op === '<=' ? '≤' : op === '>=' ? '≥' : '＝')
+const condTxt = (c) => { const f = FD[c.field]; if (f.bool) return f.label; if (f.ref) return `終値 ${opTxt(c.op)} ${f.ref} ${c.value >= 0 ? '+' : '−'}${Math.abs(c.value)}%`; return `${f.label} ${opTxt(c.op)} ${c.value}${f.unit}` }
+const defTxt = (conds) => conds.map((c, i) => (i ? (c.or ? ' または ' : ' かつ ') : '') + condTxt(c)).join('')
+const uniMembers = () => {
+  const u = UNIS[st.uni].id
+  return U.filter((x) => (u === 'prime' ? x.kind === 'stock' : u === 'reit' ? x.kind === 'reit' : u === 'sector' ? x.sector === '電気機器' : WATCH.includes(x.code)))
+}
+const benchOf = (u, e, k) => {
+  const b = BENCH[st.bench].id
+  if (b === 'none') return 0
+  const S = b === '1306' ? MKT : b === '1343' ? RIX : u.SEC
+  return S[e + k] / S[e] - 1
+}
+
+// ============================================================ 計算（アプリでは Core。ここでは同じ手順をモックの中で回す）
+function test(u, t) {
+  let groups = [], cur = null
+  for (const c of st.conds) {
+    const a = u.f[c.field][t]
+    let ok = Number.isFinite(a) && (FD[c.field].bool ? a === 1 : c.op === '<=' ? a <= c.value : a >= c.value)
+    if (c.or && cur) cur.push(ok); else { cur = [ok]; groups.push(cur) }
+  }
+  return groups.length > 0 && groups.every((g) => g.some(Boolean))
+}
+function quant(sorted, q) { const n = sorted.length; if (!n) return NaN; const p = (n - 1) * q, i = Math.floor(p); return sorted[i] + (sorted[Math.min(n - 1, i + 1)] - sorted[i]) * (p - i) }
+function compute() {
+  const mem = uniMembers(), lag = LAGS[st.lag].id, gap = GAPS[st.gap], yrs = Math.min(YEARS[st.years], st.maxYears)
+  const from = Math.max(0, D - yrs * YDAYS), K = PRE + POST + 1
+  const ev = []
+  for (const u of mem) {
+    let last = -1e9, prev = false
+    for (let t = Math.max(from, u.start + 1); t < D; t++) {
+      const ok = test(u, t)
+      if (ok && !prev && t - last >= gap && t + lag < D) {
+        const e = t + lag, path = new Float32Array(K).fill(NaN)
+        for (let k = -PRE; k <= POST; k++) { const j = e + k; if (j >= Math.max(u.start, 0) && j < D) path[k + PRE] = ((u.C[j] / u.C[e] - 1) - benchOf(u, e, k)) * 100 }
+        ev.push({ u, t, e, path, val: u.f[st.conds[0].field][t] })
+        last = t
+      }
+      prev = ok
+    }
+  }
+  // k ごとの分布
+  const q = { med: [], mean: [], q25: [], q75: [], q10: [], q90: [], n: [] }
+  for (let i = 0; i < K; i++) {
+    const a = []; for (const x of ev) { const v = x.path[i]; if (Number.isFinite(v)) a.push(v) }
+    a.sort((x, y) => x - y)
+    q.med.push(quant(a, 0.5)); q.q25.push(quant(a, 0.25)); q.q75.push(quant(a, 0.75)); q.q10.push(quant(a, 0.1)); q.q90.push(quant(a, 0.9))
+    q.mean.push(a.length ? a.reduce((s, v) => s + v, 0) / a.length : NaN); q.n.push(a.length)
+  }
+  // 偶然との比較: 同じ約定の日に、同じ対象から無作為に 1 銘柄を選ぶ × 200 回
+  const RR = rng(7 + st.conds.length * 31 + st.uni * 7 + st.bench), REP = 200
+  const repMed = HZ.map(() => []), randPool = HZ.map(() => []), randPath = []
+  const RK = []; for (let k = 0; k <= POST; k += 5) RK.push(k)
+  const rpool = RK.map(() => [])
+  for (let r = 0; r < REP; r++) {
+    const vals = HZ.map(() => [])
+    for (const x of ev) {
+      const u = mem[Math.floor(RR() * mem.length)]
+      if (!(u.start <= x.e) || !Number.isFinite(u.C[x.e])) continue
+      HZ.forEach((h, hi) => { if (x.e + h < D) { const v = ((u.C[x.e + h] / u.C[x.e] - 1) - benchOf(u, x.e, h)) * 100; vals[hi].push(v); if (r < 20) randPool[hi].push(v) } })
+      if (r < 8) RK.forEach((k, ki) => { if (x.e + k < D) rpool[ki].push(((u.C[x.e + k] / u.C[x.e] - 1) - benchOf(u, x.e, k)) * 100) })
+    }
+    vals.forEach((a, hi) => { a.sort((x, y) => x - y); repMed[hi].push(quant(a, 0.5)) })
+  }
+  rpool.forEach((a) => { a.sort((x, y) => x - y); randPath.push(quant(a, 0.5)) })
+  // 何日後ごと
+  const hz = HZ.map((h, hi) => {
+    const i = PRE + h, a = ev.map((x) => x.path[i]).filter(Number.isFinite).sort((x, y) => x - y)
+    const byDay = new Map(); for (const x of ev) { const v = x.path[i]; if (Number.isFinite(v)) { const g = byDay.get(x.e) || []; g.push(v); byDay.set(x.e, g) } }
+    const dm = [...byDay.values()].map((g) => g.reduce((s, v) => s + v, 0) / g.length)
+    const m = dm.reduce((s, v) => s + v, 0) / (dm.length || 1), sd = Math.sqrt(dm.reduce((s, v) => s + (v - m) ** 2, 0) / Math.max(1, dm.length - 1))
+    const med = quant(a, 0.5), rm = repMed[hi].filter(Number.isFinite)
+    const pct = rm.length ? (rm.filter((v) => v < med).length / rm.length) * 100 : NaN
+    const rp = randPool[hi].slice().sort((x, y) => x - y)
+    return { h, n: a.length, days: dm.length, med, mean: a.reduce((s, v) => s + v, 0) / (a.length || 1), q25: quant(a, 0.25), q75: quant(a, 0.75), pos: (a.filter((v) => v > 0).length / (a.length || 1)) * 100, t: dm.length > 2 ? m / (sd / Math.sqrt(dm.length)) : NaN, pct, randMed: quant(rp, 0.5), randPos: (rp.filter((v) => v > 0).length / (rp.length || 1)) * 100, vals: a, rand: rp }
+  })
+  const days = new Set(ev.map((x) => x.e)).size
+  const covered = mem.filter((u) => u.start <= from).length
+  return { ev, q, hz, days, mem, from, yrs, randPath, RK, covered }
+}
+
+// ============================================================ 描く
+const W = (el) => [el.clientWidth, el.clientHeight]
+function svgOf(el, w, h, inner) { el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${inner}</svg>` + (el.dataset.keep || '') }
+const niceTicks = (lo, hi, n = 5) => { const span = hi - lo, step0 = span / n, mag = 10 ** Math.floor(Math.log10(step0)), step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => span / s <= n) || mag * 10; const a = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) a.push(+v.toFixed(6)); return a }
+
+function renderBadge() {
+  const r = st.res, b = []
+  b.push(`<span class="warn" title="今上場している銘柄だけで測っている">生存者の偏り</span>`)
+  if (r && r.yrs > 3.6) b.push(`<span class="warn opt" title="プライム市場は 2022 年 4 月から">2022/4 より前は東証一部の時代</span>`)
+  b.push(`<span class="${LAGS[st.lag].warn ? 'warn' : ''}">${LAGS[st.lag].label}で約定</span>`)
+  if (r) b.push(`<span class="opt num">n ${nf(r.ev.length)} · 独立した日 ${nf(r.days)}</span>`)
+  if (st.maxYears < 5) b.push(`<span class="warn">保存期間 3 年</span>`)
+  $('badge').innerHTML = b.join('')
+  $('asof').textContent = `${DATES[D - 1].replace(/-/g, '/')}（金）終値まで`
+}
+function renderSay() {
+  $('say').innerHTML = `<span><b>${esc(UNIS[st.uni].label)}</b> で <b>${esc(defTxt(st.conds))}</b> が成り立ち始めた日を出来事とし、<b>${LAGS[st.lag].label}</b>で約定、<b>${esc(BENCH[st.bench].label)}</b> との差を <b>${Math.min(YEARS[st.years], st.maxYears)} 年</b>で測る</span><span style="margin-left:auto"><kbd>E</kbd> 定義を開く</span>`
+}
+function renderDef() {
+  const rows = []
+  st.conds.forEach((c, i) => {
+    const f = FD[c.field]
+    if (i) rows.push(`<div class="cj ${c.or ? 'or' : ''}">${c.or ? 'または' : 'かつ'}</div>`)
+    const v = f.bool ? '成立' : f.ref ? `${c.value >= 0 ? '+' : '−'}${Math.abs(c.value)}%` : `${c.value}${f.unit}`
+    rows.push(`<div class="cr ${st.focus === 'def' && st.defRow === i ? 'sel' : ''}" data-row="${i}"><span class="f" title="${esc(f.label)}">${esc(f.ref ? '終値' : f.label)}</span><span class="op">${f.bool ? '' : opTxt(c.op)}</span><span class="v">${esc(f.ref ? `${f.ref.replace(' 移動平均', '線')} ${v}` : v)}</span></div>`)
+  })
+  $('conds').innerHTML = rows.join('')
+  const nc = st.conds.length, yrs = Math.min(YEARS[st.years], st.maxYears)
+  const S = [
+    ['対象', UNIS[st.uni].label, 'U'],
+    ['比べる相手', BENCH[st.bench].label + (BENCH[st.bench].p2 ? '（P2）' : ''), 'B'],
+    ['約定', LAGS[st.lag].label + (LAGS[st.lag].warn ? '（後知恵の恐れ）' : ''), 'L', LAGS[st.lag].warn],
+    ['間隔', GAPS[st.gap] ? `同じ銘柄は ${GAPS[st.gap]} 営業日あける` : 'あけない（重なる）', 'O', !GAPS[st.gap]],
+    ['期間', `${yrs} 年（${DATES[Math.max(0, D - yrs * YDAYS)].slice(0, 7)}〜）` + (st.maxYears < 5 ? ' · 保存期間 3 年' : ''), 'Y', st.maxYears < 5],
+  ]
+  $('srows').innerHTML = S.map(([k, v, key, w], i) => `<div class="srow ${st.focus === 'def' && st.defRow === nc + i ? 'sel' : ''}" data-row="${nc + i}"><span class="k">${k}</span><span class="v ${w ? 'warn' : ''}">${esc(v)}</span><kbd>${key}</kbd></div>`).join('')
+  const run = $('run'); run.classList.toggle('dirty', st.dirty)
+  $('runText').innerHTML = st.dirty ? '<b>計算する</b> · 定義が変わりました' : `<b>計算済み</b> · ${st.res ? `出来事 ${nf(st.res.ev.length)} 件` : ''}`
+  // 試行の記録と多重比較の注意
+  const N = st.trials.length
+  $('trialCount').textContent = `${N} 通り`
+  const p = 1 - 0.95 ** N
+  $('mt').innerHTML = N <= 1 ? 'この画面で試した条件はまだ 1 通りです。条件を変えて何度も試すと、偶然よく見える条件が見つかりやすくなります。' : `この画面で <b>${N}</b> 通り試しました。どれにも効き目が無くても、少なくとも 1 つが偶然 95%点を超える確率は <b>${Math.round(p * 100)}%</b> です。`
+  $('trials').innerHTML = st.trials.slice().reverse().map((t, ri) => { const i = N - 1 - ri; return `<div class="tr ${t.cur ? 'cur' : ''} ${st.trialSel === i && st.focus === 'def' ? 'sel' : ''}" data-trial="${i}"><span class="no">#${i + 1}</span><span class="d" title="${esc(t.def)}">${esc(t.def)}</span><span class="no">${t.h}日</span><span class="m">${esc(t.uni)} · n ${nf(t.n)} · <span class="${tone(t.med)}">${fmtP(t.med)}</span> · ${Number.isFinite(t.pct) ? Math.round(t.pct) + '%点' : '—'}</span></div>` }).join('')
+  def.classList.toggle('focus', st.focus === 'def')
+}
+function renderKpi() {
+  const r = st.res, z = r.hz[st.h], yrs = r.yrs
+  const tiles = [
+    ['出来事', nf(r.ev.length), `独立した日 ${nf(r.days)} · ${z.h} 日後まで届いた ${nf(z.n)}`, ''],
+    [`${z.h} 日後の超過・中央値`, `<span class="${tone(z.med)}">${fmtP(z.med)}</span>`, `平均 ${fmtP(z.mean)} · 25〜75% ${fmtP(z.q25)} 〜 ${fmtP(z.q75)}`, ''],
+    ['プラスになった割合', `${z.pos.toFixed(1)}<small>%</small>`, `無作為では ${z.randPos.toFixed(1)}%`, ''],
+    ['t 値（同じ日をまとめる）', `${Number.isFinite(z.t) ? z.t.toFixed(2) : '—'}`, `独立した日 ${nf(z.days)} で数える · |t| ≥ 2 が目安`, ''],
+    ['偶然との比較', `${Number.isFinite(z.pct) ? Math.round(z.pct) : '—'}<small>%点</small>`, '同じ日に無作為に選んだ群 200 回の中の位置', 'p2only'],
+    ['データのある銘柄', `${r.covered}<small>/ ${r.mem.length}</small>`, `期間の始め（${DATES[r.from].slice(0, 7)}）にデータがあった数`, ''],
+  ]
+  $('kpi').innerHTML = tiles.map(([k, v, s, c], i) => `<div class="kt ${c}"><span class="k">${k}</span><span class="v">${v}</span><span class="s" title="${esc(s.replace(/<[^>]+>/g, ''))}">${s}</span>${i === 4 && Number.isFinite(z.pct) ? `<span class="gauge"><b></b><i style="left:${z.pct}%"></i></span>` : ''}</div>`).join('')
+  const strong = Math.abs(z.t) >= 2 && z.pct >= 95
+  $('brief').innerHTML = `<span class="lead">${esc(UNIS[st.uni].label)}で「${esc(defTxt(st.conds))}」が成り立ち始めた日の ${z.h} 営業日後、${esc(BENCH[st.bench].label.replace(/（.*/, ''))}との差の中央値は <b class="${tone(z.med)}">${fmtP(z.med)}</b>（n ${nf(z.n)}）。<span class="p2only">同じ日に無作為に選んだ群の <b>${Number.isFinite(z.pct) ? Math.round(z.pct) : '—'}%点</b>。</span></span><span class="mute">${strong ? '偶然では出にくい差ですが、' : '偶然でも出る程度の差です。'}${yrs <= 3 ? '期間が短く、局面が少ない結果です。' : 'ほかの局面でも同じかは「分けて見る」で確かめられます。'}</span>`
+}
+function renderCar() {
+  const r = st.res, el = $('carChart'), [w, h] = W(el), q = r.q
+  const pad = { l: 46, r: 14, t: 10, b: 24 }, iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+  const line = st.stat === 'med' ? q.med : q.mean
+  let lo = Infinity, hi = -Infinity
+  for (let i = 0; i < q.med.length; i++) for (const a of [q.q25[i], q.q75[i], line[i]]) if (Number.isFinite(a)) { lo = Math.min(lo, a); hi = Math.max(hi, a) }
+  for (const a of [q.q10, q.q90]) for (const v of a) if (Number.isFinite(v)) { lo = Math.min(lo, v * 0.55); hi = Math.max(hi, v * 0.55) }
+  if (!Number.isFinite(lo)) { lo = -5; hi = 5 }
+  lo = Math.min(lo, -1); hi = Math.max(hi, 1); const sp = (hi - lo) * 0.08; lo -= sp; hi += sp
+  const X = (k) => pad.l + ((k + PRE) / (PRE + POST)) * iw, Y = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * ih
+  const pathOf = (a, step = 1, ks = null) => { let d = '', pen = false; a.forEach((v, i) => { const k = ks ? ks[i] : i - PRE; if (Number.isFinite(v) && (ks || i % step === 0 || i === a.length - 1)) { d += `${pen ? 'L' : 'M'}${X(k).toFixed(1)} ${Y(v).toFixed(1)}`; pen = true } else if (!Number.isFinite(v)) pen = false }); return d }
+  const band = (a, b) => { let up = '', dn = ''; for (let i = 0; i < a.length; i++) if (Number.isFinite(a[i]) && Number.isFinite(b[i])) { up += `${up ? 'L' : 'M'}${X(i - PRE).toFixed(1)} ${Y(b[i]).toFixed(1)}`; dn = `L${X(i - PRE).toFixed(1)} ${Y(a[i]).toFixed(1)}` + dn } return up + dn + 'Z' }
+  let g = ''
+  for (const v of niceTicks(lo, hi, 6)) g += `<line x1="${pad.l}" x2="${w - pad.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--chart-grid)" /><text x="${pad.l - 6}" y="${Y(v) + 3}" text-anchor="end">${v > 0 ? '+' : ''}${v}%</text>`
+  g += `<line x1="${pad.l}" x2="${w - pad.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line-strong)" />`
+  for (const k of [-20, ...HZ]) { const sel = k === HZ[st.h]; g += `<line x1="${X(k)}" x2="${X(k)}" y1="${pad.t}" y2="${h - pad.b}" stroke="${sel ? 'var(--ev-lab)' : 'var(--chart-grid)'}" stroke-dasharray="${sel ? '' : '2 3'}" /><text x="${X(k)}" y="${h - 8}" text-anchor="middle" style="fill:${sel ? 'var(--ev-lab)' : 'var(--text-3)'}">${k > 0 ? '+' : ''}${k}</text>` }
+  g += `<line x1="${X(0)}" x2="${X(0)}" y1="${pad.t}" y2="${h - pad.b}" stroke="var(--text-2)" /><rect class="pill" x="${X(0) + 4}" y="${pad.t}" width="64" height="15" rx="2"/><text x="${X(0) + 8}" y="${pad.t + 11}" style="fill:var(--text-2)">約定（0 日）</text>`
+  g += `<clipPath id="carClip"><rect x="${pad.l}" y="${pad.t}" width="${iw}" height="${ih}" /></clipPath><g clip-path="url(#carClip)">`
+  g += `<path d="${band(q.q10, q.q90)}" fill="var(--ev-line)" opacity="var(--ev-band-wide)" />`
+  g += `<path d="${band(q.q25, q.q75)}" fill="var(--ev-line)" opacity="var(--ev-band)" />`
+  if (st.scope !== 'p1') g += `<path d="${pathOf(r.randPath, 1, r.RK)}" fill="none" stroke="var(--ev-rand)" stroke-width="1.5" stroke-dasharray="2 3" />`
+  g += `<path d="${pathOf(st.stat === 'med' ? q.mean : q.med)}" fill="none" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="5 3" />`
+  g += `<path d="${pathOf(line)}" fill="none" stroke="var(--ev-line)" stroke-width="2" /></g>`
+  const k = st.cross ?? HZ[st.h], i = k + PRE
+  g += `<line x1="${X(k)}" x2="${X(k)}" y1="${pad.t}" y2="${h - pad.b}" stroke="var(--chart-cross)" stroke-dasharray="3 3" />`
+  if (Number.isFinite(line[i])) g += `<circle cx="${X(k)}" cy="${Y(line[i])}" r="3.5" fill="var(--ev-line)" stroke="var(--panel)" stroke-width="1.5" />`
+  svgOf(el, w, h, g)
+  const ri = r.RK.indexOf(Math.round(k / 5) * 5)
+  $('carRead').innerHTML = `<span class="day">${k > 0 ? '+' : ''}${k} 日</span><span>中央値 <b class="${tone(q.med[i])}">${fmtP(q.med[i])}</b></span><span>平均 <b class="${tone(q.mean[i])}">${fmtP(q.mean[i])}</b></span><span>25〜75% <b>${fmtP(q.q25[i])} 〜 ${fmtP(q.q75[i])}</b></span><span>10〜90% <b>${fmtP(q.q10[i])} 〜 ${fmtP(q.q90[i])}</b></span>${st.scope !== 'p1' && k >= 0 ? `<span>無作為の中央値 <b>${fmtP(r.randPath[ri])}</b></span>` : ''}<span>n <b>${nf(q.n[i])}</b></span>`
+  $('carSub').textContent = `${esc(BENCH[st.bench].label.replace(/（.*/, ''))}との差（BHAR）· −20 〜 +250 営業日`
+  $('carLegend').innerHTML = `<span><i class="ln" style="border-color:var(--ev-line)"></i>${st.stat === 'med' ? '中央値' : '平均'}</span><span><i class="ln dash" style="border-color:var(--text-3)"></i>${st.stat === 'med' ? '平均' : '中央値'}</span><span><i class="sw" style="background:color-mix(in srgb,var(--ev-line) 40%,transparent)"></i>25〜75%</span><span><i class="sw" style="background:color-mix(in srgb,var(--ev-line) 16%,transparent)"></i>10〜90%</span><span class="p2only"><i class="ln dot" style="border-color:var(--ev-rand)"></i>同じ日に無作為に選んだ群の中央値</span>`
+  $('segStat').innerHTML = `<span class="${st.stat === 'med' ? 'on' : ''}" data-stat="med">中央値</span><span class="${st.stat === 'mean' ? 'on' : ''}" data-stat="mean">平均</span>`
+}
+function renderHz() {
+  const r = st.res
+  const p2 = st.scope !== 'p1'
+  let lo = 0, hi = 0; for (const z of r.hz) { if (Number.isFinite(z.q25)) lo = Math.min(lo, z.q25); if (Number.isFinite(z.q75)) hi = Math.max(hi, z.q75) }
+  const m = Math.max(Math.abs(lo), Math.abs(hi), 1), P = (v) => 50 + (v / m) * 48
+  $('hzTable').innerHTML = `<table><thead><tr><th class="l">何日後</th><th>n</th><th>中央値</th><th>25〜75%</th><th>平均</th><th>プラス</th><th>t 値</th>${p2 ? '<th>偶然比</th>' : ''}</tr></thead><tbody>${r.hz.map((z, i) => `<tr class="${i === st.h ? 'sel' : ''} ${z.days < 30 ? 'thin' : ''}" data-h="${i}"><td class="l">+${z.h} 日${z.days < 30 ? '<span class="flag warn">少</span>' : ''}</td><td>${nf(z.n)}</td><td class="${tone(z.med)}">${fmtP(z.med)}</td><td><span class="iq"><i style="left:${P(Math.min(z.q25, z.q75))}%;right:${100 - P(Math.max(z.q25, z.q75))}%"></i><b style="left:calc(${P(z.med)}% - 1px)"></b></span></td><td class="${tone(z.mean)}">${fmtP(z.mean)}</td><td>${z.pos.toFixed(0)}%</td><td style="${Math.abs(z.t) >= 2 ? 'color:var(--text)' : 'color:var(--text-3)'}">${Number.isFinite(z.t) ? z.t.toFixed(2) : '—'}</td>${p2 ? `<td><span class="pctl">${Number.isFinite(z.pct) ? Math.round(z.pct) : '—'}<span class="rb"><i style="left:calc(${z.pct || 0}% - 1px)"></i></span></span></td>` : ''}</tr>`).join('')}</tbody></table>`
+  $('hzNote').innerHTML = `250 日後は期間の終わりに近い出来事が届かないため n が減ります。${p2 ? '偶然比は、同じ約定の日に対象から無作為に選んだ群（200 回）の中央値の中での位置（95%点より右を色で示す）。' : ''}`
+}
+function renderDist() {
+  const r = st.res, z = r.hz[st.h], el = $('distChart'), [w, h] = W(el)
+  const pad = { l: 30, r: 8, t: 8, b: 22 }, iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+  const lim = Math.max(10, Math.ceil(Math.max(Math.abs(quant(z.vals, 0.03)), Math.abs(quant(z.vals, 0.97))) / 5) * 5), B = 30, bw = (2 * lim) / B
+  const hist = (a) => { const c = new Array(B).fill(0); for (const v of a) { const i = Math.max(0, Math.min(B - 1, Math.floor((v + lim) / bw))); c[i]++ } return c.map((x) => x / (a.length || 1)) }
+  const ha = hist(z.vals), hr = hist(z.rand), mx = Math.max(...ha, ...hr, 0.01)
+  const X = (v) => pad.l + ((v + lim) / (2 * lim)) * iw, Y = (f) => pad.t + (1 - f / mx) * ih
+  let g = ''
+  for (const v of niceTicks(-lim, lim, 6)) g += `<line x1="${X(v)}" x2="${X(v)}" y1="${pad.t}" y2="${h - pad.b}" stroke="var(--chart-grid)" /><text x="${X(v)}" y="${h - 7}" text-anchor="middle">${v > 0 ? '+' : ''}${v}</text>`
+  ha.forEach((f, i) => { const x0 = -lim + i * bw, c = x0 + bw / 2 >= 0 ? 'var(--up)' : 'var(--down)'; g += `<rect x="${X(x0) + 0.5}" y="${Y(f)}" width="${Math.max(0, X(x0 + bw) - X(x0) - 1)}" height="${h - pad.b - Y(f)}" fill="${c}" opacity=".55" />` })
+  if (st.scope !== 'p1') { let d = ''; hr.forEach((f, i) => { const x0 = -lim + i * bw; d += `${i ? 'L' : 'M'}${X(x0)} ${Y(f)}L${X(x0 + bw)} ${Y(f)}` }); g += `<path d="${d}" fill="none" stroke="var(--ev-rand)" stroke-width="1.3" stroke-dasharray="2 2" />` }
+  g += `<line x1="${X(0)}" x2="${X(0)}" y1="${pad.t}" y2="${h - pad.b}" stroke="var(--line-strong)" />`
+  g += `<line x1="${X(z.med)}" x2="${X(z.med)}" y1="${pad.t}" y2="${h - pad.b}" stroke="var(--ev-line)" stroke-width="2" /><rect class="pill" x="${X(z.med) + 3}" y="${pad.t}" width="70" height="14" rx="2"/><text x="${X(z.med) + 6}" y="${pad.t + 10}" style="fill:var(--ev-line)">中央値 ${fmtP(z.med)}</text>`
+  svgOf(el, w, h, g)
+  $('distSub').textContent = `${z.h} 日後の超過リターン · 幅 ${bw.toFixed(1)}%`
+  $('distNote').textContent = `端の ${lim}% を超える値は両端の棒に入れています。中央値の右に寄っても、左の裾が長ければ大きく負ける回もあります。`
+}
+function renderBrk() {
+  const r = st.res, z = r.hz[st.h], i = PRE + z.h
+  const groups = new Map()
+  const keyOf = (x) => st.brk === 0 ? x.e < D ? DATES[x.e].slice(0, 4) : '' : st.brk === 1 ? (x.u.kind === 'reit' ? 'REIT' : x.u.sector) : null
+  let rows
+  if (st.brk === 2) {
+    const caps = r.mem.map((u) => u.mcap).sort((a, b) => a - b), qb = (u) => Math.min(4, Math.floor((caps.indexOf(u.mcap) / caps.length) * 5))
+    for (const x of r.ev) { const v = x.path[i]; if (!Number.isFinite(v)) continue; const k = ['小', '中小', '中', '中大', '大'][qb(x.u)]; (groups.get(k) || groups.set(k, []).get(k)).push(v) }
+    rows = ['大', '中大', '中', '中小', '小'].filter((k) => groups.has(k)).map((k) => [k, groups.get(k)])
+  } else {
+    for (const x of r.ev) { const v = x.path[i]; if (!Number.isFinite(v)) continue; const k = keyOf(x); (groups.get(k) || groups.set(k, []).get(k)).push(v) }
+    rows = [...groups.entries()]; if (st.brk === 0) rows.sort((a, b) => a[0].localeCompare(b[0])); else rows.sort((a, b) => b[1].length - a[1].length)
+  }
+  const stats = rows.map(([k, a]) => { a.sort((x, y) => x - y); return { k, n: a.length, med: quant(a, 0.5), q25: quant(a, 0.25), q75: quant(a, 0.75) } })
+  const m = Math.max(1, ...stats.map((s) => Math.max(Math.abs(s.q25), Math.abs(s.q75)))), P = (v) => 50 + (v / m) * 48
+  st.brkRows = stats.map((s) => s.k); st.brkSel = Math.min(st.brkSel, stats.length - 1)
+  $('brk').innerHTML = stats.map((s, j) => `<div class="br ${s.n < 10 ? 'thin' : ''}" style="${st.focus === 'brk' && j === st.brkSel ? 'background:var(--panel-3);box-shadow:inset 2px 0 0 var(--focus)' : ''}"><span class="l" title="${esc(s.k)}">${esc(s.k)}${st.brk === 0 && s.k === '2020' ? ' <span class="flag warn">急落</span>' : ''}</span><span class="b"><u style="left:${P(Math.min(s.q25, s.q75))}%;width:${Math.abs(P(s.q75) - P(s.q25))}%"></u><i style="${s.med >= 0 ? `left:50%;width:${P(s.med) - 50}%` : `left:${P(s.med)}%;width:${50 - P(s.med)}%`};background:${s.med >= 0 ? 'var(--up)' : 'var(--down)'};opacity:.75"></i></span><span class="v ${tone(s.med)}">${fmtP(s.med)}</span><span class="n">${s.n}</span></div>`).join('') || '<div class="note">出来事がありません</div>'
+  $('brkSub').textContent = `${z.h} 日後の中央値 · 灰の線は 25〜75% · 右は n（10 未満は薄く）`
+  $('segG').innerHTML = ['年', '業種', '規模'].map((t, j) => `<span class="${st.brk === j ? 'on' : ''}" data-brk="${j}">${t}${j === 2 ? '<span class="ii" style="margin-left:4px" title="時価総額は今の値で分けている（後知恵）">!</span>' : ''}</span>`).join('')
+}
+function renderDens() {
+  const r = st.res, el = $('densChart'), [w, h] = W(el)
+  const pad = { l: 30, r: 8, t: 8, b: 20 }, iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+  const months = []; const mi = new Map()
+  for (let t = r.from; t < D; t++) { const m = DATES[t].slice(0, 7); if (!mi.has(m)) { mi.set(m, months.length); months.push({ m, n: 0, t }) } }
+  for (const x of r.ev) { const k = mi.get(DATES[x.t].slice(0, 7)); if (k != null) months[k].n++ }
+  const mx = Math.max(1, ...months.map((m) => m.n)), bw = iw / months.length
+  const S = BENCH[st.bench].id === '1343' ? RIX : MKT
+  let blo = Infinity, bhi = -Infinity; for (let t = r.from; t < D; t++) { blo = Math.min(blo, S[t]); bhi = Math.max(bhi, S[t]) }
+  const X = (i) => pad.l + i * bw, Y = (n) => pad.t + ih * 0.42 + (1 - n / mx) * ih * 0.58, YB = (v) => pad.t + (1 - (v - blo) / (bhi - blo)) * ih * 0.4
+  let g = ''
+  months.forEach((m, i) => { if (m.m.endsWith('-01')) g += `<line x1="${X(i)}" x2="${X(i)}" y1="${pad.t}" y2="${h - pad.b}" stroke="var(--chart-grid)" /><text x="${X(i) + 2}" y="${h - 6}">${m.m.slice(0, 4)}</text>` })
+  months.forEach((m, i) => { if (m.n) g += `<rect x="${X(i) + 0.5}" y="${Y(m.n)}" width="${Math.max(1, bw - 1)}" height="${h - pad.b - Y(m.n)}" fill="var(--ev-line)" opacity="${m.n / mx > 0.6 ? 0.95 : 0.55}" />` })
+  let d = ''; for (let t = r.from; t < D; t += 3) d += `${d ? 'L' : 'M'}${(pad.l + ((t - r.from) / (D - 1 - r.from)) * iw).toFixed(1)} ${YB(S[t]).toFixed(1)}`
+  g += `<path d="${d}" fill="none" stroke="var(--text-3)" stroke-width="1" />`
+  g += `<text x="${pad.l}" y="${pad.t + 9}" style="fill:var(--text-3)">${BENCH[st.bench].id === '1343' ? '1343' : '1306'}</text><text x="${pad.l - 4}" y="${Y(mx) + 3}" text-anchor="end">${mx}</text>`
+  svgOf(el, w, h, g)
+  const top = months.slice().sort((a, b) => b.n - a.n).slice(0, 3), share = top.reduce((s, m) => s + m.n, 0) / Math.max(1, r.ev.length)
+  $('densSub').textContent = `最多 ${top[0] ? top[0].m.replace('-', '/') : '—'}（${top[0] ? top[0].n : 0} 件）`
+  $('densNote').innerHTML = `上位 3 か月（${top.map((m) => m.m.replace('-', '/')).join('・')}）に全体の <b style="color:var(--text)">${Math.round(share * 100)}%</b> が集まっています。${share > 0.25 ? '一度の下げの局面が結果の多くを決めている恐れがあります（独立した日の数で t 値を数えているのはこのため）。' : '特定の月への偏りは大きくありません。'}`
+}
+function renderEv() {
+  const r = st.res, hzI = PRE + HZ[st.h]
+  let rows = r.ev.slice()
+  if (st.evFilter) rows = rows.filter((x) => (st.brk === 0 ? DATES[x.e].slice(0, 4) : st.brk === 1 ? (x.u.kind === 'reit' ? 'REIT' : x.u.sector) : true) === st.evFilter)
+  const sorts = [['日付', (a, b) => b.e - a.e], [`+${HZ[st.h]} 日`, (a, b) => (b.path[hzI] || -1e9) - (a.path[hzI] || -1e9)], ['条件の値', (a, b) => a.val - b.val]]
+  rows.sort(sorts[st.evSort][1])
+  const shown = rows.slice(0, 400); st.evRows = shown; st.evSel = Math.min(st.evSel, shown.length - 1)
+  const f0 = FD[st.conds[0].field]
+  const spark = (p) => { let d = '', lo = Infinity, hi = -Infinity; for (let i = 0; i < p.length; i += 6) if (Number.isFinite(p[i])) { lo = Math.min(lo, p[i]); hi = Math.max(hi, p[i]) } if (!Number.isFinite(lo)) return ''; lo = Math.min(lo, 0); hi = Math.max(hi, 0); const Y = (v) => 15 - ((v - lo) / (hi - lo || 1)) * 14; for (let i = 0; i < p.length; i += 6) if (Number.isFinite(p[i])) d += `${d ? 'L' : 'M'}${((i / (p.length - 1)) * 84).toFixed(1)} ${Y(p[i]).toFixed(1)}`; const last = [...p].reverse().find(Number.isFinite); return `<svg class="spark" viewBox="0 0 84 16"><line x1="0" x2="84" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line-strong)" stroke-width=".7"/><line x1="${(PRE / (p.length - 1)) * 84}" x2="${(PRE / (p.length - 1)) * 84}" y1="0" y2="16" stroke="var(--line-strong)" stroke-width=".7"/><path d="${d}" fill="none" stroke="${last >= 0 ? 'var(--up)' : 'var(--down)'}" stroke-width="1.1"/></svg>` }
+  $('evTable').innerHTML = `<table><thead><tr><th class="l ${st.evSort === 0 ? 'on' : ''}">出来事の日</th><th class="l">銘柄</th><th class="l">業種</th><th class="${st.evSort === 2 ? 'on' : ''}">${esc(f0.bool ? '条件' : f0.ref ? '200日線との差' : f0.label.replace(/（.*/, ''))}</th>${HZ.map((h, i) => `<th class="${st.evSort === 1 && i === st.h ? 'on' : ''}" style="${i === st.h ? 'color:var(--ev-lab)' : ''}">+${h}</th>`).join('')}<th class="l">−20 〜 +250</th></tr></thead><tbody>${shown.map((x, i) => `<tr class="${i === st.evSel ? 'sel' : ''}" data-ev="${i}"><td class="l num">${DATES[x.t]}</td><td class="l"><span class="code">${x.u.code}</span><span class="nm">${esc(x.u.name)}</span></td><td class="l mute">${esc(x.u.sector)}</td><td>${f0.bool ? '✓' : x.val.toFixed(1)}</td>${HZ.map((h) => { const v = x.path[PRE + h]; return `<td class="${Number.isFinite(v) ? tone(v) : 'mute'}">${Number.isFinite(v) ? fmtP(v) : '未着'}</td>` }).join('')}<td class="l">${spark(x.path)}</td></tr>`).join('')}</tbody></table>`
+  $('evSub').innerHTML = `${nf(rows.length)} 件${rows.length > 400 ? '（先頭の 400 件。並べ替えの順）' : ''} · 並び: ${sorts[st.evSort][0]}${st.evFilter ? ` · <span style="color:var(--focus)">絞り: ${esc(st.evFilter)}</span>` : ''}`
+}
+function renderBasis() {
+  const r = st.res, yrs = r.yrs
+  const items = [
+    ['warn', '生存者', `今上場している <b>${r.mem.length}</b> 銘柄だけで測っています。上場廃止・市場の変更で消えた銘柄は入らず、成績は良い方向にずれやすい（アプリでは約 1,660 銘柄）。`],
+    yrs > 3.6 ? ['warn', '時代', 'プライム市場は <b>2022 年 4 月</b>から。それより前は東証一部の時代で、今のプライムの銘柄を当時に当てはめています。'] : null,
+    LAGS[st.lag].warn ? ['warn', '約定', '<b>当日の終値</b>で約定としています。条件を終値で判定した日に、その終値では買えないため、結果が良く見えやすい。'] : ['info', '約定', `条件は出来事の日の終値で判定し、<b>翌営業日の終値</b>で約定したとみなします。手数料・税・売買の影響は含めません。`],
+    ['info', '比べ方', `超過リターンは約定の日から k 日後までの騰落率の差（BHAR）。銘柄と <b>${esc(BENCH[st.bench].label.replace(/（.*/, ''))}</b> の両方を配当込みの価格で比べます。`],
+    ['info', '重なり', `${GAPS[st.gap] ? `同じ銘柄は <b>${GAPS[st.gap]}</b> 営業日あけて数えます。` : '<b>間隔をあけていません</b>（同じ下げを何度も数えます）。'}t 値は同じ日の出来事を 1 つにまとめた <b>${nf(r.days)}</b> 日で数えます。`],
+    ['info', '使える指標', '価格・出来高から過去の各日に作り直せる指標だけ。PER・PBR・ROE・時価総額は今の値しかないため選べません。'],
+    [yrs <= 3 ? 'warn' : 'info', '期間', `${DATES[r.from]} 〜 ${DATES[D - 1]}（${yrs} 年）。${yrs <= 3 ? '<b>局面が少なく</b>、ほぼ 1 つの相場の結果です。設定の保存期間を延ばすと 10 年まで測れます。' : '期間の始めの 1 年は 200 日線と 52 週高値の計算に使います。'}`],
+    st.brk === 2 ? ['warn', '規模', '規模で分けるときの時価総額は<b>今の値</b>（後知恵）です。'] : null,
+  ].filter(Boolean)
+  $('basis').innerHTML = items.map(([c, t, d]) => `<div class="bi ${c}"><span class="t">${t}</span><span class="d">${d}</span></div>`).join('')
+}
+function renderFocus() {
+  document.querySelectorAll('.card[data-card]').forEach((c) => c.classList.toggle('focus', c.dataset.card === st.focus))
+}
+function renderAll() {
+  renderBadge(); renderSay(); renderDef()
+  const none = st.res && st.res.ev.length === 0
+  body.classList.toggle('isnone', !!none)
+  if (none) { $('noneWhy').innerHTML = `「${esc(defTxt(st.conds))}」は ${esc(UNIS[st.uni].label)} の ${st.res.yrs} 年に一度も成り立っていません。<br>条件を緩めるか（<kbd>←</kbd><kbd>→</kbd>）、対象（<kbd>U</kbd>）・期間（<kbd>Y</kbd>）を広げてください。`; return }
+  if (!st.res) return
+  renderKpi(); renderCar(); renderHz(); renderDist(); renderBrk(); renderDens(); renderEv(); renderBasis(); renderFocus()
+}
+
+// ============================================================ 計算を回す（読み込み中を最短 400ms 出してから全部を一度に出す）
+let runTok = 0
+function run(record = true) {
+  const tok = ++runTok
+  body.classList.remove('stale'); body.classList.add('calc')
+  const mem = uniMembers(), yrs = Math.min(YEARS[st.years], st.maxYears)
+  $('loaderWhat').innerHTML = `${mem.length} 銘柄 × ${nf(yrs * YDAYS)} 日 · ${st.conds.length} 条件<br>偶然との比較 200 回`
+  let p = 0; const pi = setInterval(() => { p = Math.min(92, p + 9); $('prog').style.width = p + '%' }, 50)
+  const t0 = performance.now()
+  setTimeout(() => {
+    const res = compute()
+    setTimeout(() => {
+      clearInterval(pi); $('prog').style.width = '100%'
+      if (tok !== runTok || st.state === 'loading') return
+      st.res = res; st.dirty = false; st.cross = null; st.evSel = 0; st.evFilter = null
+      if (record && res.ev.length) {
+        const z = res.hz[st.h], dt = defTxt(st.conds), key = `${dt}|${st.uni}|${st.bench}|${st.lag}|${st.gap}|${st.years}`
+        st.trials.forEach((t) => (t.cur = false))
+        const ex = st.trials.find((t) => t.key === key)
+        if (ex) ex.cur = true; else st.trials.push({ key, def: dt, uni: UNIS[st.uni].label, h: z.h, n: z.n, med: z.med, pct: z.pct, cur: true, snap: snap() })
+      }
+      body.classList.remove('calc'); renderAll()
+    }, Math.max(0, 400 - (performance.now() - t0)))
+  }, 30)
+}
+const snap = () => ({ conds: structuredClone(st.conds), uni: st.uni, bench: st.bench, lag: st.lag, gap: st.gap, years: st.years })
+function dirty() { st.dirty = true; body.classList.add('stale'); renderDef(); renderSay(); renderBadge() }
+
+// ============================================================ ダイアログ（指標を選ぶ / 保存した条件）
+let dlg = null
+function openDlg(kind) {
+  if (kind === 'field') {
+    const cur = st.conds[st.defRow]?.field
+    dlg = { kind, items: FIELDS, sel: Math.max(0, FIELDS.findIndex((f) => f.id === cur)), add: st.defRow >= st.conds.length }
+    $('dlgTitle').innerHTML = `指標を選ぶ <span><kbd>↑</kbd><kbd>↓</kbd> <kbd>Enter</kbd> <kbd>Esc</kbd></span>`
+  } else {
+    dlg = { kind, items: PRESETS, sel: st.presetIx }
+    $('dlgTitle').innerHTML = `保存した条件を開く <span class="mute" style="margin-left:6px">スクリーナーと共有</span><span><kbd>↑</kbd><kbd>↓</kbd> <kbd>Enter</kbd> <kbd>Esc</kbd></span>`
+  }
+  renderDlg(); $('dlg').classList.add('open')
+}
+function renderDlg() {
+  let g = '', html = ''
+  dlg.items.forEach((it, i) => {
+    if (dlg.kind === 'field' && it.grp !== g) { g = it.grp; html += `<div class="grp">${esc(g)}</div>` }
+    if (dlg.kind === 'field') html += `<div class="it ${i === dlg.sel ? 'sel' : ''} ${it.lock ? 'dis' : ''}" data-i="${i}"><span>${esc(it.label)}</span><span class="n">${it.bool ? '成立 / 不成立' : it.unit || ''}</span>${it.lock ? `<span class="why">${esc(it.lock)}</span>` : ''}</div>`
+    else html += `<div class="it ${i === dlg.sel ? 'sel' : ''}" data-i="${i}"><span>${esc(it.name)}</span><span class="n">${it.conds.length} 条件</span><span class="why">${esc(defTxt(it.conds))}</span></div>`
+  })
+  $('dlgList').innerHTML = html
+  $('dlgList').querySelector('.sel')?.scrollIntoView({ block: 'nearest' })
+}
+function pickDlg() {
+  const it = dlg.items[dlg.sel]
+  if (dlg.kind === 'field') {
+    if (it.lock) { toast(`${it.label}は選べません: ${it.lock}`); return }
+    const c = { field: it.id, op: it.bool ? '=' : it.id === 'rsi14' || it.id.startsWith('dev') || it.id === 'fromHi52' ? '<=' : '>=', value: it.bool ? true : it.id === 'rsi14' ? 30 : it.id === 'volRatio' ? 2 : it.id === 'vol60' ? 30 : it.id === 'fromHi52' ? -20 : -10 }
+    if (dlg.add || st.defRow >= st.conds.length) { st.conds.push(c); st.defRow = st.conds.length - 1 } else st.conds[st.defRow] = { ...c, or: st.conds[st.defRow].or }
+  } else { st.presetIx = dlg.sel; st.conds = structuredClone(it.conds); st.defRow = 0; syncPresetBtns() }
+  closeDlg(); dirty()
+}
+function closeDlg() { dlg = null; $('dlg').classList.remove('open') }
+
+// ============================================================ キー操作（アプリでは registerPane の key()。単キーは code で判定し、IME 中は無視）
+const CARDS = ['def', 'car', 'hz', 'dist', 'brk', 'dens', 'ev', 'basis']
+const visibleCards = () => CARDS.filter((c) => c === 'def' || !(st.scope === 'p1' && c === 'brk'))
+function setFocus(f) {
+  st.focus = f; renderDef(); renderFocus()
+  if (f === 'def') { if (pane.clientWidth < 900) def.classList.add('open') } else { def.classList.remove('open'); document.querySelector(`.card[data-card="${f}"]`)?.scrollIntoView({ block: 'nearest' }) }
+  if (st.res && !body.classList.contains('isnone')) { renderBrk() }
+}
+function toast(s) { const t = $('toast'); t.textContent = s; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200) }
+function cycle(key, n, dir = 1) { st[key] = (st[key] + dir + n) % n }
+document.addEventListener('keydown', (e) => {
+  if (e.isComposing) return
+  const c = e.code
+  if (dlg) {
+    if (c === 'ArrowDown') dlg.sel = Math.min(dlg.items.length - 1, dlg.sel + 1)
+    else if (c === 'ArrowUp') dlg.sel = Math.max(0, dlg.sel - 1)
+    else if (c === 'Enter') return void (e.preventDefault(), pickDlg())
+    else if (c === 'Escape') return void closeDlg()
+    else return
+    e.preventDefault(); renderDlg(); return
+  }
+  if (c === 'Enter' && e.ctrlKey) { e.preventDefault(); run(); return }
+  if (c === 'KeyO' && e.ctrlKey) { e.preventDefault(); openDlg('preset'); return }
+  if (c === 'Tab') { e.preventDefault(); const v = visibleCards(); setFocus(v[(v.indexOf(st.focus) + (e.shiftKey ? -1 : 1) + v.length) % v.length]); return }
+  if (e.altKey && /^Digit[1-5]$/.test(c)) { e.preventDefault(); st.h = +c.slice(5) - 1; st.cross = null; renderAll(); return }
+  if (e.ctrlKey || e.metaKey || e.altKey) return
+  // 定義の設定（どこにフォーカスがあっても効く）
+  const cfgKeys = { KeyU: () => cycle('uni', UNIS.length), KeyB: () => { do cycle('bench', BENCH.length); while (st.scope === 'p1' && BENCH[st.bench].p2) }, KeyL: () => cycle('lag', LAGS.length), KeyO: null, KeyY: () => { if (st.maxYears < 5) { toast('保存期間が 3 年のため、3 年より長くは測れません（設定 › データで延ばせる）'); return false } cycle('years', YEARS.length) } }
+  if (c === 'KeyO' && st.focus !== 'def') { cycle('gap', GAPS.length); dirty(); return }
+  if (cfgKeys[c]) { if (cfgKeys[c]() !== false) dirty(); return }
+  if (c === 'KeyE') { setFocus('def'); return }
+  if (c === 'KeyN') { setFocus('basis'); return }
+  if (c === 'Escape') { if (st.evFilter) { st.evFilter = null; renderEv(); return } if (def.classList.contains('open')) { setFocus('car'); return } if (st.cross != null) { st.cross = null; renderCar(); return } return }
+  if (!st.res && st.focus !== 'def') return
+  const f = st.focus
+  if (f === 'def') {
+    const nc = st.conds.length, max = nc + 5 - 1, row = st.defRow, cond = st.conds[row]
+    if (c === 'ArrowDown') st.defRow = Math.min(max, row + 1)
+    else if (c === 'ArrowUp') st.defRow = Math.max(0, row - 1)
+    else if ((c === 'ArrowLeft' || c === 'ArrowRight') && cond) { const fd = FD[cond.field]; if (fd.bool) return; cond.value = +(cond.value + (c === 'ArrowRight' ? 1 : -1) * fd.step * (e.shiftKey ? 5 : 1)).toFixed(2); dirty(); return }
+    else if ((c === 'ArrowLeft' || c === 'ArrowRight') && !cond) { const k = ['uni', 'bench', 'lag', 'gap', 'years'][row - nc], n = { uni: UNIS.length, bench: BENCH.length, lag: LAGS.length, gap: GAPS.length, years: YEARS.length }[k]; if (k === 'years' && st.maxYears < 5) { toast('保存期間が 3 年のため、3 年より長くは測れません'); return } cycle(k, n, c === 'ArrowRight' ? 1 : -1); dirty(); return }
+    else if (c === 'KeyO' && cond && !FD[cond.field].bool) { cond.op = cond.op === '<=' ? '>=' : '<='; dirty(); return }
+    else if (c === 'KeyO') { cycle('gap', GAPS.length); dirty(); return }
+    else if (c === 'KeyA' && cond && row > 0) { cond.or = !cond.or; dirty(); return }
+    else if (c === 'KeyF' || c === 'Insert') { if (c === 'Insert') st.defRow = nc; openDlg('field'); return }
+    else if (c === 'Delete' && cond) { if (nc === 1) { toast('条件は 1 つ以上必要です'); return } st.conds.splice(row, 1); st.defRow = Math.min(row, st.conds.length - 1); dirty(); return }
+    else if (c === 'Enter') { run(); return }
+    else return
+    e.preventDefault(); renderDef(); return
+  }
+  if (c === 'KeyM') { st.stat = st.stat === 'med' ? 'mean' : 'med'; renderCar(); return }
+  if (c === 'KeyG') { st.brk = (st.brk + 1) % 3; st.brkSel = 0; renderBrk(); renderBasis(); return }
+  if (f === 'car') {
+    const k = st.cross ?? HZ[st.h], step = e.shiftKey ? 10 : 1
+    if (c === 'ArrowRight') st.cross = Math.min(POST, k + step); else if (c === 'ArrowLeft') st.cross = Math.max(-PRE, k - step)
+    else if (c === 'Home') st.cross = -PRE; else if (c === 'End') st.cross = POST; else return
+    e.preventDefault(); renderCar(); return
+  }
+  if (f === 'hz') { if (c === 'ArrowDown') st.h = Math.min(HZ.length - 1, st.h + 1); else if (c === 'ArrowUp') st.h = Math.max(0, st.h - 1); else return; e.preventDefault(); st.cross = null; renderAll(); return }
+  if (f === 'brk') {
+    if (c === 'ArrowDown') st.brkSel = Math.min(st.brkRows.length - 1, st.brkSel + 1); else if (c === 'ArrowUp') st.brkSel = Math.max(0, st.brkSel - 1)
+    else if (c === 'Enter') { if (st.brk === 2) { toast('規模での絞り込みはモックでは省略'); return } st.evFilter = st.brkRows[st.brkSel]; st.evSel = 0; renderEv(); setFocus('ev'); return } else return
+    e.preventDefault(); renderBrk(); return
+  }
+  if (f === 'ev') {
+    const n = st.evRows.length
+    if (c === 'ArrowDown') st.evSel = Math.min(n - 1, st.evSel + 1); else if (c === 'ArrowUp') st.evSel = Math.max(0, st.evSel - 1)
+    else if (c === 'PageDown') st.evSel = Math.min(n - 1, st.evSel + 15); else if (c === 'PageUp') st.evSel = Math.max(0, st.evSel - 15)
+    else if (c === 'Home') st.evSel = 0; else if (c === 'End') st.evSel = n - 1
+    else if (c === 'KeyS') { st.evSort = (st.evSort + 1) % 3; st.evSel = 0 }
+    else if (c === 'Enter') { const x = st.evRows[st.evSel]; toast(`リンク 1 のチャート: ${x.u.code} ${x.u.name} を ${DATES[x.t]} に合わせ、出来事の日と約定の日に印を付けました`); return }
+    else return
+    e.preventDefault(); renderEv(); $('evTable').querySelector('tr.sel')?.scrollIntoView({ block: 'nearest' }); return
+  }
+})
+// マウスでも同じことができる（キーで全部できることが先）
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-stat],[data-brk],[data-h],[data-ev],[data-row],[data-trial],[data-card],#run,.dlg .it,.dlg')
+  if (!t) return
+  if (t.matches('.dlg .it')) { dlg.sel = +t.dataset.i; pickDlg(); return }
+  if (t.id === 'dlg') { closeDlg(); return }
+  if (t.id === 'run') { run(); return }
+  if (t.dataset.stat) { st.stat = t.dataset.stat; renderCar(); return }
+  if (t.dataset.brk) { st.brk = +t.dataset.brk; renderBrk(); renderBasis(); return }
+  if (t.dataset.h) { st.h = +t.dataset.h; st.cross = null; renderAll(); return }
+  if (t.dataset.ev) { st.evSel = +t.dataset.ev; setFocus('ev'); renderEv(); return }
+  if (t.dataset.row) { st.defRow = +t.dataset.row; setFocus('def'); return }
+  if (t.dataset.trial) { const tr = st.trials[+t.dataset.trial]; Object.assign(st, structuredClone(tr.snap)); st.trialSel = +t.dataset.trial; run(false); st.trials.forEach((x) => (x.cur = x === tr)); return }
+  if (t.dataset.card) setFocus(t.dataset.card)
+})
+
+// ============================================================ モックの帯
+function syncPresetBtns() { $('presetBtns').innerHTML = PRESETS.map((p, i) => `<button data-preset="${i}" aria-pressed="${i === st.presetIx}" title="${esc(defTxt(p.conds))}">${i + 1}</button>`).join(' ') }
+$('mockbar').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return
+  const grp = (attr) => b.parentElement.querySelectorAll(`button[${attr}]`).forEach((x) => x.setAttribute('aria-pressed', x === b))
+  if (b.dataset.size) { grp('data-size'); const S = { S: ['640px', '860px'], M: ['1120px', '820px'], L: ['1560px', '960px'] }[b.dataset.size]; pane.style.setProperty('--w', S[0]); pane.style.setProperty('--h', S[1]); requestAnimationFrame(renderAll) }
+  if (b.dataset.theme) { grp('data-theme'); document.documentElement.dataset.theme = b.dataset.theme }
+  if (b.dataset.candle) { grp('data-candle'); document.documentElement.dataset.candle = b.dataset.candle }
+  if (b.dataset.scope) { grp('data-scope'); st.scope = b.dataset.scope; document.documentElement.classList.toggle('p1', st.scope === 'p1'); if (st.scope === 'p1' && BENCH[st.bench].p2) st.bench = 0; requestAnimationFrame(renderAll) }
+  if (b.dataset.state) { grp('data-state'); setState(b.dataset.state) }
+  if (b.dataset.preset) { st.presetIx = +b.dataset.preset; st.conds = structuredClone(PRESETS[st.presetIx].conds); syncPresetBtns(); run() }
+  if (b.hasAttribute('data-motion')) { const on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', on); document.documentElement.dataset.reduceMotion = on }
+})
+function setState(s) {
+  st.state = s
+  if (s === 'loading') { body.classList.add('calc'); $('loaderWhat').innerHTML = `${uniMembers().length} 銘柄 × ${nf(Math.min(YEARS[st.years], st.maxYears) * YDAYS)} 日 · ${st.conds.length} 条件<br>偶然との比較 200 回`; $('prog').style.width = '46%'; return }
+  st.maxYears = s === 'short' ? 3 : 10
+  if (s === 'none') { st.conds = [{ field: 'rsi14', op: '<=', value: 3 }] } else if (st.conds.length === 1 && st.conds[0].value === 3) st.conds = structuredClone(PRESETS[st.presetIx].conds)
+  run()
+}
+new ResizeObserver(() => { if (st.res && !body.classList.contains('calc')) { renderCar(); renderDist(); renderDens() } }).observe(body)
+
+// ハッシュで状態を決める: #size=M&light&preset=2&h=1&focus=ev&state=short&p1&cross=40
+const H = new URLSearchParams(location.hash.slice(1))
+if (H.has('light')) document.querySelector('[data-theme="light"]').click()
+if (H.has('p1')) document.querySelector('[data-scope="p1"]').click()
+if (H.get('size')) document.querySelector(`[data-size="${H.get('size')}"]`)?.click()
+if (H.get('preset')) st.presetIx = Math.max(0, Math.min(PRESETS.length - 1, +H.get('preset') - 1)), (st.conds = structuredClone(PRESETS[st.presetIx].conds))
+if (H.get('h')) st.h = Math.max(0, Math.min(4, +H.get('h') - 1))
+if (H.get('focus')) st.focus = H.get('focus')
+if (H.get('brk')) st.brk = +H.get('brk')
+syncPresetBtns()
+if (H.get('state')) document.querySelector(`[data-state="${H.get('state')}"]`)?.click()
+else run()
+if (H.get('cross')) setTimeout(() => { st.cross = +H.get('cross'); renderCar() }, 600)
+</script>
+</body>
+</html>
