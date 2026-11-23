@@ -92,7 +92,8 @@ describe('Core（スタブのプロバイダで端から端まで）', () => {
     expect(lines.slice(1).every((l) => l.startsWith('7203,2026-01'))).toBe(true)
     const name = await call('data.backup', {})
     expect(existsSync(join(dir, 'backups', name))).toBe(true)
-    expect(await call('app.checkUpdate', {})).toBeNull() // スタブでは通信しない
+    // スタブでは通信せず、今の版を最新として返す（null は確かめられなかったとき。NFR-Q9）
+    expect(await call('app.checkUpdate', {})).toMatchObject({ newer: false })
   })
 
   it('保有の記録: 保存・取り込み・取り込みの取り消し（FR-H7〜H9）', async () => {

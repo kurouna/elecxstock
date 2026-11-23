@@ -254,6 +254,24 @@ test.describe('設定のキー操作の回帰（FR-KB11, FR-KB2）', () => {
     await expect(dlg.locator('[data-row="app"]').getByRole('button', { name: '新しいバージョンを確かめる' })).toBeFocused()
   })
 
+  test('設定画面で新しい版を確かめると、結果を画面の中に出し、トーストは出さない（NFR-Q9）', async ({ start }) => {
+    const { page } = await start()
+    await keys(page, 'Control+Comma')
+    const dlg = page.getByRole('dialog', { name: '設定' })
+    await keys(page, 'ArrowRight', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowRight')
+    const row = dlg.locator('[data-row="checkUpdates"]')
+    await expect(row.getByRole('button', { name: '新しいバージョンを確かめる' })).toBeFocused()
+    await keys(page, 'Enter')
+    await expect(row.locator('[data-update="latest"]')).toContainText('最新のバージョンです（')
+    await expect(page.locator('.toasts .toast')).toHaveCount(0)
+    // ほかのトーストは暗転（スクリム）より上に出す
+    const z = await page.evaluate(() => [
+      Number(getComputedStyle(document.querySelector('.toasts')!).zIndex),
+      Number(getComputedStyle(document.querySelector('.scrim')!).zIndex),
+    ])
+    expect(z[0]).toBeGreaterThan(z[1]!)
+  })
+
   test('探した結果は同じタブの枠が 1 つだけ。割り当てを記録している間の Ctrl+F は、探す欄ではなく割り当てに回る', async ({ start }) => {
     const { page } = await start()
     await keys(page, 'Control+Comma')

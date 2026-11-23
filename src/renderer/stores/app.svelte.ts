@@ -21,6 +21,7 @@ import type {
 import { SvelteMap } from 'svelte/reactivity'
 import { DICTS, format, type Key } from '../lib/i18n'
 import type { ShapeFig } from '../lib/shapeFigs'
+import type { UpdateCheck } from '../lib/updateCheck'
 import { IS_FREE } from '../lib/windowSlot'
 import type { WidgetId } from './layout.svelte'
 
@@ -141,6 +142,10 @@ class AppState {
   portfolioMeta = $state<PortfolioMeta | null>(null)
   /** 新しい版（NFR-Q9） */
   update = $state<{ version: string; url: string } | null>(null)
+  /** 最後に利用者が確かめた結果（設定画面に出す。NFR-Q9） */
+  updateCheck = $state<UpdateCheck | null>(null)
+  /** 全データを削除している間（Core が応答するまで。ステータスバーに出す。FR-S6） */
+  resetting = $state(false)
   /** 鳴ったアラートの未読の数（トップバーのベル。FR-AL5） */
   alertsUnread = $state(0)
   /** アラートか履歴が変わるたびに増やす（開いているポップアップが読み直す） */

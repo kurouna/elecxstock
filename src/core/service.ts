@@ -66,6 +66,7 @@ export const SCREEN_REBASE: Partial<Record<string, Rebase>> = {
 /** 業種の中央値（FR-I7）で比べる組: J-REIT はまとめて 1 つ */
 const sectorOf = (i: { kind: string; sectorJa: string }) => (i.kind === 'reit' ? 'REIT' : i.sectorJa)
 const RELEASES = 'https://api.github.com/repos/kurouna/elecxstock/releases/latest'
+const RELEASES_PAGE = 'https://github.com/kurouna/elecxstock/releases'
 /** 'v0.1.2' と '0.1.10' を数で比べる */
 export function newerVersion(latest: string, current: string): boolean {
   const p = (s: string) =>
@@ -462,15 +463,18 @@ export class CoreService {
         return name as Results[M]
       }
       case 'app.checkUpdate': {
-        // 新しい版の通知（NFR-Q9）。GitHub Releases の最新版を見るだけ（利用者の情報は送らない）
-        if (this.provider.id === 'stub') return null as Results[M]
-        const res = await fetch(RELEASES, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'elecxstock' } })
-        if (!res.ok) return null as Results[M]
-        const j = (await res.json()) as { tag_name?: string; html_url?: string }
+        // 新しい版の通知（NFR-Q9）。GitHub Releases の最新版を見るだけ（利用者の情報は送らない）。
+        // null は「確かめられなかった」（通信の失敗・読めない応答）。スタブでは通信せず、今の版を最新として返す
+        if (this.provider.id === 'stub') return { version: this.version, url: RELEASES_PAGE, newer: false } as Results[M]
+        const res = await fetch(RELEASES, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'elecxstock' } }).catch(
+          () => null,
+        )
+        if (!res?.ok) return null as Results[M]
+        const j = (await res.json().catch(() => ({}))) as { tag_name?: string; html_url?: string }
         if (!j.tag_name) return null as Results[M]
         return {
           version: j.tag_name.replace(/^v/, ''),
-          url: j.html_url ?? 'https://github.com/kurouna/elecxstock/releases',
+          url: j.html_url ?? RELEASES_PAGE,
           newer: newerVersion(j.tag_name, this.version),
         } as Results[M]
       }

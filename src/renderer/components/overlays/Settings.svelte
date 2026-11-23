@@ -12,7 +12,7 @@ import { targetsFromInputs, targetTexts, YIELD_TARGETS_UI } from '@shared/yieldL
 import { onMount } from 'svelte'
 // アプリのアイコン（インストーラ・タスクバーと同じ。build/icon.svg が正）
 import appIcon from '../../../../build/icon.svg'
-import { ACTIONS, checkUpdate, doResetAllLayouts, exportUser, importUser, keyCapture } from '../../lib/commands'
+import { ACTIONS, checkUpdate, doResetAllLayouts, exportUser, importUser, keyCapture, resetAllData } from '../../lib/commands'
 import { noticeOpen } from '../../lib/fileNotice'
 import { dateTime } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
@@ -40,6 +40,7 @@ import {
   signedMb,
   stepIn,
 } from '../../lib/settingsSpec'
+import { updateLine } from '../../lib/updateCheck'
 import NewsSettings from '../../news/NewsSettings.svelte'
 import { app, bridge, confirmDialog, loadInstruments, nameOf, promptDialog, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
 import Hl from './Hl.svelte'
@@ -285,8 +286,7 @@ async function reset() {
     app.overlay = { kind: 'settings', tab: 'data' }
     return
   }
-  await rpc('jobs.reset', { keepDelisted: r.checked })
-  toast(t('reset.started'))
+  await resetAllData(r.checked)
 }
 async function addUser() {
   const code = (await promptDialog(t('set.addInstrument'), ''))?.trim().toUpperCase()
@@ -333,6 +333,23 @@ const runAction = (id: string) => ACTIONS.find((a) => a.id === id)?.run()
   {o.label}
 {/snippet}
 
+<!-- 新しい版を確かめた結果（NFR-Q9）。トーストは暗転の向こうで見えにくいので画面の中に出す。まだ何も無いときは場所を取らない -->
+{#snippet updStatus()}
+  {@const line = updateLine(app.updateCheck)}
+  <span class="upd" class:warn={app.updateCheck?.state === 'failed'} role="status" data-update={app.updateCheck?.state ?? ''} hidden={!line && !app.update}>
+    {#if line}{t(line.key, line.args)}{/if}
+    {#if app.update}<button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(app.update!.url)}>{line ? t('update.open') : t('update.available', { v: app.update.version })}</button>{/if}
+  </span>
+{/snippet}
+
+<!-- 押すボタンと、その下に結果（横に並べると行の説明を押し出す）。ボタンが先なので → で行に入ると最初にフォーカスする -->
+{#snippet updControl(primary: boolean)}
+  <div class="updcol">
+    <button type="button" class="btn" data-primary={primary ? '' : undefined} onclick={() => checkUpdate(true)}>{t('act.checkUpdate')}</button>
+    {@render updStatus()}
+  </div>
+{/snippet}
+
 {#snippet control(row: SettingRow)}
   {@const off = depOff(row)}
   {#if row.kind === 'seg'}
@@ -341,8 +358,7 @@ const runAction = (id: string) => ACTIONS.find((a) => a.id === id)?.run()
     {@const k = row.setting as 'autoUpdate'}
     {@render switchRow(row, !!s[k], () => saveSettings({ [k]: !s[k] } as Partial<S>), (row.id === 'closeToTray' && bgView.closeToTray.disabled) || off)}
     {#if row.id === 'checkUpdates'}
-      <button type="button" class="btn" onclick={() => checkUpdate(true)}>{t('act.checkUpdate')}</button>
-      {#if app.update}<button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(app.update!.url)}>{t('update.available', { v: app.update.version })}</button>{/if}
+      {@render updControl(false)}
     {/if}
   {:else if row.kind === 'login'}
     {@render switchRow(row, bgView.login.on, () => setLogin(!bgView.login.on, !!login?.hidden), bgView.login.disabled)}
@@ -477,7 +493,7 @@ const runAction = (id: string) => ACTIONS.find((a) => a.id === id)?.run()
         <b>elecxstock</b>
         <span class="sub">{t('set.version')} <span class="num">{app.info?.version ?? __APP_VERSION__}</span> · <button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal('https://github.com/kurouna/elecxstock')}>github.com/kurouna/elecxstock</button></span>
       </div>
-      <button type="button" class="btn" data-primary onclick={() => checkUpdate(true)}>{t('act.checkUpdate')}</button>
+      {@render updControl(true)}
     </div>
   {:else}
     <!-- 行そのものもフォーカスを受ける（操作の無い行・使えない行にも ↑ ↓ で止まり、理由を読める） -->
@@ -1058,8 +1074,27 @@ const TAB_ICON: Record<string, string> = {
     color: var(--text-3);
     font-size: var(--fs-1);
   }
-  .appcard > .btn {
+  .appcard > .updcol {
     margin-left: auto;
+  }
+  .updcol {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .upd {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    color: var(--text-2);
+    font-size: var(--fs-1);
+  }
+  .upd[hidden] {
+    display: none;
+  }
+  .upd.warn {
+    color: var(--warn);
   }
   .notice {
     display: flex;

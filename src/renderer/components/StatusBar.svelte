@@ -25,7 +25,11 @@ const offline = $derived(app.provider.offline || app.provider.paused)
     <span class="num">{app.status?.lastUpdate ? dateTime(app.status.lastUpdate) : t('status.never')}</span>
   </span>
   <button type="button" class="seg job" title={t('act.jobs')} onclick={() => runAction('jobs')}>
-    {#if active}
+    {#if app.resetting}
+      <!-- 全データの削除: Core が削除と DB の詰め直しを終えるまで、ジョブの知らせは届かない（FR-S6） -->
+      <span data-resetting>{t('reset.deleting')}</span>
+      <span class="progress busy"><i></i></span>
+    {:else if active}
       {t(`jobs.kind.${active.kind}` as Key)}: {t(`jobs.${active.status}` as Key)}
       <span class="num">{active.done.toLocaleString()} / {active.total.toLocaleString()}</span>
       <span class="progress"><i style:width={`${active.total ? (active.done / active.total) * 100 : 0}%`}></i></span>
@@ -36,7 +40,7 @@ const offline = $derived(app.provider.offline || app.provider.paused)
       {t('jobs.idle')}
     {/if}
   </button>
-  {#if !active || active.status === 'paused'}
+  {#if !app.resetting && (!active || active.status === 'paused')}
     <!-- 押すと何が起きるかを言葉で出す（「待機 F5」が「F5 で待機」と読めないように） -->
     <button type="button" class="seg" onclick={() => (active?.status === 'paused' ? void rpc('jobs.resume', { id: active.id }) : runAction('update'))}>
       {active ? t('status.resume') : t('act.update')} <kbd>{keyOf('update')}</kbd>
@@ -106,6 +110,25 @@ const offline = $derived(app.provider.offline || app.provider.paused)
     height: 4px;
     background: var(--line-strong);
     display: inline-block;
+  }
+  /* 終わりの分からない待ち（動きを減らす設定では止まった帯） */
+  .progress.busy {
+    overflow: hidden;
+  }
+  .progress.busy i {
+    width: 30%;
+    animation: sb-busy 1.2s linear infinite;
+  }
+  :global(:root[data-reduce-motion='true']) .progress.busy i {
+    animation: none;
+  }
+  @keyframes sb-busy {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(340%);
+    }
   }
   .progress i {
     display: block;

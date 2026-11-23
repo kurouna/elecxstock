@@ -79,6 +79,7 @@ import { clearMaximized, setMaximized, setTabHint } from './paneMax'
 import { type AddTarget, paneApi, paneSelector } from './panes'
 import { exportHoldings, importBrokerCsv, importHoldings, undoHoldingsImport } from './portfolio'
 import { condsOf, confirmCloseScreen } from './screens'
+import { checkResult } from './updateCheck'
 import { blockedInFree, FREE_WIDGETS, freeNo, IS_FREE } from './windowSlot'
 
 export interface Action {
@@ -519,19 +520,36 @@ async function backupDb(): Promise<void> {
   const name = await rpc('data.backup', {})
   noticeSave(await window.elecxstock.exportBackup(name), t('backup.saved'))
 }
+/**
+ * 新しい版を確かめる（NFR-Q9）。利用者が押したとき（manual）は結果を app.updateCheck に残し、設定画面はそれを画面の中に出す。
+ * 設定画面を開いているときはトーストを出さない（暗転の向こうで見えにくく、同じことを 2 か所に出さない）
+ */
 export async function checkUpdate(manual = false): Promise<void> {
+  if (manual && app.updateCheck?.state === 'checking') return
+  if (manual) app.updateCheck = { state: 'checking' }
+  const r = await rpc('app.checkUpdate', {}).catch(() => null)
+  const c = checkResult(r)
+  if (manual) app.updateCheck = c
+  if (c.state === 'newer') app.update = { version: c.version, url: c.url }
+  const inSettings = app.overlay?.kind === 'settings'
+  if (c.state === 'newer' && !(manual && inSettings)) {
+    toast(
+      t('update.available', { v: c.version }),
+      { label: t('update.open'), run: () => void window.elecxstock.openExternal(c.url) },
+      15_000,
+    )
+  } else if (manual && !inSettings) toast(c.state === 'latest' ? t('update.latest') : t('update.failed'))
+}
+
+/** 全データの削除と取り直し（FR-S6）。Core は削除と DB の詰め直しを終えてから応答するので、その間はステータスバーに出す */
+export async function resetAllData(keepDelisted: boolean): Promise<void> {
+  if (app.resetting) return
+  app.resetting = true
   try {
-    const r = await rpc('app.checkUpdate', {})
-    if (r?.newer) {
-      app.update = { version: r.version, url: r.url }
-      toast(
-        t('update.available', { v: r.version }),
-        { label: t('update.open'), run: () => void window.elecxstock.openExternal(r.url) },
-        15_000,
-      )
-    } else if (manual) toast(t('update.latest'))
-  } catch {
-    if (manual) toast(t('update.failed'))
+    await rpc('jobs.reset', { keepDelisted })
+    toast(t('reset.started'))
+  } finally {
+    app.resetting = false
   }
 }
 
