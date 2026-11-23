@@ -156,3 +156,28 @@ describe('カードの見出しは縮まない・幅でたたむ（FR-PF1。見�
     expect(css).not.toMatch(/@container \(max-width: 759px\) \{\s*\.gseg/)
   })
 })
+
+describe('押せないボタンはマウスを載せても見た目を変えない（FR-V5。aria-disabled のボタンの枠線が hover で変わった）', () => {
+  it('app.css の :hover:not(:disabled) の規則は、aria-disabled のボタンも除く', () => {
+    const hovers = selectors(read('src/renderer/app.css'))
+      .flatMap((s) => s.split(','))
+      .map((s) => s.trim())
+      .filter((s) => s.includes(':hover:not(:disabled)'))
+    expect(hovers.length).toBeGreaterThan(0)
+    // 引用符は Biome の整形で " になる（' でも可）
+    expect(hovers.filter((s) => !/:not\(\[aria-disabled=["']true["']\]\)/.test(s))).toEqual([])
+  })
+})
+
+describe('一杯で足せない「＋ ★」は、マウスを載せても明るくしない（FR-V5。銘柄ジャンプ・コマンドバー）', () => {
+  it('.side:hover は .full（足せない。Jump では aria-disabled）を除く', () => {
+    for (const f of ['src/renderer/components/overlays/Jump.svelte', 'src/renderer/components/overlays/Palette.svelte']) {
+      const hovers = selectors(style(f)).filter((s) => /\.side:hover/.test(s))
+      expect(hovers.length, f).toBeGreaterThan(0)
+      expect(
+        hovers.filter((s) => !s.includes(':not(.full)')),
+        f,
+      ).toEqual([])
+    }
+  })
+})

@@ -568,7 +568,7 @@ onMount(() => {
     font-size: var(--fs-1);
     white-space: nowrap;
   }
-  .side:hover {
+  .side:hover:not(.full) {
     color: var(--text);
     background: var(--hover);
   }

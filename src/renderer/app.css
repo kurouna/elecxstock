@@ -378,10 +378,11 @@ kbd {
   font-size: var(--fs-1);
   white-space: nowrap;
 }
-.chip:hover:not(:disabled) {
+.chip:hover:not(:disabled):not([aria-disabled="true"]) {
   color: var(--text);
 }
-.chip:disabled {
+.chip:disabled,
+.chip[aria-disabled="true"] {
   opacity: 0.4;
   cursor: default;
 }
@@ -399,12 +400,13 @@ kbd {
   cursor: pointer;
   flex: none;
 }
-.ibtn:hover:not(:disabled) {
+.ibtn:hover:not(:disabled):not([aria-disabled="true"]) {
   color: var(--text);
   background: var(--panel-3);
   border-color: var(--line-strong);
 }
-.ibtn:disabled {
+.ibtn:disabled,
+.ibtn[aria-disabled="true"] {
   opacity: 0.35;
   cursor: default;
 }
@@ -416,7 +418,7 @@ kbd {
   border-radius: var(--radius);
   cursor: pointer;
 }
-.btn:hover:not(:disabled) {
+.btn:hover:not(:disabled):not([aria-disabled="true"]) {
   border-color: var(--text-3);
 }
 .btn.danger {
@@ -429,11 +431,16 @@ kbd {
   border-color: var(--accent-bg);
   color: var(--accent-fg);
 }
-.btn.primary:hover:not(:disabled) {
+.btn.primary:hover:not(:disabled):not([aria-disabled="true"]) {
   border-color: var(--focus);
 }
-.btn:disabled {
+/* 押せないボタン。処理中でフォーカスを残したいときは disabled ではなく aria-disabled（設定画面の全データの削除・新しい版の確認） */
+.btn:disabled,
+.btn[aria-disabled="true"] {
   opacity: 0.5;
+}
+.btn[aria-disabled="true"] {
+  cursor: default;
 }
 .seg {
   display: inline-flex;

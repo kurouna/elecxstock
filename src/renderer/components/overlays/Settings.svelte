@@ -984,11 +984,6 @@ const TAB_ICON: Record<string, string> = {
     height: 26px;
     text-align: right;
   }
-  /* 処理中で押せないボタン（全データの削除・新しい版の確認）。見た目は .btn:disabled と同じ。フォーカスは受ける */
-  .btn[aria-disabled='true'] {
-    opacity: 0.5;
-    cursor: default;
-  }
   .yt[aria-disabled='true'] {
     color: var(--text-3);
     background: var(--panel-2);
