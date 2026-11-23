@@ -294,6 +294,11 @@ r = sec('info', ['銘柄情報', 'Symbol info'])
 r(['配当の棒を選ぶ', 'Select dividend bar'], '← → Home End')
 r(['年・回の切り替え', 'Per year or per payout'], 'Y')
 r(['Yahoo!ファイナンスで開く', 'Open in Yahoo Finance'], 'O')
+r(['利回りの変化の内訳: 配当と株価の平面を広げる', 'Yield breakdown: expand the dividend–price plane'], 'V')
+r(['利回りの変化の内訳: 読み方', 'Yield breakdown: how to read'], 'Shift+/')
+r(['利回りの変化の内訳: 5 年 ⇔ 最長', 'Yield breakdown: 5 years ⇔ max'], 'N')
+r(['平面: 月を選ぶ（Shift で 1 年）', 'Plane: pick a month (Shift for a year)'], '← → Home End')
+r(['平面を閉じる', 'Close the plane'], 'Esc')
 
 // ---- 配当シミュレータ
 r = sec('divsim', ['見方', 'View'])

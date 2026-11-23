@@ -24,6 +24,7 @@ import type {
   AlertState,
   AlertView,
   Condition,
+  Dividend,
   FolioPoint,
   Holding,
   InstrumentId,
@@ -31,6 +32,7 @@ import type {
   MetricsRow,
   Timeframe,
 } from '@shared/types'
+import { monthCloses, type YieldPoint, yieldPath } from '@shared/yieldPath'
 import { AlertBook, decide, decideScreen, evaluateAlert, type ScreenEval } from './alerts'
 import { jstNow, lastClosedSession, retentionStart } from './calendar'
 import { Db } from './db'
@@ -113,6 +115,29 @@ export class CoreService {
   readonly drawings: DrawingBook
   /** 配当シミュレータの材料のキャッシュ（取得の完了で捨てる） */
   readonly sim: SimData
+  /**
+   * 利回りの変化の内訳の月ごとの点（FR-I11。docs/design-yield-breakdown.md §3.1）: 月末の終値（日足と月次系列）と直近 12 か月の配当。
+   * 正の配当が無ければ読まずに null。月次系列が無ければ、この起動で銘柄ごとに 1 回だけ取得を頼む（↑↓ でめくっても重ねない）
+   */
+  private yieldPathOf(id: InstrumentId, divs: readonly Dividend[]): YieldPoint[] | null {
+    const r = this.repo
+    if (!divs.some((d) => d.amount > 0)) return null
+    const today = jstNow().date
+    const lastMonthly = r.fetchState(id).lastMonthly
+    // 月次系列が無ければ、この起動で 1 回だけ取りに行く（取得の対象の銘柄だけ。月足のチャートが頼んだ取得と重ねない）
+    const item = `M:${id}`
+    if (!lastMonthly && r.yahooOf(id) && !this.ydAsked.has(id)) {
+      this.ydAsked.add(id)
+      if (r.fetchSet().some((x) => x.id === id) && !this.jobs.isPending('monthly', item)) this.jobs.enqueue('refetch', [item])
+    }
+    const divFrom = divCoverFrom(lastMonthly, today, retentionStart(today, this.user.load('settings').retentionYears), this.div10Since)
+    const daily = r.daily(id)
+    const monthly = r.monthly(id)
+    // 最初の足の実際の日（月次系列の月の日付は月の初め）
+    const firstBar = [monthly[0]?.d, daily[0]?.d].filter((d): d is string => !!d).sort()[0]
+    return yieldPath(monthCloses(daily, monthly), divs, divFrom, firstBar)
+  }
+  private ydAsked = new Set<InstrumentId>()
   /** 10 年分の配当を入れる前の版で月次系列を取った銘柄の取り直しを、この起動で 1 回だけ頼む（銘柄情報の配当・配当シミュレータ） */
   private askDiv10(id: InstrumentId): void {
     if (this.divAsked.has(id)) return
@@ -143,7 +168,10 @@ export class CoreService {
     this.sim = new SimData(
       this.repo,
       () => this.user.load('settings').retentionYears,
-      (id) => this.jobs.enqueue('monthly', [`M:${id}`]),
+      (id) => {
+        // 銘柄情報の取り直し（利回りの変化の内訳）が待っていれば重ねない
+        if (!this.jobs.isPending('refetch', `M:${id}`)) this.jobs.enqueue('monthly', [`M:${id}`])
+      },
       this.div10Since,
       (id) => this.askDiv10(id),
     )
@@ -380,7 +408,8 @@ export class CoreService {
     const monthlyFetched = !!lastMonthly || !repo.yahooOf(id)
     if (tf === 'M') {
       let monthly = repo.monthly(id)
-      if (!monthly.length && !lastMonthly && repo.yahooOf(id)) this.jobs.enqueue('monthly', [`M:${id}`])
+      if (!monthly.length && !lastMonthly && repo.yahooOf(id) && !this.jobs.isPending('refetch', `M:${id}`))
+        this.jobs.enqueue('monthly', [`M:${id}`])
       // 日足の期間より前の月足も、日足と同じ基準（未調整・配当込み）にそろえる
       monthly = adjustMonthly(monthly, adj, splits, dividends, daily, adjusted)
       const { bars, monthlyUntil } = mergeMonthly(monthly, adjusted)
@@ -514,12 +543,14 @@ export class CoreService {
         // 表示中の銘柄だけ: 5 年分の日足（約 1,250 本）を 1 回なめて計算する（全銘柄の指標には入れない。decisions.md）
         const id = P.id as InstrumentId
         const ins = r.instrument(id)
+        const divs = r.dividends(id)
         return {
-          ...computeInfoExtra(id, r.recentDaily(id, EXTRA_BARS), r.dividends(id)),
+          ...computeInfoExtra(id, r.recentDaily(id, EXTRA_BARS), divs),
           // 業種の無い銘柄（指数・ETF・業種名の無い利用者の銘柄）は比べない
           sector: ins && ins.kind !== 'etf' && sectorOf(ins) ? this.sectorMedian(sectorOf(ins)) : null,
           earnings: earningsOf(r.quote(id), jstNow().date),
           split: r.splits(id).at(-1) ?? null,
+          yieldPath: this.yieldPathOf(id, divs),
         } as Results[M]
       }
       case 'metrics.get': {

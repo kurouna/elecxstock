@@ -4,20 +4,24 @@
 // （実績利回り・PER・PBR・時価総額。業種の中央値と比べる）→ 予定（次の決算発表・権利付最終日）→ 配当 → 値動き・保有・アラート。
 // 枠の幅で並びを変える（container queries）: 〜699px は 1 列、700〜1039px は左に値段・予定・数字・右に配当、1040px〜は
 // 1 段目に値段と数字、2 段目に配当と値動きなど。配当のグラフは ← → で棒を選び、Y で年ごとと回ごとを切り替える。
-// 配当込みの騰落率・最大下落率・利回りの範囲・業種の中央値・決算発表は、表示中の銘柄だけ Core がその場で計算する（info.extra）
+// 配当込みの騰落率・最大下落率・利回りの範囲・業種の中央値・決算発表は、表示中の銘柄だけ Core がその場で計算する（info.extra）。
+// 配当の欄の「利回りの変化の内訳」（FR-I11。docs/design-yield-breakdown.md）は info/ の部品。V で平面を広げ、? で読み方、N で 5 年 ⇔ 最長
 import { yahooQuoteUrl } from '@shared/attribution'
 import { jstNow } from '@shared/calendar'
 import type { Dividend, InfoExtra } from '@shared/types'
-import { onMount } from 'svelte'
+import { breakdownFor } from '@shared/yieldPath'
+import { onMount, untrack } from 'svelte'
 import { condsText, distanceText } from '../../lib/alertText'
 import { changeSymbol } from '../../lib/chartMenu'
 import { anomalyHint, keyOf } from '../../lib/commands'
 import { annualDividends, eventYoy, nextRightsDates, recordDayOf, yearsThatFit } from '../../lib/dividends'
 import { chgDigits, cls, date, fmt, money, px, retCls, retText, sgn } from '../../lib/format'
 import type { Key } from '../../lib/i18n'
-import { registerPane } from '../../lib/panes'
+import { clearMaximized, setMaximized } from '../../lib/paneMax'
+import { paneSelector, registerPane } from '../../lib/panes'
 import { accountName, valuation } from '../../lib/portfolio'
 import { secret } from '../../lib/privacy.svelte'
+import { cursorStep } from '../../lib/yieldPlane'
 import {
   app,
   bridge,
@@ -33,9 +37,11 @@ import {
   toast,
   toggleFav,
 } from '../../stores/app.svelte'
-import { type PaneNode, paneSymbol, patchState } from '../../stores/layout.svelte'
+import { inDock, type PaneNode, paneSymbol, patchState } from '../../stores/layout.svelte'
 import Icon from '../Icon.svelte'
 import PaneHeader from '../PaneHeader.svelte'
+import YieldBreakdown from './info/YieldBreakdown.svelte'
+import YieldOverlay from './info/YieldOverlay.svelte'
 
 let { pane }: { pane: PaneNode } = $props()
 const id = $derived(paneSymbol(pane) ?? 'JP:7203')
@@ -64,6 +70,9 @@ $effect(() => {
   // 前の銘柄でスクロールしていたら先頭に戻す（短い内容でスクロールが起きず、見出しの値段が残らないように）
   scrolled = false
   if (scroller) scroller.scrollTop = 0
+  // 利回りの変化の内訳: 十字線と読み方を消す（平面は開いたまま、新しい銘柄で描き直す）
+  ydCursor = null
+  ydTip = false
 })
 $effect(() => {
   void app.dataVersion
@@ -87,6 +96,78 @@ $effect(() => {
       if (my === token) extra = null
     })
 })
+
+// ---------------- 利回りの変化の内訳（FR-I11。docs/design-yield-breakdown.md）
+const ydSpan = $derived<5 | 'max'>(pane.state.ydSpan === 'max' ? 'max' : 5)
+const yd = $derived(breakdownFor(extra?.yieldPath, ydSpan))
+let ydOpen = $state(false)
+let ydTip = $state(false)
+/** 十字線の月（月で持つ。取得で点が増えても同じ月に留まる） */
+let ydCursor = $state<string | null>(null)
+/** 平面を開くときに自分で最大化した（閉じるときに戻す） */
+let ydAuto = false
+/** 開いている間にこのペインが最大化だった（自分で・利用者が。戻ったら狭いペインに層を残さない） */
+let ydMax = false
+const setYdSpan = (v: 5 | 'max') => {
+  patchState(pane, { ydSpan: v })
+  ydCursor = null
+}
+/** 平面を広げる。ペインが狭い・低いときは最大化してから（§2.3。ドロワーのペインは最大化できないので、その場で開く） */
+function ydOpenPlane(): boolean {
+  if (yd.kind !== 'ok') return false
+  const el = document.querySelector<HTMLElement>(paneSelector(pane.id))
+  if (el && app.maximized !== pane.id && !inDock(pane.id) && (el.clientWidth < 900 || el.clientHeight < 420)) {
+    setMaximized(pane.id)
+    ydAuto = true
+  }
+  ydMax = app.maximized === pane.id
+  ydTip = false
+  ydOpen = true
+  return true
+}
+/** 層を閉じる（最大化は触らない） */
+function ydHide() {
+  ydOpen = false
+  ydCursor = null
+  ydAuto = false
+  ydMax = false
+}
+/** 閉じる（キー・クリックから）。自分で最大化して、今もこのペインが最大化なら戻す */
+function ydClose() {
+  const restore = ydAuto && app.maximized === pane.id
+  ydHide()
+  if (restore) setMaximized(null)
+}
+// 開いている間に、このペインが最大化でなくなった（戻した・タブを替えた・ペインを動かした）か、ほかのペインが最大化されたら閉じる
+// （狭いペインに層を残さない・最大化したペインの上に層を出さない）
+$effect(() => {
+  const mx = app.maximized
+  untrack(() => {
+    if (!ydOpen) return
+    if (mx === pane.id) ydMax = true
+    else if (ydMax || mx !== null) ydHide()
+  })
+})
+// 欄の出ない銘柄になった（無配に転じた・取得に失敗した）ら閉じる。$effect の中なので、自分で最大化したのは動きなしで戻す（setMaximized は flushSync するので呼ばない）
+$effect(() => {
+  if (yd.kind === 'ok') return
+  untrack(() => {
+    if (!ydOpen) return
+    const restore = ydAuto && app.maximized === pane.id
+    ydHide()
+    if (restore) clearMaximized()
+  })
+})
+/** 広げた平面のキー。層の後ろのペインのキー（スクロール・棒・Y・O・V・?）は受けて何もしない。銘柄の切り替え（C・数字）や全体のキーは通す */
+function ydKey(e: KeyboardEvent): boolean {
+  if (e.key === 'Escape') ydClose()
+  else if (e.code === 'KeyN' && !e.shiftKey) setYdSpan(ydSpan === 5 ? 'max' : 5)
+  else if (yd.kind === 'ok' && extra?.yieldPath && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+    const nx = cursorStep(extra.yieldPath.slice(yd.i0), ydCursor, e.key, e.shiftKey)
+    if (nx) ydCursor = nx
+  } else return ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'KeyY', 'KeyO', 'KeyV', 'Slash', 'KeyN'].includes(e.code)
+  return true
+}
 
 const today = $derived(jstNow().date)
 const reit = $derived(ins?.kind === 'reit')
@@ -232,6 +313,21 @@ onMount(() =>
     current: () => id,
     key(e) {
       if (e.ctrlKey || e.altKey || e.metaKey) return false
+      if (ydOpen) return ydKey(e)
+      // 利回りの変化の内訳: V 平面を広げる・? 読み方・N 期間（欄が出ていない銘柄では受けない）
+      if (e.code === 'KeyV' && !e.shiftKey) return ydOpenPlane()
+      if (e.code === 'Slash' && e.shiftKey && yd.kind !== 'hidden') {
+        ydTip = !ydTip
+        return true
+      }
+      if (e.code === 'KeyN' && !e.shiftKey && yd.kind === 'ok') {
+        setYdSpan(ydSpan === 5 ? 'max' : 5)
+        return true
+      }
+      if (e.key === 'Escape' && ydTip) {
+        ydTip = false
+        return true
+      }
       // ↑ ↓ PageUp PageDown で本文を縦にスクロールする（マウスを使わずに下のカードまで見る。FR-KB4）
       // O でこの銘柄の Yahoo Finance のページをブラウザで開く（FR-I10）
       if (e.code === 'KeyO' && !e.shiftKey && quoteUrl) {
@@ -417,6 +513,9 @@ onMount(() =>
           <div class="cap">{t(p >= 66 ? 'si.yHigh' : p <= 33 ? 'si.yLow' : 'si.yMid', { v: `${fmt(m.yieldTrailing)}%`, n: r.years })}</div>
         </div>
       {/if}
+      {#if yd.kind !== 'hidden' && extra?.yieldPath}
+        <YieldBreakdown path={extra.yieldPath} view={yd} {reit} bind:tip={ydTip} onopen={() => void ydOpenPlane()} />
+      {/if}
       {#if m?.recordMonths.length}
         <div class="rec">{t('info.recordMonths')} <b>{m.recordMonths.map(monthName).join('・')}</b>{#if rights.length}　{t('si.lastCum')} <span class="num">{rights.map((r) => date(r.lastCum)).join('、')}</span>（{t('si.approx')}）{/if}</div>
       {/if}
@@ -516,6 +615,9 @@ onMount(() =>
     </div>
   </div>
 </div>
+{#if ydOpen && yd.kind === 'ok' && extra?.yieldPath}
+  <YieldOverlay path={extra.yieldPath} i0={yd.i0} span={ydSpan} cursor={ydCursor} name={`${codeOf(id)} ${nameOf(id)}`} {reit} onspan={setYdSpan} onclose={ydClose} />
+{/if}
 
 <style>
   /* 狭い見出しでも銘柄のコードは見せる（FR-V5）。値段（スクロールしたとき）のほうを先に縮める */

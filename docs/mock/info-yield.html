@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<title>elecxstock — 銘柄情報: 利回りの変化の内訳（モック）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* アプリの app.css と同じトークン（ダーク・ライト）。足すのは --yd-*（配当と株価の平面の色）だけ */
+:root {
+  --bg: #0b0d10; --panel: #101318; --panel-2: #151920; --panel-3: #1b2029;
+  --line: #20262f; --line-soft: #161a20; --line-strong: #2d3540;
+  --text: #dfe4ea; --text-2: #a3adb9; --text-3: #8b95a2; --focus: #7aa7ff;
+  --up: #ff6b70; --down: #5aa2ee; --warn: #d9a400;
+  --chart-grid: #161a20; --chart-cross: #55606d;
+  --fs-0: 10px; --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 16px;
+  --radius: 2px;
+  --font: "Noto Sans JP", system-ui, sans-serif; --mono: "Noto Sans Mono", ui-monospace, monospace;
+  /* 配当 = 紫、株価 = 灰、利回り = 青（騰落の赤・青と取り違えないよう、利回りはフォーカスの青を使い、増減の色は付けない） */
+  --yd-div: #a48cff; --yd-px: #8b95a2; --yd-y: #7aa7ff;
+  --yd-old: #3a3f6e; --yd-new: #b8a6ff; --yd-now: #ffffff; --yd-iso: #262d39; --yd-iso-t: #6b7685;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #e9ecf0; --panel: #ffffff; --panel-2: #f5f7fa; --panel-3: #eceff3;
+  --line: #d6dbe1; --line-soft: #e6e9ee; --line-strong: #c3cad3;
+  --text: #1a1f26; --text-2: #4a5562; --text-3: #5d6875; --focus: #2f6fe0;
+  --up: #c62f37; --down: #1a62b0; --warn: #9a6b00;
+  --chart-grid: #eef1f4; --chart-cross: #8a95a3;
+  --yd-div: #5b44c9; --yd-px: #5d6875; --yd-y: #2f6fe0;
+  --yd-old: #d4cff2; --yd-new: #4b3bb8; --yd-now: #1a1f26; --yd-iso: #e3e7ec; --yd-iso-t: #8a95a3;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 400 var(--fs-2)/1.5 var(--font); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.up { color: var(--up); } .down { color: var(--down); } .muted { color: var(--text-3); }
+kbd { font: 500 var(--fs-0) var(--mono); color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 0 4px; line-height: 14px; }
+b { font-weight: 600; }
+
+/* モックの帯 */
+.bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.bar > b { margin-right: 8px; }
+.bar button { background: var(--panel-2); color: var(--text-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 8px; font: inherit; cursor: pointer; }
+.bar button[aria-pressed="true"] { color: var(--text); border-color: var(--focus); }
+.bar .sep { width: 1px; height: 18px; background: var(--line); }
+.bar .fict { margin-left: auto; color: var(--warn); font-size: var(--fs-1); }
+.stage { padding: 16px; display: flex; justify-content: center; }
+
+/* 銘柄情報のペイン（アプリの今の見た目をなぞる。新しいのは「利回りの変化の内訳」の欄と、広げて見る平面） */
+.pane { width: var(--w, 1600px); height: var(--h, 900px); background: var(--panel); border: 1px solid var(--focus); display: flex; flex-direction: column; overflow: hidden; position: relative; container-type: inline-size; }
+.ph { height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-bottom: 1px solid var(--line); background: var(--panel-2); color: var(--text-2); flex: none; }
+.ph .link { width: 14px; height: 14px; border-radius: 3px; background: #2fae74; color: #000; font-size: 9px; display: grid; place-items: center; font-weight: 700; }
+.ph .title { color: var(--text); font-weight: 600; }
+.ph .sym { color: var(--text); font-weight: 600; }
+.body { flex: 1; overflow: auto; padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.meta { display: flex; font-size: var(--fs-1); color: var(--text-3); }
+.meta .r { margin-left: auto; }
+.top { display: grid; grid-template-columns: 500px 1fr; gap: 8px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 10px 12px; }
+.hero .p { font: 600 28px/1 var(--mono); }
+.hero .ch { font: 600 16px var(--mono); color: var(--up); margin-left: 8px; }
+.hero .s { font-size: var(--fs-1); color: var(--text-3); margin-top: 6px; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 3px; }
+.kpis > div { padding: 10px 12px; border-right: 1px solid var(--line); }
+.kpis > div:last-child { border-right: 0; }
+.kpis .k { font-size: var(--fs-1); color: var(--text-3); }
+.kpis .v { font: 600 18px var(--mono); }
+.kpis .v .u { font-size: var(--fs-1); color: var(--text-3); font-weight: 400; }
+.kpis .sub { font-size: var(--fs-1); color: var(--text-3); }
+.cols { display: grid; grid-template-columns: 500px 1fr 1fr; gap: 8px; align-items: start; }
+h5 { margin: 0 0 8px; font-size: var(--fs-3); display: flex; align-items: center; gap: 6px; }
+h5 .grow { flex: 1; }
+h5 .muted { font-weight: 400; font-size: var(--fs-1); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.stats .k { font-size: var(--fs-1); color: var(--text-3); }
+.stats .v { font: 600 14px var(--mono); }
+.stats .v .u { font-size: var(--fs-1); color: var(--text-3); font-weight: 400; }
+.yr { margin-top: 10px; }
+.yr .lab { display: flex; justify-content: space-between; font-size: var(--fs-1); color: var(--text-2); }
+.yr .track { height: 4px; background: var(--line-strong); border-radius: 2px; position: relative; margin: 4px 0; }
+.yr .me { position: absolute; top: -5px; width: 8px; height: 14px; background: var(--text); border-radius: 2px; transform: translateX(-50%); }
+.yr .cap { font-size: var(--fs-1); color: var(--text-2); }
+.rec { margin-top: 8px; background: var(--panel-2); padding: 4px 8px; font-size: var(--fs-1); color: var(--text-2); border-radius: 2px; }
+
+/* ---- 新しい欄: 利回りの変化の内訳 ---- */
+.yd { margin-top: 10px; border-top: 1px solid var(--line-soft); padding-top: 8px; display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 6px 12px; outline: none; }
+.yd.sel { box-shadow: inset 2px 0 0 var(--focus); padding-left: 6px; margin-left: -6px; }
+.yd .hd { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; font-size: var(--fs-1); color: var(--text-2); }
+.yd .hd b { color: var(--text); font-size: var(--fs-2); }
+.yd .hd .grow { flex: 1; }
+.ibtn { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--line-strong); background: transparent; color: var(--text-3); font: 600 10px/1 var(--font); display: inline-grid; place-items: center; padding: 0; cursor: help; position: relative; }
+.ibtn:hover, .ibtn:focus-visible, .ibtn.on { color: var(--focus); border-color: var(--focus); outline: none; }
+.yd .sum { font: 600 15px var(--mono); }
+.yd .sum .d { font-size: var(--fs-1); font-weight: 400; color: var(--text-3); margin-left: 6px; }
+.yd .rows { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.yd .r { display: grid; grid-template-columns: 52px minmax(0, 1fr) 56px; align-items: center; gap: 6px; font-size: var(--fs-1); color: var(--text-2); }
+.yd .r .v { text-align: right; font-family: var(--mono); color: var(--text); }
+.yd .b { height: 8px; background: var(--panel-3); position: relative; border-radius: 2px; }
+.yd .b i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.yd .b .mid { left: 50%; width: 1px; background: var(--line-strong); }
+.yd .cap { font-size: var(--fs-1); color: var(--text-2); margin-top: 4px; }
+.yd-axis { display: grid; grid-template-columns: 52px minmax(0, 1fr) 56px; gap: 6px; font-size: var(--fs-0); color: var(--text-3); }
+.yd-axis span:nth-child(2) { display: flex; justify-content: space-between; }
+.yd .none { font-size: var(--fs-1); color: var(--text-2); }
+@container (max-width: 420px) { .yd { grid-template-columns: minmax(0, 1fr); } .yd .thumb { display: none; } }
+.yd .thumb { border: 1px solid var(--line); border-radius: 2px; background: var(--panel-2); height: 100px; position: relative; cursor: zoom-in; }
+.yd .thumb svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.yd .thumb .open { position: absolute; right: 4px; bottom: 2px; font-size: var(--fs-0); color: var(--text-3); }
+.yd .thumb:hover { border-color: var(--focus); }
+
+/* 説明のツールチップ（ⓘ・?） */
+.tipbox { position: absolute; z-index: 40; width: min(380px, 100%); background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: 0 10px 34px rgb(0 0 0 / .45); padding: 10px 12px; font-size: var(--fs-1); color: var(--text-2); line-height: 1.6; display: none; }
+.tipbox.open { display: block; }
+.tipbox h6 { margin: 0 0 4px; font-size: var(--fs-2); color: var(--text); }
+.tipbox .eq { font-family: var(--mono); color: var(--text); background: var(--panel-3); padding: 1px 6px; border-radius: 2px; }
+.tipbox .how { display: grid; grid-template-columns: 120px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
+.tipbox ul { margin: 0; padding-left: 16px; }
+.tipbox .k { color: var(--text-3); margin-top: 6px; }
+
+.dchart { margin-top: 10px; }
+.dchart .dtop { display: flex; font-size: var(--fs-1); color: var(--text-2); }
+.dchart .row { display: flex; align-items: flex-end; gap: 4px; height: 120px; margin-top: 6px; }
+.dchart .row i { flex: 1; background: var(--line-strong); }
+.dchart .row i.last { background: var(--focus); }
+.tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-2); }
+.tbl td, .tbl th { padding: 3px 4px; text-align: right; }
+.tbl th { font-weight: 400; color: var(--text-3); font-size: var(--fs-1); }
+.tbl td:first-child { text-align: left; color: var(--text-2); }
+
+/* ---- 広げて見る平面（ペインの上に重ねる。Esc で閉じる） ---- */
+.over { position: absolute; inset: 28px 0 0 0; background: rgb(0 0 0 / .45); display: none; z-index: 30; padding: 14px; }
+.over.open { display: flex; }
+.ovbox { flex: 1; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: 0 12px 40px rgb(0 0 0 / .5); display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+.ovh { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.ovh b { font-size: var(--fs-3); }
+.ovh .grow { flex: 1; }
+.seg { display: inline-flex; gap: 1px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 1px; }
+.seg span { padding: 0 8px; font-size: var(--fs-1); color: var(--text-3); line-height: 18px; cursor: pointer; }
+.seg span.on { background: var(--panel-3); color: var(--text); box-shadow: inset 0 -1px 0 var(--focus); }
+.close { background: transparent; border: 1px solid var(--line-strong); color: var(--text-2); border-radius: var(--radius); font: inherit; font-size: var(--fs-1); padding: 0 8px; cursor: pointer; }
+.ovplane { position: relative; min-height: 0; padding: 6px 10px; display: flex; flex-direction: column; }
+.ovplane .read { font-size: var(--fs-1); color: var(--text-3); min-height: 18px; }
+.ovplane .read .day { color: var(--focus); }
+#big { flex: 1; position: relative; min-height: 0; }
+#big svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.legend { border-left: 1px solid var(--line); padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; font-size: var(--fs-1); color: var(--text-2); overflow: auto; }
+.legend h6 { margin: 0; font-size: var(--fs-2); color: var(--text); }
+.legend .how { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; }
+.legend .yd-axis { margin-top: 4px; }
+.legend .dec .r { display: grid; grid-template-columns: 52px minmax(0, 1fr) 56px; gap: 6px; align-items: center; margin-top: 4px; }
+.legend .dec .b { height: 8px; background: var(--panel-3); position: relative; border-radius: 2px; }
+.legend .dec .b i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.legend .note { color: var(--text-3); }
+svg text { font-family: var(--mono); font-size: 10.5px; fill: var(--text-3); }
+svg .iso { font-family: var(--font); font-size: 11px; fill: var(--yd-iso-t); }
+svg .lbl { font-family: var(--font); font-size: 12px; fill: var(--text); }
+svg .zone { font-family: var(--font); font-size: 11px; fill: var(--text-3); }
+.foot { flex: none; padding: 3px 10px; font-size: var(--fs-1); color: var(--text-3); border-top: 1px solid var(--line); background: var(--panel-2); display: flex; gap: 12px; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>銘柄情報: 利回りの変化の内訳（モック）</b>
+  <span class="muted">例</span><span id="exBtns"></span>
+  <span class="sep"></span><span class="muted">期間（N）</span><button data-span="5" aria-pressed="true">5 年</button><button data-span="max">最長</button>
+  <span class="sep"></span><span class="muted">テーマ</span><button data-theme="dark" aria-pressed="true">ダーク</button><button data-theme="light">ライト</button>
+  <span class="sep"></span><span class="muted">幅</span><button data-size="L" aria-pressed="true">最大化</button><button data-size="M">中</button><button data-size="S">狭い（600×360）</button>
+  <span class="fict">値はすべて架空（銘柄名とコードだけ実在）</span>
+</div>
+<div class="stage">
+  <div class="pane" id="pane">
+    <div class="ph"><span class="link">2</span><span class="title">銘柄情報</span><span class="muted">★</span><span class="sym" id="sym"></span><span class="muted">⟳ ⓘ ↗</span></div>
+    <div class="body">
+      <div class="meta"><span id="kind"></span><span class="r">基準日 2026/11/13</span></div>
+      <div class="top">
+        <div class="card hero"><div><span class="p" id="price"></span><span class="ch">+800 (+0.77%)</span></div><div class="s">52 週の値動き・移動平均からの乖離（今のアプリのまま。モックでは省略）</div></div>
+        <div class="kpis"><div><div class="k">実績利回り</div><div class="v" id="kY"></div><div class="sub">業種 4.9%</div></div><div><div class="k">直近2期の年換算利回り</div><div class="v" id="kY2"></div></div><div><div class="k">PBR</div><div class="v">2.36<span class="u">倍</span></div></div><div><div class="k">時価総額</div><div class="v">7,697<span class="u">億円</span></div></div></div>
+      </div>
+      <div class="cols">
+        <section class="card" id="divcard">
+          <h5 id="divTitle">分配金<span class="grow"></span><span class="muted" id="perUnit">1口あたり</span></h5>
+          <div class="stats"><div><div class="k">過去12か月</div><div class="v" id="d12"></div></div><div><div class="k">5年の増配率</div><div class="v" id="cagr"></div></div><div><div class="k">連続増配 / 非減配</div><div class="v">7<span class="u">年以上</span> / 7<span class="u">年以上</span></div></div></div>
+          <div class="yr"><div class="lab"><span>利回りの3年の範囲 <b class="num" id="yrLo"></b></span><b class="num" id="yrHi"></b></div><div class="track"><span class="me" id="yrMe"></span></div><div class="cap" id="yrCap"></div></div>
+
+          <!-- 新しい欄 -->
+          <div class="yd" id="yd" tabindex="-1">
+            <div class="hd"><b>利回りの変化の内訳</b><span class="muted" id="ydSpan"></span><button class="ibtn" id="ibtn" type="button" aria-label="利回りの変化の内訳の読み方" title="読み方（?）">i</button><span class="grow"></span><span class="muted">V で平面を広げる</span></div>
+            <div>
+              <div class="sum" id="ydSum"></div>
+              <div class="rows" id="ydRows"></div>
+              <div class="cap" id="ydCap"></div>
+            </div>
+            <div class="thumb" id="thumb" title="配当と株価の平面を広げる（V）"><svg id="thumbSvg"></svg><span class="open">⤢ 広げる</span></div>
+          </div>
+
+          <div class="rec">権利確定月 <b>4月・10月</b>　権利付最終日 2027/04/26、2027/10/26（目安）</div>
+          <div class="dchart"><div class="dtop">年ごとの合計<span style="margin-left:auto" class="muted">年 · 回</span></div><div class="row" id="dbars"></div></div>
+        </section>
+        <section class="card"><h5>値動き<span class="grow"></span><span class="muted">RSI(14) 59.2 · GC 99日前</span></h5>
+          <table class="tbl"><tr><th></th><th>1か月</th><th>3か月</th><th>1年</th><th>3年</th><th>5年</th></tr><tr><td>値段</td><td class="up">+2.2%</td><td class="up">+12.2%</td><td class="up">+3.7%</td><td class="up">+0.4%</td><td>—</td></tr><tr><td>配当込み</td><td></td><td></td><td class="up">+10.6%</td><td class="up">+20.9%</td><td>—</td></tr></table>
+        </section>
+        <section class="card"><h5>アラート</h5><div class="muted">この銘柄のアラートはありません</div></section>
+      </div>
+    </div>
+    <!-- 説明のツールチップ -->
+    <div class="tipbox" id="tip" role="tooltip">
+      <h6>利回りの変化の内訳の読み方</h6>
+      <div><span class="eq">利回り = 1株配当 ÷ 株価</span>。利回りは<b>配当が増えても</b>、<b>株価が下がっても</b>上がります。この欄は、<span id="tipSpan"></span>前から今までの利回りの変化を、配当の動きと株価の動きに分けて示します。</div>
+      <div class="how"><svg id="tipFig" viewBox="0 0 120 90" width="120" height="90"></svg>
+        <ul><li><b>配当の棒</b>: 1株配当の増減。右へ伸びると利回りを押し上げた</li><li><b>株価の棒</b>: 株価の増減。<b>株価が下がると右</b>（利回りを押し上げた）</li><li>右の小さな図（平面）: 横が配当、縦が株価。斜めの線は同じ利回り</li></ul></div>
+      <div class="k">配当は直近 12 か月の合計で、特別配当も含みます。過去の値の動きで、将来の配当や株価を示すものではありません。</div>
+    </div>
+    <!-- 広げて見る平面 -->
+    <div class="over" id="over" role="dialog" aria-label="配当と株価の平面">
+      <div class="ovbox">
+        <div class="ovh"><b id="ovTitle"></b><span class="muted">横 = 1株配当（直近12か月）、縦 = 株価。点は毎月</span><span class="grow"></span>
+          <span class="seg" title="N"><span data-span="5">5 年</span><span data-span="max">最長</span></span>
+          <button class="close" type="button" data-close>閉じる Esc</button></div>
+        <div class="ovplane"><div class="read" id="read"></div><div id="big"></div></div>
+        <div class="legend">
+          <h6>読み方</h6>
+          <div class="how"><svg id="legFig" viewBox="0 0 120 90" width="110" height="82"></svg><div>斜めの線は<b>同じ利回り</b>。右下へ行くほど利回りが高い。<br>→ 増配　↓ 株価が下がった<br>斜めに沿う = 利回りは変わらない</div></div>
+          <div class="dec" id="legDec"></div>
+          <div class="note" id="legNote"></div>
+          <div class="note">← → 月 · Shift で 1 年 · Home End · N 5 年 ⇔ 最長 · Esc 閉じる</div>
+          <div class="note">過去の値の動きです。将来の配当や株価を示すものではありません。配当は直近 12 か月の合計（配当落ちの日で変わる）。</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>V 平面を広げる · ? 読み方 · N 5 年 ⇔ 最長 · Esc 読み方を消す（モックだけの案内。画面にキーの案内は出さない）</span></div>
+  </div>
+</div>
+<script>
+// ============================================================ 架空のデータ（種つきの乱数。銘柄名とコードだけ実在）
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 } }
+const MONTHS = []
+for (let y = 2016, m = 12; y < 2026 || (y === 2026 && m <= 11); m === 12 ? ((m = 1), y++) : m++) MONTHS.push(`${y}-${String(m).padStart(2, '0')}`)
+const N = MONTHS.length
+// 終わり（今）の株価と配当から逆にたどる。pg: 年ごとの株価の伸び（古い順）、dps: 年ごとの 1 株配当（古い順、11 年分）。配当は配当落ちの月に段で変わる
+const STOCKS = [
+  { code: '8951', name: '日本ビルファンド投資法人', reit: true, pEnd: 105000, dps: [5400, 5480, 5520, 5600, 5560, 5500, 5580, 5640, 5720, 5870, 5945], pg: [0.04, -0.02, 0.06, -0.18, 0.02, 0.05, -0.06, -0.10, -0.06, 0.02, 0.01], ex: [4, 10], note: '分配金はほぼ一定で、価格が下がった分だけ利回りが上がった' },
+  { code: '8058', name: '三菱商事', reit: false, pEnd: 2950, dps: [32, 34, 40, 44, 44, 45, 50, 68, 70, 73, 78], pg: [0.02, -0.05, 0.08, -0.25, 0.30, 0.35, 0.20, 0.45, 0.05, 0.10, 0.06], ex: [3, 9], note: '配当も株価も伸び、利回りはあまり変わらない（株価の伸びが少し上回った）' },
+  { code: '8002', name: '丸紅', reit: false, pEnd: 2450, dps: [26, 31, 34, 35, 33, 15, 15, 22, 28, 0, 0], pg: [0.05, 0.10, -0.12, -0.20, -0.30, 0.15, 0.40, 0.25, 0.15, 0.05, -0.02], ex: [3, 9], note: '無配に転じた（今は内訳を出せない）' },
+  { code: '9434', name: 'ソフトバンク', reit: false, pEnd: 216, dps: [0, 0, 3.75, 7.5, 8.5, 8.6, 8.6, 8.6, 8.6, 8.6, 8.6], pg: [0.03, 0.05, -0.10, 0.06, -0.08, 0.04, 0.10, 0.12, 0.08, -0.04, 0.03], ex: [3, 9], note: '配当は据え置きで、利回りの変化はほぼ株価の動き（逆向き）だけ' },
+]
+for (const s of STOCKS) {
+  const r = rng(Number(s.code))
+  const lp = new Array(N)
+  lp[N - 1] = Math.log(s.pEnd)
+  for (let i = N - 2; i >= 0; i--) lp[i] = lp[i + 1] - s.pg[Math.min(10, Math.floor((i + 1) / 12))] / 12 - (r() - 0.5) * 0.07
+  s.P = lp.map(Math.exp)
+  // 直近 12 か月の配当（段）: 年の DPS が、配当落ちの月に半分ずつ切り替わる
+  s.D = MONTHS.map((m, i) => {
+    const yi = Math.min(10, Math.floor(i / 12)), prev = s.dps[Math.max(0, yi - 1)], cur = s.dps[yi]
+    const mo = Number(m.slice(5)), half = s.ex.filter((e) => e <= mo).length
+    return prev + ((cur - prev) * half) / 2
+  })
+}
+
+// ============================================================ 状態
+const st = { sel: 0, span: 5, cur: null, over: false, tip: false, focusYd: true }
+/** 点のある最初の月（配当の記録の始まり + 12 か月）。モックでは一律 2017/12 */
+const FIRST = 12
+const $ = (id) => document.getElementById(id)
+const fm = (m) => m.replace('-', '/')
+const yen = (v) => (v >= 1000 ? Math.round(v).toLocaleString() : v >= 100 ? v.toFixed(0) : v.toFixed(1))
+const pct = (v) => `${(v * 100).toFixed(2)}%`
+const sg = (v, d = 0) => `${v > 0.0005 ? '+' : v < -0.0005 ? '−' : '±'}${Math.abs(v * 100).toFixed(d)}%`
+/** 始まり（5 年前か最長）。その月の 12 か月の配当が 0 なら、配当を始めた月から（started） */
+const range = () => { const s = STOCKS[st.sel]; let a = st.span === 'max' ? FIRST : Math.max(FIRST, N - 1 - 60); let started = false; for (;;) { let z = -1; for (let k = a; k >= Math.max(FIRST, a - 11); k--) if (!(s.D[k] > 0)) { z = k; break } if (z < 0) break; a = Math.min(N - 1, z + 12); started = true } return [a, N - 1, started] }
+const yearsOf = (a, b) => Math.max(1, Math.round((b - a) / 12))
+
+// ============================================================ 分解（利回りの変化 = 配当の変化 ÷ 株価の変化）
+function decomp(i0, i1) {
+  const s = STOCKS[st.sel]
+  const y0 = s.D[i0] / s.P[i0], y1 = s.D[i1] / s.P[i1]
+  const lD = Math.log(s.D[i1] / s.D[i0]), lP = Math.log(s.P[i1] / s.P[i0])
+  return { y0, y1, dD: Math.exp(lD) - 1, dP: Math.exp(lP) - 1, dY: y1 / y0 - 1, lD, lP, lY: lD - lP }
+}
+/** 棒: 利回りを押し上げた向きを右に（配当は増えると右、株価は下がると右） */
+function bars(x) {
+  const sc = Math.max(Math.abs(x.lD), Math.abs(x.lP), Math.abs(x.lY), 0.15)
+  const b = (v, c) => { const w = (Math.min(Math.abs(v), sc) / sc) * 50; return `<div class="b"><i style="left:${v >= 0 ? 50 : 50 - w}%;width:${w}%;background:${c}"></i><i class="mid"></i></div>` }
+  return `<div class="yd-axis"><span></span><span><span>← 利回りを下げた</span><span>押し上げた →</span></span><span></span></div><div class="r"><span>1株${STOCKS[st.sel].reit ? '分配金' : '配当'}</span>${b(x.lD, 'var(--yd-div)')}<span class="v">${sg(x.dD)}</span></div>
+    <div class="r"><span>株価</span>${b(-x.lP, 'var(--yd-px)')}<span class="v">${sg(x.dP)}</span></div>
+    <div class="r"><span>利回り</span>${b(x.lY, 'var(--yd-y)')}<span class="v">${sg(x.dY)}</span></div>`
+}
+/** 一言のまとめ（どちらの動きが大きかったか。判定の言葉は使わない） */
+function caption(x) {
+  const small = (v) => Math.abs(v) < Math.log(1.02)
+  const yUp = x.lY > 0
+  const yw = yUp ? '上がった' : '下がった'
+  const dWord = x.lD > 0 ? '増配' : '減配', pWord = x.lP > 0 ? '株価の上昇' : '株価の下落'
+  if (small(x.lD) && small(x.lP)) return '配当も株価もほぼ変わらない'
+  if (small(x.lY)) return `利回りはほぼ変わらない（配当 ${sg(x.dD)}・株価 ${sg(x.dP)} がそろって動いた）`
+  const pd = x.lD, pp = -x.lP // 利回りを押し上げた向き
+  if (Math.sign(pd) === Math.sign(pp) || small(x.lD) || small(x.lP)) {
+    const a = Math.abs(pd), c = Math.abs(pp)
+    const by = a >= c * 1.5 ? `主に配当が${x.lD > 0 ? '増えた' : '減った'}ため` : c >= a * 1.5 ? `主に株価が${x.lP < 0 ? '下がった' : '上がった'}ため` : '配当と株価の両方による'
+    return `利回りは${yw}。${by}`
+  }
+  return Math.abs(pd) > Math.abs(pp) ? `利回りは${yw}。${dWord}が${pWord}を上回った` : `利回りは${yw}。${pWord}が${dWord}を上回った`
+}
+
+// ============================================================ 平面（小さい図と広げた図で同じ関数）
+function plane(el, o) {
+  const s = STOCKS[st.sel], w = el.clientWidth, h = el.clientHeight
+  if (w < 60 || h < 40) return
+  const [a, b] = range()
+  const idx = []; for (let i = a; i <= b; i++) if (s.D[i] > 0) idx.push(i)
+  const pad = o.small ? { l: 4, r: 4, t: 4, b: 4 } : { l: 64, r: 24, t: 14, b: 34 }, iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+  const log = true
+  const T = log ? Math.log : (v) => v
+  let x0 = Math.min(...idx.map((i) => s.D[i])), x1 = Math.max(...idx.map((i) => s.D[i])), y0 = Math.min(...idx.map((i) => s.P[i])), y1 = Math.max(...idx.map((i) => s.P[i]))
+  if (log) {
+    let lx0 = Math.log(x0 * 0.85), lx1 = Math.log(x1 * 1.15), ly0 = Math.log(y0 * 0.85), ly1 = Math.log(y1 * 1.15)
+    const k = Math.max((lx1 - lx0) / iw, (ly1 - ly0) / ih), cx = (lx0 + lx1) / 2, cy = (ly0 + ly1) / 2
+    lx0 = cx - (k * iw) / 2; lx1 = cx + (k * iw) / 2; ly0 = cy - (k * ih) / 2; ly1 = cy + (k * ih) / 2
+    x0 = Math.exp(lx0); x1 = Math.exp(lx1); y0 = Math.exp(ly0); y1 = Math.exp(ly1)
+  } else { x0 = 0; x1 *= 1.15; y0 = 0; y1 *= 1.15 }
+  const X = (v) => pad.l + ((T(v) - T(x0)) / (T(x1) - T(x0))) * iw, Y = (v) => pad.t + (1 - (T(v) - T(y0)) / (T(y1) - T(y0))) * ih
+  const isoPath = (yl) => { const pts = []; const lo = Math.log(Math.max(x0, x1 / 1e4)), hi = Math.log(x1); for (let k = 0; k <= 40; k++) { const d = Math.exp(lo + ((hi - lo) * k) / 40); pts.push(`${X(d).toFixed(1)} ${Y(d / yl).toFixed(1)}`) } return `M${pts.join('L')}` }
+  const cid = `cp${o.small ? 's' : 'b'}`
+  let g = `<clipPath id="${cid}"><rect x="${pad.l}" y="${pad.t}" width="${iw}" height="${ih}"/></clipPath><g clip-path="url(#${cid})">`
+  const ISO = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.1, 0.12]
+  for (const yl of ISO) g += `<path d="${isoPath(yl)}" fill="none" stroke="var(--yd-iso)"/>`
+  const first = idx[0], last = idx[idx.length - 1]
+  if (!o.small) for (const [i, c] of [[first, 'var(--yd-old)'], [last, 'var(--yd-new)']]) g += `<path d="${isoPath(s.D[i] / s.P[i])}" fill="none" stroke="${c}" stroke-width="1.5" stroke-dasharray="6 4"/>`
+  g += '</g>'
+  if (!o.small) {
+    for (const yl of ISO) { let d = x1, p = d / yl; if (p > y1) { p = y1; d = p * yl } if (d < x0 || p < y0) continue; g += `<text class="iso" x="${Math.min(X(d), pad.l + iw) - 4}" y="${Math.max(Y(p), pad.t) + 12}" text-anchor="end">${(yl * 100).toFixed(0)}%</text>` }
+    for (const [i, lab, c] of [[first, `${fm(MONTHS[first])} の利回り ${pct(s.D[first] / s.P[first])}`, 'var(--yd-old)'], [last, `今の利回り ${pct(s.D[last] / s.P[last])}`, 'var(--yd-new)']]) {
+      const yl = s.D[i] / s.P[i]; let d = x1, p = d / yl; if (p > y1) { p = y1; d = p * yl }
+      g += `<text class="lbl" x="${Math.min(X(d), pad.l + iw) - 4}" y="${Math.max(Y(p), pad.t) + 26}" text-anchor="end" style="fill:${c}">${lab}</text>`
+    }
+    const ticks = (lo, hi) => { const out = []; for (const base of [1, 2, 5]) for (let e = -1; e < 7; e++) { const v = base * 10 ** e; if (v >= lo && v <= hi) out.push(v) } return out.sort((p, q) => p - q) }
+    for (const v of ticks(x0, x1)) g += `<line x1="${X(v)}" x2="${X(v)}" y1="${pad.t}" y2="${pad.t + ih}" stroke="var(--chart-grid)"/><text x="${X(v)}" y="${h - 18}" text-anchor="middle">${v.toLocaleString()}</text>`
+    for (const v of ticks(y0, y1)) g += `<line x1="${pad.l}" x2="${pad.l + iw}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--chart-grid)"/><text x="${pad.l - 6}" y="${Y(v) + 3.5}" text-anchor="end">${v.toLocaleString()}</text>`
+    g += `<text class="zone" x="${pad.l + iw}" y="${h - 4}" text-anchor="end">1株${s.reit ? '分配金' : '配当'}（円・直近12か月）→</text><text class="zone" x="${pad.l - 56}" y="${pad.t + 10}">↑ 株価（円）</text>`
+    g += `<text class="zone" x="${pad.l + iw - 8}" y="${pad.t + ih - 8}" text-anchor="end">↘ 利回りが高い</text><text class="zone" x="${pad.l + 8}" y="${pad.t + 16}">↖ 利回りが低い</text>`
+  }
+  const col = (t) => `color-mix(in srgb, var(--yd-new) ${Math.round(t * 100)}%, var(--yd-old))`
+  for (let k = 1; k < idx.length; k++) { const i0 = idx[k - 1], i1 = idx[k], t = k / (idx.length - 1); g += `<line x1="${X(s.D[i0]).toFixed(1)}" y1="${Y(s.P[i0]).toFixed(1)}" x2="${X(s.D[i1]).toFixed(1)}" y2="${Y(s.P[i1]).toFixed(1)}" stroke="${col(t)}" stroke-width="${o.small ? 1 + t : 1.2 + t * 1.6}" stroke-linecap="round"/>` }
+  if (!o.small) for (const i of idx) if (MONTHS[i].endsWith('-01') || i === first) g += `<circle cx="${X(s.D[i])}" cy="${Y(s.P[i])}" r="2.5" fill="var(--text-3)"/><text x="${X(s.D[i]) + 5}" y="${Y(s.P[i]) - 4}" style="fill:var(--text-2)">${MONTHS[i].slice(0, 4)}</text>`
+  g += `<circle cx="${X(s.D[first])}" cy="${Y(s.P[first])}" r="${o.small ? 2.5 : 4}" fill="var(--yd-old)"/><circle cx="${X(s.D[last])}" cy="${Y(s.P[last])}" r="${o.small ? 3.5 : 6}" fill="var(--yd-now)" stroke="var(--panel)" stroke-width="2"/>`
+  if (!o.small) g += `<text class="lbl" x="${X(s.D[last]) + 10}" y="${Y(s.P[last]) + 4}">今 ${pct(s.D[last] / s.P[last])}</text>`
+  if (!o.small && st.cur != null) { const cx = X(s.D[st.cur]), cy = Y(s.P[st.cur]); g += `<line x1="${cx}" x2="${cx}" y1="${pad.t}" y2="${pad.t + ih}" stroke="var(--chart-cross)" stroke-dasharray="3 3"/><line x1="${pad.l}" x2="${pad.l + iw}" y1="${cy}" y2="${cy}" stroke="var(--chart-cross)" stroke-dasharray="3 3"/><circle cx="${cx}" cy="${cy}" r="6" fill="none" stroke="var(--focus)" stroke-width="2"/>` }
+  el.innerHTML = o.small ? g : `<svg viewBox="0 0 ${w} ${h}">${g}</svg>`
+}
+/** 読み方の図（3 つの向き）: 斜めの線・→ 増配・↓ 株価の下落 */
+function howFig(svg) {
+  let g = ''
+  for (let k = -2; k <= 3; k++) g += `<line x1="${k * 26}" y1="90" x2="${k * 26 + 90}" y2="0" stroke="var(--yd-iso)" stroke-width="1.2"/>`
+  g += `<text x="112" y="10" text-anchor="end" style="font-family:var(--font);font-size:9px;fill:var(--yd-iso-t)">同じ利回り</text>`
+  g += `<defs><marker id="ar${svg.id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" fill="context-stroke"/></marker></defs>`
+  g += `<circle cx="40" cy="44" r="3" fill="var(--text)"/>`
+  g += `<line x1="40" y1="44" x2="78" y2="44" stroke="var(--yd-div)" stroke-width="2" marker-end="url(#ar${svg.id})"/><text x="80" y="47" style="font-family:var(--font);font-size:9px;fill:var(--yd-div)">増配</text>`
+  g += `<line x1="40" y1="44" x2="40" y2="80" stroke="var(--yd-px)" stroke-width="2" marker-end="url(#ar${svg.id})"/><text x="44" y="82" style="font-family:var(--font);font-size:9px;fill:var(--yd-px)">株価↓</text>`
+  g += `<line x1="40" y1="44" x2="62" y2="22" stroke="var(--text-3)" stroke-width="1.5" stroke-dasharray="3 2" marker-end="url(#ar${svg.id})"/><text x="6" y="20" style="font-family:var(--font);font-size:9px;fill:var(--text-3)">沿う = 変わらず</text>`
+  svg.innerHTML = g
+}
+
+// ============================================================ 描く
+function render() {
+  const s = STOCKS[st.sel], [a, b, started] = range(), i1 = st.over && st.cur != null ? st.cur : b
+  const x = decomp(a, b)
+  $('sym').textContent = `${s.code} ${s.name}`
+  $('kind').textContent = s.reit ? 'REIT' : 'プライム'
+  $('price').textContent = yen(s.P[N - 1])
+  $('kY').innerHTML = `${(x.y1 * 100).toFixed(2)}<span class="u">%</span>`
+  $('kY2').innerHTML = `${(x.y1 * 100).toFixed(2)}<span class="u">%</span>`
+  $('divTitle').firstChild.textContent = s.reit ? '分配金' : '配当'
+  $('perUnit').textContent = s.reit ? '1口あたり' : '1株あたり'
+  $('d12').innerHTML = `${yen(s.D[N - 1])}<span class="u">円</span>`
+  $('cagr').innerHTML = `${sg(Math.pow(s.D[N - 1] / s.D[Math.max(0, N - 61)] || 1, 1 / 5) - 1, 1)}<span class="u">/年</span>`
+  // 3 年の利回りの範囲（今のアプリの欄）
+  const ys = []; for (let i = N - 37; i < N; i++) if (s.D[i] > 0) ys.push(s.D[i] / s.P[i])
+  const lo = Math.min(...ys), hi = Math.max(...ys), p = ((x.y1 - lo) / (hi - lo || 1)) * 100
+  $('yrLo').textContent = `${(lo * 100).toFixed(1)}%`; $('yrHi').textContent = `${(hi * 100).toFixed(1)}%`
+  $('yrMe').style.left = `${p}%`
+  $('yrCap').textContent = `今の ${(x.y1 * 100).toFixed(2)}% は3年の中で${p >= 66 ? '高いほう' : p <= 33 ? '低いほう' : '真ん中あたり'}`
+  // 新しい欄
+  $('yd').classList.toggle('sel', st.focusYd)
+  $('ydSpan').textContent = started ? `${fm(MONTHS[a])}（配当が出始めて 1 年）→ 今` : `${fm(MONTHS[a])} → 今（${yearsOf(a, b)} 年）`
+  const none = !(s.D[b] > 0)
+  $('yd').querySelector('.rows').style.visibility = none ? 'hidden' : ''
+  $('ydCap').classList.toggle('none', none)
+  if (none) { $('ydSum').innerHTML = '<span class="none">今は無配のため、内訳を出せません</span>'; $('ydCap').textContent = ''; plane($('thumbSvg'), { small: true }); return renderRest(s, a, b, x) }
+  $('ydSum').innerHTML = `${pct(x.y0)} → ${pct(x.y1)}<span class="d">${x.lY >= 0 ? '+' : '−'}${Math.abs((x.y1 - x.y0) * 100).toFixed(2)} pt</span>`
+  $('ydRows').innerHTML = bars(x)
+  $('ydCap').textContent = caption(x)
+  plane($('thumbSvg'), { small: true })
+  renderRest(s, a, b, x)
+}
+function renderRest(s, a, b, x) {
+  const i1 = st.over && st.cur != null ? st.cur : b
+  $('dbars').innerHTML = s.dps.slice(1).map((v, i, arr) => `<i class="${i === arr.length - 1 ? 'last' : ''}" style="height:${(v / Math.max(...arr)) * 100}%"></i>`).join('')
+  $('tipSpan').textContent = `${yearsOf(a, b)} 年`
+  // 説明のツールチップ
+  const tip = $('tip'), ib = $('ibtn').getBoundingClientRect(), pr = $('pane').getBoundingClientRect()
+  tip.classList.toggle('open', st.tip); $('ibtn').classList.toggle('on', st.tip)
+  tip.style.left = `${Math.min(ib.left - pr.left - 10, pr.width - 400)}px`; tip.style.top = `${ib.bottom - pr.top + 6}px`
+  // 広げた平面
+  $('over').classList.toggle('open', st.over)
+  if (st.over) {
+    const xc = decomp(a, i1)
+    $('ovTitle').textContent = `${s.code} ${s.name} — 配当と株価の平面`
+    document.querySelectorAll('.ovh [data-span]').forEach((e) => e.classList.toggle('on', String(st.span) === e.dataset.span))
+    $('read').innerHTML = st.cur != null ? `<span class="day num">${fm(MONTHS[st.cur])}</span> · 株価 <span class="num">${yen(s.P[st.cur])}</span> 円 · ${s.reit ? '分配金' : '配当'} <span class="num">${yen(s.D[st.cur])}</span> 円 · 利回り <span class="num">${pct(s.D[st.cur] / s.P[st.cur])}</span>` : '← → で月を選ぶと、その月までの内訳を右に出します'
+    $('legDec').innerHTML = `<h6>${fm(MONTHS[a])} → ${fm(MONTHS[i1])}</h6><div class="num" style="font-size:15px;font-weight:600;color:var(--text)">${pct(xc.y0)} → ${pct(xc.y1)}</div>${bars(xc)}`
+    $('legNote').textContent = caption(xc)
+    plane($('big'), { small: false })
+  }
+}
+howFig($('tipFig')); howFig($('legFig'))
+document.addEventListener('keydown', (e) => {
+  const [a, b] = range(), k = e.code
+  if (st.over) {
+    const c = st.cur ?? b
+    if (k === 'Escape') closePlane()
+    else if (k === 'ArrowLeft' || k === 'ArrowRight') st.cur = Math.max(a, Math.min(b, c + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 12 : 1)))
+    else if (k === 'Home') st.cur = a; else if (k === 'End') st.cur = b
+    else if (k === 'KeyN') { st.span = st.span === 5 ? 'max' : 5; st.cur = null }
+    else return
+  } else if (k === 'KeyV') openPlane()
+  else if (k === 'KeyN') st.span = st.span === 5 ? 'max' : 5
+  else if (k === 'Slash' && e.shiftKey) st.tip = !st.tip
+  else if (k === 'Escape' && st.tip) st.tip = false
+  else return
+  e.preventDefault(); render()
+})
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('#ibtn,#thumb,[data-close],[data-span],[data-log],[data-theme],[data-ex],[data-size],#over')
+  if (!t) { if (st.tip) { st.tip = false; render() } return }
+  if (t.id === 'ibtn') st.tip = true
+  else if (t.id === 'thumb') openPlane()
+  else if (t.dataset.close != null) closePlane()
+  else if (t.id === 'over') { if (e.target.id === 'over') closePlane(); else return }
+  else if (t.dataset.span) { st.span = t.dataset.span === 'max' ? 'max' : 5; st.cur = null }
+  else if (t.dataset.ex) { st.sel = Number(t.dataset.ex); st.cur = null }
+  else if (t.dataset.size) setSize(t.dataset.size)
+  else if (t.dataset.theme) document.documentElement.dataset.theme = t.dataset.theme
+  for (const attr of ['span', 'ex', 'theme', 'size']) if (t.dataset[attr] != null && t.closest('.bar')) t.parentElement.querySelectorAll(`[data-${attr}]`).forEach((x) => x.setAttribute('aria-pressed', x === t))
+  render()
+})
+// ⓘ にポインタを載せたときも出す
+$('ibtn').addEventListener('mouseenter', () => { st.tip = true; render() })
+$('ibtn').addEventListener('mouseleave', () => { st.tip = false; render() })
+const SIZES = { L: ['1600px', '900px'], M: ['1110px', '640px'], S: ['600px', '360px'] }
+let size = 'L', autoMax = false
+function setSize(k) { size = k; $('pane').style.setProperty('--w', SIZES[k][0]); $('pane').style.setProperty('--h', SIZES[k][1]) }
+/** 平面を開く: ペインが 900px 未満か高さ 420px 未満なら、最大化してから開く（モックでは枠を最大化の大きさにする） */
+function openPlane() {
+  const pane = $('pane')
+  if (pane.clientWidth < 900 || pane.clientHeight < 420) { autoMax = size; pane.style.setProperty('--w', '1600px'); pane.style.setProperty('--h', '900px') }
+  st.over = true; st.tip = false
+}
+function closePlane() { st.over = false; st.cur = null; if (autoMax) { setSize(autoMax); autoMax = false } }
+$('exBtns').innerHTML = STOCKS.map((x, i) => `<button data-ex="${i}" aria-pressed="${i === 0}">${x.code} ${x.name.slice(0, 6)}</button>`).join(' ')
+new ResizeObserver(() => render()).observe($('pane'))
+// ハッシュ: #ex=1&span=max&tip&over&cur=2021-01&light&M（モックの十字線は位置で持つ。アプリは月で持つ: 設計 §2.3）
+const H = new URLSearchParams(location.hash.slice(1))
+if (H.get('ex')) st.sel = Number(H.get('ex'))
+if (H.get('span')) st.span = H.get('span') === 'max' ? 'max' : 5
+if (H.has('tip')) st.tip = true
+if (H.has('over')) st.over = true
+if (H.get('cur')) st.cur = MONTHS.indexOf(H.get('cur'))
+if (H.has('light')) document.documentElement.dataset.theme = 'light'
+if (H.has('M')) { $('pane').style.setProperty('--w', '1110px'); $('pane').style.setProperty('--h', '640px') }
+render()
+</script>
+</body>
+</html>

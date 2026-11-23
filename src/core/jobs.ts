@@ -105,6 +105,23 @@ export class JobRunner {
   constructor(private h: JobsHost) {}
 
   // ---------------------------------------------------------------- queue
+  /** 未完了のその種類のジョブに残っている項目と、いちばん新しいジョブの ID */
+  private pendingOf(kind: JobKind): { items: Set<string>; last: number | null } {
+    const items = new Set<string>()
+    let last: number | null = null
+    for (const r of this.h.repo.db.all<{ id: number; items: string; pos: number }>(
+      `SELECT id, items, pos FROM jobs WHERE kind = ? AND status IN ('queued','running','paused','waiting-offline','provider-paused')`,
+      kind,
+    )) {
+      for (const it of (JSON.parse(r.items) as string[]).slice(r.pos)) items.add(it)
+      last = r.id
+    }
+    return { items, last }
+  }
+  /** その項目が未完了のその種類のジョブに残っているか（同じ取得を別の種類で重ねないため） */
+  isPending(kind: JobKind, item: string): boolean {
+    return this.pendingOf(kind).items.has(item)
+  }
   enqueue(kind: JobKind, itemsIn: string[]): number {
     let items = itemsIn
     const db = this.h.repo.db
@@ -119,14 +136,7 @@ export class JobRunner {
     }
     if (kind === 'refetch') {
       // 待っている・実行中の取り直しに同じ項目があれば重ねない（ウォッチリストの保存のたびに増えないように）
-      const pending = new Set<string>()
-      let last: number | null = null
-      for (const r of db.all<{ id: number; items: string; pos: number }>(
-        `SELECT id, items, pos FROM jobs WHERE kind = 'refetch' AND status IN ('queued','running','paused','waiting-offline','provider-paused')`,
-      )) {
-        for (const it of (JSON.parse(r.items) as string[]).slice(r.pos)) pending.add(it)
-        last = r.id
-      }
+      const { items: pending, last } = this.pendingOf('refetch')
       items = items.filter((it) => !pending.has(it))
       if (!items.length && last != null) return last
     }

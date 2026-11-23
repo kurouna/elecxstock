@@ -16,7 +16,7 @@ export function computeInfoExtra(
   id: InstrumentId,
   barsAsc: Bar[],
   dividends: Dividend[],
-): Omit<InfoExtra, 'sector' | 'earnings' | 'split'> {
+): Omit<InfoExtra, 'sector' | 'earnings' | 'split' | 'yieldPath'> {
   const n = barsAsc.length
   const last = barsAsc[n - 1]
   const prev = barsAsc[n - 2]

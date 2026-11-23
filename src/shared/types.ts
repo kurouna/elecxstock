@@ -171,6 +171,8 @@ export interface InfoExtra {
   earnings: { next: JstDate | null; estimate: boolean; last: JstDate | null } | null
   /** 直近の株式分割・併合 */
   split: Split | null
+  /** 利回りの変化の内訳の月ごとの点（FR-I11。docs/design-yield-breakdown.md §3.1）。正の配当が 1 回も無ければ null */
+  yieldPath: YieldPoint[] | null
 }
 
 // ---------------------------------------------------------------- screening（§5.2, §5.3）
@@ -545,4 +547,15 @@ export interface FolioDividends {
   yearAgoDate: JstDate | null
   /** 配当見込みの推移（記録の日ごと。税引後の年額） */
   trend: { d: JstDate; v: number }[]
+}
+
+/** 利回りの変化の内訳の月ごとの点（FR-I11。docs/design-yield-breakdown.md §3.1） */
+export interface YieldPoint {
+  /** 'YYYY-MM' */
+  m: string
+  d: JstDate
+  /** 月末の終値（分割調整済み・価格のみ） */
+  price: number
+  /** 直近 12 か月の配当の合計 */
+  div12: number
 }
