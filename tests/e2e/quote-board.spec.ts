@@ -217,7 +217,7 @@ test.describe('株価ボードの取り直しとリンク（FR-QB4, FR-QB7, FR-Q
     start,
   }) => {
     const { page } = await start({
-      layout: freeTab(row(pane('heatmap', { qbView: 'board', qbSize: 3 }, 1), pane('chart', {}, 1), pane('chart', {}, 0))),
+      layout: freeTab(row(pane('heatmap', { qbView: 'board', qbSize: 6 }, 1), pane('chart', {}, 1), pane('chart', {}, 0))),
     })
     const heat = page.locator('[data-widget="heatmap"]')
     await expect(heat.locator('.grid .card').first()).toBeVisible()
@@ -264,6 +264,74 @@ test.describe('株価ボードの操作の細部（FR-QB4, FR-QB7, FR-QB8。Fabl
     await expect(heat.locator('.grid')).toHaveClass(/s3/)
     await keys(page, 'Minus')
     await expect(heat.locator('.grid')).toHaveClass(/s2/)
+  })
+
+  test('大きさは 0〜6 の 7 段。ツールチップに今の段。両端ではそれ以上変わらず、その方向のボタンはグレーアウトして押せない。0 では前日比の % を省く（FR-QB2）', async ({
+    start,
+  }) => {
+    const { page } = await start({ layout: boardLayout() })
+    const heat = page.locator('[data-widget="heatmap"]')
+    const grid = heat.locator('.grid')
+    const smaller = heat.getByRole('button', { name: 'カードを小さく' })
+    const bigger = heat.getByRole('button', { name: 'カードを大きく' })
+    const opacity = (b: typeof smaller) => b.evaluate((el) => Number(getComputedStyle(el).opacity))
+    await expect(grid.locator('.card').first()).toBeVisible()
+    await expect(bigger).toHaveAttribute('title', /大きさ 3\/7/)
+    await focusPane(page, heat)
+    // 大きくする方向: 3 → 6 と 1 段ずつ。6 でさらに + を押しても 6 のまま
+    for (const n of [3, 4, 5, 6]) {
+      await keys(page, 'Shift+Equal')
+      await expect(grid).toHaveClass(new RegExp(`\\bs${n}\\b`))
+      await expect(bigger).toHaveAttribute('title', new RegExp(`大きさ ${n + 1}/7`))
+    }
+    await keys(page, 'Shift+Equal')
+    await expect(grid).toHaveClass(/\bs6\b/)
+    await expect(bigger).toBeDisabled()
+    await expect(smaller).toBeEnabled()
+    expect(await opacity(bigger)).toBeLessThan(1)
+    expect(await opacity(smaller)).toBe(1)
+    // 押せないボタンを押しても変わらない
+    await bigger.click({ force: true })
+    await expect(grid).toHaveClass(/\bs6\b/)
+    // 小さくする方向: 6 → 0。0 でさらに − を押しても 0 のまま
+    for (let i = 0; i < 7; i++) await keys(page, 'Minus')
+    await expect(grid).toHaveClass(/\bs0\b/)
+    await expect(smaller).toHaveAttribute('title', /大きさ 1\/7/)
+    await expect(smaller).toBeDisabled()
+    await expect(bigger).toBeEnabled()
+    expect(await opacity(smaller)).toBeLessThan(1)
+    expect(await opacity(bigger)).toBe(1)
+    await smaller.click({ force: true })
+    await expect(grid).toHaveClass(/\bs0\b/)
+    await expect(grid.locator('.card .pct').first()).toBeHidden()
+  })
+
+  test('狭いペインで、0 では「⋯」のメニューに「カードを小さく」を出さない。6 のカードは横にはみ出さない（FR-QB2）', async ({ start }) => {
+    const narrow = (size: number) => {
+      const r = row(pane('heatmap', { qbView: 'board', qbSize: size }, 1), pane('chart', {}, 1), pane('chart', {}, 0))
+      return freeTab(r.kind === 'split' ? { ...r, sizes: [14, 43, 43] } : r)
+    }
+    const { page } = await start({ layout: narrow(0) })
+    const heat = page.locator('[data-widget="heatmap"]')
+    await expect(heat.locator('.grid .card').first()).toBeVisible()
+    await expect(heat.locator('.grid')).toHaveClass(/\bs0\b/)
+    await heat.locator('.ph .more').click()
+    const menu = page.getByRole('dialog')
+    await expect(menu).toContainText('カードを大きく')
+    await expect(menu).not.toContainText('カードを小さく')
+    // メニューから大きくすると 1 になる
+    await menu.getByText('カードを大きく').click()
+    await expect(heat.locator('.grid')).toHaveClass(/\bs1\b/)
+    // いちばん大きい段でも、カードはペインの幅に収まる（横のスクロールが出ない）
+    for (let i = 0; i < 5; i++) {
+      await heat.locator('.ph .more').click()
+      await page.getByRole('dialog').getByText('カードを大きく').click()
+    }
+    const grid = heat.locator('.grid')
+    await expect(grid).toHaveClass(/\bs6\b/)
+    const w = await grid.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }))
+    expect(w.client).toBeLessThan(340)
+    expect(w.scroll).toBeLessThanOrEqual(w.client)
   })
 
   test('ツールチップは、右側に置いたペインでもカードの横に出る', async ({ start }) => {

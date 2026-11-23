@@ -8,7 +8,19 @@ import type { Holding, InstrumentId, JstDate, MetricsRow, SavedScreen, Watchlist
 export type QbView = 'map' | 'board'
 export type QbSort = 'reg' | 'pctD' | 'pctA' | 'valD'
 export type QbGroup = 'none' | 'sector' | 'kind'
-export type QbSize = 1 | 2 | 3
+/**
+ * カードの大きさの段（`qbSize`）。1〜3 は前からの段（保存済みのレイアウトはそのまま読む）。0 は縮小・4〜6 は拡大の方向に足した段。
+ * 段の範囲はここだけで決める（型・上限・下限はここから作る。段ごとの見た目は QuoteBoard.svelte の .grid.s<段>。揃っていることは単体テストが確かめる）
+ */
+export const QB_SIZES = [0, 1, 2, 3, 4, 5, 6] as const
+export type QbSize = (typeof QB_SIZES)[number]
+export const QB_SIZE_MIN: QbSize = QB_SIZES[0]
+export const QB_SIZE_MAX: QbSize = QB_SIZES[QB_SIZES.length - 1]!
+
+/** 今の段が何段目か（1 から数える）と段の数。−／＋のツールチップの「4/7」 */
+export function sizePos(size: QbSize): { n: number; total: number } {
+  return { n: QB_SIZES.indexOf(size) + 1, total: QB_SIZES.length }
+}
 
 export interface QbState {
   view: QbView
@@ -41,7 +53,7 @@ export function readQbState(state: Record<string, unknown> | null | undefined): 
     src: typeof s.qbSrc === 'string' && isSourceShape(s.qbSrc) ? s.qbSrc : DEFAULT.src,
     sort: pick(s.qbSort, QB_SORTS, DEFAULT.sort),
     group: pick(s.qbGroup, QB_GROUPS, DEFAULT.group),
-    size: pick(s.qbSize, [1, 2, 3] as const, DEFAULT.size),
+    size: pick(s.qbSize, QB_SIZES, DEFAULT.size),
     idx: typeof s.qbIdx === 'boolean' ? s.qbIdx : DEFAULT.idx,
     star: typeof s.qbStar === 'boolean' ? s.qbStar : DEFAULT.star,
   }
@@ -243,8 +255,8 @@ export function breadthShares(b: Pick<QbBreadth, 'up' | 'flat' | 'down'>): { up:
   return { up: (b.up / n) * 100, flat: (b.flat / n) * 100, down: (b.down / n) * 100 }
 }
 
-/** カードの大きさを d だけ変える（1〜3 で止まる） */
-export const stepSize = (size: QbSize, d: 1 | -1): QbSize => Math.max(1, Math.min(3, size + d)) as QbSize
+/** カードの大きさを d だけ変える（QB_SIZE_MIN〜QB_SIZE_MAX で止まる） */
+export const stepSize = (size: QbSize, d: 1 | -1): QbSize => Math.max(QB_SIZE_MIN, Math.min(QB_SIZE_MAX, size + d)) as QbSize
 
 /** 一覧の次の値（並べ替え・分類の S・B。一巡する。知らない値からは先頭の次） */
 export function nextOf<T>(list: readonly T[], cur: T): T {

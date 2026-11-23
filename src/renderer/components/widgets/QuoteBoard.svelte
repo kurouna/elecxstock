@@ -26,6 +26,8 @@ import {
   prevCloseOf,
   QB_GROUPS,
   QB_INDEX_IDS,
+  QB_SIZE_MAX,
+  QB_SIZE_MIN,
   QB_SORTS,
   QB_TOP,
   type QbItem,
@@ -34,6 +36,7 @@ import {
   resolveSource,
   rowsInView,
   shortDate,
+  sizePos,
   sourceList,
   stepSize,
   stepSource,
@@ -213,6 +216,9 @@ const stepGroup = () => restart({ qbGroup: nextOf(QB_GROUPS, st.group) })
 const toggleStar = () => restart({ qbStar: !st.star })
 const toggleIdx = () => patchState(pane, { qbIdx: !st.idx })
 const resize = (d: 1 | -1) => patchState(pane, { qbSize: stepSize(st.size, d) })
+/** −／＋のツールチップに添える今の段（「大きさ 3/7」） */
+const pos = $derived(sizePos(st.size))
+const sizeTip = $derived(t('qb.sizePos', pos))
 /**
  * 「⋯」のメニュー（ペインが 600px 未満で出る）: 表示の切り替え（親から）と、同じ幅で見出しの下から隠れる操作（分類・指数のカード・大きさ。.tw）。
  * 大きさは上限・下限で出し分ける（見出しの下のボタンの disabled と同じ）
@@ -221,8 +227,8 @@ const moreItems = (): MoreItem[] => [
   ...(more?.() ?? []),
   { id: 'qbGroup', label: `${t('qb.groupTip')}: ${t(`qb.group.${st.group}`)}`, hint: 'B', run: stepGroup },
   { id: 'qbIdx', label: t(st.idx ? 'qb.idxHide' : 'qb.idxShow'), hint: 'I', run: toggleIdx },
-  ...(st.size < 3 ? [{ id: 'qbBigger', label: t('qb.bigger'), hint: '+', run: () => resize(1) }] : []),
-  ...(st.size > 1 ? [{ id: 'qbSmaller', label: t('qb.smaller'), hint: '−', run: () => resize(-1) }] : []),
+  ...(st.size < QB_SIZE_MAX ? [{ id: 'qbBigger', label: t('qb.bigger'), hint: '+', run: () => resize(1) }] : []),
+  ...(st.size > QB_SIZE_MIN ? [{ id: 'qbSmaller', label: t('qb.smaller'), hint: '−', run: () => resize(-1) }] : []),
 ]
 function moveBy(dir: QbMove) {
   const cards = [...(gridEl?.querySelectorAll<HTMLElement>('.card') ?? [])]
@@ -401,9 +407,9 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
     <button type="button" class="chip" aria-pressed={st.star} aria-label={t('list.starOnlyLabel')} title={`${t('list.starOnlyLabel')} (Ctrl+Shift+F)`} onclick={toggleStar}>★</button>
     <!-- 指数のカードと大きさ（キーは I・+ −）。分類と同じく、ペインが 600px 未満では隠れて「⋯」のメニューに入る（.tw） -->
     <button type="button" class="chip tw" aria-pressed={st.idx} aria-label={t('qb.idxLabel')} title={`${t(st.idx ? 'qb.idxHide' : 'qb.idxShow')} (I)`} onclick={toggleIdx}>{t('qb.idxChip')}</button>
-    <span class="tw sizes" role="group" aria-label={t('qb.sizeLabel')}>
-      <button type="button" class="chip" aria-label={t('qb.smaller')} title={`${t('qb.smaller')} (−)`} disabled={st.size <= 1} onclick={() => resize(-1)}>−</button>
-      <button type="button" class="chip" aria-label={t('qb.bigger')} title={`${t('qb.bigger')} (+)`} disabled={st.size >= 3} onclick={() => resize(1)}>+</button>
+    <span class="tw sizes" role="group" aria-label={`${t('qb.sizeLabel')} ${pos.n}/${pos.total}`}>
+      <button type="button" class="chip" aria-label={t('qb.smaller')} title={`${t('qb.smaller')} (−) · ${sizeTip}`} disabled={st.size <= QB_SIZE_MIN} onclick={() => resize(-1)}>−</button>
+      <button type="button" class="chip" aria-label={t('qb.bigger')} title={`${t('qb.bigger')} (+) · ${sizeTip}`} disabled={st.size >= QB_SIZE_MAX} onclick={() => resize(1)}>+</button>
     </span>
   </span>
 </div>
@@ -705,7 +711,23 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
     background: var(--line);
     padding: 1px;
     position: relative;
-    grid-template-columns: repeat(auto-fill, minmax(var(--tile-w), 1fr));
+    /* カードの最小の幅はペインの幅で頭打ち（大きい段を狭いペインに置いても横にはみ出さない） */
+    grid-template-columns: repeat(auto-fill, minmax(min(var(--tile-w), 100%), 1fr));
+    /* 大きさの段（qbSize。lib/quoteBoard.ts の QB_SIZES）。1〜3 は前からの段。0 は縮小・4〜6 は拡大の方向に足した段。
+       銘柄名・前日比・未更新の日付の文字は 3 までは前のまま */
+    --nm-fs: var(--fs-1);
+    --chg-fs: var(--fs-1);
+    --sd-fs: var(--fs-0);
+    --card-pad: 4px 7px 3px;
+  }
+  .grid.s0 {
+    /* 未更新の日付と 5 桁の終値が並んでも欠けない幅・3 行が収まる高さ */
+    --tile-w: 90px;
+    --tile-h: 46px;
+    --price-fs: var(--fs-2);
+    --nm-fs: var(--fs-0);
+    --chg-fs: var(--fs-0);
+    --card-pad: 3px 5px 2px;
   }
   .grid.s1 {
     --tile-w: 104px;
@@ -722,6 +744,33 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
     --tile-h: 80px;
     --price-fs: calc(var(--fs-4) * 1.3);
   }
+  .grid.s4 {
+    --tile-w: 216px;
+    --tile-h: 100px;
+    --price-fs: calc(var(--fs-4) * 1.7);
+    --nm-fs: var(--fs-2);
+    --chg-fs: var(--fs-2);
+    --sd-fs: var(--fs-2);
+    --card-pad: 6px 9px 5px;
+  }
+  .grid.s5 {
+    --tile-w: 272px;
+    --tile-h: 126px;
+    --price-fs: calc(var(--fs-4) * 2.2);
+    --nm-fs: var(--fs-3);
+    --chg-fs: var(--fs-3);
+    --sd-fs: var(--fs-3);
+    --card-pad: 8px 11px 6px;
+  }
+  .grid.s6 {
+    --tile-w: 340px;
+    --tile-h: 158px;
+    --price-fs: calc(var(--fs-4) * 2.8);
+    --nm-fs: var(--fs-4);
+    --chg-fs: var(--fs-4);
+    --sd-fs: var(--fs-4);
+    --card-pad: 10px 14px 8px;
+  }
   .ghead {
     grid-column: 1 / -1;
     display: flex;
@@ -737,7 +786,7 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
   .card {
     background: var(--panel);
     height: var(--tile-h);
-    padding: 4px 7px 3px;
+    padding: var(--card-pad);
     display: grid;
     grid-template-rows: auto 1fr auto;
     min-width: 0;
@@ -756,7 +805,7 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
     box-shadow: inset 0 0 0 2px var(--focus);
   }
   .nm {
-    font-size: var(--fs-1);
+    font-size: var(--nm-fs);
     color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
@@ -770,7 +819,7 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
     line-height: 1.1;
   }
   .sd {
-    font-size: var(--fs-0);
+    font-size: var(--sd-fs);
     color: var(--warn);
     margin-right: 4px;
   }
@@ -778,15 +827,18 @@ async function showTip(id: InstrumentId, ev: MouseEvent) {
     display: flex;
     justify-content: space-between;
     gap: 4px;
-    font-size: var(--fs-1);
+    font-size: var(--chg-fs);
     white-space: nowrap;
   }
   .card.flat .chg {
     color: var(--text-3);
   }
+  /* 小さい段（0・1）は前日比（%）を省き、円だけを残す */
+  .grid.s0 .pct,
   .grid.s1 .pct {
     display: none;
   }
+  .grid.s0 .chg,
   .grid.s1 .chg {
     justify-content: flex-end;
   }

@@ -755,6 +755,7 @@ export const ja = {
   'qb.idxChip': '指数',
   'qb.idxLabel': '指数のカード',
   'qb.sizeLabel': 'カードの大きさ',
+  'qb.sizePos': '大きさ {n}/{total}',
   'preset.holdings': '保有',
   'hold.csvTitle': '楽天証券の CSV を取り込む（{n} 件）',
   'hold.csvBody':
@@ -2348,6 +2349,7 @@ export const en: Record<Key, string> = {
   'qb.idxChip': 'Index',
   'qb.idxLabel': 'Index cards',
   'qb.sizeLabel': 'Card size',
+  'qb.sizePos': 'Size {n}/{total}',
   'preset.holdings': 'Holdings',
   'hold.csvTitle': 'Import Rakuten Securities CSV ({n})',
   'hold.csvBody': 'All holdings are replaced with this CSV (domestic stocks only). The previous records are kept so you can undo.',

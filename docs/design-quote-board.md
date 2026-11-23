@@ -32,7 +32,7 @@
 │ ▲ 上昇 24  ████████████░│░░░░░░░░░░░░░░░░░░████  45 下落 ▼                 │   ← 騰落の帯
 │            変わらず 2　単純平均 −0.47%　未更新 1（1 件以上のときだけ）        │
 ├──────────┬──────────┬──────────┬──────────┬───────────────┤
-│トヨタ自動車│ソニーグループ│三菱ＵＦＪ ＦＧ│キーエンス │ …                     │  ← カード（+ − で 3 段の大きさ）
+│トヨタ自動車│ソニーグループ│三菱ＵＦＪ ＦＧ│キーエンス │ …                     │  ← カード（+ − で 7 段の大きさ）
 │      573 │      975 │   26,286 │    7,318 │                       │
 │▼−1 −0.17%│▼−21 −2.11%│▲+50 +0.19%│…         │                       │
 ├──────────┴──────────┴──────────┴──────────┴───────────────┤
@@ -81,7 +81,7 @@
 
 - 中身は銘柄名・終値・前日比（円）・前日比（%）。**コードは出さない**（銘柄名に幅を回す）。コードはツールチップと下の 2 行に出す。
 - 終値と前日比の色は `--up` / `--down`（変わらずは `--text-3`）。地は塗らない。色と矢印は表示の桁で丸めた値で決める（`chgView`。丸めて 0 なら変わらず。▲±0 を上昇の色で出さない）。
-- 大きさは 3 段（`qbSize`。既定 2）。最小の段では前日比（%）を省き、円だけを残す。
+- 大きさは 7 段（`qbSize` 0〜6。既定 2）。1〜3 は前からの段で、縮小の方向に 0、拡大の方向に 4〜6 を足した。小さい 2 段（0・1）では前日比（%）を省き、円だけを残す。`qbSize` 4 以上は銘柄名・前日比・未更新の日付の文字も大きくする。両端の段では、その方向のボタンを押せなくし（グレーアウト）、「⋯」のメニューの項目を出さない。−／＋のツールチップに今の段（「大きさ 3/7」）を出す。カードの最小の幅はペインの幅で頭打ちにする（大きい段を狭いペインに置いても横にはみ出さない）。段の範囲は `QB_SIZES` だけで決める。
 - `stale` のカードは薄くし、終値の左に日付（`11/12`）を `--warn` で出す。値が無い（`close == null`）は「—」。
 - 分類があるときは、分類ごとに見出しの行（名前・上昇と下落の数・単純平均）を挟む。
 - 選んだカードは `--focus` の枠。ペインにフォーカスが無いときは細い枠。
@@ -158,7 +158,7 @@ interface QbState {
   src: string
   sort: QbSort
   group: QbGroup
-  size: 1 | 2 | 3
+  size: 0 | 1 | 2 | 3 | 4 | 5 | 6
   idx: boolean
   star: boolean
 }
@@ -187,7 +187,7 @@ export function boardAsOf(items: QbItem[]): { date: JstDate | null; prev: JstDat
 export function chgView(chg: number | null | undefined, digits: number): { cls: '' | 'up' | 'down' | 'flat'; arrow: '' | '▲' | '▼' }
 /** 取り直しを始めるときの一覧（同じ出どころなら前の一覧、別なら null） */
 export function keepIdsWhileLoading(prevSrc: string | null, src: string, prevIds: InstrumentId[] | null): InstrumentId[] | null
-/** 前日終値（終値 − 前日比）・騰落の帯の割合（%）・大きさの送り（1〜3）・並べ替えと分類の次 */
+/** 前日終値（終値 − 前日比）・騰落の帯の割合（%）・大きさの送り（0〜6）・並べ替えと分類の次 */
 export function prevCloseOf(m: Pick<MetricsRow, 'close' | 'chg'> | undefined): number | null
 export function breadthShares(b: { up: number; flat: number; down: number }): { up: number; flat: number; down: number }
 export function stepSize(size: QbSize, d: 1 | -1): QbSize
@@ -254,7 +254,7 @@ export function boardMove(
 | `qbSrc`   | `string`（§3.1）                              | `'cap'`  |
 | `qbSort`  | `QbSort`                                      | `'reg'`  |
 | `qbGroup` | `QbGroup`                                     | `'none'` |
-| `qbSize`  | `1 \| 2 \| 3`                                 | `2`      |
+| `qbSize`  | `0`〜`6` の整数（1〜3 は前の版から）          | `2`      |
 | `qbIdx`   | `boolean`                                     | `true`   |
 | `qbStar`  | `boolean`（ヒートマップの `starOnly` とは別） | `false`  |
 

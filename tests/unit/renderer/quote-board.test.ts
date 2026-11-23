@@ -1,4 +1,6 @@
 // 株価ボード（docs/design-quote-board.md。FR-QB1〜QB8）の純粋な関数。値は架空
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { InstrumentId, MetricsRow, SavedScreen, Watchlist } from '@shared/types'
 import { describe, expect, it, vi } from 'vitest'
 import { wheelToX } from '../../../src/renderer/lib/hscroll'
@@ -15,12 +17,16 @@ import {
   keepIdsWhileLoading,
   nextOf,
   prevCloseOf,
+  QB_SIZE_MAX,
+  QB_SIZE_MIN,
+  QB_SIZES,
   type QbItem,
   type QbRect,
   readQbState,
   resolveSource,
   rowsInView,
   shortDate,
+  sizePos,
   sourceList,
   stepSize,
   stepSource,
@@ -49,7 +55,7 @@ describe('状態の読み取り（FR-QB1）', () => {
     expect(readQbState(undefined)).toEqual({ view: 'map', src: 'cap', sort: 'reg', group: 'none', size: 2, idx: true, star: false })
   })
   it('壊れた値・知らない値は既定に戻す', () => {
-    const s = readQbState({ qbView: 'table', qbSrc: 'wl:', qbSort: 'x', qbGroup: 3, qbSize: 4, qbIdx: 'yes', qbStar: 1 })
+    const s = readQbState({ qbView: 'table', qbSrc: 'wl:', qbSort: 'x', qbGroup: 3, qbSize: 7, qbIdx: 'yes', qbStar: 1 })
     expect(s).toEqual(readQbState({}))
   })
   it('qb で始まるキーだけを読む（ヒートマップの starOnly・period・sector は読まない）', () => {
@@ -282,10 +288,34 @@ describe('画面の計算（コンポーネントから移したもの。FR-QB4,
     expect(breadthShares({ up: 1, flat: 2, down: 1 })).toEqual({ up: 25, flat: 50, down: 25 })
     expect(breadthShares({ up: 0, flat: 0, down: 0 })).toEqual({ up: 0, flat: 0, down: 0 })
   })
-  it('大きさは 1〜3 で止まる', () => {
+  it('大きさは 0〜6 で止まる（1〜3 は前からの段。0 は縮小・4〜6 は拡大の方向に足した段）', () => {
     expect(stepSize(2, 1)).toBe(3)
-    expect(stepSize(3, 1)).toBe(3)
-    expect(stepSize(1, -1)).toBe(1)
+    expect(stepSize(3, 1)).toBe(4)
+    expect(stepSize(5, 1)).toBe(6)
+    expect(stepSize(6, 1)).toBe(6)
+    expect(stepSize(1, -1)).toBe(0)
+    expect(stepSize(0, -1)).toBe(0)
+    expect([QB_SIZE_MIN, QB_SIZE_MAX]).toEqual([0, 6])
+  })
+  it('保存した大きさは 0〜6 の整数だけを読む（前の版の 1〜3 はそのまま）', () => {
+    for (const n of [0, 1, 2, 3, 4, 5, 6]) expect(readQbState({ qbSize: n }).size).toBe(n)
+    for (const n of [-1, 7, 2.5, '3', null]) expect(readQbState({ qbSize: n }).size).toBe(2)
+  })
+  it('今の段の位置は 1 から数える（ツールチップの「大きさ 1/7」〜「7/7」）', () => {
+    expect(sizePos(0)).toEqual({ n: 1, total: 7 })
+    expect(sizePos(2)).toEqual({ n: 3, total: 7 })
+    expect(sizePos(6)).toEqual({ n: 7, total: 7 })
+  })
+  it('QB_SIZES の段ごとに見た目（.grid.s<段> の幅・高さ・終値の文字）があり、余分な段の規則が無い', () => {
+    const css = readFileSync(join(__dirname, '../../../src/renderer/components/widgets/QuoteBoard.svelte'), 'utf8')
+      .split('<style>')[1]!
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+    const rule = (n: number) => css.match(new RegExp(`\\.grid\\.s${n}\\s*\\{([^}]*)\\}`))?.[1] ?? ''
+    for (const n of QB_SIZES) {
+      for (const v of ['--tile-w', '--tile-h', '--price-fs']) expect(rule(n), `.grid.s${n} ${v}`).toContain(`${v}:`)
+    }
+    const declared = [...css.matchAll(/\.grid\.s(\d+)\s*\{/g)].map((m) => Number(m[1]))
+    expect(declared.sort()).toEqual([...QB_SIZES])
   })
   it('並べ替え・分類の次は一巡する。知らない値からは先頭の次', () => {
     expect(nextOf(['a', 'b', 'c'], 'c')).toBe('a')
