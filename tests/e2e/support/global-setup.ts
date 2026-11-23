@@ -88,7 +88,8 @@ export default async function globalSetup(): Promise<void> {
   } finally {
     await app.close()
   }
-  if (!existsSync(join(first, 'data', 'news', 'settings.json'))) throw new Error('初回起動でニュースの答えが保存されていない（種にニュースの答えが入らない）')
+  if (!existsSync(join(first, 'data', 'news', 'settings.json')))
+    throw new Error('初回起動でニュースの答えが保存されていない（種にニュースの答えが入らない）')
   keepSeed(first, seed)
   process.env[SEED_ENV] = seed
   process.env[RUN_ENV] = run
