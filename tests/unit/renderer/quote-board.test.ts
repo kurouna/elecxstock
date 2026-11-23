@@ -315,7 +315,7 @@ describe('画面の計算（コンポーネントから移したもの。FR-QB4,
       for (const v of ['--tile-w', '--tile-h', '--price-fs']) expect(rule(n), `.grid.s${n} ${v}`).toContain(`${v}:`)
     }
     const declared = [...css.matchAll(/\.grid\.s(\d+)\s*\{/g)].map((m) => Number(m[1]))
-    expect(declared.sort()).toEqual([...QB_SIZES])
+    expect(declared.sort((a, b) => a - b)).toEqual([...QB_SIZES])
   })
   it('並べ替え・分類の次は一巡する。知らない値からは先頭の次', () => {
     expect(nextOf(['a', 'b', 'c'], 'c')).toBe('a')

@@ -2,7 +2,7 @@
 import { createStubProvider } from '@core/providers/stub'
 import type { Provider, UniverseRow } from '@core/providers/types'
 import { REF_INDEX_ROWS } from '@shared/markets'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, onTestFinished } from 'vitest'
 import { makeCore, runJob } from '../../support/core'
 
 const stub = createStubProvider()
@@ -115,6 +115,8 @@ describe('プライムに入った銘柄（新規上場・市場変更。FR-U4�
     expect(ins.status).toBe('active')
     expect(ins.market).toBe('P')
     expect(fetched('999A')).toBe(true)
+    // 足した架空の銘柄を後のテストの DB に残さない（日足は取っていない）
+    onTestFinished(() => void repo.db.run(`DELETE FROM instruments WHERE id = 'JP:999A'`))
   })
 })
 
@@ -136,6 +138,11 @@ describe('上場廃止（一覧から消えた銘柄。FR-U4, U8）', () => {
     expect((await call('instruments.search', { q: '8031' })).some((x) => x.id === 'JP:8031')).toBe(true)
   })
   it('一覧に戻れば active に戻り、取得を続ける', async () => {
+    // 前のテストに頼らず、ここで廃止にしてから戻す（単独で流しても・順を変えても同じ）
+    edit = without('8031')
+    await runJob(core, 'universe')
+    expect((await get('8031')).status).toBe('delisted')
+    edit = (rows) => rows
     await runJob(core, 'universe')
     expect((await get('8031')).status).toBe('active')
     expect(fetched('8031')).toBe(true)

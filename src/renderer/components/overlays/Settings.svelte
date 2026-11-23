@@ -40,7 +40,7 @@ import {
   signedMb,
   stepIn,
 } from '../../lib/settingsSpec'
-import { updateLine } from '../../lib/updateCheck'
+import { updateBusy, updateLine, updateLink } from '../../lib/updateCheck'
 import NewsSettings from '../../news/NewsSettings.svelte'
 import { app, bridge, confirmDialog, loadInstruments, nameOf, promptDialog, rpc, saveSettings, t, toast } from '../../stores/app.svelte'
 import Hl from './Hl.svelte'
@@ -269,6 +269,8 @@ const hints = $derived(searching ? { toggle: true, value: true, reset: true } : 
 const est = $derived(retentionEstimate(app.status?.dbBytes ?? 0, s.retentionYears, pend.retentionYears ?? s.retentionYears))
 // ---- データ
 async function reset() {
+  // 削除している間は押せない（確かめのダイアログまで進めて、OK で何も起きずに閉じる、にしない）
+  if (app.resetting) return
   const st = app.status
   const r = await confirmDialog({
     title: t('reset.title'),
@@ -336,16 +338,18 @@ const runAction = (id: string) => ACTIONS.find((a) => a.id === id)?.run()
 <!-- 新しい版を確かめた結果（NFR-Q9）。トーストは暗転の向こうで見えにくいので画面の中に出す。まだ何も無いときは場所を取らない -->
 {#snippet updStatus()}
   {@const line = updateLine(app.updateCheck)}
-  <span class="upd" class:warn={app.updateCheck?.state === 'failed'} role="status" data-update={app.updateCheck?.state ?? ''} hidden={!line && !app.update}>
+  {@const link = updateLink(app.updateCheck, app.update)}
+  <span class="upd" class:warn={app.updateCheck?.state === 'failed'} role="status" data-update={app.updateCheck?.state ?? ''} hidden={!line && !link}>
     {#if line}{t(line.key, line.args)}{/if}
-    {#if app.update}<button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(app.update!.url)}>{line ? t('update.open') : t('update.available', { v: app.update.version })}</button>{/if}
+    {#if link && app.update}<button type="button" class="link-btn" onclick={() => window.elecxstock.openExternal(app.update!.url)}>{t(link.key, link.args)}</button>{/if}
   </span>
 {/snippet}
 
 <!-- 押すボタンと、その下に結果（横に並べると行の説明を押し出す）。ボタンが先なので → で行に入ると最初にフォーカスする -->
 {#snippet updControl(primary: boolean)}
   <div class="updcol">
-    <button type="button" class="btn" data-primary={primary ? '' : undefined} onclick={() => checkUpdate(true)}>{t('act.checkUpdate')}</button>
+    <!-- 確かめている間は押せない見た目に。disabled にするとフォーカスが外れてキーで戻れないので aria-disabled（Switch と同じ。押しても checkUpdate が弾く） -->
+    <button type="button" class="btn" data-primary={primary ? '' : undefined} aria-disabled={updateBusy(app.updateCheck) || undefined} aria-busy={updateBusy(app.updateCheck) || undefined} onclick={() => checkUpdate(true)}>{t('act.checkUpdate')}</button>
     {@render updStatus()}
   </div>
 {/snippet}
@@ -458,7 +462,7 @@ const runAction = (id: string) => ACTIONS.find((a) => a.id === id)?.run()
       <button type="button" class="btn" data-primary onclick={() => window.elecxstock.openLogs()}>{t('act.openLogs')}</button>
       <button type="button" class="btn" onclick={() => runAction('jobs')}>{t('act.jobs')}</button>
     {:else if row.id === 'reset'}
-      <button type="button" class="btn danger" data-primary onclick={reset}>{t('set.reset')}…</button>
+      <button type="button" class="btn danger" data-primary aria-disabled={app.resetting || undefined} aria-busy={app.resetting || undefined} onclick={reset}>{t('set.reset')}…</button>
     {:else if row.id === 'notices'}
       <button type="button" class="btn" data-primary onclick={async () => (notices = notices ? '' : (await window.elecxstock.notices()) || '—')}>{notices ? t('common.close') : t('set.showNotices')}</button>
     {/if}
@@ -979,6 +983,11 @@ const TAB_ICON: Record<string, string> = {
     width: 62px;
     height: 26px;
     text-align: right;
+  }
+  /* 処理中で押せないボタン（全データの削除・新しい版の確認）。見た目は .btn:disabled と同じ。フォーカスは受ける */
+  .btn[aria-disabled='true'] {
+    opacity: 0.5;
+    cursor: default;
   }
   .yt[aria-disabled='true'] {
     color: var(--text-3);

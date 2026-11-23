@@ -21,3 +21,17 @@ export function updateLine(c: UpdateCheck | null): { key: Key; args?: Record<str
   if (c.state === 'newer') return { key: 'update.available', args: { v: c.version } }
   return { key: 'update.failed' }
 }
+
+/**
+ * 1 行の横のダウンロードのページへのリンクの文言。新しい版を知っていて（update）、今の結果と食い違わないときだけ出す。
+ * 設定画面でまだ確かめていない（起動時の確認で知った）なら版を添え、確かめて新しい版があったなら「ダウンロードのページ」。
+ * 確かめ直している・確かめられなかった・最新だったときは、前に知ったリンクを並べない
+ */
+export function updateLink(c: UpdateCheck | null, update: { version: string } | null): { key: Key; args?: Record<string, string> } | null {
+  if (!update) return null
+  if (!c) return { key: 'update.available', args: { v: update.version } }
+  return c.state === 'newer' ? { key: 'update.open' } : null
+}
+
+/** 確かめている間（ボタンを押せない） */
+export const updateBusy = (c: UpdateCheck | null): boolean => c?.state === 'checking'
