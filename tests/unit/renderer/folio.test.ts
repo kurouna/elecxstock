@@ -64,6 +64,7 @@ import {
   niceTicks,
   nisaShare,
   openKey,
+  pctGeom,
   pnlBar,
   pnlScale,
   posRows,
@@ -301,6 +302,16 @@ describe('図の計算（FR-PF4・PF5・PF7）', () => {
     expect(g.ticks.at(-1)!.v).toBeGreaterThanOrEqual(40_000_000)
     // 取得額から 0 円までの面（中立の色で塗る）は 0 円の高さまで下りる
     expect(g.clipDown).toContain(`V${(200 - 18).toFixed(1)}`)
+  })
+  it('資産推移・%: 余白より狭い枠でも左右・上下が入れ替わらない（幅・高さが負にならない）', () => {
+    const p = (d: string, value: number, cost: number) =>
+      ({ d, src: 'rec', final: true, value, cost, pos: [], at: 1 }) as unknown as FolioSeriesPoint
+    const g = histGeom([p('2026-11-12', 100, 50), p('2026-11-13', 200, 50)], 30, 20)
+    expect(g.x(1)).toBeGreaterThanOrEqual(g.x(0))
+    expect(g.y(0)).toBeGreaterThanOrEqual(g.y(200))
+    const q = pctGeom([[0, 5, 10]], 3, 30, 20)
+    expect(q.x(2)).toBeGreaterThanOrEqual(q.x(0))
+    expect(q.y(0)).toBeGreaterThanOrEqual(q.y(10))
   })
   it('ツリーマップ: 分類の見出しと銘柄のタイル。口座で分けると銘柄 × 口座、銘柄だけなら見出しなし', () => {
     const t = allocTiles(rows, 'sector', 0, 600, 300)

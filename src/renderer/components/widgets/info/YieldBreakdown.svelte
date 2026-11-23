@@ -50,7 +50,7 @@ const outside = (e: PointerEvent) => {
       class:on={shown}
       aria-label={t('yd.tip.title')}
       aria-expanded={shown}
-      title={`${t('yd.tip.title')} (?)`}
+      title={shown ? undefined : `${t('yd.tip.title')} (?)`}
       onclick={() => {
         tip = !tip
         // 留めを外したら、載せている間の表示も消す（押した手応え）

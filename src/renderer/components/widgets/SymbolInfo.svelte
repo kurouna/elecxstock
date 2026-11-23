@@ -21,7 +21,7 @@ import { clearMaximized, setMaximized } from '../../lib/paneMax'
 import { paneSelector, registerPane } from '../../lib/panes'
 import { accountName, valuation } from '../../lib/portfolio'
 import { secret } from '../../lib/privacy.svelte'
-import { cursorStep } from '../../lib/yieldPlane'
+import { cursorIn, cursorStep } from '../../lib/yieldPlane'
 import {
   app,
   bridge,
@@ -104,6 +104,8 @@ let ydOpen = $state(false)
 let ydTip = $state(false)
 /** 十字線の月（月で持つ。取得で点が増えても同じ月に留まる） */
 let ydCursor = $state<string | null>(null)
+/** 期間の中の十字線の月（取得で期間の始まりが動いて外れたら、選んでいないことにする。上の読み取りと十字線・右の内訳をそろえる） */
+const ydCur = $derived(yd.kind === 'ok' && extra?.yieldPath ? cursorIn(extra.yieldPath, yd.i0, ydCursor) : null)
 /** 平面を開くときに自分で最大化した（閉じるときに戻す） */
 let ydAuto = false
 /** 開いている間にこのペインが最大化だった（自分で・利用者が。戻ったら狭いペインに層を残さない） */
@@ -163,9 +165,9 @@ function ydKey(e: KeyboardEvent): boolean {
   if (e.key === 'Escape') ydClose()
   else if (e.code === 'KeyN' && !e.shiftKey) setYdSpan(ydSpan === 5 ? 'max' : 5)
   else if (yd.kind === 'ok' && extra?.yieldPath && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
-    const nx = cursorStep(extra.yieldPath.slice(yd.i0), ydCursor, e.key, e.shiftKey)
+    const nx = cursorStep(extra.yieldPath.slice(yd.i0), ydCur, e.key, e.shiftKey)
     if (nx) ydCursor = nx
-  } else return ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'KeyY', 'KeyO', 'KeyV', 'Slash', 'KeyN'].includes(e.code)
+  } else return ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'KeyY', 'KeyO', 'KeyV', 'Slash'].includes(e.code)
   return true
 }
 
@@ -616,7 +618,7 @@ onMount(() =>
   </div>
 </div>
 {#if ydOpen && yd.kind === 'ok' && extra?.yieldPath}
-  <YieldOverlay path={extra.yieldPath} i0={yd.i0} span={ydSpan} cursor={ydCursor} name={`${codeOf(id)} ${nameOf(id)}`} {reit} onspan={setYdSpan} onclose={ydClose} />
+  <YieldOverlay path={extra.yieldPath} i0={yd.i0} span={ydSpan} cursor={ydCur} name={`${codeOf(id)} ${nameOf(id)}`} {reit} onspan={setYdSpan} onclose={ydClose} />
 {/if}
 
 <style>

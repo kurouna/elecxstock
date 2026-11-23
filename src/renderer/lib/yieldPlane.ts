@@ -40,8 +40,9 @@ export function planeBox(points: readonly XY[], w: number, h: number, pad: Pad):
 }
 /** 配当・株価 → 画面の座標 */
 export function toXY(b: PlaneBox, div: number, price: number): [number, number] {
-  const iw = b.w - b.pad.l - b.pad.r
-  const ih = b.h - b.pad.t - b.pad.b
+  // planeBox と同じく 1 px を下限に（余白より狭い枠で幅が負になり、左右・上下が入れ替わらないように）
+  const iw = Math.max(1, b.w - b.pad.l - b.pad.r)
+  const ih = Math.max(1, b.h - b.pad.t - b.pad.b)
   return [b.pad.l + ((Math.log(div) - b.lx0) / (b.lx1 - b.lx0)) * iw, b.pad.t + (1 - (Math.log(price) - b.ly0) / (b.ly1 - b.ly0)) * ih]
 }
 export interface IsoLine {
@@ -120,4 +121,32 @@ export function logTicks(lo: number, hi: number): number[] {
 /** 始まりの利回りの札を下げる量: 今の札と近い（横 200 px・縦 20 px 以内）と重なるので 1 行（16 px）下げる */
 export function labelDy(start: IsoLine | undefined, now: IsoLine | undefined): number {
   return start && now && Math.abs(start.x2 - now.x2) < 200 && Math.abs(start.y2 - now.y2) < 20 ? 16 : 0
+}
+/** 十字線の月が期間の中（始まり i0 以後）ならその月、外（取得で始まりが動いた）か無ければ null */
+export function cursorIn(path: readonly Pick<YieldPoint, 'm'>[], i0: number, m: string | null): string | null {
+  const at = m ? path.findIndex((p) => p.m === m) : -1
+  return at >= i0 && at >= 0 ? m : null
+}
+/** 文字の幅の見積もり（px）: 半角は 0.6 字、ほか（全角）は 1 字 */
+export function textWidth(s: string, fontPx: number): number {
+  let w = 0
+  for (const ch of s) w += ch.charCodeAt(0) < 0x2000 ? 0.6 : 1
+  return w * fontPx
+}
+/**
+ * SVG の札の位置: x から gap 離して、side が 'end' なら左へ・'start' なら右へ伸ばす。lo〜hi からはみ出すときは反対側へ
+ * （例: 枠の左上の端に終わる同じ利回りの線の札・右端に近い今の点の札）
+ */
+export function labelPos(
+  x: number,
+  side: 'start' | 'end',
+  width: number,
+  lo: number,
+  hi: number,
+  gap = 4,
+): { x: number; anchor: 'start' | 'end' } {
+  const left = { x: x - gap, anchor: 'end' as const }
+  const right = { x: x + gap, anchor: 'start' as const }
+  if (side === 'end') return x - gap - width < lo ? right : left
+  return x + gap + width > hi ? left : right
 }

@@ -64,7 +64,10 @@ export default async function globalSetup(): Promise<void> {
     await expect(page.getByRole('dialog', { name: /elecxstock/ })).toBeVisible({ timeout: 30_000 })
     await page.keyboard.press('Enter') // 同意
     await expect(page.getByRole('dialog').first()).toContainText('TradingView')
-    await page.keyboard.press('Enter') // 取得を始める
+    // ニュースの問い（「取る」が既定）は Core に聞いてから出る。出る前に Enter を押すと答えずに始まり、種にニュースの答えが入らない
+    // （すべてのテストでニュースの案内のトーストが出て、トーストやペインの重なりを確かめるテストが落ちる）
+    await expect(page.locator('.news-row')).toBeVisible()
+    await page.keyboard.press('Enter') // 取得を始める（ニュースは「取る」）
     // 状態の帯の「待機中」はジョブを積む前にも出るので、ジョブが終わったことを Core に聞いて待つ
     await expect
       .poll(
@@ -85,6 +88,7 @@ export default async function globalSetup(): Promise<void> {
   } finally {
     await app.close()
   }
+  if (!existsSync(join(first, 'data', 'news', 'settings.json'))) throw new Error('初回起動でニュースの答えが保存されていない（種にニュースの答えが入らない）')
   keepSeed(first, seed)
   process.env[SEED_ENV] = seed
   process.env[RUN_ENV] = run

@@ -421,8 +421,11 @@ export function histGeom(points: FolioSeriesPoint[], w: number, h: number, pad =
   const top = Math.max(0, ...vals)
   const hi = top + ((top - lo) * 0.08 || 1)
   const n = points.length
-  const x = (i: number) => pad.l + (i / Math.max(1, n - 1)) * (w - pad.l - pad.r)
-  const y = (v: number) => pad.t + (1 - (v - lo) / (hi - lo)) * (h - pad.t - pad.b)
+  // 余白より狭い枠でも幅・高さを負にしない（左右・上下が入れ替わらないように）
+  const iw = Math.max(1, w - pad.l - pad.r)
+  const ih = Math.max(1, h - pad.t - pad.b)
+  const x = (i: number) => pad.l + (i / Math.max(1, n - 1)) * iw
+  const y = (v: number) => pad.t + (1 - (v - lo) / (hi - lo)) * ih
   const f = (v: number) => v.toFixed(1)
   const est = points.filter((p) => p.src === 'est').length
   const rp = points.slice(est)
@@ -464,8 +467,10 @@ export function pctGeom(series: number[][], n: number, w: number, h: number, pad
   const m = (hi - lo) * 0.08 || 1
   lo -= m
   hi += m
-  const x = (i: number) => pad.l + (i / Math.max(1, n - 1)) * (w - pad.l - pad.r)
-  const y = (v: number) => pad.t + (1 - (v - lo) / (hi - lo)) * (h - pad.t - pad.b)
+  const iw = Math.max(1, w - pad.l - pad.r)
+  const ih = Math.max(1, h - pad.t - pad.b)
+  const x = (i: number) => pad.l + (i / Math.max(1, n - 1)) * iw
+  const y = (v: number) => pad.t + (1 - (v - lo) / (hi - lo)) * ih
   const path = (s: number[]) => s.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')
   return { x, y, path, ticks: niceTicks(lo, hi).map((v) => ({ v, y: y(v) })) }
 }

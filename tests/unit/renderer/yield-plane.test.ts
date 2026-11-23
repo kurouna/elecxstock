@@ -1,13 +1,16 @@
 // 配当と株価の平面の形（docs/design-yield-breakdown.md §3.4。L1）: 両対数で x と y の倍率を同じに・同じ利回りの線・軌跡・十字線の月
 import { describe, expect, it } from 'vitest'
 import {
+  cursorIn,
   cursorIndex,
   cursorStep,
   ISO_YIELDS,
   isoLines,
   labelDy,
+  labelPos,
   logTicks,
   planeBox,
+  textWidth,
   toXY,
   trail,
 } from '../../../src/renderer/lib/yieldPlane'
@@ -115,5 +118,35 @@ describe('FR-I11 目盛り・札・月の位置', () => {
     expect(cursorIndex(path, null)).toBe(2)
     expect(cursorIndex(path, '2024-02')).toBe(1)
     expect(cursorIndex(path, '2019-01')).toBe(2)
+  })
+})
+
+describe('FR-I11 狭い枠・札の位置・期間の外の月（レビューの反映）', () => {
+  it('余白より狭い枠でも点は枠の中（幅・高さが負にならず、左右・上下が入れ替わらない）', () => {
+    const b = planeBox(P, 60, 40, pad)!
+    for (const p of P) {
+      const [x, y] = toXY(b, p.div12, p.price)
+      expect(x).toBeGreaterThanOrEqual(pad.l)
+      expect(x).toBeLessThanOrEqual(pad.l + 1)
+      expect(y).toBeGreaterThanOrEqual(pad.t)
+      expect(y).toBeLessThanOrEqual(pad.t + 1)
+    }
+  })
+  it('十字線の月が期間の始まりより前（取得で始まりが動いた）なら選んでいないことにする', () => {
+    const path = [pt('2024-01', 1, 1), pt('2024-02', 1, 1), pt('2024-03', 1, 1)]
+    expect(cursorIn(path, 1, '2024-01')).toBeNull()
+    expect(cursorIn(path, 1, '2024-02')).toBe('2024-02')
+    expect(cursorIn(path, 1, '2019-01')).toBeNull()
+    expect(cursorIn(path, 1, null)).toBeNull()
+  })
+  it('文字の幅の見積もり: 半角は 0.6 字・全角は 1 字', () => {
+    expect(textWidth('ab', 10)).toBeCloseTo(12)
+    expect(textWidth('利回り', 12)).toBeCloseTo(36)
+  })
+  it('札は枠からはみ出す側を避ける（end は左へ・start は右へ伸びる。はみ出すなら反対側）', () => {
+    expect(labelPos(30, 'end', 100, 0, 800)).toEqual({ x: 34, anchor: 'start' })
+    expect(labelPos(400, 'end', 100, 0, 800)).toEqual({ x: 396, anchor: 'end' })
+    expect(labelPos(760, 'start', 100, 0, 800, 10)).toEqual({ x: 750, anchor: 'end' })
+    expect(labelPos(300, 'start', 100, 0, 800, 10)).toEqual({ x: 310, anchor: 'start' })
   })
 })
