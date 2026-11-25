@@ -1,7 +1,7 @@
 {
   "name": "elecxstock",
   "productName": "elecxstock",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "private": true,
   "description": "A local-first, keyboard-driven desktop app for charting and screening Japanese stocks and J-REITs.",
   "keywords": [
