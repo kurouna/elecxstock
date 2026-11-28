@@ -25,6 +25,8 @@
 ## 日本語
 
 日本株と J-REIT のデータを手元の PC に取り込み、**チャートを並べて見比べ、条件で絞り込む**ためのデスクトップアプリです。
+東証プライムと J-REIT の日足・月次系列・配当の履歴を**手元のデータベースに持ち、スクリーニングや指標の計算を手元で行います**。
+取り込んだあとは、条件を何度変えても通信せずにその場で結果が出ます。絞り込んだ銘柄は、同じデータのままチャートの比較・銘柄情報・配当の試算へ続けられます。
 長期投資家向けに、日足・週足・月足（上場以来の月次系列）、実績利回り、配当の履歴を中心に作っています。
 すべての操作がキーボードだけで行えます。
 
@@ -38,20 +40,29 @@
 > - 上場銘柄の一覧は日本取引所グループ（JPX）が公開している一覧（xlsx）から取り込みます。
 > - 本アプリは投資助言ではありません。投資の判断はご自身の責任で行ってください。
 
+### 他のツールとの違い
+
+- **Web や証券会社のスクリーナー**: サーバーにある今日の指標の表を絞り込む形が多く、条件を変えるたびに通信します。過去の系列から計算し直せる指標は、サービスが用意したものに限られます。
+- **チャートのサービス**: 描画や指標は充実していますが、日本の配当の履歴をもとにした利回りや配当込みの試算を、手元で何度も回す作りではありません。
+- **配当の管理アプリ**: 買ったあとの保有と受取の管理が中心で、銘柄を横断して探す・多数のチャートを並べて比べることは主な目的ではありません。
+- **elecxstock**: ユニバース全体の時系列を手元に持ち、探す → 並べて比べる → 試算するを 1 つのデータでつなぎます。
+
+**扱わないこと・限界**: 日足が中心で、場中のリアルタイムの値・板・発注は扱いません。初回の取り込みには数十分かかり、しばらく起動しなかったあとも差分の取得に時間がかかることがあります。PER・PBR・ROE などは Yahoo Finance の値で、決算の深い分析は Web の分析サイトや EDINET などと併せて使う前提です。
+
 ### できること
 
 - **ユニバース**: 東証プライムと J-REIT を自動で取得します。スタンダード・グロース・ETF などは、コマンドバーやウォッチリストから追加でき、ウォッチリストや保有に入れた銘柄も取得します。5 桁の優先株・種類株（例: 94345）にも対応しています。
 - **チャート**: 日足・週足・月足、ローソク足／バー／ライン、移動平均（期間を変えられる）、出来高、ボリンジャーバンド・一目均衡表・RSI・MACD・ストキャスティクス、配当落ち日・分割の印、他銘柄との比較（%）、対数軸、分割調整／未調整／配当込み、キーボードの十字線。日・週・月を 1 ペインに並べるマルチ時間軸も。
   **トレンドライン**: Alt+T（または見出しの「指標」→「トレンドライン」）で引き始め、← → で足、Ctrl+← → で前後の「山」（高値の極大）・「谷」（安値の極小）へジャンプし、高値・安値に吸着させて Enter で 2 点を決めます。マウスでもクリック 2 回で引けます。G で選び、Space と矢印で動かし、E で右・左右へ延長（今日の位置の価格を右の目盛りに表示）、Delete で消し、Ctrl+Z で戻せます。銘柄ごとに保存され、週足・月足・分割のあとも同じ日付・価格の所に出ます。2 枚目以降の窓でも引け、グリッドのタイルにも出ます。
   「設定 > チャート」で ON にすると、チャートを画像（PNG）で保存できます（既定は OFF。データは Yahoo Finance のものなので、保存した画像は個人で使う範囲にとどめ、公開・再配布しないでください）。
-- **チャートグリッド**: 2×2 から 6×5 まで、多数のチャートを並べて、時間軸・期間・並べ替え・比較（期間の始点を 100%）を一度に切り替えます。売買候補に印を付けて、まとめてウォッチリストに入れられます。タイルの銘柄は C で差し替え、1〜9 で足し、Delete で外せます。
-- **スクリーナー**: 利回り・配当性向・連続増配年数・配当の増配率・権利確定月・PER・PBR・ROE・EPS・BPS・時価総額・売買代金・最低投資金額・騰落率（年初来・配当込みも）・移動平均乖離・52 週と年初来の高値・安値からの位置・ゴールデンクロスからの日数・RSI・ボラティリティ・ベータ・最大下落率・決算発表や権利付最終日までの日数・保有割合・取得利回り・市場区分・33 業種・種別・お気に入り・ウォッチリストなど 58 項目で絞り込みます。項目は分類ごとに並んだダイアログから選び、打って絞り込めます（ⓘ で説明）。「かつ／または」、相対条件（終値 ≥ 75 日移動平均）、上位 N 件、列の選択、CSV 書き出し。名前を付けて保存できます。既定で 8 つのスクリーニング条件（高配当銘柄・割安（PBR 1 倍割れ・ROE 8%）・J-REIT 高利回り・52週高値圏・連続増配・10万円以下で買える高配当・低ボラティリティ・ディフェンシブ・上昇トレンドの押し目）を用意しています。項目の一覧と説明は [docs/screener-fields.md](docs/screener-fields.md)。
+- **チャートグリッド**: 2×2 から 6×5 まで、スクリーナーの結果やウォッチリストのチャートを取り直さずに手元のデータで並べて、時間軸・期間・並べ替え・比較（期間の始点を 100%）を一度に切り替えます。売買候補に印を付けて、まとめてウォッチリストに入れられます。タイルの銘柄は C で差し替え、1〜9 で足し、Delete で外せます。
+- **スクリーナー**: 利回り・配当性向・連続増配年数・配当の増配率・権利確定月・PER・PBR・ROE・EPS・BPS・時価総額・売買代金・最低投資金額・騰落率（年初来・配当込みも）・移動平均乖離・52 週と年初来の高値・安値からの位置・ゴールデンクロスからの日数・RSI・ボラティリティ・ベータ・最大下落率・決算発表や権利付最終日までの日数・保有割合・取得利回り・市場区分・33 業種・種別・お気に入り・ウォッチリストなど 58 項目で絞り込みます。項目は分類ごとに並んだダイアログから選び、打って絞り込めます（ⓘ で説明）。「かつ／または」、相対条件（終値 ≥ 75 日移動平均）、上位 N 件、列の選択、CSV 書き出し。名前を付けて保存できます。判定は手元のデータで計算するので、終値と移動平均の比較のような系列の条件も含め、条件を変えても通信しません。既定で 8 つのスクリーニング条件（高配当銘柄・割安（PBR 1 倍割れ・ROE 8%）・J-REIT 高利回り・52週高値圏・連続増配・10万円以下で買える高配当・低ボラティリティ・ディフェンシブ・上昇トレンドの押し目）を用意しています。項目の一覧と説明は [docs/screener-fields.md](docs/screener-fields.md)。
   最低投資金額は株式を 100 株、J-REIT を 1 口として終値から計算します。ETF・ETN などは売買の単位が分からないため出しません（欠損）。
 - **銘柄情報**: 値段と 52 週の高値・安値の中での位置、移動平均からの乖離、主な指標（利回り・PER・PBR・時価総額・売買代金・最低投資金額）、決算発表と権利付最終日までの日数、配当の推移（年ごと・回ごと、5 年の増配率、連続増配・非減配）、利回りの 5 年の範囲、値動き（値段と配当込み）と最大下落率、保有していれば評価損益と取得利回り。
 - **ウォッチリスト**: 複数のリスト、お気に入り（★）、並べ替え・複製、複数選択、列の選択、CSV の書き出しとコードの一覧の取り込み、JSON での書き出し・取り込み。
 - **保有**: 保有タブ（Ctrl+Shift+7）で銘柄・口座区分（NISA 成長投資枠・つみたて投資枠・旧 NISA・特定・一般）・数量・平均取得単価を足す・直す・外すか、楽天証券の保有商品の CSV を取り込みます（取り込むと CSV の内容に置き換わります。国内株式）。評価額・評価損益・前日比・年間配当の見込み・取得利回りを口座区分ごと・合計で見られます。JSON で書き出し・取り込み（[形式](docs/holdings-format.md)）。
 - **ポートフォリオのダッシュボード**: ポートフォリオのタブ（Ctrl+Shift+9）で、評価額・資産推移（評価額と取得額の間を含み損益の色で塗る）・資産構成（銘柄・業種・17 業種・市場区分・種別・口座のツリーマップ、景気敏感とディフェンシブ）・分類ごとの資産（保有のペインの列を資産構成と同じ分類でまとめた表。数量・取得単価・現在値・評価額・評価損益・損益率・構成比など）・損益寄与（今日・今月・今年・取得来）・配当見込み・今後 30 日の予定を 1 枚で見られます。複数の口座で持つ銘柄は、カードごとに「同じ銘柄をまとめる」か口座ごとに分けるかを選べます（A）。資産推移は % 表示で時間加重の収益率を出し、日経平均・TOPIX 連動 ETF（1306）と比べられます。← → で日を動かすと、評価額・資産構成・損益寄与がその日の値になります。項目を選ぶと、同じリンク色のチャートと銘柄情報に出ます。下の段は配当の分析（年間配当と前年比、増配・買い増し・新規・売却に分けた増減要因、分類ごとのドーナツと表）。資産の推移は日々の更新のたびに自動で記録します（[設計](docs/design-portfolio.md)）。
-- **配当シミュレータ**: スクリーナーの結果・保存したスクリーニング条件・ウォッチリスト・保有の銘柄を、N 年前（1・3・5・10 年、または日付）に買っていたら今いくらか（受取 ／ 再投資・税・積立・利回りに比例した配分）と、これから N 年の配当の見込み（横ばい・伸びを見込む・直線トレンド試算、減配シナリオ、10〜90% の帯）を出します。TOPIX（1306 NEXT FUNDS TOPIX 連動型上場投信）と同業種の均等の群と比べ、超過分を規模・業種・銘柄選びに分けます。値はすべて試算で、前提をペインの中に出します。データの更新が終わると、ほかのペインと同じく読み込み中を出さずに結果が差し替わります（[設計](docs/design-simulator.md)）。
+- **配当シミュレータ**: スクリーナーの結果・保存したスクリーニング条件・ウォッチリスト・保有の銘柄を、N 年前（1・3・5・10 年、または日付）に買っていたら今いくらか（受取 ／ 再投資・税・積立・利回りに比例した配分）と、これから N 年の配当の見込み（横ばい・伸びを見込む・直線トレンド試算、減配シナリオ、10〜90% の帯）を出します。手元の日足・月次系列・配当の記録から計算します。TOPIX（1306 NEXT FUNDS TOPIX 連動型上場投信）と同業種の均等の群と比べ、超過分を規模・業種・銘柄選びに分けます。値はすべて試算で、前提をペインの中に出します。データの更新が終わると、ほかのペインと同じく読み込み中を出さずに結果が差し替わります（[設計](docs/design-simulator.md)）。
 - **パフォーマンス比較**: 基準日を 100 として、5 銘柄までのその後の値動きを 1 枚のチャートに重ねます（テレビや動画でよく見る「○月○日 = 100」の比較チャート）。基準日は日付を押すかキーで開くカレンダーから選び、年初・1・3・5・10・20 年前の札もあります。銘柄は「＋」・Insert・数字キーの銘柄ジャンプで足し、行の「−」・Delete で外します。ウォッチリスト・保有・スクリーニング条件の結果からまとめて取り込めます。TOPIX（1306）・東証REIT指数（1343）の連動 ETF と比べられ、100 ⇔ 騰落率 %・価格のみ ⇔ 配当込み・通常 ⇔ 対数を切り替えます。線の右端に名前と値の札を並べ、十字線の日の値は脇の小箱と一覧に出します。日足の保存期間より前を基準日にすると、その前は月末の終値（月次）で継ぎます（20 年前まで）。線の色は騰落の赤・青を避け、色覚の違いでも見分けやすい 5 色です。マイレイアウトの新しいページ・フリーのウィンドウの初めの形「比較」で、右に日足のチャートを添えて開けます。チャートの画像の保存（設定で ON）にも対応しています（[設計](docs/design-perf.md)）。
 - **アラート**: 銘柄に条件（終値 ≤ 17,500、実績利回り ≥ 5%、終値 ≤ 75 日移動平均、保有の損益率など。最大 3 つの「かつ」）を付けるか、保存したスクリーニング条件に新しく入った銘柄を知らせます。取得のジョブの終わりに判定し、トースト・Windows の通知・トップバーのベルで知らせます。分割があってもしきい値を換算して比べ、チャートにしきい値の点線を引きます。Ctrl+Alt+A で作り、Ctrl+Alt+L の一覧と履歴から銘柄を開けます。外部への送信（メールなど）はしません。
 - **マーケット**: 日本・米国・アジアの指数、為替・米国債10年利回り、原油・金・銀、ビットコインの値を 1 枚の表で見るマーケット一覧（区分のタブで絞り込み、ウォッチリストと同じ列とキー）、騰落（プライム・J-REIT の値上がり・値下がり・新高値・新安値・売買代金と、33 業種の騰落率。Enter で業種の中の銘柄へ。[設計](docs/design-breadth.md)）、33 業種のヒートマップ（面積 = 時価総額、色 = 騰落率）と、V で切り替える株価ボード（東証のマーケットセンターのように、時価総額の上位・ウォッチリスト・保有・スクリーニング条件の銘柄の終値と前日比をカードで並べ、日経平均・TOPIX・東証REIT のカードと上昇・下落の数の帯を添える。値は日足の終値。[設計](docs/design-quote-board.md)）、ランキング、指数・指数連動 ETF の小さなチャート（[設計](docs/design-market-board.md)）。
@@ -191,6 +202,8 @@ ELECXSTOCK_PROVIDER=stub ELECXSTOCK_NOW=2026-11-13T18:00:00+09:00 ELECXSTOCK_USE
 ## English
 
 A desktop app that keeps Japanese equity and J-REIT data on your PC so you can **compare many charts side by side and screen by conditions**.
+Daily bars, monthly series and dividend history for TSE Prime and J-REITs are **kept in a local database, and screening and indicators are computed on your PC**.
+Once imported, you can change conditions as often as you like and get results right away without network requests, then carry the matches on to chart comparison, symbol info and dividend simulations on the same data.
 It is built for long-term investors: daily, weekly and monthly bars (a monthly series since listing), trailing yield and dividend history.
 Everything can be done with the keyboard alone.
 
@@ -204,14 +217,23 @@ This is a **beta**. Please report bugs and rough edges in [Issues](https://githu
 > - The list of listed issues is imported from the spreadsheet published by Japan Exchange Group (JPX).
 > - This app is not investment advice.
 
+### How it differs
+
+- **Web and broker screeners** mostly filter today's table of figures on a server, with a request for every change; what can be recomputed from past series is limited to what the service provides.
+- **Charting services** are strong at drawing and indicators, but are not built for running your own yield and total-return estimates on Japanese dividend history again and again on your PC.
+- **Dividend trackers** focus on managing what you already hold, not on searching across the market or comparing many charts.
+- **elecxstock** keeps the time series of the whole universe locally and links search → comparison → simulation on one database.
+
+**Out of scope and limits**: daily bars are the focus; intraday real-time prices, order books and trading are not covered. The first import takes tens of minutes, and catching up after a long time without starting the app can take a while. P/E, P/B, ROE and similar figures come from Yahoo Finance; for in-depth financial analysis, use it alongside analysis sites or EDINET-based tools.
+
 ### Features
 
 - **Universe**: TSE Prime and J-REITs are fetched automatically. Standard, Growth, ETFs and others can be added from the command bar or a watchlist, and symbols in your watchlists and holdings are fetched too. Five-character codes for preferred and class shares (e.g. 94345) are supported.
 - **Charts**: daily / weekly / monthly, candles / bars / line, configurable moving averages, volume, Bollinger Bands, Ichimoku, RSI, MACD, stochastics, dividend and split markers, comparison (%), log scale, split-adjusted / unadjusted / total-return prices, keyboard crosshair, and a multi-timeframe pane.
   **Trend lines**: press Alt+T (or Indicators → Trend lines in the chart header), move with ← →, jump to the previous or next swing high or low with Ctrl+← →, snap to highs and lows, and press Enter to set each point; two clicks work too. Select with G, move with Space and the arrow keys, extend with E (the line's price today appears on the right scale), delete with Delete and undo with Ctrl+Z. Lines are saved per symbol and stay at the same date and price on weekly and monthly charts and across splits. Free windows can draw too, and grid tiles show the lines.
   Turn on "Save chart images" in Settings > Charts to save a chart as a PNG (off by default; the data comes from Yahoo Finance, so keep saved images for personal use and do not publish or redistribute them).
-- **Chart grid**: 2×2 up to 6×5 tiles; switch timeframe, period, sort order and compare mode (rebased to 100%) for all tiles at once. Mark candidates and send them to a watchlist. Replace a tile's symbol with C.
-- **Screener**: 58 fields, including yield, payout, dividend streaks and growth, record month, P/E, P/B, ROE, EPS, BPS, market cap, turnover, minimum investment, returns (year-to-date and total return too), MA deviation, position against the 52-week and year-to-date high and low, days since a golden cross, RSI, volatility, beta, max drawdown, days to earnings and to the last cum-rights day, portfolio weight, yield on cost, market, TSE 33 sectors, type, favorites and watchlists. Pick fields from a dialog grouped by category, with type-to-filter and ⓘ descriptions. And/or groups, relative conditions, top N, column chooser, CSV. Save screens by name. Eight default screens are included: high yield, value (P/B < 1, ROE ≥ 8%), J-REIT high yield, near the 52-week high, dividend growers, high yield under ¥100k, low volatility, and pullback in an uptrend. All fields are listed in [docs/screener-fields.md](docs/screener-fields.md).
+- **Chart grid**: 2×2 up to 6×5 tiles of screener results, a watchlist and more, drawn from the local data without re-fetching; switch timeframe, period, sort order and compare mode (rebased to 100%) for all tiles at once. Mark candidates and send them to a watchlist. Replace a tile's symbol with C.
+- **Screener**: 58 fields, including yield, payout, dividend streaks and growth, record month, P/E, P/B, ROE, EPS, BPS, market cap, turnover, minimum investment, returns (year-to-date and total return too), MA deviation, position against the 52-week and year-to-date high and low, days since a golden cross, RSI, volatility, beta, max drawdown, days to earnings and to the last cum-rights day, portfolio weight, yield on cost, market, TSE 33 sectors, type, favorites and watchlists. Pick fields from a dialog grouped by category, with type-to-filter and ⓘ descriptions. And/or groups, relative conditions, top N, column chooser, CSV. Save screens by name. Screens are evaluated on the local data, series conditions such as close vs a moving average included, so changing them makes no network requests. Eight default screens are included: high yield, value (P/B < 1, ROE ≥ 8%), J-REIT high yield, near the 52-week high, dividend growers, high yield under ¥100k, low volatility, and pullback in an uptrend. All fields are listed in [docs/screener-fields.md](docs/screener-fields.md).
   Minimum investment is the close × 100 shares for stocks and × 1 unit for J-REITs. It is not shown for ETFs, ETNs and others, whose trading unit is unknown.
 - **Symbol info**: price and its place in the 52-week range, deviation from moving averages, key figures (yield, P/E, P/B, market cap, turnover, minimum investment), days to earnings and to the last cum-rights day, dividend history (per year or per payout, 5-year growth, growth and no-cut streaks), the 5-year yield range, returns (price and total return) and max drawdown, and your P/L and yield on cost if you hold it.
 - **Watchlists**: multiple lists, favorites (★), sorting, duplicate, multi-select, columns, CSV export and code-list import, JSON export/import.
