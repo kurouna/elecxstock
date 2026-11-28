@@ -4,6 +4,30 @@
 
 ---
 
+## SQLite のインデックスは足さない（2026-11-28）
+
+日足・月足・`actions` は主キー `(id, 日付…)` の WITHOUT ROWID、スクリーナーは `metrics` を全件読んでメモリで判定する。銘柄ごとの読み書きは主キーで足りる。
+主キーが向かないのは日付だけで絞る `DELETE FROM daily_bars WHERE d < ?` と同じ条件の `COUNT` で、使うのは保存期間を短くしたとき（`jobs.applyRetention`・`jobs.planRetention`。FR-D6）だけ。
+月足を日付で消す処理は無い（銘柄ごとだけ）。統計は終了のたびの `PRAGMA optimize` が作るので、`ANALYZE` も足さない。
+
+実測（手元の DB を `VACUUM INTO` で写したもの。日足 388 万行・1,633 銘柄・2016-10 から。消したあとは ROLLBACK）:
+
+| 処理                                             | 時間                            |
+| ------------------------------------------------ | ------------------------------- |
+| `COUNT(*) … WHERE d < ?`（306〜346 万行）        | 0.16〜0.18 秒                   |
+| `DELETE … WHERE d < ?`（今のまま）               | 0.55〜0.89 秒                   |
+| 銘柄ごとに `DELETE … WHERE id = ? AND d < ?`     | 0.56 秒（変わらない）           |
+| `CREATE INDEX daily_bars_d ON daily_bars(d)`     | 1.5 秒                          |
+| そのインデックスがあるときの `DELETE … d < ?`    | 22 秒（インデックスも消すため） |
+| 削除のあとの `wal_checkpoint`・`VACUUM`          | 1.4 秒                          |
+
+- 実行計画は表の全件の走査ではなく `SEARCH daily_bars USING PRIMARY KEY (ANY(id) AND d<?)`（`sqlite_stat1` による skip-scan）。
+- 削除のあとに VACUUM と指標の作り直し（`recomputeAll`）が続くので、削除だけを速くしても待ちはほとんど変わらない。
+- `metrics` の列へのインデックス（全件をメモリで判定するので使われない）・`daily_bars(id, d)`（主キーと同じ）・`cache_size`・`mmap_size` の変更も入れない。
+- 日付だけで消すのが遅くなったら（行が大きく増えたとき）、インデックスではなく、統計が無いときの実行計画と銘柄ごとの削除から見直す。
+
+---
+
 ## Yahoo への間隔を 0.4 秒に縮める（2026-11-23）
 
 数日起動しなかったあとの日々の更新が、全銘柄の日足を 1 銘柄ずつ取り直して約 40 分かかっていた（[design-daily-update.md](design-daily-update.md)）。
